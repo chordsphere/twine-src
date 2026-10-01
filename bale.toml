@@ -1,0 +1,10 @@
+# twine-src — bale configuration (landed by session 2026-10-01-twine-seed-001).
+# Two keys on purpose (twine-seed.md T3, T8): the blind-checkpoint pin, and
+# sandboxed validation. `network` is left unset — absent means off, the floor
+# twine's own tests live under. Packer identity is the global user/bale.toml's.
+
+[validation]
+base = "claude/checkpoints/{sid}.sh"
+
+[sandbox]
+enabled = true
