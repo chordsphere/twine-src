@@ -1,0 +1,118 @@
+# share/bale-consumption.toml — twine's consumption manifest (twine-seed.md
+# D3, D4; T10). Beside the pin, exactly which bale surfaces twine reads,
+# so a pin bump is a mechanical diff of this file against bale's
+# changelog since the pinned version. Every key twine does not list here
+# is a key bale can change for free.
+#
+# Landed by session 2026-10-01-twine-core-002 against bale 0.4.45 as
+# installed on the architect's machine (probe twine-core-fixtures,
+# 2026-10-01). twine.bale.load_manifest parses it; tests/ walk it.
+#
+# Entry shape, [[surface]]:
+#   kind             "file" (a path under the install root twine reads)
+#                    or "verb" (a bale verb twine runs non-interactively)
+#   path             kind = file: the path under <root>
+#   verb, flags      kind = verb: the verb and the flags twine passes
+#                    (flag names only; argv carries the exact invocation)
+#   argv             kind = verb: the exact argument vector after `bale`
+#   cwd              kind = verb: where it runs ("repo" = the packing repo)
+#   stdout           what twine expects on stdout
+#   keys             the JSON keys twine reads from that output — [] where
+#                    twine reads none yet
+#   key_owner        where bale documents that surface's key contract
+#   read_by          the twine verb(s) that read it
+#   fixture          the recorded output under fixtures/, when one exists
+#   written_against  the bale version the entry was written against
+#
+# [[wanted]] names a surface a later session needs and the pinned bale
+# does not have — so the gap is data, not a sentence in a brief.
+
+[bale]
+pin = "0.4.45"
+
+# sha256 of each schema file as installed (schemas/*.json, bale 0.4.45).
+[bale.schemas]
+"bundle-manifest.schema.json" = "3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23"
+"changelog-record.schema.json" = "7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c"
+"diagnostics.schema.json" = "bfeef3cc0a6b91b47b1c1c9084ca47349b23a6661b10c848da3b4ef28b413521"
+"escalation-record.schema.json" = "16729aae82e20425f91b9fb343de6a74d00fa417ce3cd718767413deee550c41"
+"exchange-record.schema.json" = "c9c291899103c4a73768ef930697722b89c5c3ef8f5b388c78c36741316cddc8"
+"request-manifest.schema.json" = "70a0c2bd3b6b0d4cf17bc97010c2b7d58931527b7b3100aa984ca3576c075e3d"
+"response-manifest.schema.json" = "02d2b6413d078e031641c99e09a9fea909555bdfcb9b2a8a110dbdce63f5817e"
+"telemetry-record.schema.json" = "b79d7bf75c10f5799484f906954461e7379ef6d4a870bb7df8c08ce050b38825"
+
+[[surface]]
+kind = "file"
+path = "bin/VERSION"
+stdout = "n/a"
+keys = []
+read_by = ["bale check", "status"]
+written_against = "0.4.45"
+note = "one line, the version string, trailing newline; twine strips and compares it to [bale] pin (D2)"
+
+[[surface]]
+kind = "verb"
+verb = "status"
+flags = ["--json"]
+argv = ["status", "--json"]
+cwd = "repo"
+stdout = "exactly one JSON object line; '[bale] ' lines go to stderr; exit 0 on a successful read"
+keys = []
+key_owner = "format_status_json docstring in bin/bale_report.py (outcome, version, sid, repo, session, staging, outbox, applied, sessions, scopes, integration_lock, config)"
+read_by = []
+fixture = "fixtures/bale-0.4.45/twine-src/status_--json.json"
+written_against = "0.4.45"
+note = "recorded for Arc 1 session 3, which reads it; twine reads no key from it yet"
+
+[[surface]]
+kind = "verb"
+verb = "stats"
+flags = ["--json"]
+argv = ["stats", "--json"]
+cwd = "repo"
+stdout = "exactly one JSON object line; '[bale] ' lines go to stderr; exit 0 on a successful read"
+keys = []
+key_owner = "format_stats_json docstring in bin/bale_report.py (outcome, epoch, coverage, filters, corpus, classes, closure_mix, churn, cross_checks, packers, doc_epochs, members)"
+read_by = []
+fixture = "fixtures/bale-0.4.45/twine-src/stats_--json.json"
+written_against = "0.4.45"
+note = "recorded for the cost spine and the scheduler; twine reads no key from it yet"
+
+[[surface]]
+kind = "verb"
+verb = "stats"
+flags = ["--sid", "--json"]
+argv = ["stats", "--sid", "2026-10-01-twine-seed-001", "--json"]
+cwd = "repo"
+stdout = "exactly one JSON object line (the session dossier); exit 0, found false on an unknown sid"
+keys = []
+key_owner = "format_session_dossier_json docstring in bin/bale_report.py (outcome, session_id, found, record, attempts, lineage)"
+read_by = []
+fixture = "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json"
+written_against = "0.4.45"
+note = "recorded for Arc 1 session 3's in-flight record; twine reads no key from it yet"
+
+[[surface]]
+kind = "verb"
+verb = "--version"
+flags = []
+argv = ["--version"]
+cwd = "anywhere"
+stdout = "one line, 'bale <version>'"
+keys = []
+read_by = []
+fixture = "fixtures/bale-0.4.45/anywhere/--version.txt"
+written_against = "0.4.45"
+note = "not used by twine bale check, which reads bin/VERSION instead; recorded so a reviewer can see the two agree"
+
+[[wanted]]
+verb = "open"
+flags = ["--json"]
+needed_by = "Arc 1 session 3 (offline courier — emit)"
+status = "absent in 0.4.45: `bale open [-h] [--verbose] [--no-sandbox] [--check | --dry-run] bundle`; a probable bale-src slip, carried by the sitting"
+
+[[wanted]]
+verb = "relay"
+flags = ["--json"]
+needed_by = "Arc 1 session 2 (offline courier — take)"
+status = "absent in 0.4.45: `bale relay [-h] sid [file]`; stdout is the counterpart's paste block, [bale] lines on stderr"

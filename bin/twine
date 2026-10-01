@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""twine — the entrypoint.
+
+Thin on purpose (CODE.md §5.2): locate the package from this file's own
+path, never from the working directory or PYTHONPATH, and hand over to
+twine.cli.main. This is what lets `python3 -I -S bin/twine …` work —
+isolated mode, no site-packages — which is also how a reviewer checks
+the stdlib-only claim (twine-seed.md T9): anything not in the standard
+library fails to import under that invocation.
+
+Bytecode is suppressed before the package imports so an `-I` run (which
+ignores PYTHONDONTWRITEBYTECODE) never leaves __pycache__/ beside the
+sources it imports; the tree carries none and should stay that way.
+"""
+
+import os
+import sys
+
+MIN_PYTHON = (3, 11)   # tomllib (the consumption manifest's parser) is 3.11+
+
+if sys.version_info < MIN_PYTHON:
+    sys.stderr.write(
+        "twine: python %d.%d or newer is required (found %d.%d); "
+        "tomllib is the floor\n"
+        % (MIN_PYTHON + sys.version_info[:2]))
+    sys.exit(2)
+
+sys.dont_write_bytecode = True
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from twine.cli import main  # noqa: E402  (path set up above)
+
+if __name__ == "__main__":
+    sys.exit(main())
