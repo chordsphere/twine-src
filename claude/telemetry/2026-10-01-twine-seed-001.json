@@ -1,0 +1,286 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-01-twine-seed-001",
+  "created_at": "2026-10-01T22:01:45+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-01T22:01:45+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "."
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-01-twine-seed-001.log",
+      "bundle": {
+        "stem": "2026-10-01-twine-seed",
+        "brief_sha256": "948b14b1311f9c6c8336f043d796b657c9f81ab2790187e12eebac2a4c07f68a",
+        "checkpoint_sha256": null,
+        "manifest_sha256": "bcce6a7655617cea7c9b30208d4aa47564c3f9cb32a06f4864279cc6155073fb"
+      },
+      "provenance": {
+        "work_class": "doc",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-01T22:01:45+00:00"
+      }
+    },
+    {
+      "at": "2026-10-01T22:45:44+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-01-twine-seed-001.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "D1-D24 entries and pre-existing annotations byte-identical to harness-seed.md": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "exactly one 2026-10-01-twine-seed-001 status annotation per D-entry, opening with a status word": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "verbatim blocks from the brief present byte-exact (T4, T6, six runtime concerns, Arc 1 table, T7 sentence, N4 sentence)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "the four architect messages present verbatim": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "the seed's header blockquote carries the pinned provenance and the standing rule": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "SEED.md absent": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "bale.toml parses and carries exactly the two keys": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "README.md names the seed, the three faces, that no code exists yet, and points at nisaba-seed.md 1": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "no TODO in landed files": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "INDEX coherence (crafter --doc-assertions --index claude/INDEX.md)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "prune declarations (crafter --doc-assertions --prune-reasons)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "D1-D24 entries and pre-existing annotations byte-identical to harness-seed.md": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "exactly one 2026-10-01-twine-seed-001 status annotation per D-entry, opening with a status word": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "verbatim blocks from the brief present byte-exact (T4, T6, six runtime concerns, Arc 1 table, T7 sentence, N4 sentence)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "the four architect messages present verbatim": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "the seed's header blockquote carries the pinned provenance and the standing rule": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "SEED.md absent": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "bale.toml parses and carries exactly the two keys": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "README.md names the seed, the three faces, that no code exists yet, and points at nisaba-seed.md 1": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "no TODO in landed files": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "INDEX coherence (crafter --doc-assertions --index claude/INDEX.md)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "prune declarations (crafter --doc-assertions --prune-reasons)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "utf-8 decode of every landed file",
+          "D1-D24 entries and pre-existing annotations byte-identical to harness-seed.md",
+          "exactly one 2026-10-01-twine-seed-001 status annotation per D-entry, opening with a status word",
+          "verbatim blocks from the brief present byte-exact (T4, T6, six runtime concerns, Arc 1 table, T7 sentence, N4 sentence)",
+          "the four architect messages present verbatim",
+          "the seed's header blockquote carries the pinned provenance and the standing rule",
+          "SEED.md absent",
+          "bale.toml parses and carries exactly the two keys",
+          "README.md names the seed, the three faces, that no code exists yet, and points at nisaba-seed.md 1",
+          "no TODO in landed files",
+          "INDEX coherence (crafter --doc-assertions --index claude/INDEX.md)",
+          "prune declarations (crafter --doc-assertions --prune-reasons)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "."
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "bale.toml",
+        "claude/INDEX.md",
+        "twine-seed.md",
+        "SEED.md"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.45",
+            "contract_docs": {
+              "AGENT.md": "dd22b82cf4b3dc146fa813a862ab03c32d0b94faf8bab5e51218e6cdd5578fed",
+              "TARBALL.md": "59ece7fde0adb7dd5c5f5d902d5cf1078c4562cebb82925aa529df19f22d1c8c",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"
+            },
+            "packer": "chordsphere",
+            "work_class": "doc",
+            "checkpoint": null,
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-01T22:01:45+00:00",
+            "base_files": {
+              ".gitignore": "3097e030200f903e6fda475e2e8f21aafcbac79690d8d11527d229a6963d45bb",
+              "SEED.md": "c4df2badf1b5a14d9e5e3c31e198676debe73e2b24fbb4db8333caf581483890"
+            },
+            "model_identity": "anthropic:claude-fable-5.1"
+          },
+          "linkage": {
+            "kind": "probe",
+            "point": "pre-read",
+            "depends_on": null
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "harness-seed.md and nisaba-seed.md read from the ~/tedder-src and ~/nisaba-src working trees (probe twine-seed-sources) stand in for the two context tarballs the brief named; both decoded copies hash to the brief's values, so the bytes are the same",
+            "the seed's section order is mine (the brief fixed outcomes, not order); the carried D-entries sit in section 3 after the rulings, not before",
+            "the INDEX lists the two root-level docs with ../ paths and groups README.md under 'Charter & product' for want of an inventory row"
+          ],
+          "judgment_calls": [
+            "D-entry statuses: 17 carried (D1-D4, D6, D7, D10-D13, D15-D17, D20, D23, D24), 4 answered (D5, D14, D18, D21), 2 superseded (D8, D19), 1 retired (D9), 1 re-read (D22) \u2014 each reason one sentence beneath its entry",
+            "the T4 and T6 blocks and the four messages are carried as blockquotes byte-identical to the brief; the six runtime concerns and the Arc 1 table are carried with the brief's blockquote framing stripped (reformatted, not reworded), and validation.sh asserts each form byte-exact",
+            "the sitting's 'see Q below' in the Arc 1 table's row 0 is resolved in the corrections list beneath the table (T3 answers it) rather than edited into the carried table",
+            "SEED.md is a delete, not an archive: its one line is recorded in the seed's section 8",
+            "bale.toml carries a four-line comment above the two keys; tomllib sees exactly the two keys and validation.sh asserts that"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [
+            "harness-seed.md (the brief's context-tedder-src.tar.gz was not in the request; fetched by probe)",
+            "nisaba-seed.md (the brief's context-nisaba-src.tar.gz was not in the request; fetched by probe)"
+          ],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md (META through 11.2)",
+            "README.md (the brief, in full)",
+            "SEED.md",
+            ".gitignore",
+            "claude/telemetry/2026-09-29-begin-harness-001.json",
+            "TARBALL.md sections 1, 2, 4, 5, 7, 10.1, 10.2",
+            "DOCS.md (in full)",
+            "tools/craft_response.py (in full)",
+            "tools/response_lint.py (header, embedded schema, checks inventory)",
+            "harness-seed.md (probe-fetched, in full)",
+            "nisaba-seed.md (probe-fetched, in full)",
+            "tedder-src claude/responses/2026-09-28-seed-reconcile-001/notes.md (probe-fetched)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-01-twine-seed-001.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": false
+      }
+    }
+  ],
+  "updated_at": "2026-10-01T22:45:44+00:00",
+  "outcome": "applied"
+}
