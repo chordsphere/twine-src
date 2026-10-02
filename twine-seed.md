@@ -207,6 +207,12 @@ this way (`claude/fixtures/bale-0.4.45/*.json` are recorded `--json`
 outputs; probe-verified 2026-10-01). Twine mirrors the pattern, not
 the code.
 
+[2026-10-01-twine-seed-effort-003: the fixtures layout landed in
+session 1 (`2026-10-01-twine-core-002`) as the ruling the sitting
+accepted from session 0's Proposals, and the fake-transport seam was
+deferred to Arc 2 and to session 5, where the first API-shaped call
+exists to fake.]
+
 **T9 — Stack lean.** Proposed: Python 3.10+, stdlib for the core
 (courier, registry, transition table, cost spine); the `anthropic`
 SDK as an optional extra used only inside the Anthropic adapter,
@@ -214,6 +220,11 @@ installed in a project venv (the machine's `python3` is the Ubuntu
 system 3.12.3 with pip 24 — a system install is not the path). D24
 held the same lean loosely; it stays mechanism territory, and session
 1 may deviate with a flag in its `notes.md`.
+
+[2026-10-01-twine-seed-effort-003: the Python floor is **3.11**, not
+3.10 — the consumption manifest's parser is `tomllib` (3.11+), and
+`bin/twine` refuses an older interpreter with one stderr line and
+exit 2; ratified at the sitting from session 1's `notes.md`.]
 
 **T10 — twine imports nothing from bale, office or tedder.** Carried
 from D1 and from the Nisaba seed's layer cake, not new; stated once
@@ -225,6 +236,68 @@ seed's) and reads office's *declarations* (`share/verbs.toml`'s
 `lands` / `attended` / `trigger` columns, the drafting-table pages) —
 never `lib/office_bale.py`, never bale's `bin/`, never anything under
 `~/tedder-src`.
+
+**T11 — Effort is envelope × policy × mechanisms; twine owns the
+envelope and the mechanisms, the office holds the policy.** Directed
+(message 5, section 8; ratified as assumed at light block 3 [1],
+message 6). The architect's words, verbatim: "In my original draft
+for the harness, I said that an "effort dial" would be really useful.
+Not like claude's effort toggle, but what it would do is things like
+run workers twice and compare, spawn reflection sessions to refine
+context, ask old workers questions after the fact, sessions spawned
+for subtasks like reading or tools to preserve main context etc.
+Things that would just increase time and compute but would produce
+refined answers." The shape the agent supplied and the architect
+ratified, verbatim from the sitting:
+
+> **Envelope** — a budget: how much more than the baseline a session
+> may cost. That's the cost spine's (Arc 1 session 5): every effort
+> spend is a row in the cost stream attributed to the session it
+> served, so you can always answer "what did turning the dial up cost
+> me" from twine's own stream.
+>
+> **Policy** — which mechanisms to spend on, for which work class, at
+> which dial setting. Under N4 twine holds no intent, so the dial's
+> *setting* is a declaration twine reads, not a knob twine owns: a
+> house rule in the office (nisaba Q-6 already puts trust grants
+> there, and effort is the same kind of policy — "code work in
+> project X runs at effort 3"). The trust ledger later moves it per
+> class; at rung 1 you set it.
+>
+> **Mechanisms** — the things that actually spend the budget. Each
+> one is either a session kind (nisaba §5's table, which already
+> demands a declared landing per kind) or a runtime capability (T7).
+> None of them needs a change to bale:
+>
+> | mechanism | what it is | face / arc | the durable artifact it must leave (§9: or it's wasted) |
+> |---|---|---|---|
+> | **run twice and compare** | the same request tarball dispatched to k workers; each candidate response gets `bale apply --dry-run` (the read-only validation half) for a mechanical verdict; a **compare** session reads the k diffs + notes and picks or merges; twine applies the winner. Bale already allows k candidates for one sid — only one ever merges | scheduler, Arc 3; the compare session is nisaba's `check` kind generalised | the verdict as a claims block, plus the losers' dry-run verdicts in twine's stream (calibration data bale never sees) |
+> | **reflection to refine context** | before a build: a read-only session that reads the brief and includes and returns a revised brief and include set — PLANNER.md §2's "worker-authored brief on request", scheduled rather than asked for. After a build: reading notes + telemetry for the next session's brief — which is what office's `cleanup`/`digest` already are | scheduler, Arc 3 (`reflect`, a new kind: lands a brief revision) | the revised brief, versioned (derive-don't-rewrite applies) |
+> | **ask an old worker** | re-warm a finished worker's transcript (D12's append-only prefix makes this cheap), append a question, get an answer with read-only tools at most | runtime, Arc 2 (`twine ask <sid> …`) | the Q/A in twine's log, and in the asker's record (a sitting's notepad) — this is the manual path's "go back to the old chat tab" |
+> | **subtask sessions to preserve context** | a `delegate` tool on the canonical surface: the worker hands a bounded task (read this 12k-line file and answer X; run this tool-heavy exploration) to a child with its own window, gets a digest back; children are runtime-internal, not bale sessions — they land nothing and bill to the parent sid | runtime, Arc 2 (a capability, and the first one that earns T7's "experimental" marker) | the digest in the parent's transcript; nothing else by design — it's context hygiene |
+> | **retry**, **model-v-model** | D16's own: a second attempt, or two models debating a design question in a read-only session | scheduler, Arc 3 | the `corrects:` lineage / the sitting's record |
+>
+> Two consequences worth naming now rather than in Arc 2:
+>
+> 1. **"Ask an old worker" changes TQ-1.** I recommended transcripts
+>    as disposable logs. If re-asking a worker is an effort mechanism,
+>    a transcript is worth keeping durably, append-only, for as long
+>    as the project wants the option. N4 still holds in its own words
+>    — deleting twine's state loses *the ability to re-ask*, not
+>    anything of record, because everything that mattered landed
+>    through bale — but the recommendation flips to "durable, with
+>    retention a house rule."
+> 2. **`delegate` is where your research runtime starts paying.** It's
+>    the one mechanism that lives inside a worker's turn, so it's a
+>    capability with the same contract across adapters: a weak model
+>    that can't do tool calls natively still gets delegation through
+>    the text protocol. It also doesn't bend AGENT.md §11's
+>    single-window premise — the parent still finishes in one window;
+>    children spend their own.
+
+§4.5 is the runtime's pointer to this ruling; the policy's home and
+the dial's scale are TQ-4; and D16 below (section 3) carries this
+placement as its annotation.
 
 ---
 
@@ -491,6 +564,12 @@ claiming it yet; the first place it bites is the scheduler's cap and
 dispatch policy (Arc 3), and the Nisaba seed's Q-6 puts the policy in
 the office's house rules.]
 
+[2026-10-01-twine-seed-effort-003: carried — T11 places it: the
+envelope is the cost spine's (Arc 1 session 5), the policy is an
+office house rule twine reads (TQ-4), and the mechanisms are the
+runtime's (`ask`, `delegate`, Arc 2) and the scheduler's (`compare`,
+`reflect`, retry, model-v-model, Arc 3).]
+
 **D17 — Total transition function.** Every worker outcome in the
 closed, fixture-pinned vocabulary (applied, HOLD, drift-refused,
 rejected, clarification, bailout, crash, silence/timeout,
@@ -712,6 +791,17 @@ procedure, once Arc 2's loop exists. To **nisaba-src**: the dated
 annotation on `nisaba-seed.md` §3.3 recording T4's three faces (T4
 above). Neither is this session's or this repository's to land.
 
+### 4.5 Effort (T11, directed)
+
+The runtime owns two of T11's mechanisms: `ask` re-warms a finished
+worker's transcript, appends a question and answers it with read-only
+tools at most; `delegate` is a capability on the canonical surface —
+the same contract across adapters, native tool use or the text
+protocol — and the first to carry §4.1's experimental marker. Both
+bill to the sid they serve through the cost spine (Arc 1 session 5).
+The dial's setting is read from the office and never held by twine
+(N4). T11's table in section 2 is the catalog.
+
 ---
 
 ## 5. The road
@@ -754,6 +844,41 @@ rather than edited into it:
 Row 0's "see Q below" pointed at the sitting's own question about the
 checkpoint pin; T3 answers it, and nothing below the table remains to
 look for.
+
+[2026-10-01-twine-seed-effort-003: row 1 landed as
+`2026-10-01-twine-core-002` — `bin/twine` over a package `twine/`
+whose command registry is discovered from `twine/commands/` (each
+module's `COMMANDS`); the three verbs `commands`, `status` and `bale
+check`; the `--json` discipline in one dispatcher;
+`share/bale-consumption.toml` with the pin and the eight schema
+hashes; four recorded fixtures under `fixtures/bale-0.4.45/`; and the
+contract page `claude/context/cli-contract.md`. Its layout and the
+decisions it asks the sitting to ratify are in
+`claude/responses/2026-10-01-twine-core-002/notes.md`.]
+
+[2026-10-01-twine-seed-effort-003: rows 2 and 3 serialize, 2 first.
+Session 2 adds the `run` seam to `Context` (subprocess by default, a
+fixture player in tests) and owns the three shared data files —
+`share/bale-consumption.toml`, `fixtures/README.md`,
+`claude/context/cli-contract.md` — which session 3 then extends; the
+code and tests stay one module and one test file each, disjoint by
+construction. Ratified at the sitting from session 1's Proposals.]
+
+[2026-10-01-twine-seed-effort-003: row 3's "in-flight record" is a
+**cache**: derived from `bale status --json` plus twine's own dispatch
+facts (adapter, sandbox home, transcript), re-derivable, so deleting
+it loses nothing bale does not know and N4's test holds; twine's
+durable state is spend and transcripts. Beside it, the fact session
+1's worker found: `bale status --json`'s `sid` names the *earliest*
+open session, not necessarily the one twine is working on. Decided at
+the sitting after session 0's Proposals; not objected to.]
+
+[2026-10-01-twine-seed-effort-003: row 3 needs `bale open --json`,
+which bale 0.4.45 does not have (nor does `relay`); both are
+`[[wanted]]` entries in the consumption manifest, and the sitting
+carries them as a slip for a bale-src session, after which twine bumps
+its pin and re-records fixtures. Session 3 waits on it; session 2
+does not.]
 
 ### 5.2 Arc 2 — the runtime
 
@@ -826,6 +951,13 @@ are twine's own.
   with the office receiving only what bale's response carries; a
   transcript is diagnostic, and N4 says deleting it loses nothing
   that mattered. The architect answers, at the Arc 2 sitting.
+
+  [2026-10-01-twine-seed-effort-003: answered — transcripts are kept
+  **durably, append-only**, as logs and not as records of intent, with
+  retention a house rule of the office; N4 holds because deleting them
+  loses an effort option (T11's "ask an old worker"), never anything
+  of record. Ratified as assumed at light block 3 [2].]
+
 - **TQ-2 — The capability registry's file shape.** Recommend one
   Python module per capability carrying a declared contract object,
   and a `capabilities.toml` that lists them — a declaration, so the
@@ -836,6 +968,14 @@ are twine's own.
   per block, an integrity trailer, in bale's probe-block style; the
   bytes are Arc 2's. The agent authoring the OpenAI-compatible adapter
   session proposes; the architect ratifies.
+- **TQ-4 — The effort policy's home and the dial's scale.** Recommend
+  a house rule in the office's profile, per project and work class: an
+  integer dial `0`–`3` where each step names the mechanism set it
+  enables (0: none; 1: retry; 2: plus compare and reflect; 3: plus ask
+  and delegate by default); twine reads it and never writes it, and
+  the trust ledger (`PLANNER.md` §18) later moves it per class. Arc 3's
+  first scheduler session proposes the exact mapping; the architect
+  ratifies.
 
 ---
 
@@ -921,6 +1061,16 @@ runtime, scheduler; [3] the tool-calling design):
 
 > as assumed. i like the runtime face addition because tool calls aren't the only thing that an open weight api model would be missing, and I want the ability to add or customize new runtime operations. Honestly, I'm interested in developing my own runtime anyway for research reasons, and would like this to be the place I do that. So when we're developing the runtime phase, let's keep that in mind that I'd like the ability to manage and easily edit the different run time capabilities
 
+Message 5 (asked while session 1 ran):
+
+> while that's running, I want to ask about another feature of twine that I wanted but don't think we accounted for. In my original draft for the harness, I said that an "effort dial" would be really useful. Not like claude's effort toggle, but what it would do is things like run workers twice and compare, spawn reflection sessions to refine context, ask old workers questions after the fact, sessions spawned for subtasks like reading or tools to preserve main context etc. Things that would just increase time and compute but would produce refined answers.
+
+Message 6 (with session 1's ratification relay attached; answering
+light block 3 — [1] effort as T11; [2] TQ-1 flips to durable
+transcripts; [3] author this session now):
+
+> applied, and as assumed
+
 ### How the sitting ended
 
 Twine has three faces and one core; the arcs run courier, runtime,
@@ -932,3 +1082,9 @@ twine-src is founded fresh with this seed derived from
 `harness-seed.md`, and tedder-src stands as archive. Probes emitted:
 one, answered. Light blocks emitted: two, both answered "as assumed".
 Sessions authored at the sitting: this one, session 0.
+
+[2026-10-01-twine-seed-effort-003: the sitting continued past session
+0 — session 1 (`2026-10-01-twine-core-002`) applied with checkpoint
+PASS and worker PASS; light block 3 was emitted and answered "as
+assumed"; sessions authored so far: 0, 1, and this one; probes
+emitted: two, both answered.]
