@@ -8,6 +8,7 @@ import unittest
 
 from twine import CONSUMPTION_MANIFEST, REPO_ROOT, shapes
 from twine.bale import ManifestError, load_manifest
+from twine.registry import load_registry
 
 from tests.helpers import (PIN, TempRoots, carried_relpath, emission_relpath,
                            fixture_relpath)
@@ -86,9 +87,23 @@ class SurfacesAreWalkable(unittest.TestCase):
     def test_one_format_entry_per_kind_take_parses(self):
         formats = [s["format"] for s in self.manifest.surfaces if s["kind"] == "format"]
         self.assertEqual(sorted(formats), sorted(shapes.KINDS))
+        # take reads every format; carry probe (session 2b-i) also reads
+        # the probe it runs and the probe-output it verifies.
+        carried = {shapes.PROBE, shapes.PROBE_OUTPUT}
         for s in self.manifest.surfaces:
             if s["kind"] == "format":
-                self.assertEqual(s["read_by"], ["take"])
+                expected = ["carry probe", "take"] if s["format"] in carried else ["take"]
+                self.assertEqual(s["read_by"], expected, s["format"])
+
+    def test_every_read_by_names_a_registered_verb(self):
+        verbs = set(load_registry())
+        for s in self.manifest.surfaces:
+            for name in s["read_by"]:
+                self.assertIn(name, verbs, s.get("verb") or s.get("path") or s.get("format"))
+
+    def test_relay_json_is_wanted_by_session_2b_ii(self):
+        wanted = {w["verb"]: w for w in self.manifest.data.get("wanted", [])}
+        self.assertIn("2b-ii", wanted["relay"]["needed_by"])
 
     def test_every_format_fixture_exists_follows_naming_and_parses_as_its_kind(self):
         """Each fixture parses, with take's parser, as one intact block of

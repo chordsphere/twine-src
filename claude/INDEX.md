@@ -38,9 +38,12 @@ project's inventory.
   the entrypoint, the registry and its discovery, the `--json`
   discipline and exit codes, `status`, `bale check` and `take`'s keys,
   the five block kinds and the no-nest rule, the relay routing rule
-  (a `to: planner` block never reaches a worker), the manifest and
-  fixture shapes, how the tests run. Default inclusion for any session
-  that adds a verb or routes a courier's block.
+  (a `to: planner` block never reaches a worker), `carry probe` (its
+  refusals, `--run`, the output cap, `confined: false`, its keys) and
+  the run seam (`Context.run`, the signature later carry verbs build
+  on), the manifest and fixture shapes, how the tests run. Default
+  inclusion for any session that adds a verb, runs a subprocess, or
+  routes a courier's block.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter

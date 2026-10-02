@@ -39,7 +39,7 @@ class RegistryParity(unittest.TestCase):
 
     def test_this_sessions_verbs_are_registered(self):
         self.assertEqual(set(load_registry()),
-                         {"commands", "status", "bale check", "take"})
+                         {"commands", "status", "bale check", "take", "carry probe"})
 
     def test_verb_names_are_space_joined_paths(self):
         for name, cmd in load_registry().items():
@@ -54,6 +54,13 @@ class RegistryDiscovery(unittest.TestCase):
 
     def test_discovers_take_module(self):
         self.assertIn("twine.commands.take", discover_modules())
+
+    def test_discovers_carry_module_as_a_group(self):
+        """`carry` is a verb family: its verbs share the group prefix, and
+        the parser renders `carry` as a group with a `probe` leaf."""
+        self.assertIn("twine.commands.carry", discover_modules())
+        carry = [n for n in load_registry() if n.split(" ")[0] == "carry"]
+        self.assertEqual(carry, ["carry probe"])
 
     def test_registry_is_sorted_by_name(self):
         names = list(load_registry())

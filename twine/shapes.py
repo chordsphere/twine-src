@@ -4,7 +4,9 @@ verify its integrity, and report — executing nothing (twine-seed.md
 
 Pure: text in, `Report` out. Nothing here runs, writes, imports bale,
 or reaches a network; `twine take` (twine/commands/take.py) is the verb
-over it, and session 2b's router consumes the same Report.
+over it, and `twine carry probe` (twine/commands/carry.py, session 2b-i)
+reads both the pasted turn and the probe's stdout through the same
+Report — one parser for every courier verb.
 
 The five kinds, each a *span* between whole-line sentinels:
 
@@ -33,10 +35,10 @@ inside it are found (bale's own parser ignores "a chat's fence lines").
 
 Sections:
   1. Sentinels and constants       (~line 55)
-  2. The report model              (~line 105)
-  3. Input normalization           (~line 170)
-  4. The scanner                   (~line 210)
-  5. Per-kind parsers              (~line 340)
+  2. The report model              (~line 115)
+  3. Input normalization           (~line 180)
+  4. The scanner                   (~line 220)
+  5. Per-kind parsers              (~line 355)
 """
 
 from __future__ import annotations
@@ -92,6 +94,14 @@ FENCE_CLOSE = re.compile(r" {0,3}(`{3,})\s*")
 # The crafter's probe header line; "first lines" is this many lines in.
 PROBE_HEADER = re.compile(r"#\s*PROBE\s+(\S+?):(?:\s.*)?")
 PROBE_HEADER_WINDOW = 5
+# The purpose header's read-only declaration (TARBALL.md §4.2: the header
+# "confirming the script is read-only"; the crafter's third header line is
+# `# Read-only: writes nothing anywhere; stdout is the only output.`). A
+# declaration with nothing after the colon declares nothing.
+PROBE_READ_ONLY = re.compile(r"#\s*Read-only:\s*\S.*")
+# The crafter's unfilled-placeholder sentinel: an unfilled scaffold carries
+# it on four lines ("unfilled probe placeholder — not ready to paste").
+UNFILLED_SENTINEL = "TODO(worker)"
 
 # TARBALL.md §5.10's four labels, in order, onto the question-row fields
 # of a clarification manifest (the same fields --emit-block carries).
@@ -272,6 +282,14 @@ def scan(lines: list[str]) -> list[Block]:
     return blocks
 
 
+def block_text(text: str, block: Block) -> str:
+    """The block's own lines — start_line through end_line of the
+    normalized `text` it was found in — LF-joined with one trailing LF:
+    exactly the bytes a courier carries for it, and nothing around it."""
+    lines = split_lines(text)
+    return "\n".join(lines[block.start_line - 1:block.end_line]) + "\n"
+
+
 def _closes_fence(line: str, ticks: int) -> bool:
     m = FENCE_CLOSE.fullmatch(line)
     return m is not None and len(m.group(1)) >= ticks
@@ -353,6 +371,28 @@ def parse_probe(lines: list[str], i: int, slug: str, ticks: int,
     block.fields["script"] = "\n".join(body) + ("\n" if body else "")
     block.integrity["ok"] = True
     return block, end + 1
+
+
+def probe_header(script: str) -> list[str]:
+    """A probe script's purpose header: its leading run of `#` lines
+    (the shebang included), after any leading blank lines — where the
+    crafter puts `# PROBE`, `# Why` and `# Read-only`."""
+    header: list[str] = []
+    for line in split_lines(script):
+        if not header and not line.strip():
+            continue
+        if not line.lstrip().startswith("#"):
+            break
+        header.append(line)
+    return header
+
+
+def probe_read_only_line(header: list[str]) -> str | None:
+    """The header's `# Read-only: …` declaration, or None."""
+    for line in header:
+        if PROBE_READ_ONLY.fullmatch(line.strip()):
+            return line
+    return None
 
 
 def parse_probe_output(lines: list[str], i: int, slug: str) -> tuple[Block, int]:

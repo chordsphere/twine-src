@@ -1,7 +1,14 @@
 """Shared test helpers: run the real entrypoint as a subprocess the way
 the brief specifies (`python3 -I -S bin/twine …`, plus -B so no
 bytecode lands), build temp bale roots, and run the CLI in-process with
-injected streams and environment."""
+injected streams and environment.
+
+Since session 2b-i: probes for `carry probe` derived from the crafter's
+recorded scaffold (filled_probe — the placeholders filled mechanically,
+never a script typed from scratch), and two doubles for the run seam
+(Context.run): RecordingRunner, which records calls and answers a canned
+result, and FixturePlayer, which answers a `bale …` argv from its
+recorded fixture (laid down for session 2b-ii)."""
 
 from __future__ import annotations
 
@@ -134,3 +141,117 @@ def carried_relpath(kind: str, identity: str, to: str | None = None) -> str:
     names, and for a relay block its addressee."""
     tail = f"_to-{to}" if to else ""
     return f"fixtures/bale-{PIN}/carried/{kind}_{identity}{tail}.txt"
+
+
+# ---------------------------------------------------------------------------
+# Probes for `carry probe` (session 2b-i): derived from the crafter's
+# recorded scaffold by filling its placeholders mechanically — never a
+# probe script typed from scratch.
+# ---------------------------------------------------------------------------
+
+PROBE_SCAFFOLD = REPO_ROOT / emission_relpath("crafter", ["--probe", "twine-take-fixture"])
+PROBE_SLUG = "twine-take-fixture"
+SCAFFOLD_WHAT = "TODO(worker) — what this asks, in one line."
+SCAFFOLD_WHY = "TODO(worker) — the gap this fills, in one line."
+SCAFFOLD_BODY_OPEN = "probe() {\n"
+SCAFFOLD_BODY_CLOSE = "\n}\n"
+
+
+def scaffold() -> str:
+    """The crafter's unfilled probe scaffold, as recorded."""
+    return PROBE_SCAFFOLD.read_bytes().decode("utf-8")
+
+
+def filled_probe(body: str = 'echo "--- section: shell ---"\necho "bash ok"',
+                 what: str = "what bash reports about itself.",
+                 why: str = "a carry-probe test needs a filled scaffold.") -> str:
+    """The scaffold with its two header placeholders replaced and the
+    probe() body replaced by `body` (indented two spaces) — the filling
+    a worker does, done mechanically. Every TODO(worker) is gone."""
+    text = scaffold()
+    for placeholder in (SCAFFOLD_WHAT, SCAFFOLD_WHY):
+        if text.count(placeholder) != 1:
+            raise AssertionError(f"scaffold drifted: {placeholder!r}")
+    text = text.replace(SCAFFOLD_WHAT, what).replace(SCAFFOLD_WHY, why)
+    start = text.index(SCAFFOLD_BODY_OPEN) + len(SCAFFOLD_BODY_OPEN)
+    end = text.index(SCAFFOLD_BODY_CLOSE, start)
+    indented = "\n".join("  " + ln if ln else ln for ln in body.split("\n"))
+    text = text[:start] + indented + text[end:]
+    if "TODO(worker)" in text:
+        raise AssertionError("filled probe still carries TODO(worker)")
+    return text
+
+
+def fenced_probe(script: str, info: str = "bash") -> str:
+    """A probe as a worker's turn carries it: the script in a fence."""
+    return f"```{info}\n{script}```\n"
+
+
+def turn(*parts: str) -> str:
+    """A pasted turn: prose and blocks joined by blank lines."""
+    return "\n".join(parts)
+
+
+def process_alive(pid: int) -> bool:
+    """Whether `pid` is a live process. A zombie (exited, not yet reaped
+    — a container's PID 1 may never reap an orphan) counts as dead."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    stat = Path(f"/proc/{pid}/stat")
+    try:
+        state = stat.read_text().rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return True
+    return state not in ("Z", "X")
+
+
+class RecordingRunner:
+    """A run-seam double: records every call and answers with a canned
+    RunResult (exit 0, empty output) unless given one. A test that must
+    prove nothing executed asserts `calls == []`."""
+
+    def __init__(self, result=None) -> None:
+        self.calls: list[dict] = []
+        self.result = result
+
+    def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
+                 stdout_cap=None):
+        from twine.process import RunResult
+        self.calls.append({"argv": list(argv), "cwd": cwd, "stdin": stdin,
+                           "timeout": timeout, "env": env,
+                           "stdout_cap": stdout_cap})
+        return self.result or RunResult(argv=tuple(argv), exit_code=0,
+                                        stdout=b"", stderr=b"")
+
+
+class FixturePlayer:
+    """A run-seam double that answers a `bale …` argv from its recorded
+    fixture: the path is fixture_relpath(argv after `bale`, where), with
+    `where` "repo" when cwd is `repo_root`. Laid down for session 2b-ii;
+    a fixture records stdout only, so the answer is exit 0, empty stderr
+    (every recorded row's exit is 0). An argv with no fixture raises —
+    a test must never reach a live bale."""
+
+    def __init__(self, repo_root: Path) -> None:
+        self.repo_root = Path(repo_root).resolve()
+        self.calls: list[list[str]] = []
+
+    def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
+                 stdout_cap=None):
+        from twine.process import RunResult
+        argv = [str(a) for a in argv]
+        self.calls.append(argv)
+        if not argv or Path(argv[0]).name != "bale":
+            raise AssertionError(f"FixturePlayer answers bale argvs only: {argv}")
+        where = ("repo" if cwd is not None
+                 and Path(cwd).resolve() == self.repo_root else "anywhere")
+        rel = fixture_relpath(argv[1:], where)
+        path = REPO_ROOT / rel
+        if not path.is_file():
+            raise AssertionError(f"no recorded fixture for {argv} at {rel}")
+        return RunResult(argv=tuple(argv), exit_code=0,
+                         stdout=path.read_bytes(), stderr=b"")

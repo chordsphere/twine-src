@@ -23,7 +23,9 @@
 #   keys             the JSON keys twine reads from that output — [] where
 #                    twine reads none yet
 #   key_owner        where bale documents that surface's key contract
-#   read_by          the twine verb(s) that read it
+#   read_by          the twine verb(s) that read it (registered verb names;
+#                    `carry probe` reads the probe it runs and the
+#                    probe-output it verifies — session 2026-10-02-twine-carry-probe-002)
 #   fixture          the recorded output under fixtures/, when one exists
 #   written_against  the bale version the entry was written against
 #
@@ -132,7 +134,7 @@ home = "TARBALL.md §4.2; tools/craft_response.py PROBE_SCAFFOLD (--probe)"
 emitted_by = ["tools/craft_response.py --probe <slug>, filled by a worker"]
 fixtures = ["fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt"]
 keys = []
-read_by = ["take"]
+read_by = ["carry probe", "take"]
 written_against = "0.4.45"
 note = "the crafter emits the bare script; a worker's turn carries it fenced, so tests wrap the fixture in a fence"
 
@@ -144,7 +146,7 @@ home = "TARBALL.md §4.2; tools/craft_response.py PROBE_SCAFFOLD's emit_probe_bl
 emitted_by = ["a probe built on the crafter's scaffold, run by the courier"]
 fixtures = ["fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt"]
 keys = []
-read_by = ["take"]
+read_by = ["carry probe", "take"]
 written_against = "0.4.45"
 note = "N counts the lines between BEGIN and the trailer (printf '%s\\n' \"$out\" | wc -l)"
 
@@ -193,5 +195,5 @@ status = "absent in 0.4.45: `bale open [-h] [--verbose] [--no-sandbox] [--check 
 [[wanted]]
 verb = "relay"
 flags = ["--json"]
-needed_by = "Arc 1 session 2b (offline courier — act; split from session 2 at the sitting, 2026-10-02)"
+needed_by = "Arc 1 session 2b-ii (offline courier — act: carry exchange; 2b split again at the sitting, 2026-10-02, and 2b-i, carry probe, needs no bale verb)"
 status = "absent in 0.4.45: `bale relay [-h] sid [file]`; stdout is the counterpart's paste block, [bale] lines on stderr"
