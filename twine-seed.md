@@ -85,6 +85,12 @@ transported verbatim in section 8. Re-litigation goes through a
 sitting, never a drive-by edit; the outcome lands here as a dated
 annotation beneath the entry.
 
+[2026-10-02-twine-seed-close-003: the sitting ran past this paragraph's counts. By its close it
+had emitted five light question blocks, all answered "as assumed",
+and the architect had typed eleven messages, all in section 8. T12,
+T13 and T14 below come from block 4. The closing annotation under
+section 8's "How the sitting ended" carries the full tally.]
+
 **T1 — twine-src is a fresh repository; its seed is derived from
 `harness-seed.md`; tedder-src is archive.** Ratified (block 1,
 question [1], "as assumed"). The default as assumed, verbatim: "yes:
@@ -105,6 +111,25 @@ packs before bale.toml exists, so it carries none". This session is
 session 0: it lands the pin (`bale.toml`'s `[validation] base =
 "claude/checkpoints/{sid}.sh"`) and is not graded by one. Every
 session from 1 onward is.
+
+[2026-10-02-twine-seed-close-003: why `bale.toml` holds exactly two keys, recorded here because
+the file cannot keep it: `[validation] base` is this ruling's pin, and
+`[sandbox] enabled = true` confines every `validation.sh` and blind
+checkpoint; `network` is left unset because absent means off, the
+floor T8 keeps twine's own tests under; packer identity is the global
+`user/bale.toml`'s. `bale config init` rewrites the file from its
+walked surface and drops comments — an accidental run on 2026-10-02
+replaced session 0's explanatory header — so the rationale lives in
+this annotation, not in the file.]
+
+[2026-10-02-twine-seed-close-003: checkpoint authoring, learned at session
+`2026-10-02-twine-take-read-001`'s HOLD: a blind checkpoint pins bytes
+only inside the session's write forecast. Paths outside it are
+guarded by bale's own forecast gate, which refuses any change there
+that the operator does not admit; a pinned hash on such a path adds
+no protection and turns operator drift into a HOLD of correct work —
+that HOLD was the accidental `bale config init` above, not the
+worker. Checkpoints authored after it follow this rule.]
 
 **T4 — twine has three faces, one core: courier, runtime,
 scheduler.** Ratified (block 2 [1], "as assumed"): "yes; the runtime
@@ -136,6 +161,15 @@ as operator"): the runtime face is where that loop lives. The dated
 annotation that records this departure on `nisaba-seed.md` §3.3 is a
 nisaba-src session's to land, not this one's — that repository is not
 in this session's forecast and not in this repository.
+
+[2026-10-02-twine-seed-close-003: the courier's "four shapes" are the shapes a worker's turn
+ends in (AGENT.md §3: a response tarball, a probe block, a light
+question block, a clarification response). The courier carries more
+than turn endings, so `twine take` reads five kinds of block — probe,
+probe output, light, exchange, relay — and reports as the turn's
+`shape` the kind of the last one. The dated annotation on
+`nisaba-seed.md` §3.3 recording the three faces was authored at this
+sitting's close as a nisaba-src session.]
 
 **T5 — The arcs run courier, then runtime, then scheduler.** Ratified
 (block 2 [2], "as assumed"): "yes; the scheduler moves from nisaba's
@@ -298,6 +332,37 @@ ratified, verbatim from the sitting:
 §4.5 is the runtime's pointer to this ruling; the policy's home and
 the dial's scale are TQ-4; and D16 below (section 3) carries this
 placement as its annotation.
+
+**T12 — twine never merges at rung 1.** Ratified (light block 4 [1],
+"as assumed"): "yes; merging through twine waits for a PLANNER.md 18
+trust grant you make deliberately". bale's own help text is why:
+`bale apply --no-interact` makes "the walkthrough take its default
+action (merge on PASS; …)". So the courier's response hand-off runs
+`bale apply --dry-run --json` — which "Requires an open session …
+no branch is created, nothing is staged into the worktree, nothing
+is committed" — and hands the operator the exact `bale apply` line
+to run. Final-merge review stays the architect's (PLANNER.md §10,
+control 3).
+
+**T13 — A probe runs only on the operator's explicit consent, and
+unconfined until Arc 2.** Ratified (light block 4 [2], "as
+assumed"): "yes; take shows the script and runs it only on --run,
+exactly like you reading and pasting today". Landed as `twine carry
+probe` (session `2026-10-02-twine-carry-probe-002`): without `--run`
+nothing executes; `--run` refuses an unfilled crafter scaffold, a
+header without a `# Read-only:` line and an ambiguous block choice;
+every result reports `confined: false` until Arc 2's sandbox makes it
+true.
+
+**T14 — A relay block addressed to the planner never reaches a
+worker.** Ratified (light block 4 [3], "as assumed"): "yes; the
+to-planner block carries checkpoint output, and fixtures ship to every
+future worker". On a HOLD, bale's relay block to planner inlines the
+blind checkpoint's output; delivered to a worker, or landed as a
+fixture (fixtures ship in every request), it would teach workers their
+grader (TARBALL.md §7). `twine take` reports each relay block's
+addressee as `to`; every router twine grows enforces this rule, and
+only to-worker blocks may become fixtures.
 
 ---
 
@@ -880,6 +945,28 @@ carries them as a slip for a bale-src session, after which twine bumps
 its pin and re-records fixtures. Session 3 waits on it; session 2
 does not.]
 
+[2026-10-02-twine-seed-close-003: row 2 split twice, along what could be tested when. **2a —
+read**: `twine take`, landed as `2026-10-02-twine-take-read-001`
+(one HOLD — T3's second annotation — then PASS on retry). **2b-i —
+the probe hand-off**: the `run` seam and `twine carry probe`, landed
+as `2026-10-02-twine-carry-probe-002`, which also took `VERSION` to
+0.2.0. **2b-ii — the bale hand-offs**, not yet authored: `carry
+exchange` (an exchange block's own lines to `bale relay <sid> -`) and
+`carry response` (`bale apply --dry-run --json`, then the apply line,
+T12). Its first fixture is recorded: the architect's
+`apply-dry-run-carry-probe.json`, one line, `"outcome": "dry-run"`,
+for session `2026-10-02-twine-carry-probe-002`. Its relay-side fixture
+rests on TARBALL.md §5.9.2's pinned property that the crafter's
+`--emit-block` and `bale relay` render the same record
+byte-identically.]
+
+[2026-10-02-twine-seed-close-003: bale-src owes twine three changes, carried as one slip for a
+bale-src sitting: `--json` on `bale open` (row 3 waits on it) and on
+`bale relay`; and `_inline_lines` in `bin/bale_report.py` indenting
+every sentinel prefix (`=== PROBE `, `=== LIGHT `, `BALE EXCHANGE`),
+not only `=== RELAY `, so that text inlined into a relay block can
+never read as another shape to a reader that is not span-aware.]
+
 ### 5.2 Arc 2 — the runtime
 
 Not yet cut into sessions; its parts, each a session or a few: the
@@ -1020,6 +1107,13 @@ core; courier then runtime then scheduler; the tool-calling design —
 and was answered "as assumed" with the T7 direction added (message
 4).
 
+[2026-10-02-twine-seed-close-003: this section continued after session 0 and holds every
+message the architect typed, eleven in all. Light blocks 3, 4 and 5
+are described beside the messages that answered them. Messages that
+carried only attachments — ratification relays, probe outputs,
+context tarballs, a recorded fixture — typed nothing and are not
+listed.]
+
 Message 1 (the session opener; the goal is the manifest's, verbatim):
 
 > I'm using "bale", a CLI that packaged the attached request tarball.
@@ -1071,6 +1165,30 @@ transcripts; [3] author this session now):
 
 > applied, and as assumed
 
+Message 7 (with a `bale pack --context` tarball of twine-src
+attached, after session `2026-10-01-twine-seed-effort-003` applied):
+
+> no problem
+
+Message 8 (with a fresh context tarball attached; answering light
+block 4 — [1] twine never merges; [2] a probe runs only on `--run`;
+[3] only a to-worker HOLD relay block may become a fixture):
+
+> as assumed
+
+Message 9 (while session `2026-10-02-twine-carry-probe-002` ran):
+
+> I'm a bit confused, I just ran the bale open line and its running, but what do I need to do before apply? and I don't apply directly? just give me the step by step
+
+Message 10:
+
+> looks like the file I downloaded is 002 not 001
+
+Message 11 (answering light block 5 — close the sitting with the seed
+accretion and the nisaba §3.3 annotation as its last two bundles):
+
+> as assumed
+
 ### How the sitting ended
 
 Twine has three faces and one core; the arcs run courier, runtime,
@@ -1088,3 +1206,20 @@ Sessions authored at the sitting: this one, session 0.
 PASS and worker PASS; light block 3 was emitted and answered "as
 assumed"; sessions authored so far: 0, 1, and this one; probes
 emitted: two, both answered.]
+
+[2026-10-02-twine-seed-close-003: the sitting closed on 2026-10-02 after session
+`2026-10-02-twine-carry-probe-002` applied. Sessions authored: seven
+— `2026-10-01-twine-seed-001`, `2026-10-01-twine-core-002`,
+`2026-10-01-twine-seed-effort-003`,
+`2026-10-02-twine-take-read-001`, `2026-10-02-twine-carry-probe-002`,
+this one, and a nisaba-src session annotating `nisaba-seed.md`
+§3.3. The first five applied, all with checkpoint and worker PASS
+from session 1 on, one after a HOLD and a retry. Probes emitted by
+the sitting: two, both answered. Light blocks emitted: five,
+dispositions — block 1 as-assumed, block 2 as-assumed with the T7
+direction added, block 3 as-assumed, block 4 as-assumed, block 5
+as-assumed. Queued for the next sittings: session 2b-ii; Arc 1
+session 4 (the transition table); session 3, after bale-src's
+`open --json`; the bale-src slip of section 5.1's last annotation;
+then session 5, whose usage record reserves a `served_sid` field
+from the start (T11's envelope).]
