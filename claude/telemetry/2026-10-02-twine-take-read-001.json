@@ -1,0 +1,704 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-02-twine-take-read-001",
+  "created_at": "2026-10-02T17:52:42+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-02T17:52:42+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share/bale-consumption.toml",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-02-twine-take-read-001.log",
+      "bundle": {
+        "stem": "2026-10-02-twine-take-read",
+        "brief_sha256": "0c6b9bf31eb21a9e98ff7928433a1585460dc8bb6858efef4bec6dcdbcdb79b9",
+        "checkpoint_sha256": "6f802a651bc90b45b15d06484833e75e87db3bbe8cb9fdbda40bc754373743bc",
+        "manifest_sha256": "815dc4e858dfa1c239c912d322008c4d4c30cc22bc400c0cd71c03fc162b89a3"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-02T17:52:42+00:00"
+      }
+    },
+    {
+      "at": "2026-10-02T18:40:58+00:00",
+      "outcome": "held",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-02-twine-take-read-001.tar.gz",
+      "validation": {
+        "state": "HOLD",
+        "exit_code": 1,
+        "claims": {
+          "take: each fixture read as its kind, identity and integrity": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: derived negatives are ok false, exit 1, one JSON line, no traceback": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: CRLF input reads as LF": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: spans do not nest": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: stdin, human lines and the -I -S run": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: a probe's side-effecting lines are never executed": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "consumption manifest: a format entry per kind, each fixture parses as it": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures README: a row per fixture, bytes and sha256 match": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "docs: contract and README name take, its keys and the routing rule": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "untouched: twine-seed.md and bale.toml": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "test suite: python3 -B -m unittest discover -s tests -t .": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "INDEX coherence (crafted, DOCS.md 9)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "index header coherent: twine/shapes.py (crafted, CODE.md 10)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "no bytecode in the tree": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "take: each fixture read as its kind, identity and integrity": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: derived negatives are ok false, exit 1, one JSON line, no traceback": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: CRLF input reads as LF": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: spans do not nest": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: stdin, human lines and the -I -S run": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: a probe's side-effecting lines are never executed": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "consumption manifest: a format entry per kind, each fixture parses as it": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures README: a row per fixture, bytes and sha256 match": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "docs: contract and README name take, its keys and the routing rule": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "untouched: twine-seed.md and bale.toml": {
+            "claim": "pass",
+            "verdict": "fail",
+            "agreement": "disagree"
+          },
+          "test suite: python3 -B -m unittest discover -s tests -t .": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "INDEX coherence (crafted, DOCS.md 9)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "index header coherent: twine/shapes.py (crafted, CODE.md 10)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "no bytecode in the tree": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (py ast, toml, md/txt utf-8)",
+          "take: each fixture read as its kind, identity and integrity",
+          "take: derived negatives are ok false, exit 1, one JSON line, no traceback",
+          "take: CRLF input reads as LF",
+          "take: spans do not nest",
+          "take: stdin, human lines and the -I -S run",
+          "take: a probe's side-effecting lines are never executed",
+          "consumption manifest: a format entry per kind, each fixture parses as it",
+          "fixtures README: a row per fixture, bytes and sha256 match",
+          "docs: contract and README name take, its keys and the routing rule",
+          "untouched: twine-seed.md and bale.toml",
+          "test suite: python3 -B -m unittest discover -s tests -t .",
+          "INDEX coherence (crafted, DOCS.md 9)",
+          "index header coherent: twine/shapes.py (crafted, CODE.md 10)",
+          "no bytecode in the tree"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share/bale-consumption.toml",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures/README.md",
+        "fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt",
+        "fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt",
+        "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt",
+        "fixtures/bale-0.4.45/crafter/--light-block-stdin.txt",
+        "fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt",
+        "share/bale-consumption.toml",
+        "tests/__init__.py",
+        "tests/helpers.py",
+        "tests/test_consumption_manifest.py",
+        "tests/test_fixtures.py",
+        "tests/test_json_discipline.py",
+        "tests/test_registry.py",
+        "tests/test_take.py",
+        "twine/__init__.py",
+        "twine/cli.py",
+        "twine/commands/take.py",
+        "twine/shapes.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.45",
+            "contract_docs": {
+              "AGENT.md": "dd22b82cf4b3dc146fa813a862ab03c32d0b94faf8bab5e51218e6cdd5578fed",
+              "TARBALL.md": "59ece7fde0adb7dd5c5f5d902d5cf1078c4562cebb82925aa529df19f22d1c8c",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-02-twine-take-read-001.sh",
+              "sha256": "6f802a651bc90b45b15d06484833e75e87db3bbe8cb9fdbda40bc754373743bc"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-02T17:52:42+00:00",
+            "base_files": {
+              "README.md": "ecbc1920b7de032333b026f70e92fbae76cded6e63a138ea4765c0f2baec6489",
+              "claude/INDEX.md": "52813cc49964f2a5098d0169169665e0bf650e562115dc3fff270729859c9985",
+              "claude/context/cli-contract.md": "282a888837bb6470b36c9fe955b92159122accc8b3b7060c08e0814d6887fda5",
+              "fixtures/README.md": "6a2c34a25040b0ce7a5bf74d1e320ce38458b987229227cf5fc5d0aec5f40e44",
+              "fixtures/bale-0.4.45/anywhere/--version.txt": "20a67ed843d2255f22d492ce3dc4c3bbe42498fe39a86c32e34bb815dd337f69",
+              "fixtures/bale-0.4.45/twine-src/stats_--json.json": "a9dc5c9bab89e00a3745da8235142f1fe69ad8f6dd1ef23838c605f48ff95add",
+              "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json": "c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455",
+              "fixtures/bale-0.4.45/twine-src/status_--json.json": "081879d0def5abb61d2f48027103051d5fb1326dc97d10274c6287ad3b246f63",
+              "share/bale-consumption.toml": "cd823e302d897d61208c2f601069a64152244f7163fd1a3a777b317f44bc364d",
+              "tests/__init__.py": "9762595748baba2d7150fb1030e74cc478414ea791f4bfa30ca77c4d3f41aa76",
+              "tests/helpers.py": "cc50ec33eaff1552ea6abf83133c7dd6dab29b49f3eb31e59bbc1bf155bb83a7",
+              "tests/test_bale_check.py": "48047b0e4ee844390093d8e97af5549eb784b11b84311ece0f5fe7c4ed031c90",
+              "tests/test_consumption_manifest.py": "0b69f6dba0536c4313bfd0b02d77568598cd4227e35bcde6d70d3b3835e40af0",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "3fd2bddc724535af2ee0731e3bdc6be5fed66a2797014180c282b55ca130cf52",
+              "tests/test_json_discipline.py": "d2e65dcfbe3f991a76430d8b3a151dc7d022052acacc2ac91f306a959271d1e9",
+              "tests/test_registry.py": "48ce8cfa02fa5e51149b7a3ffad774efd615d2d1a1c239e73b5d9c8e25374148",
+              "tests/test_status.py": "997961571f727ae7d04d1b84f254768ee8ac9f09a5828da84b054494a06f593b",
+              "twine/__init__.py": "a1a468a9b803eea2bf32b02744685540576a3ef29590a7c530d9b6f67d3f7bf1",
+              "twine/bale.py": "27bf984276edd825b4f68b8fffdf0e62edb54dc6b2428358a92606df4ad90615",
+              "twine/cli.py": "a15a769d9b9083cf93a59d2d9b318df93514a3f201ad8663770aba3120ed7002",
+              "twine/commands/__init__.py": "b66c7782bdd71d3407744e8f89e7ecc3ef44b2ed58cc0fb8a72922cce45afd40",
+              "twine/commands/core.py": "31216a333f0ed33d229388512735d866f35637a0d1d58e3ebc783014f514cca8",
+              "twine/registry.py": "028697d6aa99e664a5c3215abc5cfaf9cfd49d3385b7212340eac9b083e88ee7"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          },
+          "linkage": {
+            "kind": "probe",
+            "point": "pre-build",
+            "depends_on": null
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "A carried paste lands LF-normalized like the probe output (and like session 1's fixtures), with the received CRLF hash recorded beside it, rather than with its CRLF bytes as received.",
+            "The relay paste's missing newline after its END sentinel is part of the carried bytes (a selection copy) and is kept, not added.",
+            "A probe block's 'first lines' are the first five lines inside the fence."
+          ],
+          "judgment_calls": [
+            "Parse layer in a library module twine/shapes.py beside the verb module twine/commands/take.py, mirroring twine/bale.py + commands/core.py; tests stay one file, test_take.py.",
+            "A fenced code block that is not a probe is transparent (shapes inside it are found), matching bale's own parser, which ignores a chat's fence lines.",
+            "An END sentinel with no BEGIN before it is reported as a malformed block of its kind, so a paste cut at the top is caught, not read as prose.",
+            "`===` sentinels match from column 0 only (trailing whitespace tolerated): bale's _inline_lines defuses an inlined sentinel by indenting it.",
+            "The exchange BEGIN must be the whole stripped line (bale accepts any line that starts with the sentinel text); stricter, and noted in notes.md.",
+            "A light block is malformed without its Reply: line or with any unlabeled line, so dropping any of its lines is detectable despite no trailer.",
+            "Every block carries start_line/end_line and an integrity object with ok and basis; error is present exactly when integrity.ok is false, for integrity failures and structural ones alike.",
+            "Context gains a binary stdin field rather than take reading sys.stdin directly, so tests inject it like env and which."
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md META through 11.2",
+            "README.md (the brief)",
+            "TARBALL.md sections 1, 2, 4, 5, 7, 8, 10",
+            "CODE.md sections 1-5, 9-13",
+            "DOCS.md sections 2, 6.4, 9",
+            "twine-seed.md 1, 2 (T4, T8-T10), 4.3, 5.1 and its annotations",
+            "claude/context/cli-contract.md",
+            "claude/responses/2026-10-01-twine-core-002/notes.md Proposals",
+            "tools/craft_response.py (probe, exchange and light-block emission paths)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-02-twine-take-read-001.log",
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "HOLD",
+        "exit_code": 1,
+        "script": {
+          "path": "claude/checkpoints/2026-10-02-twine-take-read-001.sh",
+          "sha256": "6f802a651bc90b45b15d06484833e75e87db3bbe8cb9fdbda40bc754373743bc"
+        },
+        "stamp_matched": true,
+        "failed_probes": [
+          "bale.toml untouched (sha256 b09e9b06\u2026)"
+        ]
+      }
+    },
+    {
+      "at": "2026-10-02T19:04:13+00:00",
+      "outcome": "applied",
+      "command": "retry",
+      "closure_reason": null,
+      "tarball": "response-2026-10-02-twine-take-read-001 (1).tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "take: each fixture read as its kind, identity and integrity": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: derived negatives are ok false, exit 1, one JSON line, no traceback": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: CRLF input reads as LF": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: spans do not nest": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: stdin, human lines and the -I -S run": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "take: a probe's side-effecting lines are never executed": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "consumption manifest: a format entry per kind, each fixture parses as it": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures README: a row per fixture, bytes and sha256 match": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "docs: contract and README name take, its keys and the routing rule": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "untouched: twine-seed.md and bale.toml": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "test suite: python3 -B -m unittest discover -s tests -t .": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "INDEX coherence (crafted, DOCS.md 9)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "index header coherent: twine/shapes.py (crafted, CODE.md 10)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "no bytecode in the tree": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "take: each fixture read as its kind, identity and integrity": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: derived negatives are ok false, exit 1, one JSON line, no traceback": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: CRLF input reads as LF": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: spans do not nest": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: stdin, human lines and the -I -S run": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "take: a probe's side-effecting lines are never executed": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "consumption manifest: a format entry per kind, each fixture parses as it": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures README: a row per fixture, bytes and sha256 match": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "docs: contract and README name take, its keys and the routing rule": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "untouched: twine-seed.md and bale.toml": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "test suite: python3 -B -m unittest discover -s tests -t .": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "INDEX coherence (crafted, DOCS.md 9)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "index header coherent: twine/shapes.py (crafted, CODE.md 10)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "no bytecode in the tree": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (py ast, toml, md/txt utf-8)",
+          "take: each fixture read as its kind, identity and integrity",
+          "take: derived negatives are ok false, exit 1, one JSON line, no traceback",
+          "take: CRLF input reads as LF",
+          "take: spans do not nest",
+          "take: stdin, human lines and the -I -S run",
+          "take: a probe's side-effecting lines are never executed",
+          "consumption manifest: a format entry per kind, each fixture parses as it",
+          "fixtures README: a row per fixture, bytes and sha256 match",
+          "docs: contract and README name take, its keys and the routing rule",
+          "untouched: twine-seed.md and bale.toml",
+          "test suite: python3 -B -m unittest discover -s tests -t .",
+          "INDEX coherence (crafted, DOCS.md 9)",
+          "index header coherent: twine/shapes.py (crafted, CODE.md 10)",
+          "no bytecode in the tree"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share/bale-consumption.toml",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [
+        "bale.toml"
+      ],
+      "overridden_path_sources": {
+        "bale.toml": "prompt"
+      },
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "bale.toml",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures/README.md",
+        "fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt",
+        "fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt",
+        "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt",
+        "fixtures/bale-0.4.45/crafter/--light-block-stdin.txt",
+        "fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt",
+        "share/bale-consumption.toml",
+        "tests/__init__.py",
+        "tests/helpers.py",
+        "tests/test_consumption_manifest.py",
+        "tests/test_fixtures.py",
+        "tests/test_json_discipline.py",
+        "tests/test_registry.py",
+        "tests/test_take.py",
+        "twine/__init__.py",
+        "twine/cli.py",
+        "twine/commands/take.py",
+        "twine/shapes.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.45",
+            "contract_docs": {
+              "AGENT.md": "dd22b82cf4b3dc146fa813a862ab03c32d0b94faf8bab5e51218e6cdd5578fed",
+              "TARBALL.md": "59ece7fde0adb7dd5c5f5d902d5cf1078c4562cebb82925aa529df19f22d1c8c",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-02-twine-take-read-001.sh",
+              "sha256": "6f802a651bc90b45b15d06484833e75e87db3bbe8cb9fdbda40bc754373743bc"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-02T17:52:42+00:00",
+            "base_files": {
+              "README.md": "ecbc1920b7de032333b026f70e92fbae76cded6e63a138ea4765c0f2baec6489",
+              "claude/INDEX.md": "52813cc49964f2a5098d0169169665e0bf650e562115dc3fff270729859c9985",
+              "claude/context/cli-contract.md": "282a888837bb6470b36c9fe955b92159122accc8b3b7060c08e0814d6887fda5",
+              "fixtures/README.md": "6a2c34a25040b0ce7a5bf74d1e320ce38458b987229227cf5fc5d0aec5f40e44",
+              "fixtures/bale-0.4.45/anywhere/--version.txt": "20a67ed843d2255f22d492ce3dc4c3bbe42498fe39a86c32e34bb815dd337f69",
+              "fixtures/bale-0.4.45/twine-src/stats_--json.json": "a9dc5c9bab89e00a3745da8235142f1fe69ad8f6dd1ef23838c605f48ff95add",
+              "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json": "c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455",
+              "fixtures/bale-0.4.45/twine-src/status_--json.json": "081879d0def5abb61d2f48027103051d5fb1326dc97d10274c6287ad3b246f63",
+              "share/bale-consumption.toml": "cd823e302d897d61208c2f601069a64152244f7163fd1a3a777b317f44bc364d",
+              "tests/__init__.py": "9762595748baba2d7150fb1030e74cc478414ea791f4bfa30ca77c4d3f41aa76",
+              "tests/helpers.py": "cc50ec33eaff1552ea6abf83133c7dd6dab29b49f3eb31e59bbc1bf155bb83a7",
+              "tests/test_bale_check.py": "48047b0e4ee844390093d8e97af5549eb784b11b84311ece0f5fe7c4ed031c90",
+              "tests/test_consumption_manifest.py": "0b69f6dba0536c4313bfd0b02d77568598cd4227e35bcde6d70d3b3835e40af0",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "3fd2bddc724535af2ee0731e3bdc6be5fed66a2797014180c282b55ca130cf52",
+              "tests/test_json_discipline.py": "d2e65dcfbe3f991a76430d8b3a151dc7d022052acacc2ac91f306a959271d1e9",
+              "tests/test_registry.py": "48ce8cfa02fa5e51149b7a3ffad774efd615d2d1a1c239e73b5d9c8e25374148",
+              "tests/test_status.py": "997961571f727ae7d04d1b84f254768ee8ac9f09a5828da84b054494a06f593b",
+              "twine/__init__.py": "a1a468a9b803eea2bf32b02744685540576a3ef29590a7c530d9b6f67d3f7bf1",
+              "twine/bale.py": "27bf984276edd825b4f68b8fffdf0e62edb54dc6b2428358a92606df4ad90615",
+              "twine/cli.py": "a15a769d9b9083cf93a59d2d9b318df93514a3f201ad8663770aba3120ed7002",
+              "twine/commands/__init__.py": "b66c7782bdd71d3407744e8f89e7ecc3ef44b2ed58cc0fb8a72922cce45afd40",
+              "twine/commands/core.py": "31216a333f0ed33d229388512735d866f35637a0d1d58e3ebc783014f514cca8",
+              "twine/registry.py": "028697d6aa99e664a5c3215abc5cfaf9cfd49d3385b7212340eac9b083e88ee7"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          },
+          "linkage": {
+            "kind": "probe",
+            "point": "pre-build",
+            "depends_on": null
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "A carried paste lands LF-normalized like the probe output (and like session 1's fixtures), with the received CRLF hash recorded beside it, rather than with its CRLF bytes as received.",
+            "The relay paste's missing newline after its END sentinel is part of the carried bytes (a selection copy) and is kept, not added.",
+            "A probe block's 'first lines' are the first five lines inside the fence.",
+            "The architect's 'feel free to make any changes if necessary' overrides the request's out_of_scope for bale.toml for this re-attempt only."
+          ],
+          "judgment_calls": [
+            "Parse layer in a library module twine/shapes.py beside the verb module twine/commands/take.py, mirroring twine/bale.py + commands/core.py; tests stay one file, test_take.py.",
+            "A fenced code block that is not a probe is transparent (shapes inside it are found), matching bale's own parser, which ignores a chat's fence lines.",
+            "An END sentinel with no BEGIN before it is reported as a malformed block of its kind, so a paste cut at the top is caught, not read as prose.",
+            "`===` sentinels match from column 0 only (trailing whitespace tolerated): bale's _inline_lines defuses an inlined sentinel by indenting it.",
+            "The exchange BEGIN must be the whole stripped line (bale accepts any line that starts with the sentinel text); stricter, and noted in notes.md.",
+            "A light block is malformed without its Reply: line or with any unlabeled line, so dropping any of its lines is detectable despite no trailer.",
+            "Every block carries start_line/end_line and an integrity object with ok and basis; error is present exactly when integrity.ok is false, for integrity failures and structural ones alike.",
+            "Context gains a binary stdin field rather than take reading sys.stdin directly, so tests inject it like env and which.",
+            "On the HOLD, restored bale.toml to its pinned bytes inside the re-attempt (architect authorized changes in chat) rather than asking for a re-pinned checkpoint: the wizard's rewrite changed only comments, and the original comment is project documentation from seed-001."
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md META through 11.2",
+            "README.md (the brief)",
+            "TARBALL.md sections 1, 2, 4, 5, 7, 8, 10",
+            "CODE.md sections 1-5, 9-13",
+            "DOCS.md sections 2, 6.4, 9",
+            "twine-seed.md 1, 2 (T4, T8-T10), 4.3, 5.1 and its annotations",
+            "claude/context/cli-contract.md",
+            "claude/responses/2026-10-01-twine-core-002/notes.md Proposals",
+            "tools/craft_response.py (probe, exchange and light-block emission paths)"
+          ],
+          "forecast_departures": [
+            {
+              "path": "bale.toml",
+              "why": "An accidental `bale config init` (a5df202) rewrote the header comment between pack and apply, so the base no longer hashed to the pinned b09e9b06\u2026; restoring those bytes is what clears the HOLD, on the architect's explicit authority in chat over the request's out_of_scope."
+            }
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-02-twine-take-read-001.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": "2026-10-02-twine-take-read-001",
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-02-twine-take-read-001.sh",
+          "sha256": "6f802a651bc90b45b15d06484833e75e87db3bbe8cb9fdbda40bc754373743bc"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-02T19:04:13+00:00",
+  "outcome": "applied"
+}
