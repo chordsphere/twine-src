@@ -15,6 +15,16 @@ from tests.helpers import PIN
 README = FIXTURES_DIR / "README.md"
 ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| `(?P<cmd>[^`]+)` \| `[^`]+` \| (?P<exit>\d+) "
                  r"\| (?P<bytes>\d+) \| `(?P<sha>[0-9a-f]{64})` \|$", re.M)
+# Every fixture row, whichever table: the file first, bytes and sha256 last.
+ANY_ROW = re.compile(r"^\| `(?P<file>bale-[^`]+)` \|.*\| (?P<bytes>\d+) "
+                     r"\| `(?P<sha>[0-9a-f]{64})` \|$", re.M)
+# A carried paste's row also records the bytes as received.
+CARRIED_ROW = re.compile(r"^\| `(?P<file>bale-[^`]+/carried/[^`]+)` \| [^|]+ "
+                         r"\| CRLF (?P<rbytes>\d+) `(?P<rsha>[0-9a-f]{64})` "
+                         r"\| (?P<bytes>\d+) \| `(?P<sha>[0-9a-f]{64})` \|$", re.M)
+# The command each table's rows name, by fixture directory.
+COMMAND_PREFIX = {"twine-src": "bale ", "anywhere": "bale ",
+                  "crafter": "craft_response.py "}
 
 
 def recorded_files() -> list:
@@ -52,8 +62,11 @@ class FixturesParse(unittest.TestCase):
 
 class ReadmeListsEveryFixture(unittest.TestCase):
 
+    def setUp(self):
+        self.text = README.read_text(encoding="utf-8")
+
     def test_rows_match_files_bytes_and_hashes(self):
-        rows = {m["file"]: m for m in ROW.finditer(README.read_text(encoding="utf-8"))}
+        rows = {m["file"]: m for m in ANY_ROW.finditer(self.text)}
         files = {p.relative_to(FIXTURES_DIR).as_posix(): p for p in recorded_files()}
         self.assertEqual(set(rows), set(files), "README rows and fixture files differ")
         for rel, p in files.items():
@@ -61,7 +74,36 @@ class ReadmeListsEveryFixture(unittest.TestCase):
                 data = p.read_bytes()
                 self.assertEqual(int(rows[rel]["bytes"]), len(data))
                 self.assertEqual(rows[rel]["sha"], hashlib.sha256(data).hexdigest())
-                self.assertTrue(rows[rel]["cmd"].startswith("bale "))
+
+    def test_command_rows_name_their_emitter(self):
+        """A recorded output's row names the command that printed it: a
+        bale argv under twine-src/ and anywhere/, the crafter under
+        crafter/."""
+        rows = {m["file"]: m for m in ROW.finditer(self.text)}
+        for p in recorded_files():
+            rel = p.relative_to(FIXTURES_DIR).as_posix()
+            where = rel.split("/")[1]
+            if where not in COMMAND_PREFIX:
+                continue
+            with self.subTest(fixture=rel):
+                self.assertIn(rel, rows)
+                self.assertTrue(rows[rel]["cmd"].startswith(COMMAND_PREFIX[where]))
+
+    def test_carried_pastes_differ_from_what_arrived_only_by_crlf(self):
+        """A carried paste is landed CRLF -> LF and nothing else: the LFs
+        turned back into CRLFs are the received bytes, by count and hash."""
+        rows = {m["file"]: m for m in CARRIED_ROW.finditer(self.text)}
+        carried = [p for p in recorded_files() if p.parent.name == "carried"]
+        self.assertGreaterEqual(len(carried), 2)
+        for p in carried:
+            rel = p.relative_to(FIXTURES_DIR).as_posix()
+            with self.subTest(fixture=rel):
+                self.assertIn(rel, rows)
+                data = p.read_bytes()
+                self.assertNotIn(b"\r", data)
+                received = data.replace(b"\n", b"\r\n")
+                self.assertEqual(int(rows[rel]["rbytes"]), len(received))
+                self.assertEqual(rows[rel]["rsha"], hashlib.sha256(received).hexdigest())
 
 
 if __name__ == "__main__":

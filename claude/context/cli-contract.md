@@ -3,8 +3,10 @@
 > What the shell, the parity test, and Arc 1's later sessions build
 > on. These are interface outcomes: each line here is asserted by a
 > test under `tests/` and by the session's `validation.sh`. Landed by
-> session `2026-10-01-twine-core-002`; a later session that changes a
-> line changes it here in the same response.
+> session `2026-10-01-twine-core-002`, extended by
+> `2026-10-02-twine-take-read-001` (§9, and the lines naming `take` or
+> the `format` kind); a later session that changes a line changes it
+> here in the same response.
 
 ## 1. The entrypoint
 
@@ -36,7 +38,7 @@
   `Command` refuses at load.
 - Verb names are the full space-joined path: `"bale check"`. The JSON
   `command` key carries the same string.
-- Verbs today: `commands`, `status`, `bale check`.
+- Verbs today: `commands`, `status`, `bale check`, `take`.
 - `twine commands --json` emits
   `{"command": "commands", "ok": true, "commands": [{"name", "summary",
   "json", "cli_only"}, …]}` — every registered verb, in registry order,
@@ -105,7 +107,10 @@ bale result rides inside, and a mismatch there leaves `status` at exit
 sha256, one `[[surface]]` per bale surface twine reads (the file
 `bin/VERSION` and each recorded `--json` verb: `kind`, `verb`, `flags`,
 `argv`, `cwd`, `stdout`, `keys` — the JSON keys twine reads, `[]`
-where none yet — `key_owner`, `read_by`, `fixture`, `written_against`),
+where none yet — `key_owner`, `read_by`, `fixture`, `written_against`;
+and, `kind = "format"`, each text format `take` parses out of a paste:
+`format`, `locator`, `home`, `emitted_by`, `fixtures`, `keys`, `read_by`,
+`written_against`),
 and `[[wanted]]` for a surface a later session needs that the pinned
 bale lacks (`bale open --json`, `bale relay --json` in 0.4.45). The
 file's header comment spells the entry shape;
@@ -119,6 +124,14 @@ The path of a recorded output is
 `tests/helpers.py`'s `fixture_relpath(argv, cwd)` computes it, and each
 manifest surface's `fixture` is asserted equal to it. Every `.json`
 fixture is one object line with a trailing newline.
+
+A fixture that is not a bale argv's stdout keeps the version directory:
+a crafter emission is `fixtures/bale-<version>/crafter/<flag[-value…]>[_…].txt`
+(`-` spelled `stdin`; `emission_relpath(tool, argv)`), and an
+architect-carried paste of bale output is
+`fixtures/bale-<version>/carried/<kind>_<identity>[_to-<addressee>].txt`
+(`carried_relpath(kind, identity, to)`), landed CRLF→LF with both
+hashes in the README.
 
 ## 8. Tests
 
@@ -134,3 +147,91 @@ module. `bale check` is tested against temp roots the tests build
 real install, and every CLI subprocess runs with `TWINE_BALE_ROOT`
 pinned to a temp directory so a bale on `PATH` cannot leak into a
 verdict.
+
+## 9. `twine take FILE [--json]` — the courier's read
+
+Text in, structured facts out. `FILE` is a path, or `-` for stdin. It
+**executes nothing it reads, writes nothing, calls no bale verb and
+reaches no network** — a probe block is reported, never run. The parse
+layer is `twine/shapes.py` (pure); the verb is `twine/commands/take.py`.
+
+### 9.1 Input
+
+Read as bytes and decoded as UTF-8 (a leading BOM is dropped; bytes that
+are not UTF-8 are a not-ok result). Every CRLF becomes LF before
+anything is matched; a lone CR is left alone.
+
+### 9.2 The five kinds, and the no-nest rule
+
+| kind | located by | integrity |
+|---|---|---|
+| `probe` | a fenced code block (three or more backticks, closed by a fence at least as long) whose first five lines include `# PROBE <slug>: …` | structural: the fence closes |
+| `probe-output` | `=== PROBE BEGIN <slug> ===` … `=== PROBE END <slug> ===` | line count: `--- integrity: N lines ---`, the last inner line, where N is the number of lines between BEGIN and it |
+| `light` | `=== LIGHT BEGIN <sid> ===` … `=== LIGHT END <sid> ===` | structural: closes, and every entry has its four labeled lines in order, numbered from 1, then the `Reply:` line |
+| `exchange` | `BALE EXCHANGE BEGIN <sid>` … `BALE EXCHANGE END` | sha256, exactly bale's rule (`bin/bale_relay.py` `parse_exchange_input`) |
+| `relay` | `=== RELAY BEGIN <sid> to <planner\|worker> ===` … `=== RELAY END <sid> to <same> ===` | structural: the matching END arrives |
+
+- **Sentinels are whole lines.** The `===` ones start at column 0
+  (trailing whitespace tolerated): bale's `_inline_lines` defuses an
+  inlined sentinel by indenting it, so an indented line is content. The
+  exchange ones tolerate surrounding whitespace, as bale's parser does.
+  A sentinel quoted inside a line (`echo "=== PROBE BEGIN … ==="`) is
+  not one.
+- **Spans do not nest.** Once a span opens, every line until its own
+  END — same slug or sid, same addressee — is its content, whatever it
+  looks like. A relay block quoting notes, or a probe's output carrying
+  the blocks it recorded, is one block.
+- **A fence that is not a probe is transparent**: the shapes inside it
+  are found, as bale's parser ignores a chat's fence lines.
+- **An END sentinel with no BEGIN** before it (a paste cut at the top)
+  is reported as a malformed block of its kind.
+- **Exchange integrity**: the header is the leading `#` lines; the
+  trailer is the last non-blank inner line, `# sha256 <hex>`; the body
+  is everything between, joined with LF plus one trailing LF; its sha256
+  must equal the trailer's. When it does not but
+  `json.dumps(record, indent=2) + "\n"` does, the fault is
+  `unescaped-in-transit` (a carrier turned `\uXXXX` escapes into
+  characters); otherwise `mismatch`. Other faults: `unclosed`,
+  `no-sid`, `no-body`, `no-trailer`, `body-not-json`.
+
+### 9.3 The JSON twin
+
+One line (§3), with `command` `"take"`, `ok`, and:
+
+| key | value |
+|---|---|
+| `shape` | the kind of the **last** block — the shape the turn ended in — or `"prose"` when there is none; `null` when the input could not be read |
+| `blocks` | every block, in input order; `[]` for prose |
+| `input` | `source` (the path, or `"<stdin>"`), `bytes`, `lines`, `crlf_normalized`, `bom_stripped` |
+| `input_error` | present only when the input could not be read or decoded |
+
+Each block: `kind`; its identity and parse results; `start_line` and
+`end_line` (1-based, inclusive, in the normalized input; an unclosed
+span ends at the last line); `integrity`, always with `ok` and `basis`
+(`"structural"`, `"line-count"` or `"sha256"`); and `error`, present
+exactly when `integrity.ok` is false.
+
+| kind | fields |
+|---|---|
+| `probe` | `slug`, `fence_info`, `script` (the fence's content, verbatim, LF-terminated) |
+| `probe-output` | `slug`; `integrity.expected_lines`, `integrity.found_lines` |
+| `light` | `sid`; `questions`, a list of `{question, context, default_assumption, why_blocked}` — the clarification manifest's field names, so one row feeds either courier |
+| `exchange` | `sid` (the sentinel's); `round`, `from` (the record's, when the body parsed, else null); `record` (only when integrity holds); `integrity.expected_sha256`, `integrity.found_sha256`, `integrity.fault` when not ok |
+| `relay` | `sid`, `to` (`"planner"` or `"worker"`) |
+
+`ok` is false when any block fails integrity or is malformed, or the
+input cannot be read: exit 1, one line, no traceback. Otherwise `ok` is
+true and the exit 0, prose included. Without `--json`: a summary line,
+then one line per block — kind, identity, line range, integrity.
+
+### 9.4 Routing relay blocks — a rule for 2b and every later router
+
+**A relay block addressed `to: planner` is never delivered to a
+worker.** On a HOLD, bale's planner block inlines the session log's
+checkpoint band (`bin/bale_report.py` `format_hold_relay_planner`: "both
+session-log bands inlined"), so carrying it into a worker session would
+teach the worker its grader (TARBALL.md §7). The worker block is
+spec-safe by construction (`format_hold_relay_worker` has no parameter
+for the checkpoint's output). `take` only reports `to`; a router that
+delivers blocks keys on it, and treats a `to: planner` block whose
+destination is a worker session as a refusal, not a choice.

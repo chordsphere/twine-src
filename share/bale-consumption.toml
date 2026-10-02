@@ -9,8 +9,11 @@
 # 2026-10-01). twine.bale.load_manifest parses it; tests/ walk it.
 #
 # Entry shape, [[surface]]:
-#   kind             "file" (a path under the install root twine reads)
-#                    or "verb" (a bale verb twine runs non-interactively)
+#   kind             "file" (a path under the install root twine reads),
+#                    "verb" (a bale verb twine runs non-interactively), or
+#                    "format" (a text format bale emits and twine parses
+#                    out of a paste — added by session
+#                    2026-10-02-twine-take-read-001)
 #   path             kind = file: the path under <root>
 #   verb, flags      kind = verb: the verb and the flags twine passes
 #                    (flag names only; argv carries the exact invocation)
@@ -23,6 +26,20 @@
 #   read_by          the twine verb(s) that read it
 #   fixture          the recorded output under fixtures/, when one exists
 #   written_against  the bale version the entry was written against
+#
+#   kind = format carries, instead of path/verb/argv/cwd/stdout/fixture:
+#   format           the block kind `twine take` reports ("probe",
+#                    "probe-output", "light", "exchange", "relay")
+#   locator          how the block is found in text (its whole-line sentinels)
+#   home             where bale specifies and emits it: the TARBALL.md
+#                    section and the bale source function(s), read by probe
+#   emitted_by       what prints it
+#   fixtures         the recorded or carried emissions under fixtures/
+#   keys             for a JSON-bodied format, the record keys twine reads
+#
+# A pin bump diffs the format entries too (D3 names the bundle format
+# among the surfaces): a changed sentinel, trailer or body serialization
+# is a changed surface even though no verb's --json moved.
 #
 # [[wanted]] names a surface a later session needs and the pinned bale
 # does not have — so the gap is data, not a sentence in a brief.
@@ -105,6 +122,68 @@ fixture = "fixtures/bale-0.4.45/anywhere/--version.txt"
 written_against = "0.4.45"
 note = "not used by twine bale check, which reads bin/VERSION instead; recorded so a reviewer can see the two agree"
 
+# --- text formats `twine take` reads (session 2026-10-02-twine-take-read-001) ---
+
+[[surface]]
+kind = "format"
+format = "probe"
+locator = "a fenced code block (``` or longer) whose first 5 lines include the header `# PROBE <slug>: …`"
+home = "TARBALL.md §4.2; tools/craft_response.py PROBE_SCAFFOLD (--probe)"
+emitted_by = ["tools/craft_response.py --probe <slug>, filled by a worker"]
+fixtures = ["fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt"]
+keys = []
+read_by = ["take"]
+written_against = "0.4.45"
+note = "the crafter emits the bare script; a worker's turn carries it fenced, so tests wrap the fixture in a fence"
+
+[[surface]]
+kind = "format"
+format = "probe-output"
+locator = "`=== PROBE BEGIN <slug> ===` … `=== PROBE END <slug> ===`, trailer `--- integrity: N lines ---` as the last inner line"
+home = "TARBALL.md §4.2; tools/craft_response.py PROBE_SCAFFOLD's emit_probe_block"
+emitted_by = ["a probe built on the crafter's scaffold, run by the courier"]
+fixtures = ["fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt"]
+keys = []
+read_by = ["take"]
+written_against = "0.4.45"
+note = "N counts the lines between BEGIN and the trailer (printf '%s\\n' \"$out\" | wc -l)"
+
+[[surface]]
+kind = "format"
+format = "light"
+locator = "`=== LIGHT BEGIN <sid> ===` … `=== LIGHT END <sid> ===`"
+home = "TARBALL.md §5.10; tools/craft_response.py format_light_block (--light-block)"
+emitted_by = ["tools/craft_response.py --light-block <file|->", "a worker by hand, per TARBALL.md §5.10"]
+fixtures = ["fixtures/bale-0.4.45/crafter/--light-block-stdin.txt"]
+keys = []
+read_by = ["take"]
+written_against = "0.4.45"
+note = "no trailer by design; the four labels map onto question, context, default_assumption, why_blocked"
+
+[[surface]]
+kind = "format"
+format = "exchange"
+locator = "`BALE EXCHANGE BEGIN <sid>` … `BALE EXCHANGE END` (surrounding whitespace tolerated), trailer `# sha256 <hex>` as the last non-blank inner line"
+home = "TARBALL.md §5.9.2; bin/bale_relay.py parse_exchange_input, _exchange_body_bytes, reescaped_body_matches, format_exchange_block"
+emitted_by = ["bale relay <sid> <file|->", "tools/craft_response.py --emit-block <file|->"]
+fixtures = ["fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt"]
+keys = ["round", "from"]
+read_by = ["take"]
+written_against = "0.4.45"
+note = "body = json.dumps(record, indent=2) + LF, ASCII-escaped; a body whose re-serialization matches the trailer though its bytes do not is the unescaped-in-transit fault (bale 0.4.41)"
+
+[[surface]]
+kind = "format"
+format = "relay"
+locator = "`=== RELAY BEGIN <sid> to <planner|worker> ===` … `=== RELAY END <sid> to <same> ===`"
+home = "TARBALL.md §7; bin/bale_report.py relay_sentinels, _inline_lines, format_apply_relay_planner, format_hold_relay_planner, format_hold_relay_worker"
+emitted_by = ["bale apply (a clean apply: to planner; a HOLD: to planner and to worker)"]
+fixtures = ["fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt"]
+keys = []
+read_by = ["take"]
+written_against = "0.4.45"
+note = "no trailer; _inline_lines indents an inlined line that starts '=== RELAY ' by two spaces, so a sentinel is a column-0 line"
+
 [[wanted]]
 verb = "open"
 flags = ["--json"]
@@ -114,5 +193,5 @@ status = "absent in 0.4.45: `bale open [-h] [--verbose] [--no-sandbox] [--check 
 [[wanted]]
 verb = "relay"
 flags = ["--json"]
-needed_by = "Arc 1 session 2 (offline courier — take)"
+needed_by = "Arc 1 session 2b (offline courier — act; split from session 2 at the sitting, 2026-10-02)"
 status = "absent in 0.4.45: `bale relay [-h] sid [file]`; stdout is the counterpart's paste block, [bale] lines on stderr"
