@@ -30,7 +30,7 @@ import shutil
 import sys
 import traceback
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, TextIO
+from typing import Any, BinaryIO, Callable, Mapping, TextIO
 
 from twine import __version__
 from twine.registry import Command, Result, load_registry
@@ -52,15 +52,17 @@ class Context:
     """What a handler may touch besides its parsed arguments.
 
     Every environmental dependency is a field so tests inject their own:
-    `env` instead of os.environ, `which` instead of shutil.which, and
-    the two streams. Handlers write informational text to `stderr` only;
-    stdout is the dispatcher's.
+    `env` instead of os.environ, `which` instead of shutil.which, the
+    two output streams, and `stdin` — bytes, read by `twine take -`, so
+    the verb decodes it itself rather than trusting the locale. Handlers
+    write informational text to `stderr` only; stdout is the dispatcher's.
     """
 
     env: Mapping[str, str] = field(default_factory=lambda: os.environ)
     stdout: TextIO = field(default_factory=lambda: sys.stdout)
     stderr: TextIO = field(default_factory=lambda: sys.stderr)
     which: Callable[[str], str | None] = shutil.which
+    stdin: BinaryIO = field(default_factory=lambda: sys.stdin.buffer)
 
     def info(self, message: str) -> None:
         """An informational line for a human: stderr, never stdout."""

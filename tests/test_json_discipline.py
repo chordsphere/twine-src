@@ -12,7 +12,9 @@ import unittest
 from twine.cli import Context, run_command
 from twine.registry import Command, Result, load_registry
 
-from tests.helpers import TempRoots, run_cli, run_inprocess
+from twine import REPO_ROOT
+
+from tests.helpers import TempRoots, emission_relpath, run_cli, run_inprocess
 
 
 def one_json_line(test: unittest.TestCase, stdout: str, command: str) -> dict:
@@ -35,10 +37,14 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.roots.cleanup()
 
     def argv_for(self, name: str) -> list[str]:
-        """A happy-path argv per verb; bale check against the ok root."""
+        """A happy-path argv per verb; bale check against the ok root, take
+        on a recorded light block (an intact block: ok true, exit 0)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
+        if name == "take":
+            argv.append(str(REPO_ROOT / emission_relpath(
+                "crafter", ["--light-block", "-"])))
         return argv
 
     def test_every_registered_verb_emits_one_line_subprocess(self):

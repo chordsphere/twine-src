@@ -18,4 +18,6 @@ Layout (CODE.md §13): one file per subject —
   test_consumption_manifest.py  share/bale-consumption.toml as data
   test_fixtures.py           fixtures/ parse, and fixtures/README.md
   test_entrypoint.py         bin/twine under python3 -I -S; T9 and T10
+  test_take.py               `twine take` and twine.shapes: the fixtures as
+                             positives, negatives derived from their bytes
 """

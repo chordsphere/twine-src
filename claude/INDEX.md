@@ -27,18 +27,23 @@ project's inventory.
 ## Schemas & data contracts
 - `../share/bale-consumption.toml` — the bale version pin and the
   consumption manifest (D3, D4): the installed schema hashes, one
-  `[[surface]]` per bale surface twine reads, `[[wanted]]` for the
-  surfaces a later session needs and the pin lacks. Pull when a
-  session reads a new bale surface or bumps the pin; the header
-  comment spells the entry shape.
+  `[[surface]]` per bale surface twine reads — files, verbs, and the
+  text formats `take` parses — `[[wanted]]` for the surfaces a later
+  session needs and the pin lacks. Pull when a session reads a new
+  bale surface or bumps the pin; the header comment spells the entry
+  shapes.
 
 ## Explainers
 - `context/cli-contract.md` — the `twine` CLI's interface outcomes:
   the entrypoint, the registry and its discovery, the `--json`
-  discipline and exit codes, `status` and `bale check`'s keys, the
-  manifest and fixture shapes, how the tests run. Default inclusion
-  for any session that adds a verb.
+  discipline and exit codes, `status`, `bale check` and `take`'s keys,
+  the five block kinds and the no-nest rule, the relay routing rule
+  (a `to: planner` block never reaches a worker), the manifest and
+  fixture shapes, how the tests run. Default inclusion for any session
+  that adds a verb or routes a courier's block.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
-  named bale version, never hand-written), the path naming rule, and
-  per file the command, directory, date, probe, byte count and
-  sha256. Pull when recording or reading a fixture.
+  named bale version, or an architect-carried paste of bale output;
+  never hand-written), the path naming rules (bale argvs, crafter
+  emissions, carried pastes), and per file the command, directory,
+  date, probe, byte count and sha256. Pull when recording or reading
+  a fixture.

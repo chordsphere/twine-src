@@ -20,17 +20,21 @@ Arc 1 (the courier) session 1 landed twine's core:
   `twine commands` are rendered from it, and every verb has a `--json`
   twin that emits exactly one JSON object line on stdout.
 - Verbs: `commands` (list the registry), `status` (twine's own facts),
-  `bale check` (the installed bale's `bin/VERSION` against the pin).
+  `bale check` (the installed bale's `bin/VERSION` against the pin),
+  and `take` (session 2a): read a pasted turn, find each bale shape in
+  it — probe, probe output, light block, exchange block, relay block —
+  verify its integrity trailer and report, executing nothing.
 - `share/bale-consumption.toml` — the bale version pin (`0.4.45`) and
   the consumption manifest: the schema hashes and every bale surface
   twine reads, as data.
 - `fixtures/` — recorded `bale … --json` outputs from the pinned
-  version, byte-exact; the only bale the tests ever see.
+  version, the crafter's emissions, and carried pastes of bale output,
+  byte-exact; the only bale the tests ever see.
 - `tests/` — the stdlib `unittest` suite.
 
-Stdlib only; python 3.11 or newer. No courier verbs yet (sessions 2
-and 3), no transition table (4), no cost spine (5), no model adapter
-(Arc 2).
+Stdlib only; python 3.11 or newer. The courier reads (`take`) but does
+not yet act on what it reads (session 2b) or emit requests (3); no
+transition table (4), no cost spine (5), no model adapter (Arc 2).
 
 ## Running it
 
@@ -40,6 +44,7 @@ python3 -I -S bin/twine --version
 python3 -I -S bin/twine commands --json
 python3 -I -S bin/twine status
 python3 -I -S bin/twine bale check --json [--bale-root DIR]
+python3 -I -S bin/twine take turn.txt --json     # or `take -` to read stdin
 ```
 
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to

@@ -6,10 +6,11 @@ import re
 import tomllib
 import unittest
 
-from twine import CONSUMPTION_MANIFEST, REPO_ROOT
+from twine import CONSUMPTION_MANIFEST, REPO_ROOT, shapes
 from twine.bale import ManifestError, load_manifest
 
-from tests.helpers import PIN, TempRoots, fixture_relpath
+from tests.helpers import (PIN, TempRoots, carried_relpath, emission_relpath,
+                           fixture_relpath)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHEMA_FILES = {
@@ -21,6 +22,10 @@ SCHEMA_FILES = {
 SURFACE_REQUIRED = {"kind", "keys", "read_by", "written_against"}
 VERB_REQUIRED = SURFACE_REQUIRED | {"verb", "flags", "argv", "cwd", "stdout"}
 FILE_REQUIRED = SURFACE_REQUIRED | {"path"}
+FORMAT_REQUIRED = SURFACE_REQUIRED | {"format", "locator", "home", "emitted_by",
+                                      "fixtures"}
+REQUIRED = {"file": FILE_REQUIRED, "verb": VERB_REQUIRED, "format": FORMAT_REQUIRED}
+README_ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| `(?P<cmd>[^`]+)` \|", re.M)
 
 
 class ManifestParses(unittest.TestCase):
@@ -49,9 +54,9 @@ class SurfacesAreWalkable(unittest.TestCase):
 
     def test_every_surface_has_the_required_fields(self):
         for s in self.manifest.surfaces:
-            with self.subTest(surface=s.get("verb") or s.get("path")):
-                self.assertIn(s["kind"], ("file", "verb"))
-                required = VERB_REQUIRED if s["kind"] == "verb" else FILE_REQUIRED
+            with self.subTest(surface=s.get("verb") or s.get("path") or s.get("format")):
+                self.assertIn(s["kind"], REQUIRED)
+                required = REQUIRED[s["kind"]]
                 self.assertTrue(required <= set(s), f"missing {required - set(s)}")
                 self.assertIsInstance(s["keys"], list)
                 self.assertTrue(all(isinstance(k, str) for k in s["keys"]))
@@ -77,6 +82,46 @@ class SurfacesAreWalkable(unittest.TestCase):
         argvs = [tuple(s["argv"]) for s in self.manifest.surfaces if s["kind"] == "verb"]
         self.assertIn(("status", "--json"), argvs)
         self.assertIn(("stats", "--json"), argvs)
+
+    def test_one_format_entry_per_kind_take_parses(self):
+        formats = [s["format"] for s in self.manifest.surfaces if s["kind"] == "format"]
+        self.assertEqual(sorted(formats), sorted(shapes.KINDS))
+        for s in self.manifest.surfaces:
+            if s["kind"] == "format":
+                self.assertEqual(s["read_by"], ["take"])
+
+    def test_every_format_fixture_exists_follows_naming_and_parses_as_its_kind(self):
+        """Each fixture parses, with take's parser, as one intact block of
+        the entry's kind, and sits where the naming rule puts it — computed
+        from facts the name does not supply: a crafter emission's argv from
+        its fixtures/README.md row, a carried paste's identity from the
+        block's own sentinel. The probe fixture is the crafter's bare
+        script; a turn carries it fenced, so it is wrapped in a fence."""
+        readme_cmds = {m["file"]: m["cmd"] for m in README_ROW.finditer(
+            (REPO_ROOT / "fixtures" / "README.md").read_text(encoding="utf-8"))}
+        for s in self.manifest.surfaces:
+            if s["kind"] != "format":
+                continue
+            self.assertTrue(s["fixtures"], s["format"])
+            for rel in s["fixtures"]:
+                with self.subTest(format=s["format"], fixture=rel):
+                    path = REPO_ROOT / rel
+                    self.assertTrue(path.is_file(), rel)
+                    text = shapes.normalize(path.read_bytes()).text
+                    if s["format"] == shapes.PROBE:
+                        text = "```bash\n" + text + "```\n"
+                    blocks = shapes.find_blocks(text).blocks
+                    self.assertEqual([(b.kind, b.ok) for b in blocks],
+                                     [(s["format"], True)])
+                    if path.parent.name == "crafter":
+                        cmd = readme_cmds[rel.removeprefix("fixtures/")]
+                        expected = emission_relpath("crafter", cmd.split()[1:])
+                    else:
+                        f = blocks[0].fields
+                        expected = carried_relpath(s["format"],
+                                                   f.get("slug") or f.get("sid"),
+                                                   f.get("to"))
+                    self.assertEqual(rel, expected)
 
     def test_wanted_surfaces_name_the_open_json_gap(self):
         wanted = self.manifest.data.get("wanted", [])

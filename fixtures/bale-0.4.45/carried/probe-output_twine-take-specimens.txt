@@ -1,0 +1,664 @@
+=== PROBE BEGIN twine-take-specimens ===
+--- section: environment ---
+date-utc: 2026-10-02T17:57:36Z
+uname: Linux 6.6.87.1-microsoft-standard-WSL2 x86_64
+class: WSL
+bash: 5.2.21(1)-release
+python3: Python 3.12.3
+locale: LANG=C.UTF-8 LC_ALL=unset
+tool gzip: present
+tool base64: present
+tool sha256sum: present
+tool git: present
+--- section: bale install ---
+root: /home/chordsphere/bale
+bin/VERSION: 0.4.45
+tools/craft_response.py: 3538 lines, sha256 66d389865447aa445a517b1113f9f8cf32d7d2d059a631f1388e9f1b6541738c
+bin/bale_relay.py: 800 lines, sha256 f302441257cc26090af435f2ea826125aa9a9a8f027ef14d7663da392fec48cd
+bin/bale_report.py: 5237 lines, sha256 7af2f7aca3082160dbf45849d91f28bac926c3d31ee7c1bc123f3fcba7e0759b
+crafter vs request-carried copy: identical
+--- section: twine-src state ---
+head: 8d7173a 2026-10-02T17:52:42+00:00 bale: per-session checkpoint for 2026-10-02-twine-take-read-001
+branch: master
+porcelain (cap 20):
+?? claude/telemetry/2026-09-29-begin-harness-001.json
+?? claude/telemetry/2026-10-02-twine-take-read-001.json
+bale.toml [probe] clipboard_command: 0 matching line(s) (decides the probe scaffold's tail)
+--- section: emissions ---
+--- emission: probe-scaffold ---
+command (in /home/chordsphere/twine-src): python3 /home/chordsphere/bale/tools/craft_response.py --probe twine-take-fixture
+crafter stderr follows, if any:
+[craft] clipboard epilogue not emitted (bale.toml found; [probe] clipboard_command unset) — remedy text in the scaffold walks the operator through the [probe] clipboard_command opt-in
+[craft] probe skeleton emitted — fill the TODO placeholders (what, why, real sections with caps), then paste into chat; no lint runs on a probe — the architect audits it by eye (TARBALL.md 4.2)
+exit: 0
+bytes: 1898
+lines: 39
+sha256: abb75f26b64728022aa71cfeb17dc4df9b2ac4ed1c23046b5c8299a55125386a
+ends-with-newline: yes
+--- raw: probe-scaffold (verbatim, between this line and the end marker) ---
+#!/usr/bin/env bash
+# PROBE twine-take-fixture: TODO(worker) — what this asks, in one line.
+# Why: TODO(worker) — the gap this fills, in one line.
+# Read-only: writes nothing anywhere; stdout is the only output.
+
+probe() {
+  # TODO(worker): replace this placeholder with the real sections —
+  # one labeled section per question, every command's output capped,
+  # an explicit truncation marker when the cap bites (TARBALL.md 4.2).
+  # The cap-and-truncation pattern, worked for one command:
+  #   git status --porcelain=v1 2>&1 | head -n 40
+  #   n=$(git status --porcelain=v1 2>/dev/null | wc -l)
+  #   [ "$n" -gt 40 ] && echo "[truncated: $n lines total, showing 40]"
+  # Listing a tree, worked with caches excluded — __pycache__ and *.pyc
+  # (and node_modules, dist, build) are generated, never source, and
+  # would crowd the cap and mislead the reader into thinking they ship:
+  #   find bin -name __pycache__ -prune -o -name '*.pyc' -prune -o -type f -print | sort | head -n 80
+  # or, inside a git checkout, only what git tracks:
+  #   git ls-files -- bin | head -n 80
+  echo "--- section: TODO-example ---"
+  echo "TODO(worker): unfilled probe placeholder — not ready to paste"
+}
+
+out="$(probe 2>&1)"
+emit_probe_block() {
+  echo "=== PROBE BEGIN twine-take-fixture ==="
+  printf '%s\n' "$out"
+  printf -- '--- integrity: %s lines ---\n' "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+  echo "=== PROBE END twine-take-fixture ==="
+}
+emit_probe_block
+
+# Clipboard epilogue not emitted (opt-in, unset at craft time). To have
+# this scaffold tee its own output to your clipboard, set in bale.toml:
+#     [probe]
+#     clipboard_command = "<your clipboard command>"   # e.g. pbcopy
+# and ship bale.toml in the request's context/ so the crafter can read
+# it (it looks in ./bale.toml, then ./context/bale.toml). Manual path:
+# select between the PROBE BEGIN/END banners above and copy.
+--- end raw: probe-scaffold ---
+--- gzip+base64: probe-scaffold ---
+H4sIAAAAAAACA31V224bNxB936+Yyo4lFdpVEvihcKsAcRMEBdy4MAz0ITUELnekJUSRW5KrtdAG
+6Ef0C/slPeSuVLlx+yTxMoczc86ZPftq3no3L5WZs9lRKXydndFPd7fX7yl0ynAexIbzlXoMreMr
+ur99dzvprNuwm9Jff/xJXS0ChVp5En7jZ6QMWcOkEVoA6ed6/0xQqJnWounjVkrrLwPvWFS5NRrh
+nVOBPRmL62ZNwuy7mh1/Sz5Utg0EjAgYLxPWTRuKLGucLXkypd8yorMnGVyR40YLyf3z6W9tdcWO
+OhXqhOVYaPIsg7LGx5QTSspPlKy5OhxSg7BfW/ZxMSPesduTtNutMNXYD+mQFE3D1SyBCEP82Ggl
+FfrmWiNFwtmKmBzaySZlgBAqU92T+7d3129vboptRZfF62nRV9TfyfFOfgLTiBDYIZNUbEUr61La
+Q0pXKZZojcd9EKH1lOeNdZK1UGaxe0Wv31y8ot+pRvspN3T5cogwi/PJ/0XNK97NTas1gjtJuZ4O
+gZ9odG5GlK8DwOiBLi6IZW1p9GlIm6srOjeJeBBpg9Az8rXtIteXLx9GCedGocORfPSM+VheIkwK
+WSOUH6VuK2xGhS2XzT7tL5foeEVfF1gnpElcGlvxcmurVjOkVwF8RmWrdDUl4aBNNuxiZjMykVLy
+tkW1swiVQDrb6oqks111ZCvibpXXsXODhqKmlAk2Ks1sYv442KM61RyYWCmEwX5ottjyk7zzBg1i
+yu1wNk5FjE/3w75hWsUdPIPOe+vCCXvf9OxZF+3lVcXoXyQR+HIDbc560yQPr5Mehdz4U5FoD++j
+SSA8Zfkv7J7JHIeDH3qz5/woto1Gjnk+Ol57asLWROODruTUJzaMBMLtqYN7SAKq9oFH2ecsQ9KL
+0fmkj4lanY4y3qqwTDvLUlu5GVzfP7pYLIZxdv3+ww8fnxlqhCsxydTDFY1f+F/MGKLFUyfbKHEc
+68SC1xhImEsv/CBa7Pchk+cwDobAb3CUVzSm8XT0TILvP777z/Q+f1FlhiH5vVZNaYWriBul7brl
+1Ld4FeKliW1CrjAMWuM5EEiWTqxAs9rytKB7S7XYMXDSIPRSrFYggAIzqYDh1ZnDAAMHe1iA5OFB
+WBSIEEQpNBfBbvVVFjUDv6ccH4bVMWA5TCBa0Oi7p1iH4fRmRFF4XKwLakppm312llwV/fLPQ/HV
+3l9p7mLKSgtSHsMc8u/dGKuEjiRmbdQQYCDlSZSztRsfAYr5EW8WY+LOAeZ4gh79KEyLTwHGah0L
+9Jj9MlDJoeNhUJ+Iax4ZLIXB8MDnsLQ7TunHSorsb8eEun9qBwAA
+--- end gzip+base64: probe-scaffold ---
+--- emission: light-block ---
+command (in /home/chordsphere/twine-src): python3 /home/chordsphere/bale/tools/craft_response.py --light-block -
+crafter stderr follows, if any:
+[craft] light block rendered for 2026-10-02-twine-take-read-001: 2 question(s), within the count of 3 (TARBALL.md 5.10)
+[craft] questions[1] carries options, recommendation, priority, origin — the light block renders the four labeled fields only; those keys travel if the packer replies "formal" (--emit-block of this same file)
+[craft] block emitted on stdout — end the turn on it; multi-tiered questions (options that need explaining, a why_blocked that needs a paragraph) fail admission however few there are, and that judgment is the worker's. The trail is the eventual response's notes.md, never a thread (TARBALL.md 5.10)
+exit: 0
+bytes: 722
+lines: 11
+sha256: 55c53cfe057b2e5a5cee10b7f6eabbbcb5365e24cc481329b27f19c6f3cebdb8
+ends-with-newline: yes
+--- raw: light-block (verbatim, between this line and the end marker) ---
+=== LIGHT BEGIN 2026-10-02-twine-take-read-001 ===
+[1] question:     Specimen row 1 — does twine take report a probe block's script with its fences stripped?
+    while doing:  Recording fixtures for twine take (specimen only; no answer wanted)
+    would assume: stripped
+    why blocked:  not blocked; a recorded specimen for the parser's tests
+[2] question:     Specimen row 2: is a relay block to planner ever delivered to a worker?
+    while doing:  Recording the routing rule's fixture (specimen only; no answer wanted)
+    would assume: never
+    why blocked:  not blocked; a recorded specimen for the parser's tests
+Reply: answer inline, "as assumed", or "formal".
+=== LIGHT END 2026-10-02-twine-take-read-001 ===
+--- end raw: light-block ---
+--- gzip+base64: light-block ---
+H4sIAAAAAAACA62SvU7DMBSF9z7FURZAIijJwNAqQkJUpRLqUNgqBje+pVZdO1w7hG48BE/Ik3DT
+PzFVCOHBf/E93/GJy7LEw3h0/4Tb4Wg8QZEV12mepVmRxtY4SqNaUcqkdJplOcqy7M3yZ7w2FKLx
+ro+uPdZUmTU5sG+R4+vjE9pTwFYBnQKYas8RCjX7OWFufbU6CwgVmzqiNXEJEwMW5CopDFG2a9I3
+vU6+XRpLomjci/CmVHnWMsfCvMeG5fjC80/WeTj48c5uBnAeyoWWGK1ykfTFTtU3VkOF0KypfyTu
+gZudQ9ICdD4eVgO5AG/5pHGkbPFLQq04EMutooQTerPiZE5FHyZs9aza4xA9aqucE6v0Jp0ma2QU
+mHxRYplXxKdD6Yywb2I358aS2Nnn9KdcXOfjH0OZUm03/QPXOCt/7RKJCnuiTi4hlYmUr5VNrnrl
+8YEOJ3e/eZ7fu/CROdICAAA=
+--- end gzip+base64: light-block ---
+--- emission: exchange-block ---
+command (in /home/chordsphere/twine-src): python3 /home/chordsphere/bale/tools/craft_response.py --emit-block -
+crafter stderr follows, if any:
+[craft] clarification manifest normalized to a from: worker record, round 1, 2 question(s)
+[craft] block emitted on stdout — hand it to the courier for `bale relay <sid> <file|->`; the trailer is the sha256 of the body bytes, so a truncated paste refuses on ingest instead of being reasoned from (TARBALL.md 5.9.2)
+exit: 0
+bytes: 1618
+lines: 34
+sha256: 9632439af6dd669e03e7a49d87a79639409e5d9b586f56586a20bccdf98e7d00
+ends-with-newline: yes
+--- raw: exchange-block (verbatim, between this line and the end marker) ---
+BALE EXCHANGE BEGIN 2026-10-02-twine-take-read-001
+# bale exchange record — session 2026-10-02-twine-take-read-001 — round 1 — from worker to planner
+# 2 blocking question(s). Planner: answer as an exchange record (from: planner, round 2, answers[] keyed question_round 1) and record it with `bale relay 2026-10-02-twine-take-read-001 <answer.json|->`.
+# Body: the record (exchange-record.schema.json). Trailer: sha256 of the body bytes — a mismatch on ingest means a truncated paste; re-request the block rather than reason from it.
+{
+  "record_version": 1,
+  "session_id": "2026-10-02-twine-take-read-001",
+  "round": 1,
+  "from": "worker",
+  "created_at": "2026-10-02T17:57:34+00:00",
+  "questions": [
+    {
+      "question": "Specimen row 1 \u2014 does twine take report a probe block's script with its fences stripped?",
+      "context": "Recording fixtures for twine take (specimen only; no answer wanted)",
+      "default_assumption": "stripped",
+      "why_blocked": "not blocked; a recorded specimen for the parser's tests"
+    },
+    {
+      "question": "Specimen row 2: is a relay block to planner ever delivered to a worker?",
+      "context": "Recording the routing rule's fixture (specimen only; no answer wanted)",
+      "default_assumption": "never",
+      "why_blocked": "not blocked; a recorded specimen for the parser's tests",
+      "options": [
+        "never",
+        "with consent"
+      ],
+      "recommendation": "never",
+      "priority": "batched",
+      "origin": "intent-gap"
+    }
+  ]
+}
+# sha256 2ee30847036001b8f57cd1cbf4b8fd7fcbf322aad927a2ff38d3d9a1195e9c47
+BALE EXCHANGE END
+--- end raw: exchange-block ---
+--- gzip+base64: exchange-block ---
+H4sIAAAAAAACA61V0W7TMBR971dclQc20VRp2q5rhkArVAMJTQj2gDSmzolvWtPUDrZDV41JfARf
+yJdw7STtKgRDgpfUvb73nHOPr5PJ6ZspTD+8eHV6fjaFyfTs9TlEYXQU9MIgjAK7FhIDy5YYaGQ8
+CMNe6xEkLEfAm3TB5BxBY6o0hx/fvoNBY4SSDyD4VK1KyaFaZ1qtYK30EjVYBUXOpERNRBEkuUqX
+Qs7hc4nGEvaBOezC2yojBibNmoqYodUvig4cbtzAdWrKqFNXmcsrWOIG+RZ7Vos6pAzeoAgLa2EX
+cO271pizzUP9Pa0Iup+Mkl+DZ9ddamWi+CYGu9ipa+QGVaBr0gWumC+iFi80E7lr0SxYNDwClfni
+hGAg2Vg03jkGK2FWzKYLINvJJ2oEVkj8tGV1KVNmqcGCGYsnxExcvtkKy3kLmtGafCctlMCIvToP
+Ybut2xZAu5I3+0KOkUftGHodF67PeiY4hdp/dqTtK7y723pH4iqrc68yUiogvTNm9zEveqN4OIr7
+gydhGIdhldycmqHcSwoA3PrnvS2H8r7AVKyQmlNrmrePZRT2BsAVOeiVglNKnRdKWzKt0CqprXls
+wKRaFPUACGsgQ5lSobEULpA/90o8ZaqkxRuv+503zA1tJm5sqakgU/o+24FpRCmZb05AqmaS14xg
++OEOl2PGytzOmDHlqmiaagTs8taLzcyrRn8eUlmo/55QV9UZ0iRsib0iGoKCaYOaWqWRsqbt4e46
+f2lnFIMwHt7dimqedhcYkGYGOOaCfombdlh9zR8yzt8TVVq31mWOpK/28t+9k07Wfzdui6eK/aH0
+wX1Ox+omilo3KG27Dl9tMRzrisg4+43oQgulhd24rcRd//ujQDtz4asEGSJtMGdFfbD0vGrd0euo
+fqtEiP3weDAK+0d0TZPjbDhKeS9NsgGt+SijVT+KGOPjaMSiLOsf8z4fs15vPMRxOhi1Jnvfj+n5
+y9ZPTUZWI1IGAAA=
+--- end gzip+base64: exchange-block ---
+--- section: bale source (read via ast, never imported) ---
+=== file: bin/bale_relay.py ===
+top-level defs naming 'exchange' (name: line):
+  _exchange_body_bytes: 96
+  format_exchange_block: 107
+  parse_exchange_input: 218
+  read_exchange_thread: 352
+--- parse_exchange_input (lines 218-329) ---
+  218| def parse_exchange_input(data: bytes) -> tuple[dict, Optional[str]]:
+  219|     """Parse relay's input — a paste block, or bare JSON — into
+  220|     (record_dict, block_sid).
+  221|
+  222|     The input is CRLF-normalized first (the board-50 ingest-edge rule,
+  223|     bale_pack.normalize_crlf: a block that traveled mail, chat, or a
+  224|     Windows checkout still verifies). Then:
+  225|
+  226|     - If a `BALE EXCHANGE BEGIN <sid>` sentinel line is present, the
+  227|       block path: the matching END sentinel must follow; the leading
+  228|       `#` lines are the header; the last inner line must be the sha256
+  229|       trailer; the body is everything between, and its sha256 must
+  230|       equal the trailer's — a mismatch is the truncated-or-edited paste
+  231|       the trailer exists to catch, refused with the re-request hint
+  232|       before the body is trusted (BALE.md §8.11 step 1). Returns the
+  233|       parsed body and the sentinel's sid, which the caller compares to
+  234|       the invoked sid.
+  235|     - Otherwise the bare-JSON path: the whole input is the record (an
+  236|       exchange record, or a saved clarification manifest); block_sid is
+  237|       None.
+  238|
+  239|     Refusals go through _fail() naming the rule. Text outside the
+  240|     sentinels (a chat's fence lines, a greeting) is ignored by
+  241|     construction — only the sentinel-bracketed span is read.
+  242|     """
+  243|     from bale_pack import normalize_crlf  # lazy — sibling, loaded by bin/bale
+  244|     text = normalize_crlf(data).decode("utf-8", errors="replace")
+  245|     lines = text.split("\n")
+  246|     begin_idx = None
+  247|     block_sid = None
+  248|     for i, line in enumerate(lines):
+  249|         stripped = line.strip()
+  250|         if stripped.startswith(EXCHANGE_BLOCK_BEGIN):
+  251|             rest = stripped[len(EXCHANGE_BLOCK_BEGIN):].strip()
+  252|             begin_idx = i
+  253|             block_sid = rest or None
+  254|             break
+  255|     if begin_idx is None:
+  256|         raw = text.strip()
+  257|         if not raw:
+  258|             _fail("relay input is empty — expected an exchange record, a "
+  259|                  "clarification manifest, or the paste block wrapping "
+  260|                  "either (BALE.md \u00a78.11 step 1)")
+  261|         try:
+  262|             record = json.loads(raw)
+  263|         except json.JSONDecodeError as e:
+  264|             _fail(f"relay input is neither a BALE EXCHANGE paste block nor "
+  265|                  f"valid JSON: {e}. Expected an exchange record, a "
+  266|                  f"clarification manifest, or the paste block wrapping "
+  267|                  f"either.")
+  268|         return record, None
+  269|
+  270|     if block_sid is None:
+  271|         _fail(f"paste block's `{EXCHANGE_BLOCK_BEGIN}` sentinel carries no "
+  272|              f"session id — expected `{EXCHANGE_BLOCK_BEGIN} <sid>`")
+  273|     end_idx = None
+  274|     for j in range(begin_idx + 1, len(lines)):
+  275|         if lines[j].strip() == EXCHANGE_BLOCK_END:
+  276|             end_idx = j
+  277|             break
+  278|     if end_idx is None:
+  279|         _fail(f"paste block has no `{EXCHANGE_BLOCK_END}` sentinel after "
+  280|              f"`{EXCHANGE_BLOCK_BEGIN} {block_sid}` — the paste is "
+  281|              f"truncated; re-request the block from its emitter rather "
+  282|              f"than reasoning from a partial one")
+  283|     inner = lines[begin_idx + 1:end_idx]
+  284|     # Header: the leading comment lines. Stop at the first non-comment
+  285|     # line — the body starts there.
+  286|     k = 0
+  287|     while k < len(inner) and inner[k].lstrip().startswith("#"):
+  288|         k += 1
+  289|     if k >= len(inner):
+  290|         _fail("paste block carries a header but no body between its "
+  291|              "sentinels — the paste is truncated; re-request the block")
+  292|     # Trailer: the last non-blank inner line.
+  293|     t = len(inner) - 1
+  294|     while t > k and not inner[t].strip():
+  295|         t -= 1
+  296|     m = _EXCHANGE_TRAILER_RE.match(inner[t].strip())
+  297|     if m is None:
+  298|         _fail(f"paste block's last line inside the sentinels is not the "
+  299|              f"`{EXCHANGE_TRAILER_LABEL} <hex>` integrity trailer (got "
+  300|              f"{inner[t].strip()!r}) — the paste is truncated or edited; "
+  301|              f"re-request the block from its emitter")
+  302|     expected = m.group(1).lower()
+  303|     body = "\n".join(inner[k:t]) + "\n"
+  304|     actual = hashlib.sha256(body.encode("utf-8")).hexdigest()
+  305|     if actual != expected:
+  306|         if reescaped_body_matches(body, expected):
+  307|             _fail(f"paste block integrity trailer disagrees with its body "
+  308|                  f"(trailer sha256 {expected[:12]}\u2026, body sha256 "
+  309|                  f"{actual[:12]}\u2026), but the body re-serialized with "
+  310|                  f"ASCII escaping hashes to the trailer: the carrier "
+  311|                  f"unescaped the block's \\uXXXX escapes into literal "
+  312|                  f"characters in transit, so the content is intact and "
+  313|                  f"only its spelling changed; re-carry the block "
+  314|                  f"byte-for-byte (a file or an attachment rather than a "
+  315|                  f"rendered chat message), or re-request it from its "
+  316|                  f"emitter")
+  317|         _fail(f"paste block integrity trailer disagrees with its body "
+  318|              f"(trailer sha256 {expected[:12]}…, body sha256 "
+  319|              f"{actual[:12]}…) — the paste is truncated or was edited in "
+  320|              f"transit; re-request the block from its emitter rather "
+  321|              f"than reasoning from a partial one")
+  322|     try:
+  323|         record = json.loads(body)
+  324|     except json.JSONDecodeError as e:
+  325|         # Unreachable for a block bale emitted (the trailer matched a body
+  326|         # bale rendered), reachable for a hand-built block whose trailer
+  327|         # was computed over invalid JSON — still a data problem, named.
+  328|         _fail(f"paste block body is not valid JSON: {e}")
+  329|     return record, block_sid
+--- _exchange_body_bytes (lines 96-104) ---
+   96| def _exchange_body_bytes(record: dict) -> bytes:
+   97|     """The paste block's body for `record`: its JSON, two-space indented,
+   98|     ASCII-escaped (the most transport-proof spelling — a chat or mail hop
+   99|     cannot mangle a non-ASCII character the body never carries), one
+  100|     trailing newline. The trailer's sha256 is computed over exactly these
+  101|     bytes, and ingest recomputes over exactly the bytes it read between
+  102|     header and trailer, so any truncation or edit in transit refuses.
+  103|     """
+  104|     return (json.dumps(record, indent=2) + "\n").encode("utf-8")
+--- reescaped_body_matches (lines 163-181) ---
+  163| def reescaped_body_matches(body: str, expected_hex: str) -> bool:
+  164|     """True when `body`, parsed as JSON and re-serialized the way bale
+  165|     renders a paste block's body (_exchange_body_bytes: two-space
+  166|     indent, ASCII escaping, one trailing newline), hashes to the
+  167|     trailer's `expected_hex` (v0.4.41, the findings' section 8 item 2).
+  168|
+  169|     That is the signature of one specific transit fault: a carrier (a
+  170|     chat renderer, a mail client) turned the body's `\\uXXXX` escapes
+  171|     into the characters they stand for — the record is intact, its
+  172|     bytes are not. Called only after the plain hash has disagreed, so
+  173|     the refusal can name that fault instead of "truncated or edited".
+  174|     Pure; a body that does not parse is simply not this fault (False).
+  175|     """
+  176|     try:
+  177|         parsed = json.loads(body)
+  178|     except (json.JSONDecodeError, ValueError):
+  179|         return False
+  180|     rendered = _exchange_body_bytes(parsed)
+  181|     return hashlib.sha256(rendered).hexdigest() == expected_hex.lower()
+--- format_exchange_block (lines 107-160) ---
+  107| def format_exchange_block(sid: str, record: dict) -> str:
+  108|     """Render the counterpart-facing paste block for an exchange record
+  109|     (BALE.md §8.11 'The paste block'; the probe's four properties,
+  110|     TARBALL.md §4.2, applied to a record):
+  111|
+  112|       BALE EXCHANGE BEGIN <sid>          sentinel (self-delimiting)
+  113|       # ... purpose header ...           direction and round, who reads it
+  114|       { ...record JSON... }              the body
+  115|       # sha256 <hex>                     integrity trailer over the body
+  116|       BALE EXCHANGE END                  sentinel
+  117|
+  118|     `record` is the exchange record as ingested (for a paste-block-borne
+  119|     clarification manifest, its normalized `from: worker` reading — see
+  120|     _normalize_manifest_to_record); the preserved copy's `preserved_at`
+  121|     sidecar is never part of the body, so the block is the record and
+  122|     only the record. Pure: the tests render and re-parse it in memory.
+  123|     """
+  124|     side = record.get("from")
+  125|     rnd = record.get("round")
+  126|     to_side = (EXCHANGE_SIDE_PLANNER if side == EXCHANGE_SIDE_WORKER
+  127|                else EXCHANGE_SIDE_WORKER)
+  128|     n_q = len(record.get("questions") or [])
+  129|     n_a = len(record.get("answers") or [])
+  130|     body = _exchange_body_bytes(record)
+  131|     digest = hashlib.sha256(body).hexdigest()
+  132|     header = [
+  133|         f"{EXCHANGE_BLOCK_BEGIN} {sid}",
+  134|         f"# bale exchange record — session {sid} — round {rnd} — "
+  135|         f"from {side} to {to_side}",
+  136|     ]
+  137|     if side == EXCHANGE_SIDE_WORKER:
+  138|         header.append(
+  139|             f"# {n_q} blocking question(s)"
+  140|             + (f" and {n_a} answer(s)" if n_a else "")
+  141|             + ". Planner: answer as an exchange record (from: planner,"
+  142|             f" round {rnd + 1 if isinstance(rnd, int) else '<next>'},"
+  143|             f" answers[] keyed question_round {rnd}) and record it with"
+  144|             f" `bale relay {sid} <answer.json|->`.")
+  145|     else:
+  146|         header.append(
+  147|             f"# {n_a} answer(s)"
+  148|             + (f" and {n_q} question(s) asked back" if n_q else "")
+  149|             + f". Worker: read the record, continue under {sid}, and"
+  150|             " ship the normal response the clarification deferred"
+  151|             + (" — or answer the questions asked back as the next"
+  152|                " round." if n_q else "."))
+  153|     header.append(
+  154|         "# Body: the record (exchange-record.schema.json). Trailer: sha256 "
+  155|         "of the body bytes — a mismatch on ingest means a truncated paste; "
+  156|         "re-request the block rather than reason from it.")
+  157|     return ("\n".join(header) + "\n"
+  158|             + body.decode("utf-8")
+  159|             + f"{EXCHANGE_TRAILER_LABEL} {digest}\n"
+  160|             + f"{EXCHANGE_BLOCK_END}\n")
+--- _read_relay_input (lines 513-539) ---
+  513| def _read_relay_input(arg: str, cwd: Path, repo: Path) -> tuple[bytes, str]:
+  514|     """Read the relay input: stdin for `-`, else a file resolved like
+  515|     apply's tarball argument (cwd, then apply.search_paths; absolute
+  516|     bypasses — the one resolver every inbound surface shares). Returns
+  517|     (bytes, display name)."""
+  518|     from __main__ import fail, locate_inbound_path  # lazy — see module docstring
+  519|     import bale_config  # lazy — sibling module, loaded by bin/bale
+  520|     if arg == "-":
+  521|         try:
+  522|             data = sys.stdin.buffer.read()
+  523|         except OSError as e:
+  524|             fail(f"could not read the exchange from stdin: {e}")
+  525|         return data, "<stdin>"
+  526|     cfg = bale_config.merged_config(repo)
+  527|     search = bale_config.get_apply_search_paths(cfg)
+  528|     src = locate_inbound_path(arg, cwd, search)
+  529|     if src is None:
+  530|         lines = [f"exchange file not found: {arg}", "  searched:",
+  531|                  f"    {cwd}  (cwd)"]
+  532|         lines += [f"    {sp}" for sp in search]
+  533|         fail("\n".join(lines))
+  534|     if not src.is_file():
+  535|         fail(f"exchange file not found: {src}")
+  536|     try:
+  537|         return src.read_bytes(), str(src)
+  538|     except OSError as e:
+  539|         fail(f"could not read exchange file {src}: {e}")
+--- constant EXCHANGE_BLOCK_BEGIN (lines 83-83) ---
+   83| EXCHANGE_BLOCK_BEGIN = "BALE EXCHANGE BEGIN"
+--- constant EXCHANGE_BLOCK_END (lines 84-84) ---
+   84| EXCHANGE_BLOCK_END = "BALE EXCHANGE END"
+--- constant EXCHANGE_TRAILER_LABEL (lines 89-89) ---
+   89| EXCHANGE_TRAILER_LABEL = "# sha256"
+--- constant _EXCHANGE_TRAILER_RE (lines 90-90) ---
+   90| _EXCHANGE_TRAILER_RE = re.compile(r"^#\s*sha256:?\s+([0-9a-fA-F]{64})\s*$")
+--- _fail (lines 62-77) ---
+   62| def _fail(msg: str) -> None:
+   63|     """Refuse through bin/bale's fail() when hosted by it — the runtime
+   64|     path, where __main__ is bin/bale — and otherwise mirror its visible
+   65|     shape (the `[bale] error:` line on stderr, exit 1). The otherwise
+   66|     matters: the crafter parity suite loads bin/bale as an ordinary
+   67|     module and drives the ingest surface in-process, so a bare
+   68|     `from __main__ import fail` here would break even happy-path calls
+   69|     under any host that isn't bale. Session-journal logging is the
+   70|     hosted path's extra; standalone refusals have no session to journal.
+   71|     """
+   72|     import __main__
+   73|     host_fail = getattr(__main__, "fail", None)
+   74|     if host_fail is not None:
+   75|         host_fail(msg)
+   76|     print(f"[bale] error: {msg}", file=sys.stderr)
+   77|     raise SystemExit(1)
+[parse_exchange_input calls names not defined at top level here: normalize_crlf]
+--- constant EXCHANGE_SIDE_PLANNER (lines 93-93) ---
+   93| EXCHANGE_SIDE_PLANNER = "planner"
+--- constant EXCHANGE_SIDE_WORKER (lines 92-92) ---
+   92| EXCHANGE_SIDE_WORKER = "worker"
+[_read_relay_input calls names not defined at top level here: fail, locate_inbound_path]
+=== file: bin/bale_report.py ===
+top-level defs naming 'relay' (name: line):
+  relay_sentinels: 870
+  relay_send_first: 880
+  relay_admission_rows: 964
+  format_hold_relay_planner: 995
+  format_hold_relay_worker: 1063
+  format_hold_relay_blocks: 1116
+  format_apply_relay_planner: 1145
+--- relay_sentinels (lines 870-877) ---
+  870| def relay_sentinels(sid: str, addressee: str) -> tuple:
+  871|     """The BEGIN/END sentinel lines for one addressed block. Pure."""
+  872|     if addressee not in (RELAY_TO_PLANNER, RELAY_TO_WORKER):
+  873|         raise ValueError(f"relay_sentinels: addressee must be "
+  874|                          f"{RELAY_TO_PLANNER!r} or {RELAY_TO_WORKER!r}, "
+  875|                          f"got {addressee!r}")
+  876|     return (f"=== RELAY BEGIN {sid} to {addressee} ===",
+  877|             f"=== RELAY END {sid} to {addressee} ===")
+--- _inline_lines (lines 891-902) ---
+  891| def _inline_lines(text: Optional[str]) -> list:
+  892|     """`text` as lines for inlining inside a relay block, verbatim except
+  893|     that a line which would read as a relay sentinel gets a two-space
+  894|     indent — sentinels are whole lines, so an inlined output line can
+  895|     never close or open a block early. Trailing blank lines dropped."""
+  896|     lines = (text or "").splitlines()
+  897|     while lines and not lines[-1].strip():
+  898|         lines.pop()
+  899|     while lines and not lines[0].strip():
+  900|         lines.pop(0)
+  901|     return [f"  {ln}" if ln.startswith(_RELAY_SENTINEL_PREFIX) else ln
+  902|             for ln in lines]
+--- constant RELAY_TO_PLANNER (lines 850-850) ---
+  850| RELAY_TO_PLANNER = "planner"
+--- constant RELAY_TO_WORKER (lines 851-851) ---
+  851| RELAY_TO_WORKER = "worker"
+--- constant _RELAY_SENTINEL_PREFIX (lines 867-867) ---
+  867| _RELAY_SENTINEL_PREFIX = "=== RELAY "
+call sites of relay_sentinels (enclosing def shown):
+  in format_hold_relay_planner (line 995)
+--- format_hold_relay_planner (lines 995-1060) ---
+  995| def format_hold_relay_planner(*, sid: str, exit_code: int,
+  996|                               checkpoint: Optional[dict],
+  997|                               held_tarball: Optional[str],
+  998|                               held_tarball_why: str = "",
+  999|                               bands: dict,
+ 1000|                               admissions: Optional[dict] = None) -> str:
+ 1001|     """The planner-addressed block on a HOLD: everything the desk needs
+ 1002|     to rule without asking — judge line, failed probe labels, both exit
+ 1003|     codes, the checkpoint stamp state, the held tarball's path, and both
+ 1004|     session-log bands inlined (`bands` from split_attempt_bands). It
+ 1005|     replaces card-plus-`cat`-the-log. Pure.
+ 1006|
+ 1007|     `admissions` (v0.4.41, board 110's proposal) is the held apply's
+ 1008|     admissions in format_apply_relay_planner's shape, rendered beside
+ 1009|     `held tarball:` by relay_admission_rows — `admissions:` with one
+ 1010|     indented row each, or `admissions: none` — so the desk ruling on a
+ 1011|     fixture defect sees that the held apply needed, say,
+ 1012|     --allow-out-of-scope. None (a caller predating the rider) renders
+ 1013|     no admissions line; apply's HOLD path always passes the dict."""
+ 1014|     begin, end = relay_sentinels(sid, RELAY_TO_PLANNER)
+ 1015|     judge = hold_judge(checkpoint, exit_code)
+ 1016|     ran = bool(checkpoint) and bool(checkpoint.get("configured"))
+ 1017|     first = relay_send_first(judge["case"])
+ 1018|     out = [begin,
+ 1019|            "PASTE THIS WHOLE BLOCK INTO THE PLANNER'S (MASTER'S) CHAT — "
+ 1020|            "not the worker's.",
+ 1021|            ("Send it now: it goes first." if first == RELAY_TO_PLANNER
+ 1022|             else "Send it after the worker block: only the worker's own "
+ 1023|                  "validation held, so this is for the desk's record."),
+ 1024|            "",
+ 1025|            f"HOLD — session {sid}",
+ 1026|            f"judge: {judge['line']}"]
+ 1027|     if ran:
+ 1028|         out.append(f"failed probes: "
+ 1029|                    f"{_labels_value(checkpoint.get('failed_probes') or [])}")
+ 1030|     out.append("exit codes: "
+ 1031|                + (f"checkpoint {checkpoint.get('exit_code')}" if ran
+ 1032|                   else "checkpoint not run")
+ 1033|                + f" · worker validation.sh {exit_code}")
+ 1034|     out.append(f"checkpoint stamp: {_checkpoint_stamp_state(checkpoint)}")
+ 1035|     out.append("held tarball: " + (held_tarball if held_tarball is not None
+ 1036|                                    else f"(not recorded: {held_tarball_why})"))
+ 1037|     if admissions is not None:
+ 1038|         rows = relay_admission_rows(admissions)
+ 1039|         if rows:
+ 1040|             out.append("admissions:")
+ 1041|             out.extend(f"  {r}" for r in rows)
+ 1042|         else:
+ 1043|             out.append("admissions: none")
+ 1044|     if ran:
+ 1045|         out.append("")
+ 1046|         out.append("--- session log: checkpoint band ---")
+ 1047|         cp = bands.get("checkpoint")
+ 1048|         out.extend(_inline_lines(cp) if cp else
+ 1049|                    ["(the checkpoint band could not be read from the "
+ 1050|                     "session log — see .bale/logs/" + sid + ".log)"])
+ 1051|         out.append("--- end checkpoint band ---")
+ 1052|     out.append("")
+ 1053|     out.append("--- session log: worker band ---")
+ 1054|     wk = bands.get("worker")
+ 1055|     out.extend(_inline_lines(wk) if wk else
+ 1056|                ["(the worker band could not be read from the session log "
+ 1057|                 "— see .bale/logs/" + sid + ".log)"])
+ 1058|     out.append("--- end worker band ---")
+ 1059|     out.append(end)
+ 1060|     return "\n".join(out)
+  in format_hold_relay_worker (line 1063)
+--- format_hold_relay_worker (lines 1063-1113) ---
+ 1063| def format_hold_relay_worker(*, sid: str, judge_line: str, judge_case: str,
+ 1064|                              failed_probes: Optional[list],
+ 1065|                              worker_exit: int, worker_output: str,
+ 1066|                              held_tarball: Optional[str],
+ 1067|                              held_tarball_why: str = "") -> str:
+ 1068|     """The worker-addressed block on a HOLD — spec-safe by construction.
+ 1069|
+ 1070|     Its only inputs are the judge line (hold_judge's: which side held,
+ 1071|     in the attribution vocabulary), the failed probe LABELS
+ 1072|     (`failed_probes`, None when no checkpoint ran — PLANNER.md §5 step
+ 1073|     1: the worker diagnoses from the reveal label alone), the worker's
+ 1074|     own validation.sh output and exit, and the held tarball's path for
+ 1075|     the closing line. There is no parameter for the checkpoint's output
+ 1076|     or the session log, so no line of either can reach this block, in
+ 1077|     any judge case, including a checkpoint that passed. Pure.
+ 1078|     """
+ 1079|     begin, end = relay_sentinels(sid, RELAY_TO_WORKER)
+ 1080|     first = relay_send_first(judge_case)
+ 1081|     out = [begin,
+ 1082|            f"PASTE THIS WHOLE BLOCK INTO THE WORKER'S CHAT FOR SESSION "
+ 1083|            f"{sid} — not the planner's.",
+ 1084|            ("Send it now: it goes first." if first == RELAY_TO_WORKER
+ 1085|             else "WAIT: send it only after the planner has ruled, and only "
+ 1086|                  "if the ruling is a work defect."),
+ 1087|            "",
+ 1088|            f"Your response for session {sid} was held (HOLD).",
+ 1089|            f"judge: {judge_line}"]
+ 1090|     if failed_probes is not None:
+ 1091|         out.append(f"failed probes: {_labels_value(failed_probes)}")
+ 1092|         out.append("The blind checkpoint's output is not shared — diagnose "
+ 1093|                    "from the probe labels alone. If your evidence points at "
+ 1094|                    "the checkpoint rather than your work, ask the planner "
+ 1095|                    "for the spec from these labels (PLANNER.md §5).")
+ 1096|     out.append("You do not need the session log; do not ask for it — "
+ 1097|                "this block is the whole of the failure context.")
+ 1098|     out.append("")
+ 1099|     out.append(f"--- your validation.sh output (exit {worker_exit}) ---")
+ 1100|     out.extend(_inline_lines(worker_output) or ["(no output)"])
+ 1101|     out.append("--- end validation.sh output ---")
+ 1102|     out.append("")
+ 1103|     out.append(f"A re-attempt ships response-{sid}.tar.gz with \"corrects\": "
+ 1104|                f"\"{sid}\" in its manifest, delivered to the directory the "
+ 1105|                f"held tarball came from, and ends its turn with this line:")
+ 1106|     if held_tarball is not None:
+ 1107|         out.append(f"bale retry {_always_quoted(held_tarball)}")
+ 1108|     else:
+ 1109|         out.append(f"(the held tarball's path was not recorded: "
+ 1110|                    f"{held_tarball_why}; the operator substitutes it)")
+ 1111|         out.append("bale retry '<response-tarball>'")
+ 1112|     out.append(end)
+ 1113|     return "\n".join(out)
+  in format_apply_relay_planner (line 1145)
+--- format_apply_relay_planner (lines 1145-1187) ---
+ 1145| def format_apply_relay_planner(*, sid: str, origin_branch: str,
+ 1146|                                exit_code: int, checkpoint: Optional[dict],
+ 1147|                                notes: Optional[str],
+ 1148|                                notes_problem: str = "",
+ 1149|                                admissions: Optional[dict] = None) -> str:
+ 1150|     """The planner-addressed block on a clean apply — the ratification
+ 1151|     relay, pre-assembled: the response's notes.md verbatim (or a plain
+ 1152|     line saying it shipped none, or why it could not be read), the
+ 1153|     verdict in the walkthrough's attribution vocabulary, and every
+ 1154|     admission the apply exercised. `admissions` keys: overridden_paths
+ 1155|     (with overridden_path_sources, parallel), required_check_overrides,
+ 1156|     base_drift_overrides (lists), checkpoint_change_accepted (bool).
+ 1157|     No worker block exists on a clean apply. Pure."""
+ 1158|     begin, end = relay_sentinels(sid, RELAY_TO_PLANNER)
+ 1159|     ran = bool(checkpoint) and bool(checkpoint.get("configured"))
+ 1160|     verdict = (f"{_checkpoint_attribution(checkpoint.get('exit_code'))} · "
+ 1161|                f"{_worker_attribution(exit_code)}" if ran else
+ 1162|                f"{_worker_attribution(exit_code)} · no blind checkpoint "
+ 1163|                f"configured")
+ 1164|     rows = relay_admission_rows(admissions)
+ 1165|     out = [begin,
+ 1166|            "PASTE THIS WHOLE BLOCK INTO THE PLANNER'S (MASTER'S) CHAT. It is "
+ 1167|            "the ratification relay — nothing needs typing beside it.",
+ 1168|            "",
+ 1169|            f"APPLIED — session {sid}, merged into {origin_branch} "
+ 1170|            f"(tag applied/{sid}).",
+ 1171|            f"verdict: {verdict}"]
+ 1172|     if rows:
+ 1173|         out.append("admissions:")
+ 1174|         out.extend(f"  {r}" for r in rows)
+ 1175|     else:
+ 1176|         out.append("admissions: none")
+ 1177|     out.append("")
+ 1178|     if notes is not None and notes.strip():
+ 1179|         out.append("--- notes.md ---")
+ 1180|         out.extend(_inline_lines(notes))
+ 1181|         out.append("--- end notes.md ---")
+ 1182|     elif notes_problem:
+ 1183|         out.append(f"notes.md: could not be read ({notes_problem}).")
+ 1184|     else:
+ 1185|         out.append("The response shipped no notes.md.")
+ 1186|     out.append(end)
+ 1187|     return "\n".join(out)
+python exit: 0
+--- integrity: 661 lines ---
+=== PROBE END twine-take-specimens ===

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# PROBE twine-take-fixture: TODO(worker) — what this asks, in one line.
+# Why: TODO(worker) — the gap this fills, in one line.
+# Read-only: writes nothing anywhere; stdout is the only output.
+
+probe() {
+  # TODO(worker): replace this placeholder with the real sections —
+  # one labeled section per question, every command's output capped,
+  # an explicit truncation marker when the cap bites (TARBALL.md 4.2).
+  # The cap-and-truncation pattern, worked for one command:
+  #   git status --porcelain=v1 2>&1 | head -n 40
+  #   n=$(git status --porcelain=v1 2>/dev/null | wc -l)
+  #   [ "$n" -gt 40 ] && echo "[truncated: $n lines total, showing 40]"
+  # Listing a tree, worked with caches excluded — __pycache__ and *.pyc
+  # (and node_modules, dist, build) are generated, never source, and
+  # would crowd the cap and mislead the reader into thinking they ship:
+  #   find bin -name __pycache__ -prune -o -name '*.pyc' -prune -o -type f -print | sort | head -n 80
+  # or, inside a git checkout, only what git tracks:
+  #   git ls-files -- bin | head -n 80
+  echo "--- section: TODO-example ---"
+  echo "TODO(worker): unfilled probe placeholder — not ready to paste"
+}
+
+out="$(probe 2>&1)"
+emit_probe_block() {
+  echo "=== PROBE BEGIN twine-take-fixture ==="
+  printf '%s\n' "$out"
+  printf -- '--- integrity: %s lines ---\n' "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+  echo "=== PROBE END twine-take-fixture ==="
+}
+emit_probe_block
+
+# Clipboard epilogue not emitted (opt-in, unset at craft time). To have
+# this scaffold tee its own output to your clipboard, set in bale.toml:
+#     [probe]
+#     clipboard_command = "<your clipboard command>"   # e.g. pbcopy
+# and ship bale.toml in the request's context/ so the crafter can read
+# it (it looks in ./bale.toml, then ./context/bale.toml). Manual path:
+# select between the PROBE BEGIN/END banners above and copy.

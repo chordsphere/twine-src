@@ -38,7 +38,8 @@ class RegistryParity(unittest.TestCase):
             self.assertEqual(row["cli_only"], not row["json"])
 
     def test_this_sessions_verbs_are_registered(self):
-        self.assertEqual(set(load_registry()), {"commands", "status", "bale check"})
+        self.assertEqual(set(load_registry()),
+                         {"commands", "status", "bale check", "take"})
 
     def test_verb_names_are_space_joined_paths(self):
         for name, cmd in load_registry().items():
@@ -50,6 +51,9 @@ class RegistryDiscovery(unittest.TestCase):
 
     def test_discovers_core_module(self):
         self.assertIn("twine.commands.core", discover_modules())
+
+    def test_discovers_take_module(self):
+        self.assertIn("twine.commands.take", discover_modules())
 
     def test_registry_is_sorted_by_name(self):
         names = list(load_registry())

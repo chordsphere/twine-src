@@ -1,15 +1,7 @@
-# bale.toml — per-repo configurables for this bale-managed project.
-# Committed and team-shared. Layered ON TOP OF the global config at
-# <install>/user/bale.toml: keys set here override globals per-key.
-# Absent file or absent key = silent skip at this layer (and fall back to
-# global if it sets the key).
-#
-# Run `bale config init` to set up, review, or change. The wizard is
-# the canonical interface; hand-edits work but the wizard knows only
-# about the configurables it walks through. Re-running the wizard
-# rewrites this file from its walked surface, so any unrecognized
-# keys you hand-edited in will be dropped. There is no set/get/edit
-# subcommand; the wizard is the writer.
+# twine-src — bale configuration (landed by session 2026-10-01-twine-seed-001).
+# Two keys on purpose (twine-seed.md T3, T8): the blind-checkpoint pin, and
+# sandboxed validation. `network` is left unset — absent means off, the floor
+# twine's own tests live under. Packer identity is the global user/bale.toml's.
 
 [validation]
 base = "claude/checkpoints/{sid}.sh"
