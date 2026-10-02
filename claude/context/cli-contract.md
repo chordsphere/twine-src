@@ -5,8 +5,9 @@
 > test under `tests/` and by the session's `validation.sh`. Landed by
 > session `2026-10-01-twine-core-002`, extended by
 > `2026-10-02-twine-take-read-001` (§9, and the lines naming `take` or
-> the `format` kind); a later session that changes a line changes it
-> here in the same response.
+> the `format` kind) and by `2026-10-02-twine-carry-probe-002` (§10, the
+> run seam, and the lines naming `carry probe`); a later session that
+> changes a line changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -38,7 +39,9 @@
   `Command` refuses at load.
 - Verb names are the full space-joined path: `"bale check"`. The JSON
   `command` key carries the same string.
-- Verbs today: `commands`, `status`, `bale check`, `take`.
+- Verbs today: `commands`, `status`, `bale check`, `take`, `carry probe`
+  (the `carry` group; 2b-ii adds `carry exchange` and `carry response`
+  beside it).
 - `twine commands --json` emits
   `{"command": "commands", "ok": true, "commands": [{"name", "summary",
   "json", "cli_only"}, …]}` — every registered verb, in registry order,
@@ -142,7 +145,9 @@ python3 -B -m unittest discover -s tests -t .
 ```
 
 from the repository root — no network, no bale install, no third-party
-module. `bale check` is tested against temp roots the tests build
+module. `bash` is required: `carry probe`'s tests run real probe scripts,
+each derived from the crafter's recorded scaffold by filling its
+placeholders mechanically (`tests/helpers.py` `filled_probe`). `bale check` is tested against temp roots the tests build
 (`bin/VERSION` at the pin, at another version, and absent), never a
 real install, and every CLI subprocess runs with `TWINE_BALE_ROOT`
 pinned to a temp directory so a bale on `PATH` cannot leak into a
@@ -152,7 +157,8 @@ verdict.
 
 Text in, structured facts out. `FILE` is a path, or `-` for stdin. It
 **executes nothing it reads, writes nothing, calls no bale verb and
-reaches no network** — a probe block is reported, never run. The parse
+reaches no network** — a probe block is reported, never run (running
+one, with consent, is `carry probe`'s: §10). The parse
 layer is `twine/shapes.py` (pure); the verb is `twine/commands/take.py`.
 
 ### 9.1 Input
@@ -235,3 +241,147 @@ spec-safe by construction (`format_hold_relay_worker` has no parameter
 for the checkpoint's output). `take` only reports `to`; a router that
 delivers blocks keys on it, and treats a `to: planner` block whose
 destination is a worker session as a refusal, not a choice.
+
+## 10. `twine carry probe FILE [--block N] [--run] [--cwd DIR] [--timeout SECONDS] [--out PATH] [--json]`
+
+The courier runs a probe — only with the operator's explicit consent,
+given per invocation as `--run`. The verb is
+`twine/commands/carry.py` (the `carry` family); it reads through
+`twine.shapes` (§9) and runs through the seam (§10.6). It calls no bale
+verb.
+
+### 10.1 Finding the block
+
+`FILE` (a path, or `-` for stdin) is read exactly as `take` reads it
+(§9.1–§9.2). The candidates are its `probe` blocks. `--block N` names one
+by the number `take` prints for it — its 1-based position among **all**
+blocks, not among probes. Without `--block`, exactly one probe block
+must be present. No probe block, more than one without `--block`, or a
+`--block` that names no block or a block of another kind: refused.
+Never a guess.
+
+### 10.2 Refused before running
+
+Each of these refuses the invocation — `ok` false, `ran` false,
+`exit_code` null, exit 1, every applicable reason named in `reason` and
+listed in `refusals` — **with or without `--run`**; a block that would
+be refused is never reported ok, and nothing runs:
+
+- the block is malformed (its `integrity.ok` from the parse is false —
+  an unclosed fence);
+- the script carries the crafter's unfilled-placeholder sentinel
+  `TODO(worker)` anywhere (an unfilled scaffold: "not ready to paste");
+- its purpose header — the leading run of `#` lines, shebang included —
+  has no `# Read-only: <text>` line (TARBALL.md §4.2's header
+  confirming the script is read-only; an empty declaration declares
+  nothing);
+- `--out PATH` names a path that exists;
+- `--timeout` is not positive, `--cwd` is not a directory, or (with
+  `--run`) no `bash` is on `PATH`.
+
+### 10.3 Without `--run`, and with it
+
+**Without `--run`** nothing executes and nothing is written: the chosen
+block is reported (`slug`, `header`, `script`); `ok` true, `ran` false,
+exit 0. Human mode prints **exactly the script** on stdout, so the
+operator reads what `--run` would run; the summary goes to stderr.
+
+**With `--run`** the script is handed to `bash -c <script>` through the
+seam: in `--cwd` (default: the current directory), inheriting the
+operator's environment, stdin `/dev/null`, no file written. `--timeout`
+(default 300 seconds) is enforced on the whole process group: on expiry
+the script **and its children** are killed (SIGKILL to the group — a
+`sleep` or a pipeline cannot outlive the timeout or hold the pipes
+open), `timed_out` is true and `exit_code` null. The group is also
+killed the moment the script itself exits, so nothing it backgrounded
+lingers. **Captured stdout is capped at 262144 bytes (256 KiB)** —
+seven times the largest probe output recorded so far; past the cap the
+group is killed, `capped` is true, `exit_code` null, and the run is not
+ok. stderr is captured (up to 64 KiB, `stderr_truncated` when more) and
+reported in `stderr`; it is never part of the paste-back.
+
+stdout is then read with `twine.shapes`. **`ok` is true exactly when the
+script exited 0, did not time out, was not capped, and its stdout
+carries exactly one `probe-output` block, with the probe's slug, whose
+integrity holds.** `output` is that block — its lines from BEGIN
+through END, LF line endings, one trailing newline — the paste-back the
+operator carries; `twine take` reads it as one intact `probe-output`
+block. Otherwise `ok` false, `ran` true, exit 1, the reason named, and
+`output` the best candidate found (the block with the probe's slug, else
+the first) or `""`.
+
+Human mode with `--run`: on ok, stdout is **exactly the paste-back**
+(`twine carry probe f --run > paste.txt` captures what is carried);
+otherwise stdout is one line naming why, and the script's stderr goes
+to stderr. Progress and diagnostics always go to stderr.
+
+`--out PATH` writes the paste-back to PATH, created exclusively, only
+when the run is ok; an existing PATH is refused before running (§10.2)
+and a PATH that appears during the run is not overwritten. It is the
+only file `carry probe` ever writes, and only where the operator named.
+
+A file-based probe (TARBALL.md §4.4, writing `./probe-output/`) is not
+supported: it prints no `probe-output` block, so it is ran-but-not-ok.
+
+### 10.4 The JSON twin
+
+One line (§3), `command` `"carry probe"`. Fixed names — 2b-ii, the
+shell and the oracle read them:
+
+| key | value |
+|---|---|
+| `slug` | the chosen probe's slug; null when no block was chosen |
+| `ran` | whether bash was started |
+| `confined` | **always `false` in Arc 1** (§10.5) |
+| `exit_code` | the script's exit status; null when it did not run or was killed (timeout, cap) |
+| `timed_out` | the timeout expired and the group was killed |
+| `integrity` | the paste-back block's integrity, as §9.3 reports it (`ok`, `basis` `"line-count"`, `expected_lines`, `found_lines`), plus `error` when not ok — including when nothing ran |
+| `output` | the paste-back (§10.3), or the best candidate when not ok, or `""` |
+
+And beside them: `block` (the number `take` prints), `capped`,
+`stdout_cap_bytes`, `reason` (null when ok), `refusals`, `header`,
+`script`, `run_requested`, `cwd`, `timeout_seconds`,
+`duration_seconds`, `stderr`, `stderr_truncated`, `out` (the path
+written, or null), `input` (as `take`'s).
+
+### 10.5 `confined: false`
+
+The script runs with the operator's privileges, environment, files and
+network — exactly what the operator gets by reading the block and
+pasting it into a terminal, which is what `--run` replaces. Twine
+checks that the purpose header **declares** the script read-only; it
+cannot make it so. The timeout, the process-group kill and the output
+cap bound how long and how much; they confine nothing. Arc 2's sandbox
+is what makes `confined` true.
+
+### 10.6 The run seam
+
+`Context.run` is the one way a handler runs a subprocess
+(`twine/process.py`); no module under `twine/commands/` imports a
+process-spawning module, and a test asserts it. The signature 2b-ii
+builds on:
+
+```
+run(argv: Sequence[str], *, cwd: str | Path | None = None,
+    stdin: bytes | None = None, timeout: float | None = None,
+    env: Mapping[str, str] | None = None,
+    stdout_cap: int | None = None) -> RunResult
+
+RunResult(argv, exit_code: int | None, stdout: bytes, stderr: bytes,
+          timed_out: bool, stdout_capped: bool, stderr_truncated: bool,
+          duration_seconds: float)
+```
+
+`cwd` None inherits the caller's; `env` None inherits the process
+environment (handlers pass `ctx.env`); `stdin` None is `/dev/null`;
+`timeout` None waits; `stdout_cap` None is 16 MiB. `exit_code` is None
+when the runner killed the child. A process that cannot start raises
+`RunError` (an `OSError`); everything after the start is a `RunResult`.
+The default, `run_process`, starts the child as a new session (its own
+process group) and kills the group on timeout, on the cap, and when
+the child exits; a grandchild that leaves the group with `setsid` is
+beyond its reach (it waits two seconds for the pipes, then logs and
+gives up). Tests inject a double with the same signature:
+`tests/helpers.py` carries `RecordingRunner` and `FixturePlayer`, the
+latter answering a `bale …` argv from `fixture_relpath(argv[1:], where)`
+(§7).

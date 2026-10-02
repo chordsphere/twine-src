@@ -7,14 +7,17 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from twine.cli import Context, run_command
 from twine.registry import Command, Result, load_registry
 
 from twine import REPO_ROOT
 
-from tests.helpers import TempRoots, emission_relpath, run_cli, run_inprocess
+from tests.helpers import (TempRoots, emission_relpath, fenced_probe, filled_probe,
+                           run_cli, run_inprocess)
 
 
 def one_json_line(test: unittest.TestCase, stdout: str, command: str) -> dict:
@@ -32,19 +35,27 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
 
     def setUp(self):
         self.roots = TempRoots()
+        self._turns = tempfile.TemporaryDirectory(prefix="twine-json-")
+        self.probe_turn = Path(self._turns.name) / "turn.txt"
+        self.probe_turn.write_text(fenced_probe(filled_probe()), encoding="utf-8")
 
     def tearDown(self):
         self.roots.cleanup()
+        self._turns.cleanup()
 
     def argv_for(self, name: str) -> list[str]:
         """A happy-path argv per verb; bale check against the ok root, take
-        on a recorded light block (an intact block: ok true, exit 0)."""
+        on a recorded light block (an intact block: ok true, exit 0), carry
+        probe on a turn carrying one filled probe, shown and not run (ok
+        true, exit 0; nothing executes without --run)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
         if name == "take":
             argv.append(str(REPO_ROOT / emission_relpath(
                 "crafter", ["--light-block", "-"])))
+        if name == "carry probe":
+            argv.append(str(self.probe_turn))
         return argv
 
     def test_every_registered_verb_emits_one_line_subprocess(self):

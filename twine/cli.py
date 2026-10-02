@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any, BinaryIO, Callable, Mapping, TextIO
 
 from twine import __version__
+from twine.process import Runner, run_process
 from twine.registry import Command, Result, load_registry
 
 log = logging.getLogger("twine.cli")
@@ -56,6 +57,12 @@ class Context:
     two output streams, and `stdin` — bytes, read by `twine take -`, so
     the verb decodes it itself rather than trusting the locale. Handlers
     write informational text to `stderr` only; stdout is the dispatcher's.
+
+    `run` is the seam through which a handler runs a subprocess — the
+    only one (twine/process.py; cli-contract.md §10.6). Its default
+    spawns a real process group; tests inject a double with the same
+    signature, and session 2b-ii's fixture player answers bale argvs
+    from fixtures/ through it.
     """
 
     env: Mapping[str, str] = field(default_factory=lambda: os.environ)
@@ -63,6 +70,7 @@ class Context:
     stderr: TextIO = field(default_factory=lambda: sys.stderr)
     which: Callable[[str], str | None] = shutil.which
     stdin: BinaryIO = field(default_factory=lambda: sys.stdin.buffer)
+    run: Runner = run_process
 
     def info(self, message: str) -> None:
         """An informational line for a human: stderr, never stdout."""

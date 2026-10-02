@@ -24,6 +24,10 @@ Arc 1 (the courier) session 1 landed twine's core:
   and `take` (session 2a): read a pasted turn, find each bale shape in
   it — probe, probe output, light block, exchange block, relay block —
   verify its integrity trailer and report, executing nothing.
+- `carry probe` (session 2b-i): show the probe block in a pasted turn;
+  only on an explicit `--run`, run it with bash (unconfined — your
+  privileges and network — with a timeout that kills its children and a
+  256 KiB output cap) and print the verified paste-back.
 - `share/bale-consumption.toml` — the bale version pin (`0.4.45`) and
   the consumption manifest: the schema hashes and every bale surface
   twine reads, as data.
@@ -32,9 +36,11 @@ Arc 1 (the courier) session 1 landed twine's core:
   byte-exact; the only bale the tests ever see.
 - `tests/` — the stdlib `unittest` suite.
 
-Stdlib only; python 3.11 or newer. The courier reads (`take`) but does
-not yet act on what it reads (session 2b) or emit requests (3); no
-transition table (4), no cost spine (5), no model adapter (Arc 2).
+Stdlib only; python 3.11 or newer. The courier reads (`take`) and runs a
+probe with consent (`carry probe`), but does not yet hand blocks to
+`bale relay` or tarballs to `bale apply` (session 2b-ii) or emit
+requests (3); no transition table (4), no cost spine (5), no model
+adapter or sandbox (Arc 2).
 
 ## Running it
 
@@ -45,6 +51,8 @@ python3 -I -S bin/twine commands --json
 python3 -I -S bin/twine status
 python3 -I -S bin/twine bale check --json [--bale-root DIR]
 python3 -I -S bin/twine take turn.txt --json     # or `take -` to read stdin
+python3 -I -S bin/twine carry probe turn.txt               # show the probe; runs nothing
+python3 -I -S bin/twine carry probe turn.txt --run > paste.txt   # run it; stdout is the paste-back
 ```
 
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to
@@ -62,7 +70,8 @@ From the repository root:
 python3 -B -m unittest discover -s tests -t .
 ```
 
-No network, no bale install, no third-party module: `bale check` is
+No network, no bale install, no third-party module (bash is needed —
+`carry probe`'s tests run real probe scripts): `bale check` is
 exercised against temp roots the tests build, and the recorded
 outputs under `fixtures/` stand in for a live bale.
 

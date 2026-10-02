@@ -15,6 +15,9 @@ Modules:
   shapes    the bale shapes in text: find, parse and verify every block a
             courier carries (probe, probe-output, light, exchange, relay);
             pure, executes nothing — `twine take` is the verb over it
+  process   the run seam: the one way a handler runs a subprocess
+            (Context.run) — a process group, a timeout that reaches its
+            children, a stdout cap; tests inject a double
   commands  one module per verb family, each exposing COMMANDS
 
 Stdlib only (T9). Nothing here imports from bale's bin/, office's lib/
