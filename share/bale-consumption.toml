@@ -34,6 +34,10 @@
 #                    tests replay in its place, and why they may
 #   doubles          the test doubles standing in for this surface's
 #                    unrecorded outputs; a later recording replaces them
+#   vocabulary       kind = verb, optional: the [[vocabulary]] entry (by its
+#                    `axis`) whose values the key twine reads from this
+#                    output takes — `apply`'s `outcome` is `apply-outcome`
+#                    (session 2026-10-03-twine-transitions-004)
 #   written_against  the bale version the entry was written against
 #
 #   kind = format carries, instead of path/verb/argv/cwd/stdout/fixture:
@@ -52,6 +56,25 @@
 #
 # [[wanted]] names a surface a later session needs and the pinned bale
 # does not have — so the gap is data, not a sentence in a brief.
+#
+# [[vocabulary]] (session 2026-10-03-twine-transitions-004) is a closed set
+# of spellings bale declares, recorded as data so a pin bump diffs them
+# mechanically (D4). The transition table (share/transitions.toml) keys
+# its three bale axes on exactly these values; `twine transitions` names
+# any value without a row. Entry shape:
+#   axis             the transition-table axis these values are the keys of
+#   values           bale's spellings, in the order bale declares them
+#   home             the installed file that declares them: a schema under
+#                    schemas/ (its sha256 is pinned in [bale.schemas]), or a
+#                    bale source file
+#   home_sha256      kind of home = a source file: its sha256 as read
+#   pointer          where in `home`: a JSON pointer to the enum, or the
+#                    function whose docstring owns the vocabulary
+#   also_at          other places in `home` carrying the same values
+#   excluded         enum members that are not keys, each with why
+#   read_by          the twine verb(s) that read the values
+#   written_against  the bale version the values were read from
+#   read_at          the probe(s) that read them, never recalled
 
 [bale]
 pin = "0.4.45"
@@ -141,11 +164,12 @@ argv = ["apply", "--dry-run", "--json", "<tarball>"]
 cwd = "repo"
 stdout = "exactly one JSON object line; outcome \"dry-run\" when the response would apply (nothing staged, branched or committed)"
 keys = ["outcome"]
+vocabulary = "apply-outcome"
 read_by = ["carry response"]
 fixture = "fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json"
-doubles = ["tests/test_carry_bale.py BaleDouble: a non-zero exit, an outcome other than dry-run, stdout that is not one JSON object, a timeout"]
+doubles = ["tests/test_carry_bale.py BaleDouble: each *-refused outcome with exit 1, a bale error (nothing on stdout, a non-zero exit), stdout that is not one JSON object, a timeout, and one outcome bale never emits, spelled as no bale outcome is (twine-test-not-a-bale-outcome)"]
 written_against = "0.4.45"
-note = "the only apply argv twine builds (T12: twine.bale.dry_run_argv; never without --dry-run, never an admission or override flag). The recorded line's keys are outcome, sid, log, verdict, merge, telemetry, drift, checkpoint, required_checks, base_drift, archive, sweep; twine reads outcome and carries the object whole. Its tarball argument and exit status are unrecorded (fixtures/README.md); bale's refusal and HOLD outputs and their exit codes are unrecorded too, and doubles stand in until a recording probe captures them"
+note = "the only apply argv twine builds (T12: twine.bale.dry_run_argv; never without --dry-run, never an admission or override flag). The recorded line's keys are outcome, sid, log, verdict, merge, telemetry, drift, checkpoint, required_checks, base_drift, archive, sweep; twine reads outcome and carries the object whole. Under --dry-run bale documents three answers (format_apply_json's docstring): dry-run (exit 0), one of the three *-refused outcomes (exit 1), or an error path with nothing on stdout and a non-zero exit. That is documented, not recorded: the tarball argument and the exit status of the recorded line stay unrecorded (fixtures/README.md), no refusal or error output is recorded, and doubles stand in until a recording probe captures them"
 
 [[surface]]
 kind = "verb"
@@ -234,3 +258,45 @@ verb = "relay"
 flags = ["--json"]
 needed_by = "Arc 1 session 2b-ii (offline courier — act: carry exchange) landed without it, passing relay's stdout through as text; with --json, carry exchange could report the round relay recorded instead of only relaying it"
 status = "absent in 0.4.45: `bale relay [-h] sid [file]`; stdout is the counterpart's paste block, [bale] lines on stderr"
+
+# --- the vocabularies the transition table keys on (session 2026-10-03-twine-transitions-004) ---
+# Read by the probes twine-table-vocab and twine-apply-vocab (2026-10-03,
+# bale 0.4.45 at /home/chordsphere/bale; all eight schemas hashed to the
+# pins above), copied from their output, never recalled.
+
+[[vocabulary]]
+axis = "telemetry-outcome"
+values = ["opened", "applied", "held", "reverted", "rejected", "bailout", "scope-drift-refused", "required-check-refused", "base-drift-refused", "unlocked", "rolled-back", "re-applied", "relay-refused"]
+home = "schemas/telemetry-record.schema.json"
+pointer = "/properties/outcome"
+also_at = ["/properties/attempts/items/properties/outcome"]
+excluded = []
+read_by = ["transitions"]
+written_against = "0.4.45"
+read_at = ["twine-table-vocab"]
+note = "the outcome of each telemetry attempt, mirrored to the envelope. 'rejected' is written when apply exits non-zero through an error path (bin/bale_apply.py:3901-3905) and 'relay-refused' when bale relay does (bin/bale_relay.py:204-209); 'unlocked' is the registry-close outcome whatever command drove it, its closure_reason saying why"
+
+[[vocabulary]]
+axis = "closure-reason"
+values = ["abandoned", "superseded-by-split", "reframed-after-clarification", "master-closeout", "crash-debris", "closed-read-only", "no_response", "malformed_response", "aborted"]
+home = "schemas/telemetry-record.schema.json"
+pointer = "/properties/attempts/items/properties/closure_reason"
+also_at = []
+excluded = ["null: the enum's tenth member, meaning the session is not closed; not a reason, so not a key"]
+read_by = ["transitions"]
+written_against = "0.4.45"
+read_at = ["twine-table-vocab"]
+note = "why a session closed, stamped on unlock and revert events; `bale unlock --help` lists the same nine as --reason choices, and an omitted reason infers 'closed-read-only' for an empty recorded scope, 'abandoned' otherwise. Two spell with underscores (no_response, malformed_response); bale's spelling is the key"
+
+[[vocabulary]]
+axis = "apply-outcome"
+values = ["applied", "held", "reverted", "bailout", "clarification", "dry-run", "scope-drift-refused", "required-check-refused", "base-drift-refused"]
+home = "bin/bale_report.py"
+home_sha256 = "7af2f7aca3082160dbf45849d91f28bac926c3d31ee7c1bc123f3fcba7e0759b"
+pointer = "format_apply_json docstring (line 2279), the `outcome` block"
+also_at = ["`bale apply --help`, the --json text"]
+excluded = []
+read_by = ["transitions"]
+written_against = "0.4.45"
+read_at = ["twine-apply-vocab"]
+note = "the outcome `bale apply --json` prints, one terminal reporting point each: exit 0 for applied, bailout, clarification and dry-run; exit 1 for held, reverted and the three *-refused (the *-refused also under --dry-run). Error paths print nothing on stdout and exit non-zero (telemetry 'rejected'). With pack's 'packed' bale calls these the whole outcome vocabulary; 'packed' is pack's, not apply's, and is not a key here"

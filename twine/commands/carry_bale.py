@@ -23,7 +23,9 @@ its stdout is one JSON object whose `outcome` is `"dry-run"`.
 Both run bale through `ctx.run`, the seam (twine/process.py), never a
 subprocess of their own, and find bale exactly as `bale check` does
 (twine.bale.locate_executable): the tests pin TWINE_BALE_ROOT, so a bale
-on the operator's PATH is never what a test reaches. The contract is
+on the operator's PATH is never what a test reaches. Since Arc 1 session
+4 both refuse, before starting it, a bale whose `bin/VERSION` is not the
+pin (D2; twine.bale.Executable.drive_refusal). The contract is
 claude/context/cli-contract.md §11.
 
 Sections:
@@ -392,14 +394,14 @@ def resolve_cwd(name: str | None, refusals: list[str]) -> str:
 
 def locate(ctx: Context, args: argparse.Namespace,
            refusals: list[str]) -> bale.Executable:
-    """The bale to run, found as `bale check` finds it; none found is a
-    refusal, and a version other than the pin is said, never gated on."""
+    """The bale to run, found as `bale check` finds it. None found is a
+    refusal; so, since Arc 1 session 4, is a bale whose `bin/VERSION` is
+    not the pin or cannot be read (D2: `bale.Executable.drive_refusal` —
+    the transition table keys on the pinned version's vocabularies)."""
     executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which)
-    if executable.path is None:
-        refusals.append(executable.detail)
-    elif executable.pin_matches is False:
-        ctx.info(f"bale at {executable.root.path} is {executable.installed}; "
-                 f"twine reads its output as written against {executable.pin}")
+    refusal = executable.drive_refusal
+    if refusal is not None:
+        refusals.append(refusal)
     return executable
 
 

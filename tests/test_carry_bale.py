@@ -19,6 +19,14 @@ What is recorded, and what stands in for what is not:
   - every refusal, HOLD, non-zero exit or timeout from bale: unrecorded;
     BaleDouble results, each built in this file and named a double.
 
+Since Arc 1 session 4 the doubles speak bale's spellings: a refusal under
+--dry-run is one of the three `*-refused` outcomes with exit 1, as bale's
+format_apply_json documents (documented, not recorded); a bale error
+prints nothing on stdout and exits non-zero. The one outcome no bale
+emits, used to prove twine names an outcome it does not know, is spelled
+NOT_A_BALE_OUTCOME (tests/helpers.py) so no reader takes it for bale's.
+And the carry verbs drive only the pinned bale (D2): section 8.
+
 Sections:
   1. Helpers and doubles
   2. carry exchange: choosing and vouching for the block
@@ -27,6 +35,7 @@ Sections:
   5. carry response: never a merge (T12)
   6. End to end, as a subprocess, against a stub bale
   7. Finding bale: the tests never reach a real one
+  8. The pin gates (D2, decided by Arc 1 session 4)
 """
 
 from __future__ import annotations
@@ -46,9 +55,9 @@ from twine.cli import Context, main
 from twine.commands.carry_bale import BALE_STDOUT_CAP_BYTES, BALE_TIMEOUT_SECONDS
 from twine.process import RunResult
 
-from tests.helpers import (PIN, FixturePlayer, RecordingRunner, Run, StubBale,
-                           TempRoots, carried_relpath, emission_relpath,
-                           fixture_relpath, run_cli, turn)
+from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, PIN, FixturePlayer,
+                           RecordingRunner, Run, StubBale, TempRoots, carried_relpath,
+                           emission_relpath, fixture_relpath, run_cli, turn)
 
 # ---------------------------------------------------------------------------
 # 1. Helpers and doubles
@@ -63,13 +72,20 @@ DRY_RUN = REPO_ROOT / fixture_relpath(["apply", "--dry-run", "--json", "/x.tar.g
 DRY_RUN_REL = DRY_RUN.relative_to(REPO_ROOT).as_posix()
 # The dry-run fixture's exit code is unrecorded (fixtures/README.md). A
 # dry run that printed outcome "dry-run" is taken to have exited 0 — an
-# assumption, named here and nowhere else.
+# assumption, named here and nowhere else. bale 0.4.45 documents it
+# (format_apply_json's docstring: '"dry-run" … (exit 0)'), but a
+# documented exit is not a recorded one, so it stays an assumption.
 ASSUMED_DRY_RUN_EXIT = {DRY_RUN_REL: 0}
 
 EXCHANGE_FIXED = {"sid", "block", "ran", "exit_code", "stdout", "stderr",
                   "reason", "refusals"}
 RESPONSE_FIXED = {"tarball", "ran", "exit_code", "dry_run", "outcome", "apply_line",
                   "stderr", "reason", "refusals"}
+# What `bale apply --dry-run --json` may answer besides "dry-run", per bale
+# 0.4.45's format_apply_json: a refusal, exit 1, stdout the one line —
+# "Emitted under --dry-run too when the plan would refuse."
+DRY_RUN_REFUSALS = [o for o in BALE_VOCABULARIES["apply-outcome"] if o.endswith("-refused")]
+DRY_RUN_REFUSAL_EXIT = 1
 
 
 class BaleDouble(RecordingRunner):
@@ -384,6 +400,9 @@ class ExchangeRelays(TempCase):
         self.assertIn("no open session", run.stderr)
 
     def test_human_mode_not_ok_is_one_line_and_never_bales_stdout(self):
+        """A double for a contract bale documents it keeps — an error prints
+        nothing on stdout — broken anyway, a block on stdout beside exit 1:
+        not ok is one line naming why, and never the block."""
         runner = BaleDouble(exit_code=1, stdout=EXCHANGE.read_bytes(),
                             stderr=b"[bale] double: refused\n")
         run = run_verb("exchange", str(self.exchange_turn()), runner=runner)
@@ -493,22 +512,52 @@ class ResponseDryRuns(TempCase):
         self.assertNotIn("bale apply /", human.stdout)
         return obj
 
-    def test_an_outcome_other_than_dry_run_is_named(self):
-        """A double: exit 0, one JSON object, outcome "refused"."""
-        obj = self.not_ok(BaleDouble(stdout=b'{"outcome": "refused", "sid": null}\n'),
-                          "outcome 'refused'", "not 'dry-run'")
-        self.assertEqual((obj["outcome"], obj["exit_code"]), ("refused", 0))
-        self.assertEqual(obj["dry_run"], {"outcome": "refused", "sid": None})
+    def test_each_dry_run_refusal_is_named_with_its_exit(self):
+        """Doubles in bale's spelling: each of the three *-refused outcomes,
+        exit 1, stdout the one JSON line — what format_apply_json documents
+        under --dry-run when the plan would refuse. Not ok, naming both the
+        exit and the outcome, bale's stderr surfaced."""
+        self.assertEqual(DRY_RUN_REFUSALS, ["scope-drift-refused",
+                                            "required-check-refused",
+                                            "base-drift-refused"])
+        for outcome in DRY_RUN_REFUSALS:
+            with self.subTest(outcome=outcome):
+                line = json.dumps({"outcome": outcome, "sid": "2026-10-03-x-001"})
+                obj = self.not_ok(BaleDouble(exit_code=DRY_RUN_REFUSAL_EXIT,
+                                             stdout=(line + "\n").encode(),
+                                             stderr=b"[bale] double: refused\n"),
+                                  f"bale exited {DRY_RUN_REFUSAL_EXIT}",
+                                  f"outcome {outcome!r}", "not 'dry-run'")
+                self.assertEqual((obj["exit_code"], obj["outcome"], obj["stderr"]),
+                                 (1, outcome, "[bale] double: refused\n"))
+                self.assertEqual(obj["refusals"], [])
 
-    def test_a_non_zero_exit_is_named_with_the_outcome(self):
-        """A double: exit 1, outcome "hold", stderr surfaced."""
-        obj = self.not_ok(BaleDouble(exit_code=1, stdout=b'{"outcome": "hold"}\n',
-                                     stderr=b"[bale] double: held\n"),
-                          "bale exited 1", "outcome 'hold'")
-        self.assertEqual((obj["exit_code"], obj["outcome"], obj["stderr"]),
-                         (1, "hold", "[bale] double: held\n"))
+    def test_a_bale_error_prints_nothing_and_exits_non_zero(self):
+        """A double for bale's error path: nothing on stdout (bale's consumer
+        contract: errors exit through fail(), stderr, non-zero), exit 2."""
+        obj = self.not_ok(BaleDouble(exit_code=2, stdout=b"",
+                                     stderr=b"[bale] double: no open session\n"),
+                          "bale exited 2", "not one JSON object", "it was empty")
+        self.assertEqual((obj["exit_code"], obj["dry_run"], obj["outcome"], obj["stdout"]),
+                         (2, None, None, ""))
+        self.assertEqual(obj["stderr"], "[bale] double: no open session\n")
+
+    def test_an_outcome_bale_never_emits_is_named(self):
+        """Not bale's: NOT_A_BALE_OUTCOME is in no vocabulary of bale
+        0.4.45, spelled so it cannot be taken for one. Exit 0 and a JSON
+        line, as a dry run's; twine still names the outcome it does not
+        know and hands back no apply line."""
+        self.assertNotIn(NOT_A_BALE_OUTCOME,
+                         {v for values in BALE_VOCABULARIES.values() for v in values})
+        line = json.dumps({"outcome": NOT_A_BALE_OUTCOME}) + "\n"
+        obj = self.not_ok(BaleDouble(stdout=line.encode()),
+                          f"outcome {NOT_A_BALE_OUTCOME!r}", "not 'dry-run'")
+        self.assertEqual((obj["outcome"], obj["exit_code"]), (NOT_A_BALE_OUTCOME, 0))
 
     def test_a_non_zero_exit_with_the_dry_run_outcome_is_not_ok(self):
+        """A double for a contract bale documents it keeps — its dry-run
+        line comes with exit 0 — broken anyway: twine trusts the outcome
+        only beside exit 0."""
         obj = self.not_ok(BaleDouble(exit_code=3, stdout=DRY_RUN.read_bytes()),
                           "bale exited 3")
         self.assertEqual(obj["outcome"], "dry-run")
@@ -647,7 +696,8 @@ class EndToEnd(TempCase):
         self.assertEqual((human.code, human.stdout), (0, f"bale apply {tarball}\n"))
 
     def test_a_stub_exiting_non_zero(self):
-        failing = StubBale(apply_stdout=DRY_RUN, exit_code=4, stderr="[bale] stub: no\n")
+        """A bale error, as bale's contract has it: nothing on stdout, exit 4."""
+        failing = StubBale(exit_code=4, stderr="[bale] stub: no\n")
         self.addCleanup(failing.cleanup)
         run = run_cli("carry", "response", str(self.tarball()), "--json",
                       bale_root=failing.root)
@@ -655,16 +705,24 @@ class EndToEnd(TempCase):
         self.assertEqual((run.code, obj["ok"], obj["exit_code"], obj["apply_line"]),
                          (1, False, 4, None))
         self.assertIn("bale exited 4", obj["reason"])
-        self.assertEqual(obj["stderr"], "[bale] stub: no\n")
+        self.assertEqual((obj["stdout"], obj["stderr"]), ("", "[bale] stub: no\n"))
         self.assertNotIn("Traceback", run.stderr)
 
-    def test_a_version_other_than_the_pin_is_said_not_gated(self):
+    def test_a_version_other_than_the_pin_is_refused_and_never_run(self):
+        """D2, decided by session 4: the stub at 0.4.46 is never started."""
         (self.stub.root / "bin" / "VERSION").write_text("0.4.46\n", encoding="utf-8")
-        run = run_cli("carry", "response", str(self.tarball()), "--json",
-                      bale_root=self.stub.root)
-        obj = one_line(self, run.stdout, "carry response")
-        self.assertEqual((obj["ok"], obj["bale"]["pin_matches"]), (True, False))
-        self.assertIn("0.4.46", run.stderr)
+        for argv in (["carry", "response", str(self.tarball())],
+                     ["carry", "exchange", str(self.exchange_turn())]):
+            with self.subTest(verb=argv[1]):
+                run = run_cli(*argv, "--json", bale_root=self.stub.root)
+                obj = one_line(self, run.stdout, " ".join(argv[:2]))
+                self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"]),
+                                 (1, False, False, None))
+                self.assertEqual((obj["bale"]["installed"], obj["bale"]["pin_matches"]),
+                                 ("0.4.46", False))
+                self.assertIn("is 0.4.46, not the pin 0.4.45", obj["reason"])
+                self.assertEqual(obj["refusals"], [obj["reason"]])
+                self.assertIsNone(self.stub.argv(), "the stub was started")
 
 
 # ---------------------------------------------------------------------------
@@ -676,8 +734,9 @@ class FindingBale(TempCase):
 
     def test_a_bale_on_path_is_never_run_by_the_cli_tests(self):
         """A `bale` on PATH that would leave a marker: run_cli pins
-        TWINE_BALE_ROOT to a missing directory, so the verbs refuse
-        (bale could not be started) and the PATH bale never runs."""
+        TWINE_BALE_ROOT to a missing directory, so the verbs refuse — no
+        readable bin/VERSION there, and twine drives only the pinned bale
+        (D2) — and the PATH bale never runs."""
         bindir = self.dir / "bin"
         bindir.mkdir()
         marker = self.dir / "reached"
@@ -692,9 +751,21 @@ class FindingBale(TempCase):
                 run = run_cli(*argv, "--json", extra_env=env)
                 obj = one_line(self, run.stdout, " ".join(argv[:2]))
                 self.assertEqual((obj["ok"], obj["ran"]), (False, False))
-                self.assertIn("could not be started", obj["reason"])
+                self.assertIn("cannot tell this one's version", obj["reason"])
                 self.assertEqual(obj["bale"]["source"], "TWINE_BALE_ROOT")
         self.assertFalse(marker.exists(), "a test reached the bale on PATH")
+
+    def test_a_pinned_root_with_no_bin_bale_could_not_be_started(self):
+        """The VERSION reads the pin, but there is no bin/bale: learned by
+        starting it, through the real seam — a refusal, ran false."""
+        for argv in (["carry", "exchange", str(self.exchange_turn())],
+                     ["carry", "response", str(self.tarball())]):
+            with self.subTest(verb=argv[1]):
+                run = run_cli(*argv, "--json", bale_root=ROOTS.ok)
+                obj = one_line(self, run.stdout, " ".join(argv[:2]))
+                self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
+                self.assertIn("could not be started", obj["reason"])
+                self.assertEqual(obj["bale"]["pin_matches"], True)
 
     def test_no_bale_anywhere_is_a_refusal(self):
         for verb, arg in (("exchange", str(self.exchange_turn())),
@@ -709,13 +780,17 @@ class FindingBale(TempCase):
                 self.assertEqual(runner.calls, [])
 
     def test_bale_root_flag_wins_over_the_environment(self):
+        """--bale-root names a root at another version while TWINE_BALE_ROOT
+        names one at the pin: the flag's root is the one found (and, not
+        being the pin, refused — section 8)."""
         runner = BaleDouble(stdout=DRY_RUN.read_bytes())
         _, obj = self.response(str(self.tarball()), "--bale-root", str(ROOTS.other),
                                runner=runner)
-        self.assertEqual(runner.calls[0]["argv"][0], str(ROOTS.other / "bin" / "bale"))
+        self.assertEqual(obj["bale"]["executable"], str(ROOTS.other / "bin" / "bale"))
         self.assertEqual((obj["bale"]["source"], obj["bale"]["installed"],
                           obj["bale"]["pin_matches"]),
                          ("--bale-root", ROOTS.other_version, False))
+        self.assertEqual(runner.calls, [])
 
     def test_path_is_followed_to_the_install_root(self):
         """With no flag and no TWINE_BALE_ROOT, `bale` on PATH is followed
@@ -731,6 +806,69 @@ class FindingBale(TempCase):
         obj = one_line(self, out.getvalue(), "carry response")
         self.assertEqual((code, obj["bale"]["source"]), (0, "PATH"))
         self.assertEqual(runner.calls[0]["argv"][0], str(exe.resolve()))
+
+
+# ---------------------------------------------------------------------------
+# 8. The pin gates (D2, decided by Arc 1 session 4)
+# ---------------------------------------------------------------------------
+
+
+class ThePinGates(TempCase):
+    """The carry verbs drive only a bale whose bin/VERSION is the pin. The
+    transition table keys on bale 0.4.45's outcome and closure
+    vocabularies; another version may answer in spellings it has no move
+    for, so the version is checked before bale starts — never after."""
+
+    def both(self, root: Path) -> list[tuple[str, Run, dict, BaleDouble]]:
+        out = []
+        for verb, arg in (("exchange", str(self.exchange_turn())),
+                          ("response", str(self.tarball()))):
+            runner = BaleDouble(stdout=EXCHANGE.read_bytes() if verb == "exchange"
+                                else DRY_RUN.read_bytes())
+            run = run_verb(verb, arg, "--json", runner=runner,
+                           env={"TWINE_BALE_ROOT": root.as_posix()})
+            out.append((verb, run, one_line(self, run.stdout, f"carry {verb}"), runner))
+        return out
+
+    def test_another_version_is_refused_before_bale_starts(self):
+        for verb, run, obj, runner in self.both(ROOTS.other):
+            with self.subTest(verb=verb):
+                self.assert_refused(run, obj, runner, f"is {ROOTS.other_version}",
+                                    f"not the pin {PIN}", "(D2)",
+                                    "bump the pin in a session")
+                self.assertEqual(obj["bale"]["pin_matches"], False)
+
+    def test_an_unreadable_version_is_refused_before_bale_starts(self):
+        for verb, run, obj, runner in self.both(ROOTS.absent):
+            with self.subTest(verb=verb):
+                self.assert_refused(run, obj, runner, "cannot tell this one's version",
+                                    f"the pinned bale {PIN}")
+                self.assertIsNone(obj["bale"]["installed"])
+
+    def test_the_pinned_version_is_driven(self):
+        for verb, run, obj, runner in self.both(ROOTS.ok):
+            with self.subTest(verb=verb):
+                self.assertEqual((run.code, obj["ok"], obj["ran"]), (0, True, True))
+                self.assertEqual(len(runner.calls), 1)
+                self.assertEqual(obj["bale"]["pin_matches"], True)
+
+    def test_a_refused_version_is_one_reason_among_the_others(self):
+        """The gate is a refusal like any other: named beside the rest, all
+        at once, before anything runs."""
+        runner = BaleDouble()
+        run = run_verb("response", str(self.dir / "nope.tar.gz"), "--json",
+                       runner=runner, env={"TWINE_BALE_ROOT": ROOTS.other.as_posix()})
+        obj = one_line(self, run.stdout, "carry response")
+        self.assertEqual(len(obj["refusals"]), 2, obj["refusals"])
+        self.assertIn("no such file", obj["refusals"][0])
+        self.assertIn("not the pin", obj["refusals"][1])
+        self.assertEqual(runner.calls, [])
+
+    def test_the_gate_reads_the_pin_from_the_manifest_never_a_literal(self):
+        executable = bale.locate_executable(str(ROOTS.ok), {}, lambda name: None)
+        self.assertEqual((executable.pin, executable.drive_refusal), (PIN, None))
+        unknown = bale.Executable(executable.root, executable.path, PIN, None, "")
+        self.assertIn("the pin is unknown", unknown.drive_refusal)
 
 
 if __name__ == "__main__":

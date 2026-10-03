@@ -18,6 +18,9 @@ Modules:
   process   the run seam: the one way a handler runs a subprocess
             (Context.run) — a process group, a timeout that reaches its
             children, a stdout cap; tests inject a double
+  transitions  the transition table (D17): share/transitions.toml loaded
+            and checked total — every key of every axis one row, every
+            row's move declared; pure, reads no bale install
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py and carry_bale.py)
 
@@ -37,6 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 VERSION_FILE = REPO_ROOT / "VERSION"
 CONSUMPTION_MANIFEST = REPO_ROOT / "share" / "bale-consumption.toml"
+TRANSITIONS_TABLE = REPO_ROOT / "share" / "transitions.toml"
 FIXTURES_DIR = REPO_ROOT / "fixtures"
 
 log = logging.getLogger("twine")

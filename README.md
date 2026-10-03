@@ -34,10 +34,21 @@ Arc 1 (the courier) session 1 landed twine's core:
   and prints the block bale hands back. `carry response` runs
   `bale apply --dry-run --json` on a response tarball and, on a clean dry
   run, prints the one `bale apply <path>` line for you to run. twine
-  never applies anything itself: the merge stays yours.
+  never applies anything itself: the merge stays yours. Both drive only
+  the pinned bale: a `bin/VERSION` other than the pin, or one that
+  cannot be read, is refused before bale starts (D2).
+- `transitions` (session 4): the transition table (D17), as data in
+  `share/transitions.toml` — bale 0.4.45's 13 telemetry outcomes, 9
+  closure reasons and the 9 outcomes `bale apply --json` prints, plus
+  twine's own stop set for the runtime, each with a move: what happens
+  next and who does it (twine, the operator or the planner). No default
+  case. `twine transitions` renders it and is ok only when every key of
+  every axis has a row and every row's move is declared; it reads no
+  bale install.
 - `share/bale-consumption.toml` — the bale version pin (`0.4.45`) and
-  the consumption manifest: the schema hashes and every bale surface
-  twine reads, as data.
+  the consumption manifest: the schema hashes, every bale surface
+  twine reads, and the three vocabularies the transition table keys on,
+  as data.
 - `fixtures/` — recorded `bale … --json` outputs from the pinned
   version, the crafter's emissions, and carried pastes of bale output,
   byte-exact; the only bale the tests ever see.
@@ -45,9 +56,11 @@ Arc 1 (the courier) session 1 landed twine's core:
 
 Stdlib only; python 3.11 or newer. The courier reads (`take`), runs a
 probe with consent (`carry probe`), relays an exchange block (`carry
-exchange`) and dry-runs a response (`carry response`), but does not yet
-emit requests (Arc 1 session 3); no transition table (4), no cost spine
-(5), no model adapter or sandbox (Arc 2).
+exchange`) and dry-runs a response (`carry response`), and its
+transition table names a move for every outcome bale reports and every
+way a runtime turn will stop; it does not yet emit requests (Arc 1
+session 3) or dispatch on the table, and there is no cost spine (5), no
+model adapter or sandbox (Arc 2).
 
 ## Running it
 
@@ -62,6 +75,7 @@ python3 -I -S bin/twine carry probe turn.txt               # show the probe; run
 python3 -I -S bin/twine carry probe turn.txt --run > paste.txt   # run it; stdout is the paste-back
 python3 -I -S bin/twine carry exchange turn.txt > next.txt       # relay the block; stdout is bale's reply block
 python3 -I -S bin/twine carry response response-<sid>.tar.gz     # dry-run it; stdout is the `bale apply` line
+python3 -I -S bin/twine transitions [--json]                     # the transition table; ok when it is total
 ```
 
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to

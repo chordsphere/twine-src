@@ -8,8 +8,10 @@
 > the `format` kind), by `2026-10-02-twine-carry-probe-002` (§10, the
 > run seam, and the lines naming `carry probe`) and by
 > `2026-10-03-twine-carry-bale-002` (§11, and the lines naming `carry
-> exchange`, `carry response`, per-run values or recorded exits); a later
-> session that changes a line changes it here in the same response.
+> exchange`, `carry response`, per-run values or recorded exits) and by
+> `2026-10-03-twine-transitions-004` (§12, the `[[vocabulary]]` lines of
+> §6, and §11.1's pin gate); a later session that changes a line changes
+> it here in the same response.
 
 ## 1. The entrypoint
 
@@ -41,11 +43,12 @@
   `Command` refuses at load.
 - Verb names are the full space-joined path: `"bale check"`. The JSON
   `command` key carries the same string.
-- Verbs today: `commands`, `status`, `bale check`, `take`, and the
+- Verbs today: `commands`, `status`, `bale check`, `take`, the
   `carry` group — `carry probe` (`twine/commands/carry.py`), `carry
-  exchange` and `carry response` (`twine/commands/carry_bale.py`). One
-  group's verbs may live in several modules; the parser assembles the
-  group from all of them.
+  exchange` and `carry response` (`twine/commands/carry_bale.py`) — and
+  `transitions` (`twine/commands/transitions.py`, §12). One group's verbs
+  may live in several modules; the parser assembles the group from all
+  of them.
 - `twine commands --json` emits
   `{"command": "commands", "ok": true, "commands": [{"name", "summary",
   "json", "cli_only"}, …]}` — every registered verb, in registry order,
@@ -121,13 +124,26 @@ standing in for it, until a recording replaces them;
 and, `kind = "format"`, each text format `take` parses out of a paste:
 `format`, `locator`, `home`, `emitted_by`, `fixtures`, `keys`, `read_by`,
 `written_against`),
-and `[[wanted]]` for a surface a later session needs that the pinned
-bale lacks (`bale open --json`, `bale relay --json` in 0.4.45). The
-verbs twine runs today: `bale apply --dry-run --json <tarball>` (read by
-`carry response`: the key `outcome`) and `bale relay <sid> -` (read by
-`carry exchange`: stdout as text, no key). The
-file's header comment spells the entry shape;
-`tests/test_consumption_manifest.py` walks it.
+`[[wanted]]` for a surface a later session needs that the pinned
+bale lacks (`bale open --json`, `bale relay --json` in 0.4.45), and
+`[[vocabulary]]` for each closed set of spellings bale declares that
+the transition table keys on (§12): `axis` (the table axis whose keys
+they are), `values` (bale's spellings, in bale's order), `home` (the
+installed schema, whose hash `[bale.schemas]` pins, or the bale source
+file, with its `home_sha256`), `pointer`, `also_at`, `excluded` (enum
+members that are not keys — the closure enum's `null`), `read_by`,
+`written_against`, `read_at` (the probes that read them). Three are
+recorded for 0.4.45: `telemetry-outcome` (13), `closure-reason` (9) and
+`apply-outcome` (9, `format_apply_json`'s docstring); a verb surface
+whose key takes one of them names it as `vocabulary` (`apply`'s
+`outcome` is `apply-outcome`). A pin bump re-reads them by probe and
+diffs them as data (D4). The verbs twine runs today: `bale apply
+--dry-run --json <tarball>` (read by `carry response`: the key
+`outcome`) and `bale relay <sid> -` (read by `carry exchange`: stdout as
+text, no key). The file's header comment spells the entry shapes;
+`tests/test_consumption_manifest.py` walks them. `twine.bale.load_manifest`
+refuses a `[[vocabulary]]` entry without an axis or a home, a second
+entry for one axis, or values that are empty or repeat.
 
 ## 7. Fixtures
 
@@ -429,8 +445,23 @@ check` resolves it (§5): `--bale-root DIR`, else `TWINE_BALE_ROOT`, else
 refusal; a root with no runnable `bin/bale` is learned by starting it,
 also a refusal (`ran` false). The installed `bin/VERSION` is reported
 beside the pin in `bale` (`executable`, `root`, `source`, `installed`,
-`pin`, `pin_matches`); a version other than the pin is said on stderr,
-never gated on. bale runs in `--cwd DIR` (default: the current
+`pin`, `pin_matches`).
+
+**The pin gates** (D2; decided by session
+`2026-10-03-twine-transitions-004`, superseding carry-bale-002's
+report-only reading). Both verbs refuse, before bale is started, a bale
+whose `bin/VERSION` is not the pin, one whose `bin/VERSION` cannot be
+read, and any bale when the pin itself is unknown: `ok` false, `ran`
+false, exit 1, the reason in `refusals` beside any other
+(`twine.bale.Executable.drive_refusal`). The transition table (§12)
+keys on the pinned version's outcome and closure vocabularies; a bale of
+another version may answer in a spelling the table has no move for,
+which is the surprise D17 rules out. Upgrading is a pin bump — a
+session that re-reads the vocabularies (§6) — never ambient. There is
+no override flag. `bale check` and `status` are unchanged: they report
+the mismatch; they drive nothing.
+
+bale runs in `--cwd DIR` (default: the current
 directory — the repo whose session the block or tarball belongs to),
 with twine's environment, a 300-second timeout and a 4 MiB stdout cap;
 a call past either is killed and is not ok. bale's stderr always
@@ -503,6 +534,12 @@ the line that applies it. **It never applies anything** (T12).
   whose `outcome` is `"dry-run"`. Otherwise not ok, exit 1, the reason
   naming what bale said — its exit status, its outcome, or that its
   stdout was not one JSON object — bale's stderr surfaced; no traceback.
+  Under `--dry-run` bale 0.4.45 documents three answers
+  (`format_apply_json`'s docstring; documented, not recorded): `dry-run`
+  with exit 0; `scope-drift-refused`, `required-check-refused` or
+  `base-drift-refused` with exit 1, the line still on stdout; or an error
+  path, nothing on stdout and a non-zero exit (telemetry `rejected`). The
+  transition table's `apply-outcome` axis gives each its move.
 - **The apply line**, on ok only: `bale apply ` and the absolute path,
   quoted by Python's `shlex.quote` (only when the shell needs it) — one
   line, pasteable as is.
@@ -536,3 +573,106 @@ they assume). No `bale relay` output is recorded: the crafter's
 renderings byte-identical), and the manifest's relay surface says so.
 Every refusal, HOLD, non-zero exit and timeout is a double in the tests,
 named as one, never a file under `fixtures/`; a recording replaces it.
+The doubles speak bale's spellings (since session 4): a refusal under
+`--dry-run` is a `*-refused` outcome with exit 1, a bale error prints
+nothing on stdout and exits non-zero, and the one outcome no bale emits
+— used to prove twine names an outcome it does not know — is spelled
+`twine-test-not-a-bale-outcome` (`tests/helpers.py` `NOT_A_BALE_OUTCOME`).
+
+## 12. `twine transitions [--table PATH] [--json]` — the transition table (D17)
+
+Every way a worker session or turn can end, each with a declared move;
+no default case. The data is `share/transitions.toml`; the loader and
+checker is `twine/transitions.py` (pure); the verb is
+`twine/commands/transitions.py`. Architect's requirement (D17),
+verbatim: "there shouldn't be any surprises, and every path taken should
+have a defined response."
+
+### 12.1 What it reads, and what it never does
+
+The table file and the consumption manifest (§6) — two of twine's own
+files — and nothing else. It **reads no bale install, runs no subprocess
+(it never calls `ctx.run`), consults no `--bale-root`,
+`TWINE_BALE_ROOT` or `PATH`, and reaches no network**; neither module
+imports a process-spawning or network module, and a test asserts both.
+Its `ok` is the table's alone: the same whether or not bale is
+installed, and whatever version is. `--table PATH` checks another table
+file against the same vocabularies (a draft, or a test's edited copy).
+
+### 12.2 The table
+
+Four axes, rendered in this order:
+
+| axis | keys | source |
+|---|---|---|
+| `telemetry-outcome` | bale 0.4.45's 13 telemetry outcomes | §6 `[[vocabulary]]` |
+| `closure-reason` | bale 0.4.45's 9 closure reasons (`null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
+| `apply-outcome` | the 9 outcomes `bale apply --json` prints | §6 `[[vocabulary]]` |
+| `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `cap-reached`, `killed` | the table's `keys` |
+
+A bale axis takes its keys from the manifest's vocabulary of the same
+name and never declares its own, so its keys are exactly bale's
+spellings, no more and no fewer. The stop names are twine's: each model
+adapter maps its provider's stop reasons onto them when the loop is
+built (Arc 2), verified against the SDK then. A **move** has a name, an
+`actor` — exactly one of `twine`, `operator`, `planner`; a move needing a
+decision is never twine's (N4) — and a one-sentence `description` of
+what happens next. No move has twine merge or apply anything (T12).
+Two moves are D17's, ratified: `revert-and-repack` for `held` (both
+`telemetry-outcome` and `apply-outcome`), and `respawn-from-request`
+for `malformed_response` (`closure-reason`) and `malformed-shape`
+(`stop`).
+
+### 12.3 ok, and the problems that make it false
+
+`ok` is true **exactly when every key of every axis has one row and
+every row's move is declared**. Otherwise `ok` false, exit 1, one JSON
+line, no traceback, and each fault a problem naming what is at fault:
+
+| kind | names |
+|---|---|
+| `missing-row` | the axis and key with no row |
+| `duplicate-row` | the axis and key with more than one |
+| `unknown-key` | a row's axis and key that is not one of the axis's keys — on a bale axis, "not one of bale <pin>'s spellings" |
+| `unknown-axis` | a row's axis no `[axis.*]` declares |
+| `undeclared-move` | the row's axis and key, and the move it names |
+| `malformed-move` | a move without exactly one actor of the three, or without a description: it is not declared |
+| `missing-vocabulary` | a bale axis the manifest records no vocabulary for (or the manifest is unusable) |
+| `missing-axis` | a vocabulary the manifest records for an axis the table lacks |
+| `catch-all-key` | a key spelled as a default case (`*`, `default`, `other`, …) on any axis |
+| `malformed-axis`, `malformed-row` | the axis or row that does not have the table's shape |
+| `unusable` | the table file cannot be read or parsed |
+
+### 12.4 The JSON twin
+
+One line (§3), `command` `"transitions"`. Fixed names:
+
+| key | value |
+|---|---|
+| `rows` | every row: `axis`, `key`, `move` (strings), plus `actor` (the move's, or null when it is not declared) and `means`; in axis order, then the key's place in its vocabulary; rows refused as unknown follow |
+| `moves` | an object keyed by move name: `actor`, `description` (strings), `grounds`, `rows` (how many name it) |
+| `problems` | each fault: `kind`, `axis`, `key`, `move` (null where not applicable), `message` |
+| `reason` | every problem's message, `; `-joined; null when ok |
+
+And beside them: `table` (the file read), `written_against` (the bale
+version the table's bale axes are spelled for), `pin` (the manifest's),
+`axes` (each `name`, `source`, `home`, `means`, `keys`), `counts`
+(`axes`, `keys`, `rows`, `moves`), `unused_moves` (declared moves no row
+names — reported, not a fault).
+
+Human mode prints the same facts: the verdict line, each axis with one
+line per row (`key -> move [actor]`), the moves with their actors and
+descriptions, and every problem.
+
+### 12.5 Tests
+
+`tests/test_transitions.py` walks every key of every axis with logic of
+its own and fails naming each axis and key without a move, each row
+whose move is undeclared, and each bale-axis key that is not bale's
+spelling; it proves each detector fires against tables edited to be
+wrong (a row removed, an undeclared move, an invented key — the retired
+doubles' `refused` and `hold` among them — and the module's other
+problems). The bale axes are held to `tests/helpers.py`
+`BALE_VOCABULARIES`, the probe's lists, and
+`tests/test_consumption_manifest.py` asserts the manifest's lists and
+the table's bale-axis keys agree.
