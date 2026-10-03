@@ -8,12 +8,27 @@ recorded scaffold (filled_probe — the placeholders filled mechanically,
 never a script typed from scratch), and two doubles for the run seam
 (Context.run): RecordingRunner, which records calls and answers a canned
 result, and FixturePlayer, which answers a `bale …` argv from its
-recorded fixture (laid down for session 2b-ii)."""
+recorded fixture (laid down for session 2b-ii).
+
+Since session 2b-ii: fixture names key on a *normalized* argv — a
+per-run value (a session id, a tarball's temp path) is replaced by its
+role (`fixture_key`), so `bale relay <sid> -` names `relay_sid_stdin` and
+`bale apply --dry-run --json <path>` names
+`apply_--dry-run_--json_tarball`; FixturePlayer answers the exit code
+fixtures/README.md records for the file (refusing to guess one the row
+calls `unrecorded`); and StubBale, a double named as one: a generated
+`bin/bale` script in a temp root that replays given bytes and records
+how it was called, so the CLI can be run end to end as a subprocess
+without any bale."""
 
 from __future__ import annotations
 
 import io
 import os
+import re
+import shlex
+import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -92,25 +107,75 @@ class TempRoots:
         self._dir.cleanup()
 
 
+class Role(str):
+    """A per-run argv value's role, standing in for the value in a fixture
+    name (`sid`, `stdin`, `tarball`). A Role is its own `_` group: it is
+    never joined to the flag before it, because it is not that flag's
+    value."""
+
+
+def fixture_key(argv: list[str]) -> list[str]:
+    """The argv after `bale`, normalized for naming a fixture: the values
+    that differ per run are replaced by their roles (fixtures/README.md,
+    "Per-run values"). `relay <sid> -` keys as relay, sid, stdin (a file
+    argument as `file`); every positional after `apply` is the tarball.
+    Any other argv is its own key."""
+    argv = [str(a) for a in argv]
+    if argv[:1] == ["relay"] and len(argv) >= 2:
+        key: list[str] = ["relay", Role("sid")]
+        for token in argv[2:]:
+            if token == "-":
+                key.append(Role("stdin"))
+            elif token.startswith("-"):
+                key.append(token)
+            else:
+                key.append(Role("file"))
+        return key
+    if argv[:1] == ["apply"]:
+        return ["apply"] + [t if t.startswith("-") else Role("tarball")
+                            for t in argv[1:]]
+    return argv
+
+
 def fixture_relpath(argv: list[str], cwd: str) -> str:
     """The fixtures/ path a recorded bale output lands at, from the argv
     after `bale` and where it ran — fixtures/README.md's naming rule:
 
       fixtures/bale-<pin>/<where>/<verb>_<flag[-value…]>[_…].<ext>
 
-    `where` is `twine-src` for cwd "repo" and `anywhere` otherwise; each
-    flag is joined to the values that follow it with `-`, the groups are
-    joined with `_`; `.json` when --json is among the flags, else `.txt`.
+    `where` is `twine-src` for cwd "repo" and `anywhere` otherwise. The
+    argv is normalized first (fixture_key: a per-run value becomes its
+    Role); each flag is joined to the values that follow it with `-`, a
+    Role is a group of its own, the groups are joined with `_`; `.json`
+    when --json is among the flags, else `.txt`.
     """
     where = "twine-src" if cwd == "repo" else "anywhere"
+    argv = list(argv)
+    key = argv if any(isinstance(t, Role) for t in argv) else fixture_key(argv)
     groups: list[str] = []
-    for token in argv:
-        if token.startswith("-") or not groups:
-            groups.append(token)
+    for token in key:
+        if token.startswith("-") or not groups or isinstance(token, Role):
+            groups.append(str(token))
         else:
             groups[-1] += "-" + token
-    ext = ".json" if "--json" in argv else ".txt"
+    ext = ".json" if "--json" in key else ".txt"
     return f"fixtures/bale-{PIN}/{where}/{'_'.join(groups)}{ext}"
+
+
+# A fixtures/README.md row for the stdout of a command: file, command, ran
+# in, exit (a number, or `unrecorded`), bytes, sha256.
+EXIT_ROW = re.compile(r"^\| `(?P<file>bale-[^`]+)` \| `[^`]+` \| `[^`]+` "
+                      r"\| (?P<exit>\d+|unrecorded) \| \d+ \| `[0-9a-f]{64}` \|$", re.M)
+UNRECORDED = "unrecorded"
+
+
+def recorded_exits() -> dict[str, int | str]:
+    """Each recorded output's exit code as fixtures/README.md states it,
+    keyed by its fixtures/ path: an int, or "unrecorded"."""
+    text = (REPO_ROOT / "fixtures" / "README.md").read_text(encoding="utf-8")
+    return {f"fixtures/{m['file']}": (UNRECORDED if m["exit"] == UNRECORDED
+                                      else int(m["exit"]))
+            for m in EXIT_ROW.finditer(text)}
 
 
 # Fixtures that are not the stdout of a `bale` argv (fixtures/README.md,
@@ -230,15 +295,24 @@ class RecordingRunner:
 
 class FixturePlayer:
     """A run-seam double that answers a `bale …` argv from its recorded
-    fixture: the path is fixture_relpath(argv after `bale`, where), with
-    `where` "repo" when cwd is `repo_root`. Laid down for session 2b-ii;
-    a fixture records stdout only, so the answer is exit 0, empty stderr
-    (every recorded row's exit is 0). An argv with no fixture raises —
-    a test must never reach a live bale."""
+    fixture: the path is fixture_relpath(argv after `bale`, where) — the
+    argv normalized, so a per-run sid or tarball path finds its one
+    recording — with `where` "repo" when cwd is `repo_root`.
 
-    def __init__(self, repo_root: Path) -> None:
+    The answer is the fixture's bytes on stdout, the exit code its
+    fixtures/README.md row records, and empty stderr (no row records
+    stderr yet, and twine only surfaces it). A row whose exit is
+    `unrecorded` is refused unless the test names the code it assumes in
+    `assumed_exits` (fixtures/ path -> code), so an assumption is always
+    visible where it is made. An argv with no fixture raises — a test
+    must never reach a live bale."""
+
+    def __init__(self, repo_root: Path,
+                 assumed_exits: dict[str, int] | None = None) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.calls: list[list[str]] = []
+        self.exits = recorded_exits()
+        self.assumed_exits = dict(assumed_exits or {})
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
                  stdout_cap=None):
@@ -253,5 +327,69 @@ class FixturePlayer:
         path = REPO_ROOT / rel
         if not path.is_file():
             raise AssertionError(f"no recorded fixture for {argv} at {rel}")
-        return RunResult(argv=tuple(argv), exit_code=0,
+        code = self.exits.get(rel)
+        if code is None:
+            raise AssertionError(f"{rel} has no fixtures/README.md row")
+        if code == UNRECORDED:
+            if rel not in self.assumed_exits:
+                raise AssertionError(
+                    f"{rel}: its exit code is unrecorded; a test that relies on "
+                    "one names it in assumed_exits")
+            code = self.assumed_exits[rel]
+        return RunResult(argv=tuple(argv), exit_code=code,
                          stdout=path.read_bytes(), stderr=b"")
+
+
+class StubBale:
+    """A double, not bale: a temp install root whose `bin/bale` is a
+    bash script this class writes, and `bin/VERSION` at the pin. The
+    script records its argv, cwd and (for `relay`) stdin under `record`,
+    then replays the bytes of `relay_stdout` or `apply_stdout` on stdout,
+    `stderr` on stderr, and exits `exit_code`. It lets the CLI run end to
+    end as a subprocess (`--bale-root`) with no bale anywhere; the bytes
+    it replays are a recorded fixture or a double the test names."""
+
+    def __init__(self, relay_stdout: Path | None = None,
+                 apply_stdout: Path | None = None, exit_code: int = 0,
+                 stderr: str = "") -> None:
+        self._dir = tempfile.TemporaryDirectory(prefix="twine-stub-bale-")
+        base = Path(self._dir.name)
+        self.root = base / "root"
+        self.record = base / "record"
+        (self.root / "bin").mkdir(parents=True)
+        self.record.mkdir()
+        (self.root / "bin" / "VERSION").write_text(PIN + "\n", encoding="utf-8")
+        q = shlex.quote
+        replay = {"relay": relay_stdout, "apply": apply_stdout}
+        # bash by absolute path: a verb run in-process may hand the child an
+        # empty environment, and the shebang must not depend on PATH.
+        bash = shutil.which("bash") or "/bin/bash"
+        lines = [f"#!{bash}",
+                 "# A test double written by tests/helpers.py StubBale — not bale.",
+                 f"printf '%s\\n' \"$@\" > {q(str(self.record / 'argv'))}",
+                 f"pwd > {q(str(self.record / 'cwd'))}",
+                 f"if [ \"$1\" = relay ]; then cat > {q(str(self.record / 'stdin'))}; fi"]
+        for verb, source in replay.items():
+            if source is not None:
+                lines.append(f"if [ \"$1\" = {verb} ]; then cat {q(str(source))}; fi")
+        if stderr:
+            lines.append(f"printf '%s' {q(stderr)} >&2")
+        lines.append(f"exit {int(exit_code)}")
+        self.executable = self.root / "bin" / "bale"
+        self.executable.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.executable.chmod(self.executable.stat().st_mode | stat.S_IXUSR)
+
+    def argv(self) -> list[str] | None:
+        path = self.record / "argv"
+        return path.read_text(encoding="utf-8").splitlines() if path.exists() else None
+
+    def stdin(self) -> bytes | None:
+        path = self.record / "stdin"
+        return path.read_bytes() if path.exists() else None
+
+    def cwd(self) -> str | None:
+        path = self.record / "cwd"
+        return path.read_text(encoding="utf-8").strip() if path.exists() else None
+
+    def cleanup(self) -> None:
+        self._dir.cleanup()

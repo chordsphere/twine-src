@@ -1,21 +1,29 @@
 """The bale surface twine reads (twine-seed.md D2, D3, D4; T10).
 
 Twine never imports bale. What it reads from an install is files bale
-leaves on disk and the stdout of bale's non-interactive verbs; this
-session reads one file, `<root>/bin/VERSION`, and compares it to the
-pin in the consumption manifest (`share/bale-consumption.toml`).
+leaves on disk and the stdout of bale's non-interactive verbs: the file
+`<root>/bin/VERSION`, compared to the pin in the consumption manifest
+(`share/bale-consumption.toml`), and — since Arc 1 session 2b-ii — the
+stdout of the two verbs the `carry` hand-offs run, `bale relay <sid> -`
+and `bale apply --dry-run --json <tarball>`. Section 5 is the only place
+a bale argv is built, so T12 ("twine never merges at rung 1") has one
+home: `apply` is only ever built with `--dry-run --json`, and no other
+flag reaches it.
 
 Sections:
-  1. Install-root resolution     (~line 30)
-  2. The installed version       (~line 95)
+  1. Install-root resolution     (~line 40)
+  2. The installed version       (~line 100)
   3. The consumption manifest    (~line 120)
-  4. The pin check               (~line 175)
+  4. The pin check               (~line 170)
+  5. Running bale: the executable and the argvs  (~line 220)
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
+import shlex
 import shutil
 import tomllib
 from dataclasses import dataclass
@@ -207,3 +215,98 @@ def check(manifest: Manifest, root: Root) -> CheckResult:
                            f"installed {installed} differs from pin {manifest.pin}")
     return CheckResult(manifest.pin, installed, root.path, root.source, True,
                        f"installed {installed} matches the pin")
+
+
+# ---------------------------------------------------------------------------
+# 5. Running bale: the executable and the argvs
+# ---------------------------------------------------------------------------
+
+EXECUTABLE_RELPATH = Path("bin") / "bale"
+# The only flags `bale apply` ever receives from twine (T12): a dry run,
+# reported as one JSON line. No admission, override or interaction flag
+# exists anywhere in twine; the merge stays the operator's.
+DRY_RUN_FLAGS = ("--dry-run", "--json")
+# A session id twine will pass to bale as an argument. Not bale's sid
+# grammar (YYYY-MM-DD-<slug>-NNN, which twine does not re-declare) but a
+# floor under it: it starts with a letter or digit, so it can never be
+# read as a flag, and holds no whitespace or shell-significant byte.
+SID_ARGUMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+@dataclass(frozen=True)
+class Executable:
+    """The bale executable a carry verb would run, and what is known of
+    it: where its root came from (the same three rules as `bale check`),
+    the installed `bin/VERSION`, and the pin. `path` is None when no
+    root resolved. The version is reported, never gated on: a carry verb
+    runs the bale the operator has, and says so when it is not the pin."""
+
+    root: Root
+    path: Path | None
+    installed: str | None
+    pin: str | None
+    detail: str
+
+    @property
+    def pin_matches(self) -> bool | None:
+        if self.installed is None or self.pin is None:
+            return None
+        return self.installed == self.pin
+
+    def as_json(self) -> dict[str, Any]:
+        return {"executable": None if self.path is None else str(self.path),
+                "root": None if self.root.path is None else str(self.root.path),
+                "source": self.root.source, "installed": self.installed,
+                "pin": self.pin, "pin_matches": self.pin_matches}
+
+
+def locate_executable(explicit: str | None, env: Mapping[str, str],
+                      which: Callable[[str], str | None]) -> Executable:
+    """`<root>/bin/bale`, the root resolved exactly as `bale check` does
+    (`--bale-root`, TWINE_BALE_ROOT, then PATH). The tests pin
+    TWINE_BALE_ROOT, so a bale on the operator's PATH is never what a
+    test runs (cli-contract.md §8). Whether the file exists is learned by
+    starting it: a root with no `bin/bale` is a RunError at the seam."""
+    root = resolve_root(explicit, env, which)
+    pin: str | None = None
+    try:
+        pin = load_manifest().pin
+    except ManifestError as exc:
+        log.warning("pin unknown: %s", exc)
+    if root.path is None:
+        return Executable(root, None, None, pin,
+                          f"no bale install found ({root.detail})")
+    installed, detail = read_installed_version(root.path)
+    path = root.path / EXECUTABLE_RELPATH
+    log.info("bale executable: %s (%s; %s)", path, root.detail, detail)
+    return Executable(root, path, installed, pin, detail)
+
+
+def relay_argv(executable: Path, sid: str) -> list[str]:
+    """`bale relay <sid> -`: the block arrives on stdin. Raises ValueError
+    for a sid that could read as a flag or carries whitespace."""
+    if not SID_ARGUMENT.fullmatch(sid):
+        raise ValueError(f"session id {sid!r} is not safe to pass to bale")
+    return [str(executable), "relay", sid, "-"]
+
+
+def dry_run_argv(executable: Path, tarball: str) -> list[str]:
+    """`bale apply --dry-run --json <tarball>` — the one `apply` argv
+    twine builds (T12). The tarball is named by its absolute path, so it
+    begins with `/` and can never be read as a flag."""
+    if not os.path.isabs(tarball):
+        raise ValueError(f"tarball {tarball!r} is not an absolute path")
+    return [str(executable), "apply", *DRY_RUN_FLAGS, tarball]
+
+
+def apply_line(tarball: str) -> str:
+    """The line the operator runs to apply: `bale apply ` and the
+    tarball's absolute path, quoted only when the shell needs it."""
+    return "bale apply " + shlex.quote(tarball)
+
+
+def absolute_path(name: str) -> str:
+    """The operator's name for a file made absolute against the current
+    directory (`~` expanded, `..` folded, symlinks left as named). No
+    search path: the operator names the file."""
+    return os.path.abspath(os.path.expanduser(name))

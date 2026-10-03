@@ -31,8 +31,8 @@ What the default runner guarantees:
 
 Sections:
   1. The result and the signature   (~line 50)
-  2. The default runner             (~line 115)
-  3. Process-group helpers          (~line 265)
+  2. The default runner             (~line 125)
+  3. Process-group helpers          (~line 280)
 """
 
 from __future__ import annotations
@@ -101,6 +101,16 @@ class RunError(OSError):
     """The process could not be started at all (nothing ran)."""
 
 
+def runner_confines(runner: object) -> bool:
+    """Whether `runner` confines what it runs — the one switch point a
+    verb's `confined` flag reads (accepted from session 2b-i's Proposals,
+    prepared in 2b-ii). A runner declares it with a `confines` attribute;
+    one that does not say does not confine. Arc 2's sandbox runner — a
+    wrapper around run_process — is what will declare True; nothing else
+    may infer the flag."""
+    return getattr(runner, "confines", False) is True
+
+
 class Runner(Protocol):
     """The seam's signature — every runner, real or double, takes this."""
 
@@ -161,6 +171,11 @@ def run_process(argv: Sequence[str], *, cwd: str | Path | None = None,
              result.timed_out, result.stdout_capped, result.duration_seconds,
              len(result.stdout), len(result.stderr))
     return result
+
+
+# The default runner confines nothing: the child gets the caller's
+# privileges, environment, files and network (cli-contract.md §10.5).
+run_process.confines = False  # type: ignore[attr-defined]
 
 
 @dataclass

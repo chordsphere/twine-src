@@ -12,7 +12,7 @@ import unittest
 from twine import REPO_ROOT
 from twine.cli import Context
 from twine.process import (DEFAULT_STDERR_CAP, RunError, RunResult,
-                           run_process)
+                           run_process, runner_confines)
 
 from tests.helpers import FixturePlayer, process_alive
 
@@ -89,6 +89,13 @@ class TheSeam(unittest.TestCase):
 
     def test_context_run_defaults_to_the_real_runner(self):
         self.assertIs(Context().run, run_process)
+
+    def test_the_default_runner_confines_nothing(self):
+        """runner_confines is the `confined` switch point: the default
+        runner declares false, and a runner that does not say is false."""
+        self.assertIs(runner_confines(run_process), False)
+        self.assertIs(runner_confines(FixturePlayer(REPO_ROOT)), False)
+        self.assertIs(runner_confines(lambda *a, **k: None), False)
 
     def test_no_verb_module_spawns_a_process_of_its_own(self):
         """Handlers run subprocesses through ctx.run only: no module under

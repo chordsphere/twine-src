@@ -10,8 +10,8 @@ from twine import CONSUMPTION_MANIFEST, REPO_ROOT, shapes
 from twine.bale import ManifestError, load_manifest
 from twine.registry import load_registry
 
-from tests.helpers import (PIN, TempRoots, carried_relpath, emission_relpath,
-                           fixture_relpath)
+from tests.helpers import (PIN, Role, TempRoots, carried_relpath, emission_relpath,
+                           fixture_key, fixture_relpath)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHEMA_FILES = {
@@ -69,15 +69,55 @@ class SurfacesAreWalkable(unittest.TestCase):
         self.assertIn("bale check", files[0]["read_by"])
 
     def test_every_verb_surface_fixture_exists_and_follows_the_naming_rule(self):
+        """A verb surface with a recording points at it by the naming rule
+        (the argv normalized: a `<role>` placeholder names its role). One
+        without names its stand-in, and the file the rule would give does
+        not exist — so recording it forces this entry to be updated."""
         verbs = [s for s in self.manifest.surfaces if s["kind"] == "verb"]
         self.assertGreaterEqual(len(verbs), 3)
         for s in verbs:
             with self.subTest(argv=s["argv"]):
-                self.assertEqual(s["fixture"], fixture_relpath(s["argv"], s["cwd"]))
-                self.assertTrue((REPO_ROOT / s["fixture"]).is_file(), s["fixture"])
+                expected = fixture_relpath(s["argv"], s["cwd"])
+                if "fixture" in s:
+                    self.assertEqual(s["fixture"], expected)
+                    self.assertTrue((REPO_ROOT / s["fixture"]).is_file(), s["fixture"])
+                else:
+                    self.assertFalse((REPO_ROOT / expected).exists(),
+                                     f"{expected} is recorded; point `fixture` at it")
+                    self.assertTrue((REPO_ROOT / s["stand_in"]).is_file(), s["stand_in"])
+                    self.assertTrue(s["doubles"])
                 self.assertEqual(s["argv"][0], s["verb"])
                 for flag in s["flags"]:
                     self.assertIn(flag, s["argv"])
+
+    def test_per_run_placeholders_are_the_roles_the_key_gives(self):
+        """`<sid>` and `<tarball>` in a manifest argv sit exactly where the
+        normalization puts a role of that name."""
+        for s in self.manifest.surfaces:
+            if s["kind"] != "verb":
+                continue
+            key = fixture_key(s["argv"])
+            for token, keyed in zip(s["argv"], key):
+                with self.subTest(argv=s["argv"], token=token):
+                    if token.startswith("<"):
+                        self.assertIsInstance(keyed, Role)
+                        self.assertEqual(token, f"<{keyed}>")
+                    elif token != "-":
+                        self.assertNotIsInstance(keyed, Role)
+
+    def test_the_carry_hand_offs_bale_surfaces(self):
+        """Session 2b-ii: carry response reads `outcome` from the dry run;
+        carry exchange reads relay's stdout as text (no key), with the
+        crafter's exchange emission standing in for it."""
+        by_verb = {s["verb"]: s for s in self.manifest.surfaces if s["kind"] == "verb"}
+        apply, relay = by_verb["apply"], by_verb["relay"]
+        self.assertEqual((apply["argv"], apply["keys"], apply["read_by"]),
+                         (["apply", "--dry-run", "--json", "<tarball>"], ["outcome"],
+                          ["carry response"]))
+        self.assertEqual((relay["argv"], relay["keys"], relay["read_by"]),
+                         (["relay", "<sid>", "-"], [], ["carry exchange"]))
+        self.assertEqual(relay["stand_in"],
+                         emission_relpath("crafter", ["--emit-block", "-"]))
 
     def test_the_two_json_verbs_the_brief_names_are_recorded(self):
         argvs = [tuple(s["argv"]) for s in self.manifest.surfaces if s["kind"] == "verb"]
@@ -88,11 +128,14 @@ class SurfacesAreWalkable(unittest.TestCase):
         formats = [s["format"] for s in self.manifest.surfaces if s["kind"] == "format"]
         self.assertEqual(sorted(formats), sorted(shapes.KINDS))
         # take reads every format; carry probe (session 2b-i) also reads
-        # the probe it runs and the probe-output it verifies.
-        carried = {shapes.PROBE, shapes.PROBE_OUTPUT}
+        # the probe it runs and the probe-output it verifies, and carry
+        # exchange (session 2b-ii) the exchange block it relays.
+        carried = {shapes.PROBE: ["carry probe", "take"],
+                   shapes.PROBE_OUTPUT: ["carry probe", "take"],
+                   shapes.EXCHANGE: ["carry exchange", "take"]}
         for s in self.manifest.surfaces:
             if s["kind"] == "format":
-                expected = ["carry probe", "take"] if s["format"] in carried else ["take"]
+                expected = carried.get(s["format"], ["take"])
                 self.assertEqual(s["read_by"], expected, s["format"])
 
     def test_every_read_by_names_a_registered_verb(self):

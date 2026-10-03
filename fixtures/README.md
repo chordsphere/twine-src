@@ -37,6 +37,30 @@ fixtures/bale-<version>/<where>/<verb>_<flag[-value…]>[_<flag[-value…]>…].
   recording a new fixture adds a surface entry, a row below, and nothing
   else.
 
+**Per-run values** (since session `2026-10-03-twine-carry-bale-002`). A
+value that differs on every run — a session id twine reads out of a
+block, a tarball's path — never enters a name: the argv is normalized
+first, the value replaced by its **role**, and a role is a `_` group of
+its own (it is not the value of the flag before it).
+`tests/helpers.py`'s `fixture_key(argv)` is the normalization, one rule
+per verb:
+
+| verb | argv after `bale` | normalized | name |
+|---|---|---|---|
+| `relay` | `relay <sid> -` | `relay`, role `sid`, role `stdin` (a file argument: role `file`) | `relay_sid_stdin.txt` |
+| `apply` | `apply --dry-run --json <tarball>` | every positional after `apply` is role `tarball` | `apply_--dry-run_--json_tarball.json` |
+
+A value that selects *what* bale reports — `stats --sid <sid>`'s
+dossier — is not per-run and stays in the name. The fixture player
+(`FixturePlayer`) looks a call up by the normalized name, so one
+recording answers every run of its command.
+
+**The exit column** is what the player answers as the exit code (stdout
+is the file; stderr is not recorded for any row yet, and the player
+answers it empty). A row whose exit was not captured says
+`unrecorded`, never a guess, and the player refuses to answer for it
+unless the test names the code it assumes.
+
 What is not the stdout of a `bale` argv keeps the version directory and
 names its own `<where>`; both kinds are text formats `twine take` reads,
 pinned by the consumption manifest's `kind = "format"` entries:
@@ -76,12 +100,27 @@ beside each output before the paste.
 | `bale-0.4.45/twine-src/stats_--json.json` | `bale stats --json` | `/home/chordsphere/twine-src` | 0 | 8121 | `a9dc5c9bab89e00a3745da8235142f1fe69ad8f6dd1ef23838c605f48ff95add` |
 | `bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json` | `bale stats --sid 2026-10-01-twine-seed-001 --json` | `/home/chordsphere/twine-src` | 0 | 4026 | `c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455` |
 | `bale-0.4.45/anywhere/--version.txt` | `bale --version` | `/tmp` | 0 | 12 | `20a67ed843d2255f22d492ce3dc4c3bbe42498fe39a86c32e34bb815dd337f69` |
+| `bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json` | `bale apply --dry-run --json <tarball: unrecorded>` | `/home/chordsphere/twine-src` | unrecorded | 315 | `f5bd7e5bbb92363b2993e2aaba5816dc3428dd7acdc0c51e8e194a49c43471ce` |
 
-State of `~/twine-src` at recording: head `0c01dcb` (2026-10-01T23:11:26Z),
+State of `~/twine-src` at that recording: head `0c01dcb` (2026-10-01T23:11:26Z),
 branch `master`, sessions `2026-09-29-begin-harness-001` (the sitting,
 forecast `[]`) and `2026-10-01-twine-core-002` (forecast `["."]`) open,
 `2026-10-01-twine-seed-001` applied. The `status` fixture's `sid` is the
 sitting's: bale's lock state names the earliest open session.
+
+The `apply` row was not recorded by that probe. It is the architect's
+`apply-dry-run-carry-probe.json`, found on 2026-10-02 by probe
+`twine-2b-ii-fixture` (22 lines, trailer matched) at
+`/mnt/c/Users/chord/Downloads/apply-dry-run-carry-probe.json`, and
+landed by session `2026-10-03-twine-carry-bale-002` byte-exact: 315
+bytes, one line with its trailing newline, the sha256 the probe
+printed. What its own fields say: bale 0.4.45, run in
+`/home/chordsphere/twine-src` (its `log`) for the open session
+`2026-10-02-twine-carry-probe-002` (its `sid`), outcome `dry-run`.
+What is **not** known: the tarball argument it was given (so the
+argv's exact order too) and its exit status — both `unrecorded` in the
+row, never guessed. Its name is the normalized one (per-run values,
+above). Tests that rely on its exit code name the code they assume.
 
 ### Emissions and carried pastes (session `2026-10-02-twine-take-read-001`)
 

@@ -508,6 +508,22 @@ class ThroughTheSeam(TempCase):
         obj = one_line(self, run.stdout)
         self.assertEqual((run.code, obj["ok"], obj["output"]), (0, True, real))
 
+    def test_confined_is_read_from_the_runner_and_nowhere_else(self):
+        """The one `confined` switch point (session 2b-ii, from 2b-i's
+        Proposals): the flag follows twine.process.runner_confines(ctx.run).
+        The real runner and every Arc 1 double report false; a double that
+        declares `confines = True` stands in for Arc 2's sandbox runner."""
+        class ConfiningDouble(RecordingRunner):
+            confines = True
+        for runner, expected in ((RecordingRunner(), False), (ConfiningDouble(), True),
+                                 (run_process, False)):
+            with self.subTest(runner=type(runner).__name__):
+                obj = one_line(self, run_carry(str(self.probe_turn()), "--json",
+                                               runner=runner).stdout)
+                self.assertIs(obj["confined"], expected)
+        source = (REPO_ROOT / "twine/commands/carry.py").read_text(encoding="utf-8")
+        self.assertNotIn('"confined": False', source)
+
     def test_carry_imports_nothing_that_runs_or_reaches_out(self):
         forbidden = {"subprocess", "os", "shutil", "socket", "urllib", "http",
                      "multiprocessing", "pty", "asyncio", "ctypes"}
