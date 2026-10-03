@@ -17,7 +17,10 @@
 #   path             kind = file: the path under <root>
 #   verb, flags      kind = verb: the verb and the flags twine passes
 #                    (flag names only; argv carries the exact invocation)
-#   argv             kind = verb: the exact argument vector after `bale`
+#   argv             kind = verb: the exact argument vector after `bale`; a
+#                    per-run value is written `<role>` (`<sid>`, `<tarball>`)
+#                    and names its fixture by role (fixtures/README.md,
+#                    "Per-run values" — session 2026-10-03-twine-carry-bale-002)
 #   cwd              kind = verb: where it runs ("repo" = the packing repo)
 #   stdout           what twine expects on stdout
 #   keys             the JSON keys twine reads from that output — [] where
@@ -27,6 +30,10 @@
 #                    `carry probe` reads the probe it runs and the
 #                    probe-output it verifies — session 2026-10-02-twine-carry-probe-002)
 #   fixture          the recorded output under fixtures/, when one exists
+#   stand_in         kind = verb with no fixture: the recorded bytes the
+#                    tests replay in its place, and why they may
+#   doubles          the test doubles standing in for this surface's
+#                    unrecorded outputs; a later recording replaces them
 #   written_against  the bale version the entry was written against
 #
 #   kind = format carries, instead of path/verb/argv/cwd/stdout/fixture:
@@ -124,6 +131,36 @@ fixture = "fixtures/bale-0.4.45/anywhere/--version.txt"
 written_against = "0.4.45"
 note = "not used by twine bale check, which reads bin/VERSION instead; recorded so a reviewer can see the two agree"
 
+# --- the verbs the carry hand-offs run (session 2026-10-03-twine-carry-bale-002) ---
+
+[[surface]]
+kind = "verb"
+verb = "apply"
+flags = ["--dry-run", "--json"]
+argv = ["apply", "--dry-run", "--json", "<tarball>"]
+cwd = "repo"
+stdout = "exactly one JSON object line; outcome \"dry-run\" when the response would apply (nothing staged, branched or committed)"
+keys = ["outcome"]
+read_by = ["carry response"]
+fixture = "fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json"
+doubles = ["tests/test_carry_bale.py BaleDouble: a non-zero exit, an outcome other than dry-run, stdout that is not one JSON object, a timeout"]
+written_against = "0.4.45"
+note = "the only apply argv twine builds (T12: twine.bale.dry_run_argv; never without --dry-run, never an admission or override flag). The recorded line's keys are outcome, sid, log, verdict, merge, telemetry, drift, checkpoint, required_checks, base_drift, archive, sweep; twine reads outcome and carries the object whole. Its tarball argument and exit status are unrecorded (fixtures/README.md); bale's refusal and HOLD outputs and their exit codes are unrecorded too, and doubles stand in until a recording probe captures them"
+
+[[surface]]
+kind = "verb"
+verb = "relay"
+flags = []
+argv = ["relay", "<sid>", "-"]
+cwd = "repo"
+stdout = "the counterpart's paste block (an exchange block); '[bale] ' lines on stderr"
+keys = []
+read_by = ["carry exchange"]
+stand_in = "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt"
+doubles = ["tests/helpers.py StubBale and tests/test_carry_bale.py BaleDouble: relay's stdout after an ingest, a non-zero exit, a timeout"]
+written_against = "0.4.45"
+note = "stdin is exactly the exchange block's own lines (twine.shapes.block_text); twine passes stdout through as text and reads no key from it. No relay output is recorded: the stand-in is the crafter's --emit-block rendering, which TARBALL.md 5.9.2 pins byte-identical to relay's rendering of the same record. A recording of relay_sid_stdin.txt (and its exit code) replaces the stand-in and the doubles"
+
 # --- text formats `twine take` reads (session 2026-10-02-twine-take-read-001) ---
 
 [[surface]]
@@ -170,7 +207,7 @@ home = "TARBALL.md §5.9.2; bin/bale_relay.py parse_exchange_input, _exchange_bo
 emitted_by = ["bale relay <sid> <file|->", "tools/craft_response.py --emit-block <file|->"]
 fixtures = ["fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt"]
 keys = ["round", "from"]
-read_by = ["take"]
+read_by = ["carry exchange", "take"]
 written_against = "0.4.45"
 note = "body = json.dumps(record, indent=2) + LF, ASCII-escaped; a body whose re-serialization matches the trailer though its bytes do not is the unescaped-in-transit fault (bale 0.4.41)"
 
@@ -195,5 +232,5 @@ status = "absent in 0.4.45: `bale open [-h] [--verbose] [--no-sandbox] [--check 
 [[wanted]]
 verb = "relay"
 flags = ["--json"]
-needed_by = "Arc 1 session 2b-ii (offline courier — act: carry exchange; 2b split again at the sitting, 2026-10-02, and 2b-i, carry probe, needs no bale verb)"
+needed_by = "Arc 1 session 2b-ii (offline courier — act: carry exchange) landed without it, passing relay's stdout through as text; with --json, carry exchange could report the round relay recorded instead of only relaying it"
 status = "absent in 0.4.45: `bale relay [-h] sid [file]`; stdout is the counterpart's paste block, [bale] lines on stderr"

@@ -1,8 +1,12 @@
 """`twine carry …` — the courier acts on what it read (Arc 1 session 2b).
 
-This module is the `carry` verb family. Session 2b-i lands `carry probe`;
-session 2b-ii adds `carry exchange` (a block to `bale relay`) and
-`carry response` (a tarball to `bale apply --dry-run --json`) beside it.
+This module is the `carry` verb family's first member, `carry probe`
+(session 2b-i), and the reading every carry verb shares: FILE read as
+`take` reads it, and one block chosen by kind — never a guess. Session
+2b-ii's `carry exchange` (a block to `bale relay`) and `carry response`
+(a tarball to `bale apply --dry-run --json`) live beside it in
+twine/commands/carry_bale.py and choose their block through the same
+`choose_block`.
 
 `twine carry probe FILE [--block N] [--run] [--cwd DIR] [--timeout S]
 [--out PATH] [--json]` reads FILE exactly as `twine take` does (one
@@ -19,14 +23,15 @@ paste-back the operator carries.
 
 The script runs unconfined (`confined: false`, always, in Arc 1): the
 operator's privileges, environment and network. Arc 2's sandbox is what
-makes it true. The contract is claude/context/cli-contract.md §10.
+makes it true, and the flag is read from the runner in one place
+(twine.process.runner_confines), never set here. The contract is claude/context/cli-contract.md §10.
 
 Sections:
-  1. Limits and the outcome         (~line 45)
-  2. Reading and choosing a block   (~line 135)
-  3. Readiness: refused before running (~line 200)
-  4. Running and verifying          (~line 235)
-  5. The verb                       (~line 335)
+  1. Limits and the outcome         (~line 50)
+  2. Reading and choosing a block   (~line 145)
+  3. Readiness: refused before running (~line 230)
+  4. Running and verifying          (~line 265)
+  5. The verb                       (~line 365)
 """
 
 from __future__ import annotations
@@ -34,12 +39,12 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from twine import shapes
 from twine.cli import Context
 from twine.commands.take import STDIN, read_input
-from twine.process import RunError
+from twine.process import RunError, runner_confines
 from twine.registry import Argument, Command, Result
 
 # ---------------------------------------------------------------------------
@@ -83,6 +88,9 @@ class Outcome:
     out_written: str | None = None
     cwd: str | None = None
     timeout: float = DEFAULT_TIMEOUT_SECONDS
+    # Read from the runner (twine.process.runner_confines), never set
+    # anywhere else: false for the default runner, all of Arc 1.
+    confined: bool = False
 
     @property
     def slug(self) -> str | None:
@@ -111,7 +119,7 @@ class Outcome:
             "slug": self.slug,
             "block": self.block_number,
             "ran": self.ran,
-            "confined": False,
+            "confined": self.confined,
             "exit_code": self.exit_code,
             "timed_out": self.timed_out,
             "capped": self.capped,
@@ -138,9 +146,27 @@ class Outcome:
 # ---------------------------------------------------------------------------
 
 
-def read_turn(ctx: Context, outcome: Outcome) -> shapes.Report | None:
-    """Read and normalize FILE exactly as `twine take` does; a failure is
-    a refusal on the outcome, and None."""
+class CarryOutcome(Protocol):
+    """What reading and choosing write to — every carry verb's outcome
+    (`Outcome` here; carry_bale.py's two) carries these fields."""
+
+    source: str
+    input: dict[str, Any]
+    refusals: list[str]
+    block_number: int | None
+    block: shapes.Block | None
+
+
+# The kinds a carry verb acts on, as a refusal names them.
+CARRIED_KINDS = {shapes.PROBE: ("a probe", "slug"),
+                 shapes.EXCHANGE: ("an exchange", "sid")}
+
+
+def read_turn(ctx: Context, outcome: CarryOutcome
+              ) -> tuple[shapes.Report, str] | None:
+    """Read and normalize FILE exactly as `twine take` does: the report,
+    and the normalized text its line numbers count in (block_text slices
+    it). A failure is a refusal on the outcome, and None."""
     try:
         data = read_input(ctx, outcome.source)
     except OSError as exc:
@@ -157,7 +183,7 @@ def read_turn(ctx: Context, outcome: Outcome) -> shapes.Report | None:
                      "lines": len(shapes.split_lines(norm.text)),
                      "crlf_normalized": norm.crlf_replaced,
                      "bom_stripped": norm.bom_stripped}
-    return shapes.find_blocks(norm.text)
+    return shapes.find_blocks(norm.text), norm.text
 
 
 def label_of(source: str) -> str:
@@ -165,10 +191,13 @@ def label_of(source: str) -> str:
 
 
 def choose_block(report: shapes.Report, number: int | None,
-                 outcome: Outcome) -> None:
-    """Pick the probe block, or refuse — never guess. `number` is the
+                 outcome: CarryOutcome, kind: str = shapes.PROBE) -> None:
+    """Pick the block of `kind`, or refuse — never guess. `number` is the
     1-based position `twine take` prints, among *all* blocks; without it,
-    exactly one probe block must be present."""
+    exactly one block of `kind` must be present. A `--block` naming a
+    block of another kind is refused, which is also why no carry verb can
+    be pointed at a relay block (cli-contract.md §9.4)."""
+    noun, ident = CARRIED_KINDS[kind]
     blocks = report.blocks
     if number is not None:
         if not 1 <= number <= len(blocks):
@@ -177,24 +206,25 @@ def choose_block(report: shapes.Report, number: int | None,
                 f"{len(blocks)} block{'' if len(blocks) == 1 else 's'}")
             return
         block = blocks[number - 1]
-        if block.kind != shapes.PROBE:
+        if block.kind != kind:
+            article = "an" if block.kind[0] in "aeiou" else "a"
             outcome.refusals.append(
-                f"--block {number} names a {block.kind} block, not a probe "
+                f"--block {number} names {article} {block.kind} block, not {noun} "
                 f"(lines {block.start_line}-{block.end_line})")
             return
         outcome.block_number, outcome.block = number, block
         return
-    probes = [(n, b) for n, b in enumerate(blocks, 1) if b.kind == shapes.PROBE]
-    if not probes:
+    found = [(n, b) for n, b in enumerate(blocks, 1) if b.kind == kind]
+    if not found:
         kinds = ", ".join(b.kind for b in blocks) or "none"
-        outcome.refusals.append(f"no probe block in the input (blocks found: {kinds})")
+        outcome.refusals.append(f"no {kind} block in the input (blocks found: {kinds})")
         return
-    if len(probes) > 1:
-        listed = ", ".join(f"[{n}] {b.fields.get('slug')}" for n, b in probes)
+    if len(found) > 1:
+        listed = ", ".join(f"[{n}] {b.fields.get(ident)}" for n, b in found)
         outcome.refusals.append(
-            f"{len(probes)} probe blocks ({listed}); name one with --block N")
+            f"{len(found)} {kind} blocks ({listed}); name one with --block N")
         return
-    outcome.block_number, outcome.block = probes[0]
+    outcome.block_number, outcome.block = found[0]
 
 
 # ---------------------------------------------------------------------------
@@ -339,12 +369,12 @@ def cmd_carry_probe(ctx: Context, args: argparse.Namespace) -> Result:
     """Read, choose, check, and — only on --run — run and verify. Every
     failure is a not-ok Result (exit 1) with the reason named."""
     outcome = Outcome(source=args.file, run_requested=bool(args.run),
-                      timeout=float(args.timeout))
+                      timeout=float(args.timeout), confined=runner_confines(ctx.run))
     outcome.cwd = str(Path(args.cwd).expanduser().resolve()) if args.cwd \
         else str(Path.cwd())
-    report = read_turn(ctx, outcome)
-    if report is not None:
-        choose_block(report, args.block, outcome)
+    read = read_turn(ctx, outcome)
+    if read is not None:
+        choose_block(read[0], args.block, outcome)
     if outcome.block is not None:
         check_ready(outcome, args)
     if not outcome.refusals and args.run:

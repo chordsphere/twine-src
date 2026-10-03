@@ -5,9 +5,11 @@
 > test under `tests/` and by the session's `validation.sh`. Landed by
 > session `2026-10-01-twine-core-002`, extended by
 > `2026-10-02-twine-take-read-001` (§9, and the lines naming `take` or
-> the `format` kind) and by `2026-10-02-twine-carry-probe-002` (§10, the
-> run seam, and the lines naming `carry probe`); a later session that
-> changes a line changes it here in the same response.
+> the `format` kind), by `2026-10-02-twine-carry-probe-002` (§10, the
+> run seam, and the lines naming `carry probe`) and by
+> `2026-10-03-twine-carry-bale-002` (§11, and the lines naming `carry
+> exchange`, `carry response`, per-run values or recorded exits); a later
+> session that changes a line changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -39,9 +41,11 @@
   `Command` refuses at load.
 - Verb names are the full space-joined path: `"bale check"`. The JSON
   `command` key carries the same string.
-- Verbs today: `commands`, `status`, `bale check`, `take`, `carry probe`
-  (the `carry` group; 2b-ii adds `carry exchange` and `carry response`
-  beside it).
+- Verbs today: `commands`, `status`, `bale check`, `take`, and the
+  `carry` group — `carry probe` (`twine/commands/carry.py`), `carry
+  exchange` and `carry response` (`twine/commands/carry_bale.py`). One
+  group's verbs may live in several modules; the parser assembles the
+  group from all of them.
 - `twine commands --json` emits
   `{"command": "commands", "ok": true, "commands": [{"name", "summary",
   "json", "cli_only"}, …]}` — every registered verb, in registry order,
@@ -111,11 +115,17 @@ sha256, one `[[surface]]` per bale surface twine reads (the file
 `bin/VERSION` and each recorded `--json` verb: `kind`, `verb`, `flags`,
 `argv`, `cwd`, `stdout`, `keys` — the JSON keys twine reads, `[]`
 where none yet — `key_owner`, `read_by`, `fixture`, `written_against`;
+a per-run value in `argv` is written `<role>` (§7); a verb with no
+recording has no `fixture` and names its `stand_in` and the `doubles`
+standing in for it, until a recording replaces them;
 and, `kind = "format"`, each text format `take` parses out of a paste:
 `format`, `locator`, `home`, `emitted_by`, `fixtures`, `keys`, `read_by`,
 `written_against`),
 and `[[wanted]]` for a surface a later session needs that the pinned
 bale lacks (`bale open --json`, `bale relay --json` in 0.4.45). The
+verbs twine runs today: `bale apply --dry-run --json <tarball>` (read by
+`carry response`: the key `outcome`) and `bale relay <sid> -` (read by
+`carry exchange`: stdout as text, no key). The
 file's header comment spells the entry shape;
 `tests/test_consumption_manifest.py` walks it.
 
@@ -127,6 +137,16 @@ The path of a recorded output is
 `tests/helpers.py`'s `fixture_relpath(argv, cwd)` computes it, and each
 manifest surface's `fixture` is asserted equal to it. Every `.json`
 fixture is one object line with a trailing newline.
+
+A **per-run value** — a session id read out of a block, a tarball's
+path — never enters a name: `fixture_key(argv)` replaces it with its
+role, and a role is a `_` group of its own. `bale relay <sid> -` names
+`relay_sid_stdin.txt`; `bale apply --dry-run --json <tarball>` names
+`apply_--dry-run_--json_tarball.json`. A row's **exit** column is the
+exit code the fixture player answers; a row that did not capture it
+says `unrecorded`, and the player answers it only when the test names
+the code it assumes. No row records stderr; the player answers it
+empty.
 
 A fixture that is not a bale argv's stdout keeps the version directory:
 a crafter emission is `fixtures/bale-<version>/crafter/<flag[-value…]>[_…].txt`
@@ -145,7 +165,10 @@ python3 -B -m unittest discover -s tests -t .
 ```
 
 from the repository root — no network, no bale install, no third-party
-module. `bash` is required: `carry probe`'s tests run real probe scripts,
+module, and no bale reached whatever is on `PATH`: a verb that runs bale
+(§11) runs it through the seam, and the tests hand the seam the fixture
+player, a double (`BaleDouble`), or a stub `bin/bale` they write into a
+temp root (`tests/helpers.py` `StubBale`, passed as `--bale-root`). `bash` is required: `carry probe`'s tests run real probe scripts,
 each derived from the crafter's recorded scaffold by filling its
 placeholders mechanically (`tests/helpers.py` `filled_probe`). `bale check` is tested against temp roots the tests build
 (`bin/VERSION` at the pin, at another version, and absent), never a
@@ -352,7 +375,11 @@ pasting it into a terminal, which is what `--run` replaces. Twine
 checks that the purpose header **declares** the script read-only; it
 cannot make it so. The timeout, the process-group kill and the output
 cap bound how long and how much; they confine nothing. Arc 2's sandbox
-is what makes `confined` true.
+is what makes `confined` true. The flag has one switch point: it is read
+from the runner, `twine.process.runner_confines(ctx.run)` (a runner
+declares `confines`; the default runner declares false, and one that
+does not say is false), and set nowhere else — Arc 2's sandbox runner,
+a wrapper around the default one, is what will declare true.
 
 ### 10.6 The run seam
 
@@ -384,4 +411,128 @@ beyond its reach (it waits two seconds for the pipes, then logs and
 gives up). Tests inject a double with the same signature:
 `tests/helpers.py` carries `RecordingRunner` and `FixturePlayer`, the
 latter answering a `bale …` argv from `fixture_relpath(argv[1:], where)`
-(§7).
+— the argv normalized, per-run values replaced by their roles — with
+the exit code `fixtures/README.md` records for it (§7).
+
+## 11. The bale hand-offs: `carry exchange` and `carry response`
+
+The courier hands bale what it carried. Both verbs live in
+`twine/commands/carry_bale.py`, run bale only through the seam (§10.6)
+and build its argv only in `twine/bale.py` (`relay_argv`,
+`dry_run_argv`). Neither writes a file.
+
+### 11.1 Finding bale
+
+The executable is `<root>/bin/bale`, the root resolved exactly as `bale
+check` resolves it (§5): `--bale-root DIR`, else `TWINE_BALE_ROOT`, else
+`command -v bale` followed to its real path and up. No root found is a
+refusal; a root with no runnable `bin/bale` is learned by starting it,
+also a refusal (`ran` false). The installed `bin/VERSION` is reported
+beside the pin in `bale` (`executable`, `root`, `source`, `installed`,
+`pin`, `pin_matches`); a version other than the pin is said on stderr,
+never gated on. bale runs in `--cwd DIR` (default: the current
+directory — the repo whose session the block or tarball belongs to),
+with twine's environment, a 300-second timeout and a 4 MiB stdout cap;
+a call past either is killed and is not ok. bale's stderr always
+reaches twine's stderr, and the JSON `stderr`.
+
+### 11.2 `twine carry exchange FILE [--block N] [--cwd DIR] [--bale-root DIR] [--json]`
+
+- **Finding the block.** `FILE` (a path, or `-`) is read exactly as
+  `take` reads it (§9.1–§9.2). The candidates are its `exchange` blocks;
+  `--block N` names one by the number `take` prints (its position among
+  all blocks); without it, exactly one must be present. None, more than
+  one without `--block`, or a `--block` naming no block or a block of
+  another kind: refused, never a guess. A `relay` block is never a
+  candidate, so a `to: planner` block cannot be carried (§9.4).
+- **Refused before calling bale**, every reason named at once: the
+  block's integrity does not hold (the reason names the fault —
+  `mismatch`, `unescaped-in-transit`, `unclosed`, `no-sid`, `no-body`,
+  `no-trailer`, `body-not-json`; twine never relays a block it cannot
+  vouch for, and never repairs one); its sentinel sid could be read by
+  bale as a flag (it must start with a letter or digit and hold only
+  letters, digits, `.`, `_`, `-` — the trailer hashes the body, not the
+  sentinel); the input is unreadable or not UTF-8; `--cwd` is not a
+  directory; no bale is found or startable.
+- **The call.** `bale relay <sid> -`, `<sid>` the block's sentinel sid,
+  with stdin exactly the block's own lines — BEGIN through END, LF, one
+  trailing newline (`shapes.block_text`). Nothing else from the input
+  reaches bale.
+- **ok** exactly when the relay call exits 0. Otherwise not ok, exit 1,
+  the reason naming bale's exit status (or that it timed out or was
+  capped), bale's stderr surfaced; no traceback.
+- **Human mode**: on ok, stdout is exactly bale's stdout — the block the
+  courier carries next (a final newline is supplied if bale's lacked
+  one); otherwise one line, `carry exchange FILE: refused — …` or
+  `… NOT OK — …`.
+
+The JSON twin, `command` `"carry exchange"`. Fixed names:
+
+| key | value |
+|---|---|
+| `sid` | the chosen block's sentinel sid; null when none was chosen |
+| `block` | the number `take` prints for it; null when none was chosen |
+| `ran` | whether bale was started |
+| `exit_code` | bale's exit status; null when it did not run or was killed |
+| `stdout` | bale's stdout as text; `""` when it did not run |
+| `stderr` | bale's stderr as text |
+| `reason` | every refusal and failure, `; `-joined; null when ok |
+| `refusals` | the reasons bale was not called, in order |
+
+And beside them: `integrity` (the chosen block's, as §9.3 reports it, or
+null), `argv` (the argv handed to the seam; null when none was),
+`stderr_truncated`, `timed_out`, `capped`, `duration_seconds`, `cwd`,
+`bale` (§11.1), `input` (as `take`'s).
+
+### 11.3 `twine carry response TARBALL [--cwd DIR] [--bale-root DIR] [--json]`
+
+The courier checks a response tarball with bale and hands the operator
+the line that applies it. **It never applies anything** (T12).
+
+- **Refused before calling bale**: `TARBALL` is not an existing file
+  (made absolute against the current directory, `~` expanded; no search
+  path — the operator names the file); `--cwd` is not a directory; no
+  bale is found or startable.
+- **The call.** `bale apply --dry-run --json <absolute path>`, stdin
+  `/dev/null`. This is the only `apply` argv twine can build
+  (`twine.bale.dry_run_argv`; a test asserts no other code builds one):
+  never without `--dry-run`, never an admission or override flag — a
+  refusal is surfaced, never admitted. The path is absolute, so it can
+  never read as a flag.
+- **ok** exactly when bale exits 0 and its stdout is one JSON object
+  whose `outcome` is `"dry-run"`. Otherwise not ok, exit 1, the reason
+  naming what bale said — its exit status, its outcome, or that its
+  stdout was not one JSON object — bale's stderr surfaced; no traceback.
+- **The apply line**, on ok only: `bale apply ` and the absolute path,
+  quoted by Python's `shlex.quote` (only when the shell needs it) — one
+  line, pasteable as is.
+- **Human mode**: on ok, stdout is exactly the apply line and a newline;
+  otherwise one line naming why. Diagnostics go to stderr.
+
+The JSON twin, `command` `"carry response"`. Fixed names:
+
+| key | value |
+|---|---|
+| `tarball` | the absolute path; null when it is not an existing file |
+| `ran` | whether bale was started |
+| `exit_code` | bale's exit status; null when it did not run or was killed |
+| `dry_run` | bale's stdout parsed, when it is one JSON object; else null |
+| `outcome` | `dry_run`'s `outcome`, or null |
+| `apply_line` | the line on ok; null otherwise |
+| `stderr` | bale's stderr as text |
+| `reason` | every refusal and failure, `; `-joined; null when ok |
+| `refusals` | the reasons bale was not called, in order |
+
+And beside them: `stdout` (bale's, as text), `argv`, `stderr_truncated`,
+`timed_out`, `capped`, `duration_seconds`, `cwd`, `bale` (§11.1).
+
+### 11.4 What is recorded, and what stands in
+
+The clean dry run is recorded
+(`fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json`;
+its exit is `unrecorded`, and the tests that replay it name the exit
+they assume). No `bale relay` output is recorded: the crafter's
+`--emit-block` emission stands in for it (TARBALL.md §5.9.2 pins the two
+renderings byte-identical), and the manifest's relay surface says so.
+Every refusal, HOLD, non-zero exit and timeout is a double in the tests,
+named as one, never a file under `fixtures/`; a recording replaces it.

@@ -16,8 +16,8 @@ from twine.registry import Command, Result, load_registry
 
 from twine import REPO_ROOT
 
-from tests.helpers import (TempRoots, emission_relpath, fenced_probe, filled_probe,
-                           run_cli, run_inprocess)
+from tests.helpers import (StubBale, TempRoots, emission_relpath, fenced_probe,
+                           filled_probe, fixture_relpath, run_cli, run_inprocess)
 
 
 def one_json_line(test: unittest.TestCase, stdout: str, command: str) -> dict:
@@ -38,16 +38,26 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self._turns = tempfile.TemporaryDirectory(prefix="twine-json-")
         self.probe_turn = Path(self._turns.name) / "turn.txt"
         self.probe_turn.write_text(fenced_probe(filled_probe()), encoding="utf-8")
+        # The two bale hand-offs run a stub bale (a double, never bale):
+        # relay replays the crafter's exchange emission, apply the recorded
+        # dry-run line.
+        self.exchange = REPO_ROOT / emission_relpath("crafter", ["--emit-block", "-"])
+        self.dry_run = REPO_ROOT / fixture_relpath(
+            ["apply", "--dry-run", "--json", "/any/response.tar.gz"], "repo")
+        self.stub = StubBale(relay_stdout=self.exchange, apply_stdout=self.dry_run)
 
     def tearDown(self):
         self.roots.cleanup()
         self._turns.cleanup()
+        self.stub.cleanup()
 
     def argv_for(self, name: str) -> list[str]:
         """A happy-path argv per verb; bale check against the ok root, take
         on a recorded light block (an intact block: ok true, exit 0), carry
         probe on a turn carrying one filled probe, shown and not run (ok
-        true, exit 0; nothing executes without --run)."""
+        true, exit 0; nothing executes without --run); carry exchange on the
+        crafter's exchange block and carry response on an existing file,
+        each against the stub bale (ok true, exit 0)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
@@ -56,6 +66,10 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
                 "crafter", ["--light-block", "-"])))
         if name == "carry probe":
             argv.append(str(self.probe_turn))
+        if name == "carry exchange":
+            argv += [str(self.exchange), "--bale-root", str(self.stub.root)]
+        if name == "carry response":
+            argv += [str(self.dry_run), "--bale-root", str(self.stub.root)]
         return argv
 
     def test_every_registered_verb_emits_one_line_subprocess(self):
@@ -75,13 +89,30 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
                 self.assertEqual(run.code, 0 if obj["ok"] else 1)
 
     def test_without_json_stdout_is_readable_lines(self):
+        """No line of human stdout is the JSON twin. (A line may still
+        start with `{`: carry exchange prints bale's paste block exactly,
+        and its body is the exchange record's JSON — what it carries, not
+        twine's twin.)"""
         for name in load_registry():
             with self.subTest(verb=name):
                 run = run_inprocess(*self.argv_for(name))
                 self.assertTrue(run.stdout.strip(), "human output expected")
                 for line in run.stdout.rstrip("\n").split("\n"):
-                    self.assertFalse(line.startswith("{"),
-                                     "no JSON on stdout without --json")
+                    self.assertFalse(is_json_twin(line),
+                                     "no JSON twin on stdout without --json")
+                if name != "carry exchange":
+                    for line in run.stdout.rstrip("\n").split("\n"):
+                        self.assertFalse(line.startswith("{"),
+                                         "no JSON on stdout without --json")
+
+
+def is_json_twin(line: str) -> bool:
+    """Whether `line` is a twine JSON twin: one object with command and ok."""
+    try:
+        obj = json.loads(line)
+    except ValueError:
+        return False
+    return isinstance(obj, dict) and {"command", "ok"} <= set(obj)
 
 
 class ExitCodes(unittest.TestCase):

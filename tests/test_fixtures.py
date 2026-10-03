@@ -13,7 +13,10 @@ from twine import FIXTURES_DIR
 from tests.helpers import PIN
 
 README = FIXTURES_DIR / "README.md"
-ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| `(?P<cmd>[^`]+)` \| `[^`]+` \| (?P<exit>\d+) "
+# The exit cell is a number, or `unrecorded` when the recording did not
+# capture it (session 2026-10-03-twine-carry-bale-002) — never a guess.
+ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| `(?P<cmd>[^`]+)` \| `[^`]+` "
+                 r"\| (?P<exit>\d+|unrecorded) "
                  r"\| (?P<bytes>\d+) \| `(?P<sha>[0-9a-f]{64})` \|$", re.M)
 # Every fixture row, whichever table: the file first, bytes and sha256 last.
 ANY_ROW = re.compile(r"^\| `(?P<file>bale-[^`]+)` \|.*\| (?P<bytes>\d+) "
@@ -55,6 +58,17 @@ class FixturesParse(unittest.TestCase):
         obj = json.loads((FIXTURES_DIR / f"bale-{PIN}/twine-src/status_--json.json").read_bytes())
         self.assertEqual(obj["version"], PIN)
 
+    def test_dry_run_fixture_is_the_recorded_line(self):
+        """The architect's apply-dry-run-carry-probe.json, landed byte-exact
+        under its normalized name (session 2026-10-03-twine-carry-bale-002)."""
+        p = FIXTURES_DIR / f"bale-{PIN}/twine-src/apply_--dry-run_--json_tarball.json"
+        data = p.read_bytes()
+        self.assertEqual((len(data), hashlib.sha256(data).hexdigest()),
+                         (315, "f5bd7e5bbb92363b2993e2aaba5816dc3428dd7acdc0c51e8e194a49c43471ce"))
+        obj = json.loads(data)
+        self.assertEqual((obj["outcome"], obj["sid"]),
+                         ("dry-run", "2026-10-02-twine-carry-probe-002"))
+
     def test_version_fixture_is_bale_pin(self):
         text = (FIXTURES_DIR / f"bale-{PIN}/anywhere/--version.txt").read_text(encoding="utf-8")
         self.assertEqual(text, f"bale {PIN}\n")
@@ -88,6 +102,16 @@ class ReadmeListsEveryFixture(unittest.TestCase):
             with self.subTest(fixture=rel):
                 self.assertIn(rel, rows)
                 self.assertTrue(rows[rel]["cmd"].startswith(COMMAND_PREFIX[where]))
+
+    def test_an_unrecorded_exit_is_said_never_guessed(self):
+        """The dry-run row's exit is `unrecorded`; every other recorded
+        row's is 0."""
+        rows = {m["file"]: m["exit"] for m in ROW.finditer(self.text)}
+        dry = f"bale-{PIN}/twine-src/apply_--dry-run_--json_tarball.json"
+        self.assertEqual(rows[dry], "unrecorded")
+        self.assertIn("<tarball: unrecorded>",
+                      next(m["cmd"] for m in ROW.finditer(self.text) if m["file"] == dry))
+        self.assertEqual({e for f, e in rows.items() if f != dry}, {"0"})
 
     def test_carried_pastes_differ_from_what_arrived_only_by_crlf(self):
         """A carried paste is landed CRLF -> LF and nothing else: the LFs

@@ -18,7 +18,8 @@ Modules:
   process   the run seam: the one way a handler runs a subprocess
             (Context.run) — a process group, a timeout that reaches its
             children, a stdout cap; tests inject a double
-  commands  one module per verb family, each exposing COMMANDS
+  commands  the verb modules, each exposing COMMANDS (a family may span
+            modules: the `carry` verbs live in carry.py and carry_bale.py)
 
 Stdlib only (T9). Nothing here imports from bale's bin/, office's lib/
 or tedder-src (T10); the `bale` executable is driven only through its
