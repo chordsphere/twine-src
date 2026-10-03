@@ -10,12 +10,20 @@ a bale argv is built, so T12 ("twine never merges at rung 1") has one
 home: `apply` is only ever built with `--dry-run --json`, and no other
 flag reaches it.
 
+Since Arc 1 session 4 the manifest also records the three closed
+vocabularies bale declares — telemetry outcomes, closure reasons, and
+the outcomes `bale apply --json` prints — as `[[vocabulary]]` data the
+transition table keys on (twine/transitions.py), and the pin gates
+(D2): a carry verb drives only a bale whose `bin/VERSION` is the pin,
+because the table's bale axes are that version's spellings and no
+other's (`Executable.drive_refusal`).
+
 Sections:
-  1. Install-root resolution     (~line 40)
-  2. The installed version       (~line 100)
-  3. The consumption manifest    (~line 120)
-  4. The pin check               (~line 170)
-  5. Running bale: the executable and the argvs  (~line 220)
+  1. Install-root resolution     (~line 50)
+  2. The installed version       (~line 105)
+  3. The consumption manifest    (~line 125)
+  4. The pin check               (~line 210)
+  5. Running bale: the executable, the pin gate, the argvs  (~line 260)
 """
 
 from __future__ import annotations
@@ -26,7 +34,7 @@ import re
 import shlex
 import shutil
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -126,14 +134,16 @@ class ManifestError(Exception):
 @dataclass(frozen=True)
 class Manifest:
     """The parsed consumption manifest (D4): the pin, the installed
-    schema hashes, and the surfaces twine reads, as data a test can
-    walk. `data` is the whole TOML document."""
+    schema hashes, the surfaces twine reads, and the vocabularies bale
+    declares (keyed by the transition-table axis they are the keys of),
+    as data a test can walk. `data` is the whole TOML document."""
 
     path: Path
     pin: str
     schemas: dict[str, str]
     surfaces: list[dict[str, Any]]
     data: dict[str, Any]
+    vocabularies: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def load_manifest(path: Path = CONSUMPTION_MANIFEST) -> Manifest:
@@ -160,9 +170,40 @@ def load_manifest(path: Path = CONSUMPTION_MANIFEST) -> Manifest:
     surfaces = data.get("surface", [])
     if not isinstance(surfaces, list) or not all(isinstance(s, dict) for s in surfaces):
         raise ManifestError(f"{path}: [[surface]] must be an array of tables")
-    log.debug("manifest %s: pin %s, %d schemas, %d surfaces",
-              path, pin, len(schemas), len(surfaces))
-    return Manifest(path, pin.strip(), dict(schemas), list(surfaces), data)
+    vocabularies = load_vocabularies(path, data.get("vocabulary", []))
+    log.debug("manifest %s: pin %s, %d schemas, %d surfaces, %d vocabularies",
+              path, pin, len(schemas), len(surfaces), len(vocabularies))
+    return Manifest(path, pin.strip(), dict(schemas), list(surfaces), data,
+                    vocabularies)
+
+
+def load_vocabularies(path: Path, entries: Any) -> dict[str, dict[str, Any]]:
+    """`[[vocabulary]]` keyed by `axis`. Each entry's `values` must be a
+    non-empty list of distinct non-empty strings — a closed set of bale's
+    spellings, in bale's order — and its `axis` and `home` named. Two
+    entries for one axis, or a malformed one, refuse: the transition
+    table must never key on a vocabulary twine cannot state exactly."""
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+        raise ManifestError(f"{path}: [[vocabulary]] must be an array of tables")
+    found: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        axis = entry.get("axis")
+        if not isinstance(axis, str) or not axis.strip():
+            raise ManifestError(f"{path}: a [[vocabulary]] entry has no axis")
+        if axis in found:
+            raise ManifestError(f"{path}: two [[vocabulary]] entries for {axis!r}")
+        values = entry.get("values")
+        if (not isinstance(values, list) or not values
+                or not all(isinstance(v, str) and v.strip() for v in values)):
+            raise ManifestError(f"{path}: vocabulary {axis!r}: values must be a "
+                                "non-empty list of non-empty strings")
+        if len(set(values)) != len(values):
+            dupes = sorted({v for v in values if values.count(v) > 1})
+            raise ManifestError(f"{path}: vocabulary {axis!r} repeats {dupes}")
+        if not isinstance(entry.get("home"), str) or not entry["home"].strip():
+            raise ManifestError(f"{path}: vocabulary {axis!r} names no home")
+        found[axis] = dict(entry)
+    return found
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +259,7 @@ def check(manifest: Manifest, root: Root) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# 5. Running bale: the executable and the argvs
+# 5. Running bale: the executable, the pin gate, the argvs
 # ---------------------------------------------------------------------------
 
 EXECUTABLE_RELPATH = Path("bin") / "bale"
@@ -238,8 +279,9 @@ class Executable:
     """The bale executable a carry verb would run, and what is known of
     it: where its root came from (the same three rules as `bale check`),
     the installed `bin/VERSION`, and the pin. `path` is None when no
-    root resolved. The version is reported, never gated on: a carry verb
-    runs the bale the operator has, and says so when it is not the pin."""
+    root resolved. Since Arc 1 session 4 the version gates (D2): a carry
+    verb refuses to start a bale whose `bin/VERSION` is not the pin, or
+    cannot be read (`drive_refusal`)."""
 
     root: Root
     path: Path | None
@@ -252,6 +294,33 @@ class Executable:
         if self.installed is None or self.pin is None:
             return None
         return self.installed == self.pin
+
+    @property
+    def drive_refusal(self) -> str | None:
+        """Why twine will not drive this bale, or None when it will (D2).
+
+        Twine drives only the pinned bale. Since Arc 1 session 4 the
+        transition table keys on the pinned version's whole outcome and
+        closure vocabularies, so a bale of another version — or one whose
+        version cannot be read — may answer in spellings the table has no
+        move for: the surprise D17 rules out. A pin bump is the deliberate
+        event that re-reads the vocabularies (D4), never an ambient one."""
+        if self.path is None:
+            return self.detail
+        if self.pin is None:
+            return ("the pin is unknown (share/bale-consumption.toml is "
+                    "unusable), so no bale's vocabulary is known to the "
+                    "transition table — twine drives only the pinned bale (D2)")
+        if self.installed is None:
+            return (f"bale at {self.root.path}: {self.detail}; twine drives only "
+                    f"the pinned bale {self.pin} (D2) and cannot tell this one's "
+                    "version")
+        if self.installed != self.pin:
+            return (f"bale at {self.root.path} is {self.installed}, not the pin "
+                    f"{self.pin}; twine drives only the pinned bale (D2), whose "
+                    "outcome vocabularies its transition table keys on — install "
+                    f"{self.pin}, or bump the pin in a session that re-reads them")
+        return None
 
     def as_json(self) -> dict[str, Any]:
         return {"executable": None if self.path is None else str(self.path),

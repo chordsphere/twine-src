@@ -41,6 +41,33 @@ from twine.cli import Context, main
 TWINE = REPO_ROOT / "bin" / "twine"
 PIN = "0.4.45"
 
+# bale 0.4.45's three closed vocabularies, copied from the output of the
+# probes twine-table-vocab and twine-apply-vocab (2026-10-03, quoted in the
+# session-4 brief §2) — the oracle the consumption manifest's
+# [[vocabulary]] entries and the transition table's bale axes are held to.
+# Never edited to match the manifest: a pin bump re-records them by probe.
+BALE_VOCABULARIES: dict[str, list[str]] = {
+    # schemas/telemetry-record.schema.json /properties/outcome (13)
+    "telemetry-outcome": ["opened", "applied", "held", "reverted", "rejected",
+                          "bailout", "scope-drift-refused", "required-check-refused",
+                          "base-drift-refused", "unlocked", "rolled-back",
+                          "re-applied", "relay-refused"],
+    # the same schema, /properties/attempts/items/properties/closure_reason —
+    # ten members, the tenth null ("not closed"), which is not a key (9)
+    "closure-reason": ["abandoned", "superseded-by-split",
+                       "reframed-after-clarification", "master-closeout",
+                       "crash-debris", "closed-read-only", "no_response",
+                       "malformed_response", "aborted"],
+    # bin/bale_report.py format_apply_json's docstring, the outcome block (9)
+    "apply-outcome": ["applied", "held", "reverted", "bailout", "clarification",
+                      "dry-run", "scope-drift-refused", "required-check-refused",
+                      "base-drift-refused"],
+}
+# An outcome no bale emits, spelled so that no reader could take it for
+# bale's: what a double prints when a test proves twine names an outcome
+# it does not know. It is in none of BALE_VOCABULARIES' lists.
+NOT_A_BALE_OUTCOME = "twine-test-not-a-bale-outcome"
+
 
 @dataclass
 class Run:

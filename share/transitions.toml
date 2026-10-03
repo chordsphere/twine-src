@@ -1,0 +1,476 @@
+# share/transitions.toml — twine's transition table (twine-seed.md D17).
+#
+# Every way a worker session or a worker turn can end, keyed on the closed
+# vocabularies that name them, each with a declared move: what happens
+# next and who does it. No default case — no wildcard, no fallback row, no
+# catch-all key. Architect's requirement (D17), verbatim: "there shouldn't
+# be any surprises, and every path taken should have a defined response."
+#
+# Landed by session 2026-10-03-twine-transitions-004 against bale 0.4.45.
+# twine/transitions.py loads and checks it; `twine transitions [--json]`
+# renders it; tests/test_transitions.py fails by name on any key without a
+# row. The table reads no bale install: its three bale axes take their
+# keys from the [[vocabulary]] entries of share/bale-consumption.toml
+# (twine's own record of bale's spellings, read by probe at the pin), and
+# its fourth axis, `stop`, is twine's own vocabulary, declared here.
+#
+# Shape:
+#   [table]          written_against: the bale version the bale axes' keys
+#                    are spelled for (equal to the manifest's pin)
+#   [axis.<name>]    one per axis, in rendering order (`order`):
+#                    source  "bale" — the keys are the consumption manifest's
+#                                     [[vocabulary]] entry with this axis;
+#                            "twine" — the keys are `keys`, below
+#                    keys    (source = "twine" only) the vocabulary, in order
+#                    means   what a key on this axis names
+#   [move.<name>]    one per move:
+#                    actor        exactly one of "twine", "operator", "planner"
+#                                 — who performs the move. Twine holds no
+#                                 intent (N4): a move that needs a decision
+#                                 names the planner or the operator. No move
+#                                 has twine merge or apply anything (T12).
+#                    description  one sentence: what happens next
+#                    grounds      where the move comes from (a ruling, a doc)
+#   [[row]]          one per (axis, key): axis, key, move, and `means` — what
+#                    that key names, in a phrase.
+#
+# A pin bump re-reads the vocabularies into the manifest; a key bale adds
+# then has no row here, and `twine transitions` says so by name until one
+# is written (D4's mechanical diff, carried through to the moves).
+
+[table]
+written_against = "0.4.45"
+
+# ---------------------------------------------------------------------------
+# Axes
+# ---------------------------------------------------------------------------
+
+[axis.telemetry-outcome]
+order = 1
+source = "bale"
+means = "the outcome bale records for a session event in its telemetry (schemas/telemetry-record.schema.json)"
+
+[axis.closure-reason]
+order = 2
+source = "bale"
+means = "why bale closed a session, stamped on unlock and revert (the same schema's closure_reason)"
+
+[axis.apply-outcome]
+order = 3
+source = "bale"
+means = "the outcome `bale apply --json` prints — what twine meets through `carry response`, which under T12 only ever sees dry-run, a *-refused, or an error path"
+
+[axis.stop]
+order = 4
+source = "twine"
+means = "how a worker turn stops on the API side of twine's runtime (Arc 2), in twine's own names: each model adapter maps its provider's stop reasons onto these when the loop is built, verified against the SDK then, never named here from memory"
+keys = ["end-turn", "max-tokens", "model-refusal", "window-exhausted", "rate-limited", "overloaded", "network-failure", "timeout", "tool-error", "malformed-shape", "cap-reached", "killed"]
+
+# ---------------------------------------------------------------------------
+# Moves
+# ---------------------------------------------------------------------------
+
+# --- twine's: mechanical, no decision ---
+
+[move.await-worker]
+actor = "twine"
+description = "Twine holds the session as in flight, waiting on the worker's response, with the silence timeout running so that nothing coming back becomes a no_response closure rather than a wait without end."
+grounds = "D17 (silence gets timeouts and a no_response closure record); PLANNER.md §16, silence"
+
+[move.record-closed]
+actor = "twine"
+description = "Twine records the session as finished in its in-flight state and carries nothing further for it; what the queue does next is the planner's."
+grounds = "N4 (twine's durable state is the in-flight state of its table, never intent)"
+
+[move.close-by-reason]
+actor = "twine"
+description = "Twine records the session as closed and takes the move of its closure-reason row, since bale reports `unlocked` for every registry close and the reason is what says why."
+grounds = "telemetry schema: 'unlocked' is the registry-close outcome whatever command drove it"
+
+[move.carry-to-planner]
+actor = "twine"
+description = "Twine carries the clarification's exchange block to the planner (`carry exchange`), and the session waits, suspended, for the answer round to come back the same way."
+grounds = "TARBALL.md §5.9; PLANNER.md §15; D18"
+
+[move.follow-successors]
+actor = "twine"
+description = "Twine records the session as closed and moves its in-flight state to the child sessions the split opened, which now carry the goal."
+grounds = "bale pack --supersedes (the split-supersession closure); PLANNER.md §20"
+
+[move.classify-final-text]
+actor = "twine"
+description = "Twine's courier classifies the turn's final text as one of bale's four shapes or as prose and carries it on, reading it exactly as `twine take` reads a paste."
+grounds = "twine-seed.md §4.3, turn-end detection and shape classification"
+
+[move.continue-turn]
+actor = "twine"
+description = "Twine continues the cut-off turn in a further call that carries what was written so far, counted against the window and the cap and bounded like every retry; past the bound the turn stops as malformed-shape."
+grounds = "twine-seed.md §4.3, provider axis (max_tokens); PLANNER.md §16, bounded retries"
+
+[move.retry-with-backoff]
+actor = "twine"
+description = "Twine retries the same call after a backoff, a bounded number of times; past the bound it stops the session and names the stop to the operator, never retrying without end."
+grounds = "twine-seed.md §4.3, provider axis (rate limit and overload: retry with backoff); PLANNER.md §16, bounded retries"
+
+[move.return-tool-error]
+actor = "twine"
+description = "Twine returns the error to the model as the tool's result and the turn goes on, so a tool error never ends the session."
+grounds = "twine-seed.md §4.3, provider axis (tool error: returned as a result, never a crash)"
+
+[move.close-aborted]
+actor = "twine"
+description = "Twine closes the killed session with the closure reason `aborted`, so a kill leaves a durable record and is never a mystery."
+grounds = "D15 (a kill leaves a durable aborted-class closure record); bale 0.4.35's `aborted`"
+
+# --- the operator's: running bale, reading what it says ---
+
+[move.operator-applies]
+actor = "operator"
+description = "The operator reviews the clean dry run and runs the one `bale apply <path>` line twine handed back, because the merge is the operator's and twine never applies (T12)."
+grounds = "T12; cli-contract.md §11.3"
+
+[move.admit-or-return]
+actor = "operator"
+description = "The operator reads the refusal bale printed, admits each out-of-forecast path at an interactive `bale apply` when the worker enumerated it with a reason, or returns the work to the planner when it did not; twine never admits."
+grounds = "AGENT.md §6, stay in the lane; D3's annotation (an orchestrator never admits)"
+
+[move.diagnose-rejection]
+actor = "operator"
+description = "The operator reads the error bale wrote to stderr and the session log: a response that could not be applied as a response is closed `malformed_response` (whose own row is the next move), and an environmental fault is fixed and the apply run again."
+grounds = "bin/bale_apply.py 3901-3905 ('rejected' = an error path); D17's malformed edge"
+
+[move.re-carry-exchange]
+actor = "operator"
+description = "The operator, told that bale recorded no round, has the block's emitter re-emit it intact and carries it again, since twine relays only a block it can vouch for and never repairs one."
+grounds = "cli-contract.md §11.2; bin/bale_relay.py 204-209 ('relay-refused')"
+
+[move.stop-at-cap]
+actor = "operator"
+description = "The hard cap refused the call before it was made, so nothing more was spent; the operator decides whether to raise the cap or close the session, and in-flight work hands off as a bailout would."
+grounds = "D15 (the hard cap refuses loudly; a cap breach has bailout semantics); Arc 1 session 5"
+
+# --- the planner's: a decision about the work ---
+
+[move.revert-and-repack]
+actor = "planner"
+description = "The planner triages the HOLD (PLANNER.md §14) and, for correctable work, has it reverted and repacks it with the failure context shipped — the to-worker relay block, never the to-planner one — and a `corrects:` pointer, amending at the desk instead when the wrongness traces to the spec or the oracle."
+grounds = "D17, ratified: a well-formed HOLD gets revert and repack with the failure context shipped and `corrects:` lineage; PLANNER.md §14; T14"
+
+[move.respawn-from-request]
+actor = "planner"
+description = "The planner respawns the work from the original request with a failure note the planner writes — never the failed worker's own account — within the retry bound, past which the goal is re-decomposed instead."
+grounds = "D17, ratified: a malformed response gets respawn from the original request with a master-authored failure note; PLANNER.md §16; twine-seed.md §4.2"
+
+[move.replan-after-backout]
+actor = "planner"
+description = "The planner decides whether the backed-out work is repacked with `corrects:` lineage or its session is closed, and twine carries nothing for it until then."
+grounds = "PLANNER.md §14 and §16 (base-tree poisoning: revert plus the applied-tags lineage)"
+
+[move.package-handoff]
+actor = "planner"
+description = "The planner packages the bailout's handoff into a fresh session (`bale handoff`), or re-decomposes the goal when bailouts cluster on the same work."
+grounds = "AGENT.md §11.4 and §11.5; TARBALL.md §5.6"
+
+[move.return-to-worker]
+actor = "planner"
+description = "The planner returns the refusal to the worker session, which re-ships its response under the same session with the required check declared, or amends the required-check pin when the pin is what is wrong."
+grounds = "TARBALL.md §7 (a project may pin required check names; apply refuses an omission)"
+
+[move.repack-on-new-base]
+actor = "planner"
+description = "The planner repacks the work against the current tip, because the base moved under the response and its whole-file overlay would revert the intervening edits."
+grounds = "format_apply_json's docstring, base-drift-refused (board 41)"
+
+[move.repack-reframed]
+actor = "planner"
+description = "The planner packs the goal as the clarification reframed it, as a new session."
+grounds = "TARBALL.md §5.9.4; PLANNER.md §15"
+
+[move.release-to-planner]
+actor = "planner"
+description = "The planner decides whether the closed session's goal returns to the queue, and in what shape."
+grounds = "PLANNER.md §6, sitting practice; N4"
+
+[move.reword-brief]
+actor = "planner"
+description = "The planner rewords the brief the model refused and repacks it, since twine never rephrases a request itself (N4)."
+grounds = "D17's annotation: the 45-arc specimen, refused by the worker surface's safety classifier, landed in 46 minutes reworded"
+
+[move.split-goal]
+actor = "planner"
+description = "The planner splits the goal at a seam and packs the first piece, because the goal did not fit one window and respawning it into the same window would fail the same way."
+grounds = "AGENT.md §11.2 and §11.5; D17's annotation (exhaustion is an outcome, not a background event)"
+
+# ---------------------------------------------------------------------------
+# Rows — telemetry-outcome (bale 0.4.45, 13)
+# ---------------------------------------------------------------------------
+
+[[row]]
+axis = "telemetry-outcome"
+key = "opened"
+move = "await-worker"
+means = "a session was opened (pack or open); the worker has it"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "applied"
+move = "record-closed"
+means = "the response merged"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "held"
+move = "revert-and-repack"
+means = "HOLD: a well-formed response a judgment says not to merge, awaiting inspection"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "reverted"
+move = "replan-after-backout"
+means = "backed out, at the walkthrough or by `bale revert`"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "rejected"
+move = "diagnose-rejection"
+means = "apply exited through a pre-flight or pipeline error path"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "bailout"
+move = "package-handoff"
+means = "a bailout response; the session is consumed"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "scope-drift-refused"
+move = "admit-or-return"
+means = "the own-scope drift gate refused the response's changes; the session stays open"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "required-check-refused"
+move = "return-to-worker"
+means = "the required-check gate refused: validation_will_run omits a pinned check"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "base-drift-refused"
+move = "repack-on-new-base"
+means = "the base-drift gate refused: a changed path no longer hashes to its pack-time stamp"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "unlocked"
+move = "close-by-reason"
+means = "the registry closed the session; its closure_reason says why"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "rolled-back"
+move = "replan-after-backout"
+means = "`bale rollback` backed an applied session out"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "re-applied"
+move = "record-closed"
+means = "`bale rollback` re-applied a rolled-back session; its work is back"
+
+[[row]]
+axis = "telemetry-outcome"
+key = "relay-refused"
+move = "re-carry-exchange"
+means = "`bale relay` exited non-zero; no round was recorded"
+
+# ---------------------------------------------------------------------------
+# Rows — closure-reason (bale 0.4.45, 9; null is "not closed", not a key)
+# ---------------------------------------------------------------------------
+
+[[row]]
+axis = "closure-reason"
+key = "abandoned"
+move = "release-to-planner"
+means = "closed without landing; unlock's default for a session with a write forecast"
+
+[[row]]
+axis = "closure-reason"
+key = "superseded-by-split"
+move = "follow-successors"
+means = "the session was split; `bale pack --supersedes` closed the parent"
+
+[[row]]
+axis = "closure-reason"
+key = "reframed-after-clarification"
+move = "repack-reframed"
+means = "a clarification reframed the goal, and the session closed for a new one"
+
+[[row]]
+axis = "closure-reason"
+key = "master-closeout"
+move = "release-to-planner"
+means = "the master closed the session out"
+
+[[row]]
+axis = "closure-reason"
+key = "crash-debris"
+move = "respawn-from-request"
+means = "the session was left behind by a crash and closed as debris"
+
+[[row]]
+axis = "closure-reason"
+key = "closed-read-only"
+move = "record-closed"
+means = "a read-only (planner) session closed; it lands nothing by design"
+
+[[row]]
+axis = "closure-reason"
+key = "no_response"
+move = "respawn-from-request"
+means = "a request went out and nothing came back: the worker-silence case, closed on timeout"
+
+[[row]]
+axis = "closure-reason"
+key = "malformed_response"
+move = "respawn-from-request"
+means = "a response arrived that could not be applied as a response"
+
+[[row]]
+axis = "closure-reason"
+key = "aborted"
+move = "release-to-planner"
+means = "the session was killed (the kill-switch's closure, D15)"
+
+# ---------------------------------------------------------------------------
+# Rows — apply-outcome (bale 0.4.45, 9)
+# ---------------------------------------------------------------------------
+
+[[row]]
+axis = "apply-outcome"
+key = "applied"
+move = "record-closed"
+means = "the PASS walkthrough ended in merge (exit 0)"
+
+[[row]]
+axis = "apply-outcome"
+key = "held"
+move = "revert-and-repack"
+means = "the HOLD walkthrough ended in inspect (exit 1)"
+
+[[row]]
+axis = "apply-outcome"
+key = "reverted"
+move = "replan-after-backout"
+means = "the walkthrough ended in revert, from either verdict (exit 1)"
+
+[[row]]
+axis = "apply-outcome"
+key = "bailout"
+move = "package-handoff"
+means = "response_kind=bailout; nothing applied (exit 0)"
+
+[[row]]
+axis = "apply-outcome"
+key = "clarification"
+move = "carry-to-planner"
+means = "response_kind=clarification; nothing applied, the session stays open (exit 0)"
+
+[[row]]
+axis = "apply-outcome"
+key = "dry-run"
+move = "operator-applies"
+means = "the --dry-run plan report: the response would apply (exit 0)"
+
+[[row]]
+axis = "apply-outcome"
+key = "scope-drift-refused"
+move = "admit-or-return"
+means = "the own-scope drift gate refused (exit 1, session open; also under --dry-run)"
+
+[[row]]
+axis = "apply-outcome"
+key = "required-check-refused"
+move = "return-to-worker"
+means = "the required-check gate refused (exit 1, session open; also under --dry-run)"
+
+[[row]]
+axis = "apply-outcome"
+key = "base-drift-refused"
+move = "repack-on-new-base"
+means = "the base-drift gate refused (exit 1, session open; also under --dry-run)"
+
+# ---------------------------------------------------------------------------
+# Rows — stop (twine's own, 12)
+# ---------------------------------------------------------------------------
+
+[[row]]
+axis = "stop"
+key = "end-turn"
+move = "classify-final-text"
+means = "the turn ended with no tool call (§4.3 turn-end detection)"
+
+[[row]]
+axis = "stop"
+key = "max-tokens"
+move = "continue-turn"
+means = "the output hit its token limit mid-turn (§4.3 provider axis)"
+
+[[row]]
+axis = "stop"
+key = "model-refusal"
+move = "reword-brief"
+means = "the model or its provider's classifier refused the work (§4.3; D17's annotation, the 45-arc specimen)"
+
+[[row]]
+axis = "stop"
+key = "window-exhausted"
+move = "split-goal"
+means = "the context window ran out: exhaustion as an outcome with a move (§4.3 window management)"
+
+[[row]]
+axis = "stop"
+key = "rate-limited"
+move = "retry-with-backoff"
+means = "the provider rate-limited the call (§4.3 provider axis)"
+
+[[row]]
+axis = "stop"
+key = "overloaded"
+move = "retry-with-backoff"
+means = "the provider was overloaded (§4.3 provider axis)"
+
+[[row]]
+axis = "stop"
+key = "network-failure"
+move = "retry-with-backoff"
+means = "the call failed on the network (§4.3 provider axis)"
+
+[[row]]
+axis = "stop"
+key = "timeout"
+move = "retry-with-backoff"
+means = "the call timed out (§4.3 provider axis)"
+
+[[row]]
+axis = "stop"
+key = "tool-error"
+move = "return-tool-error"
+means = "a tool the model called failed (§4.3 provider axis)"
+
+[[row]]
+axis = "stop"
+key = "malformed-shape"
+move = "respawn-from-request"
+means = "the turn's output fails the strict parser: a malformed shape (§4.3; §4.2's text tool protocol)"
+
+[[row]]
+axis = "stop"
+key = "cap-reached"
+move = "stop-at-cap"
+means = "the cost spine's hard cap refused the next call before it was made (D15; added by session 4)"
+
+[[row]]
+axis = "stop"
+key = "killed"
+move = "close-aborted"
+means = "the kill-switch stopped the session from outside the model (D15; added by session 4)"

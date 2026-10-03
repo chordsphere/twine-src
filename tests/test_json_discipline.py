@@ -57,7 +57,8 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         probe on a turn carrying one filled probe, shown and not run (ok
         true, exit 0; nothing executes without --run); carry exchange on the
         crafter's exchange block and carry response on an existing file,
-        each against the stub bale (ok true, exit 0)."""
+        each against the stub bale (ok true, exit 0); transitions on the
+        real table (ok true, exit 0; it reads no bale)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]

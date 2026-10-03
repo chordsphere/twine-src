@@ -10,8 +10,8 @@ from twine import CONSUMPTION_MANIFEST, REPO_ROOT, shapes
 from twine.bale import ManifestError, load_manifest
 from twine.registry import load_registry
 
-from tests.helpers import (PIN, Role, TempRoots, carried_relpath, emission_relpath,
-                           fixture_key, fixture_relpath)
+from tests.helpers import (BALE_VOCABULARIES, PIN, Role, TempRoots, carried_relpath,
+                           emission_relpath, fixture_key, fixture_relpath)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHEMA_FILES = {
@@ -26,6 +26,8 @@ FILE_REQUIRED = SURFACE_REQUIRED | {"path"}
 FORMAT_REQUIRED = SURFACE_REQUIRED | {"format", "locator", "home", "emitted_by",
                                       "fixtures"}
 REQUIRED = {"file": FILE_REQUIRED, "verb": VERB_REQUIRED, "format": FORMAT_REQUIRED}
+VOCABULARY_REQUIRED = {"axis", "values", "home", "pointer", "also_at", "excluded",
+                       "read_by", "written_against", "read_at", "note"}
 README_ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| `(?P<cmd>[^`]+)` \|", re.M)
 
 
@@ -189,6 +191,84 @@ class SurfacesAreWalkable(unittest.TestCase):
             self.assertTrue(w["needed_by"] and w["status"])
 
 
+class VocabulariesAreWalkable(unittest.TestCase):
+    """[[vocabulary]] (session 2026-10-03-twine-transitions-004): bale's three
+    closed vocabularies, as data a pin bump diffs (D4), keyed on by the
+    transition table's bale axes."""
+
+    def setUp(self):
+        self.manifest = load_manifest()
+        self.entries = self.manifest.data["vocabulary"]
+
+    def test_every_entry_has_the_required_fields(self):
+        for entry in self.entries:
+            with self.subTest(axis=entry.get("axis")):
+                self.assertTrue(VOCABULARY_REQUIRED <= set(entry),
+                                VOCABULARY_REQUIRED - set(entry))
+                self.assertEqual(entry["written_against"], PIN)
+                self.assertTrue(entry["read_at"] and entry["note"])
+                for listed in ("values", "also_at", "excluded", "read_by", "read_at"):
+                    self.assertIsInstance(entry[listed], list, listed)
+
+    def test_the_three_vocabularies_are_bales_spellings_in_bales_order(self):
+        """Held to the probe's lists (tests/helpers.py BALE_VOCABULARIES),
+        exactly: no value more or fewer, none respelled, none reordered."""
+        self.assertEqual({axis: v["values"] for axis, v in self.manifest.vocabularies.items()},
+                         BALE_VOCABULARIES)
+
+    def test_each_home_is_an_installed_file_twine_pins(self):
+        """A schema home is one of the eight whose sha256 [bale.schemas]
+        pins; a source-file home records the sha256 the probe read."""
+        for entry in self.entries:
+            with self.subTest(axis=entry["axis"]):
+                home = entry["home"]
+                if home.startswith("schemas/"):
+                    self.assertIn(home.removeprefix("schemas/"), self.manifest.schemas)
+                    self.assertNotIn("home_sha256", entry)
+                    self.assertTrue(entry["pointer"].startswith("/properties/"))
+                else:
+                    self.assertTrue(home.startswith("bin/"), home)
+                    self.assertRegex(entry["home_sha256"], SHA256)
+
+    def test_null_is_excluded_from_the_closure_reasons_by_name(self):
+        closure = self.manifest.vocabularies["closure-reason"]
+        self.assertNotIn("null", closure["values"])
+        self.assertEqual(len(closure["excluded"]), 1)
+        self.assertTrue(closure["excluded"][0].startswith("null:"))
+
+    def test_every_read_by_names_a_registered_verb(self):
+        verbs = set(load_registry())
+        for entry in self.entries:
+            self.assertTrue(entry["read_by"], entry["axis"])
+            for name in entry["read_by"]:
+                self.assertIn(name, verbs, entry["axis"])
+
+    def test_the_manifest_and_the_tables_bale_axes_agree(self):
+        """The table's bale axes take their keys from these lists; its rows
+        on those axes are exactly the lists' values (the brief's item 6)."""
+        from twine.transitions import SOURCE_BALE, load_table
+        table = load_table(manifest=self.manifest)
+        bale_axes = {a.name: list(a.keys) for a in table.axes if a.source == SOURCE_BALE}
+        self.assertEqual(bale_axes, {axis: v["values"]
+                                     for axis, v in self.manifest.vocabularies.items()})
+        for axis, values in bale_axes.items():
+            with self.subTest(axis=axis):
+                self.assertEqual(sorted(r.key for r in table.rows if r.axis == axis),
+                                 sorted(values))
+
+    def test_the_apply_surface_names_its_outcome_vocabulary(self):
+        """`apply`'s `outcome` takes the apply-outcome values; the one
+        carry response accepts is one of them."""
+        from twine.commands.carry_bale import DRY_RUN_OUTCOME
+        apply = next(s for s in self.manifest.surfaces if s.get("verb") == "apply")
+        self.assertEqual(apply["vocabulary"], "apply-outcome")
+        self.assertIn("outcome", apply["keys"])
+        self.assertIn(DRY_RUN_OUTCOME, self.manifest.vocabularies["apply-outcome"]["values"])
+        for s in self.manifest.surfaces:
+            if "vocabulary" in s:
+                self.assertIn(s["vocabulary"], self.manifest.vocabularies)
+
+
 class ManifestRefusals(unittest.TestCase):
 
     def setUp(self):
@@ -211,6 +291,24 @@ class ManifestRefusals(unittest.TestCase):
         p.write_text("[bale]\n[bale.schemas]\n", encoding="utf-8")
         with self.assertRaises(ManifestError):
             load_manifest(p)
+
+    def test_malformed_vocabularies_refuse_naming_why(self):
+        head = '[bale]\npin = "0.4.45"\n[bale.schemas]\n'
+        cases = {
+            "no axis": '[[vocabulary]]\nvalues = ["a"]\nhome = "h"\n',
+            "two [[vocabulary]] entries": ('[[vocabulary]]\naxis = "x"\nvalues = ["a"]\nhome = "h"\n'
+                            '[[vocabulary]]\naxis = "x"\nvalues = ["b"]\nhome = "h"\n'),
+            "non-empty list": '[[vocabulary]]\naxis = "x"\nvalues = []\nhome = "h"\n',
+            "repeats": '[[vocabulary]]\naxis = "x"\nvalues = ["a", "a"]\nhome = "h"\n',
+            "no home": '[[vocabulary]]\naxis = "x"\nvalues = ["a"]\n',
+        }
+        for needle, body in cases.items():
+            with self.subTest(case=needle):
+                p = self.scratch / "vocab.toml"
+                p.write_text(head + body, encoding="utf-8")
+                with self.assertRaises(ManifestError) as caught:
+                    load_manifest(p)
+                self.assertIn(needle, str(caught.exception))
 
 
 if __name__ == "__main__":
