@@ -1,0 +1,273 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-03-twine-carry-bale-002",
+  "created_at": "2026-10-03T00:15:53+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-03T00:15:53+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-03-twine-carry-bale-002.log",
+      "bundle": {
+        "stem": "2026-10-02-twine-carry-bale",
+        "brief_sha256": "40d56673e36a06aa0c30831834a99acef5121d6bd06b0cb6618b515275b2204b",
+        "checkpoint_sha256": "96f71f67efc05d924682be92ea024e0e43b382b2ecb06a9bfb3ed086664825db",
+        "manifest_sha256": "4017ab11c0f5dd5557dde6c90d571e7dedb2838630922af34766ab68a7881084"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-03T00:15:53+00:00"
+      }
+    },
+    {
+      "at": "2026-10-03T00:51:33+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-03-twine-carry-bale-002 (1).tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "python3 -B -m unittest discover -s tests -t .": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "python3 -B -m unittest discover -s tests -t .": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "python syntax (ast.parse, every .py shipped)",
+          "toml and json parse (consumption manifest, dry-run fixture)",
+          "python3 -B -m unittest discover -s tests -t .",
+          "VERSION is 0.3.0",
+          "dry-run fixture is the recorded 315 bytes",
+          "carry response: a clean dry run prints exactly the apply line, and bale got exactly apply --dry-run --json <abs path>",
+          "carry response: a missing tarball is refused before bale",
+          "carry exchange: bale relay <sid> - receives exactly the block's bytes (CRLF turn, prose around it), in --cwd",
+          "carry exchange: human stdout is exactly bale's stdout",
+          "carry exchange: a tampered block is refused before bale, naming the fault",
+          "a bale on PATH is never reached while TWINE_BALE_ROOT is pinned",
+          "T12: apply is built only by twine.bale.dry_run_argv, always with --dry-run --json",
+          "contract \u00a711 names every fixed key",
+          "the sibling's forecast (twine-seed.md, claude/INDEX.md) and bale.toml are not in this change set",
+          "no bytecode left in the tree",
+          "index header coherence (twine/bale.py, twine/process.py, twine/commands/carry.py, twine/commands/carry_bale.py)",
+          "claims reconciliation"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "fixtures/README.md",
+        "fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json",
+        "share/bale-consumption.toml",
+        "tests/__init__.py",
+        "tests/helpers.py",
+        "tests/test_carry.py",
+        "tests/test_carry_bale.py",
+        "tests/test_consumption_manifest.py",
+        "tests/test_fixtures.py",
+        "tests/test_json_discipline.py",
+        "tests/test_process.py",
+        "tests/test_registry.py",
+        "twine/__init__.py",
+        "twine/bale.py",
+        "twine/commands/__init__.py",
+        "twine/commands/carry.py",
+        "twine/commands/carry_bale.py",
+        "twine/process.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.45",
+            "contract_docs": {
+              "AGENT.md": "dd22b82cf4b3dc146fa813a862ab03c32d0b94faf8bab5e51218e6cdd5578fed",
+              "TARBALL.md": "59ece7fde0adb7dd5c5f5d902d5cf1078c4562cebb82925aa529df19f22d1c8c",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-03-twine-carry-bale-002.sh",
+              "sha256": "96f71f67efc05d924682be92ea024e0e43b382b2ecb06a9bfb3ed086664825db"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-03T00:15:53+00:00",
+            "base_files": {
+              "README.md": "d79a0c24002ba06adf1d08f1b23dd0d49e2baec639092c02470a947add0e7831",
+              "VERSION": "1f930dd1f133c1f97a94fe3acb8db34372cf4c01ffdb2b3ff4ca72f9494121e9",
+              "claude/context/cli-contract.md": "d099d2037aa89ee76c7c6bcdbdb560a3f6bcd64b919c0581df9714cbfc64b4c7",
+              "fixtures/README.md": "85a49c291bfb261d1daf4f5ad50714c748f47a1d1da7317a947c5e6acfe85eb6",
+              "fixtures/bale-0.4.45/anywhere/--version.txt": "20a67ed843d2255f22d492ce3dc4c3bbe42498fe39a86c32e34bb815dd337f69",
+              "fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt": "263f464b4ad141c57cda1d6ef3d39ac2ca678deda7e5e8c7ffe9ce8b8b64097c",
+              "fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt": "58e046e26d8b9c27ea572e4dd89e2951ec1791a45275955c3de56634f51bb888",
+              "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt": "9632439af6dd669e03e7a49d87a79639409e5d9b586f56586a20bccdf98e7d00",
+              "fixtures/bale-0.4.45/crafter/--light-block-stdin.txt": "55c53cfe057b2e5a5cee10b7f6eabbbcb5365e24cc481329b27f19c6f3cebdb8",
+              "fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt": "abb75f26b64728022aa71cfeb17dc4df9b2ac4ed1c23046b5c8299a55125386a",
+              "fixtures/bale-0.4.45/twine-src/stats_--json.json": "a9dc5c9bab89e00a3745da8235142f1fe69ad8f6dd1ef23838c605f48ff95add",
+              "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json": "c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455",
+              "fixtures/bale-0.4.45/twine-src/status_--json.json": "081879d0def5abb61d2f48027103051d5fb1326dc97d10274c6287ad3b246f63",
+              "share/bale-consumption.toml": "be161d27ca5d3e3fc6d6de9a74ae904c793151eb9ac067a9d601cb821227e692",
+              "tests/__init__.py": "a437c86458d86718c8ef1e2cdf753e36049441fe7b3ade507ec0a312b70c5761",
+              "tests/helpers.py": "72c2b893f4d907470c8f652ad2748e0e6eb4c1a870fe131466119fba4d34f533",
+              "tests/test_bale_check.py": "48047b0e4ee844390093d8e97af5549eb784b11b84311ece0f5fe7c4ed031c90",
+              "tests/test_carry.py": "80ebb5c449378d0a9ca0a6ecebff99aa6cd549bf8c45cce4b66a92d4d36eae9e",
+              "tests/test_consumption_manifest.py": "2750cb3b931dca511ef53e3f9a92ba47c949375780cf65f54d66389ab1ab020c",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "69b4b8d98aa422a4af4e3882744dcdaf909f33b511498b1dbb8e5ca8988746a9",
+              "tests/test_json_discipline.py": "7ff0a2e73555f592c86a9765c42d7321614ecec4954d6feebebc7ad14e4d9ec0",
+              "tests/test_process.py": "5539c62a14b5ae39593a163e19d521f7704a7f94ced3c86f12f775acd2202649",
+              "tests/test_registry.py": "008379bd7534ce0144b7af2ae514571f048d1fad7c22c47b1d8c783e357a3464",
+              "tests/test_status.py": "997961571f727ae7d04d1b84f254768ee8ac9f09a5828da84b054494a06f593b",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "twine/__init__.py": "e1b8514b125141fc4b67faebc1ef4cb72b07e844df0de05d74f4e52b65a2b5d3",
+              "twine/bale.py": "27bf984276edd825b4f68b8fffdf0e62edb54dc6b2428358a92606df4ad90615",
+              "twine/cli.py": "84c7c716ffab7a6fe7f53cc12c17deb1666dae64b2dbfa276104e1a961a62eec",
+              "twine/commands/__init__.py": "b66c7782bdd71d3407744e8f89e7ecc3ef44b2ed58cc0fb8a72922cce45afd40",
+              "twine/commands/carry.py": "ea237e2147478151b4036b046d5b52b539d577ea759b7ce209625d2bc6a5e8d6",
+              "twine/commands/core.py": "31216a333f0ed33d229388512735d866f35637a0d1d58e3ebc783014f514cca8",
+              "twine/commands/take.py": "e567032a19f01d07072e9ae044805e966e13c38b0862434565c1a2ab8dfe1a40",
+              "twine/process.py": "90ba9107cd1719a1fc793471aedbd93a415ab02686c5a3f45d92b86bfd0ed54b",
+              "twine/registry.py": "028697d6aa99e664a5c3215abc5cfaf9cfd49d3385b7212340eac9b083e88ee7",
+              "twine/shapes.py": "dc18c1736c4a40f6b846e2cad65071a30509013d002250cd41cc0bd060be53f9"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "the dry-run fixture's unrecorded exit code is 0 wherever a test replays it (named once, ASSUMED_DRY_RUN_EXIT in tests/test_carry_bale.py)",
+            "bale relay and bale apply accept argparse-style argvs, so `apply --dry-run --json <abs path>` and `relay <sid> -` are read as the brief writes them",
+            "the crafter's --emit-block emission is a fair stand-in for relay's stdout after an ingest (TARBALL.md 5.9.2's byte-identical rendering property)"
+          ],
+          "judgment_calls": [
+            "the two verbs live in a new module, twine/commands/carry_bale.py; carry.py's block choice and read were generalized so both share one never-a-guess rule",
+            "bale is <root>/bin/bale with the root resolved exactly as bale check resolves it, so TWINE_BALE_ROOT isolates the new verbs the way it isolates bale check",
+            "--cwd DIR and --bale-root DIR added to both verbs (default: current directory; bale check's resolution)",
+            "carry response's `tarball` is null unless the named file exists; the absolute path tried is named in the reason",
+            "a sentinel sid that could read as a flag is refused before relay \u2014 the sha256 trailer covers the body, not the sentinel",
+            "fixture names key on roles for per-run values: relay_sid_stdin.txt and apply_--dry-run_--json_tarball.json",
+            "the fixture player refuses an `unrecorded` exit unless the test names the code it assumes",
+            "a bale version other than the pin is reported and said on stderr, never gated on",
+            "test_json_discipline's human-mode rule now forbids the JSON twin, not every `{` line, because carry exchange prints bale's paste block",
+            "the accepted `confined` Proposal is prepared, not built: carry probe reads the flag from runner_confines(ctx.run), which is false for run_process and every double"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md META through 11.2",
+            "README.md (the brief)",
+            "TARBALL.md sections 1, 2, 5.1\u20135.4, 6, 7, 8, 10; 5.9.2 and 5.9.4 for relay's semantics",
+            "twine-seed.md T8, T12, T13, T14 and section 5.1",
+            "claude/context/cli-contract.md",
+            "claude/responses/2026-10-02-twine-carry-probe-002/notes.md",
+            "fixtures/README.md",
+            "share/bale-consumption.toml",
+            "README.md",
+            "claude/INDEX.md",
+            "twine/*.py and twine/commands/*.py",
+            "tests/*.py",
+            "tools/craft_response.py (imports, writes, CLI, --write, --validation-epilogue, --doc-assertions index-header)",
+            "tools/response_lint.py (header, imports, the feedback schema)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-03-twine-carry-bale-002.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-03-twine-carry-bale-002.sh",
+          "sha256": "96f71f67efc05d924682be92ea024e0e43b382b2ecb06a9bfb3ed086664825db"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-03T00:51:33+00:00",
+  "outcome": "applied"
+}
