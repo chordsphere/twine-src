@@ -36,7 +36,7 @@ from twine.commands.carry import STDOUT_CAP_BYTES
 from twine.process import RunResult, run_process
 
 from tests.helpers import (PROBE_SLUG, RecordingRunner, Run, emission_relpath,
-                           fenced_probe, filled_probe, process_alive, run_cli,
+                           dies_within, fenced_probe, filled_probe, run_cli,
                            scaffold, turn)
 
 # ---------------------------------------------------------------------------
@@ -464,7 +464,7 @@ class RanButNotOk(TempCase):
         self.assertLess(elapsed, 15, f"the run outlived its timeout: {elapsed:.1f}s")
         self.assertEqual((obj["timed_out"], obj["exit_code"]), (True, None))
         child = int(self.marker.read_text().strip())
-        self.assertFalse(process_alive(child), f"sleep {child} outlived the timeout")
+        self.assertTrue(dies_within(child), f"sleep {child} outlived the timeout")
 
     def test_out_not_written_when_not_ok(self):
         out = self.dir / "paste.txt"

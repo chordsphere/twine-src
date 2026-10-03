@@ -14,7 +14,7 @@ from twine.cli import Context
 from twine.process import (DEFAULT_STDERR_CAP, RunError, RunResult,
                            run_process, runner_confines)
 
-from tests.helpers import FixturePlayer, process_alive
+from tests.helpers import FixturePlayer, dies_within
 
 # Every command below is bash, the one interpreter the seam's first caller
 # (carry probe) needs; none of them reaches outside its temp state. The
@@ -51,7 +51,7 @@ class RealRuns(unittest.TestCase):
         self.assertIsNone(r.exit_code)
         self.assertLess(elapsed, 8, f"the run outlived its timeout: {elapsed:.1f}s")
         child = int(r.stdout.split()[0])
-        self.assertFalse(process_alive(child), f"sleep {child} outlived the timeout")
+        self.assertTrue(dies_within(child), f"sleep {child} outlived the timeout")
 
     def test_a_backgrounded_child_cannot_hold_the_pipes_open(self):
         """bash exits at once; the sleep it left behind holds stdout. The
@@ -60,7 +60,7 @@ class RealRuns(unittest.TestCase):
         r = run_process([BASH, "-c", "sleep 30 & echo $!"], timeout=20)
         self.assertLess(time.monotonic() - started, 8)
         self.assertEqual((r.exit_code, r.timed_out), (0, False))
-        self.assertFalse(process_alive(int(r.stdout.split()[0])))
+        self.assertTrue(dies_within(int(r.stdout.split()[0])))
 
     def test_stdout_cap_stops_the_run_and_keeps_exactly_the_cap(self):
         started = time.monotonic()

@@ -16,8 +16,9 @@ from twine.registry import Command, Result, load_registry
 
 from twine import REPO_ROOT
 
-from tests.helpers import (StubBale, TempRoots, emission_relpath, fenced_probe,
-                           filled_probe, fixture_relpath, run_cli, run_inprocess)
+from tests.helpers import (DOUBLE_MODEL, SpendStateDouble, StubBale, TempRoots,
+                           emission_relpath, fenced_probe, filled_probe,
+                           fixture_relpath, run_cli, run_inprocess)
 
 
 def one_json_line(test: unittest.TestCase, stdout: str, command: str) -> dict:
@@ -45,11 +46,16 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.dry_run = REPO_ROOT / fixture_relpath(
             ["apply", "--dry-run", "--json", "/any/response.tar.gz"], "repo")
         self.stub = StubBale(relay_stdout=self.exchange, apply_stdout=self.dry_run)
+        # The spend verbs read a temp state directory holding one usage
+        # record and the price table — doubles both — never the default.
+        self.spend_state = SpendStateDouble()
+        self.spend_state.call("json-discipline-sid", input=100, output=10)
 
     def tearDown(self):
         self.roots.cleanup()
         self._turns.cleanup()
         self.stub.cleanup()
+        self.spend_state.cleanup()
 
     def argv_for(self, name: str) -> list[str]:
         """A happy-path argv per verb; bale check against the ok root, take
@@ -58,7 +64,9 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         true, exit 0; nothing executes without --run); carry exchange on the
         crafter's exchange block and carry response on an existing file,
         each against the stub bale (ok true, exit 0); transitions on the
-        real table (ok true, exit 0; it reads no bale)."""
+        real table (ok true, exit 0; it reads no bale); spend totals and
+        spend check against a temp state directory double (ok true, exit 0;
+        the check admits a call well under its cap)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
@@ -71,6 +79,11 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
             argv += [str(self.exchange), "--bale-root", str(self.stub.root)]
         if name == "carry response":
             argv += [str(self.dry_run), "--bale-root", str(self.stub.root)]
+        if name in ("spend totals", "spend check"):
+            argv += ["--state-dir", str(self.spend_state.path)]
+        if name == "spend check":
+            argv += ["--sid", "json-discipline-sid", "--cap", "1", "--model",
+                     DOUBLE_MODEL, "--input", "100", "--max-output", "100"]
         return argv
 
     def test_every_registered_verb_emits_one_line_subprocess(self):

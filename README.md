@@ -45,6 +45,21 @@ Arc 1 (the courier) session 1 landed twine's core:
   case. `twine transitions` renders it and is ok only when every key of
   every axis has a row and every row's move is declared; it reads no
   bale install.
+- `spend totals` and `spend check` (session 5a): the cost spine (D15),
+  without the kill-switch. Twine's usage record is an append-only stream,
+  `spend.jsonl` in twine's state directory (`--state-dir`, else
+  `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`
+  — never inside a project's tree): one line per model call, tokens by class
+  (input, output, thinking, cache read, cache write), and a reserved
+  `served_sid` for spend that served another session. `spend totals`
+  renders the running totals per session; `spend check` is the hard cap's
+  pre-call check — it admits a call only if the session's spend so far plus
+  the call's worst-case cost is at most the cap, and otherwise refuses with
+  `stop: "cap-reached"`, never shrinking the call to fit. **twine ships no
+  prices**: you write them, per model, in `prices.toml`, and an unpriced
+  model is a refusal, never an estimate. No provider's usage has been
+  recorded yet (the gated probe `twine-usage-record` will), so the spine
+  reads only twine's own record; mapping a provider onto it is Arc 2's.
 - `share/bale-consumption.toml` — the bale version pin (`0.4.45`) and
   the consumption manifest: the schema hashes, every bale surface
   twine reads, and the three vocabularies the transition table keys on,
@@ -58,9 +73,12 @@ Stdlib only; python 3.11 or newer. The courier reads (`take`), runs a
 probe with consent (`carry probe`), relays an exchange block (`carry
 exchange`) and dry-runs a response (`carry response`), and its
 transition table names a move for every outcome bale reports and every
-way a runtime turn will stop; it does not yet emit requests (Arc 1
-session 3) or dispatch on the table, and there is no cost spine (5), no
-model adapter or sandbox (Arc 2).
+way a runtime turn will stop. The cost spine records spend, totals it and
+checks the hard cap before a call; nothing makes a call yet. twine does
+not yet emit requests (Arc 1 session 3) or dispatch on the table; the
+kill-switch — the between-calls abort, the process-level kill and its
+`aborted` closure — is still to come (session 5b); and there is no model
+adapter or sandbox (Arc 2).
 
 ## Running it
 
@@ -76,6 +94,8 @@ python3 -I -S bin/twine carry probe turn.txt --run > paste.txt   # run it; stdou
 python3 -I -S bin/twine carry exchange turn.txt > next.txt       # relay the block; stdout is bale's reply block
 python3 -I -S bin/twine carry response response-<sid>.tar.gz     # dry-run it; stdout is the `bale apply` line
 python3 -I -S bin/twine transitions [--json]                     # the transition table; ok when it is total
+python3 -I -S bin/twine spend totals [--sid SID] [--json]        # spend per session, at your prices
+python3 -I -S bin/twine spend check --sid SID --cap USD --model M --input N --max-output N   # admit or refuse one call
 ```
 
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to
@@ -84,7 +104,10 @@ run and how a reviewer checks the stdlib-only claim; plain
 response` find the install from `--bale-root`, else `$TWINE_BALE_ROOT`,
 else `bale` on `PATH`; the two carry verbs run bale in the current
 directory (or `--cwd`), which should be the repo whose session they
-carry. The
+carry. The spend verbs read twine's state directory and never write
+it; the price file is yours to write there (or name with `--prices`):
+one `[model."<id>"]` table per model with `input`, `output`, `cache_read`
+and `cache_write` in US dollars per million tokens. The
 interface each verb promises — the `--json` discipline, the exit
 codes, the keys — is [`claude/context/cli-contract.md`](claude/context/cli-contract.md).
 

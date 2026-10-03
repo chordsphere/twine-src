@@ -27,4 +27,7 @@ Layout (CODE.md §13): one file per subject —
   test_process.py            the run seam (Context.run) and its default runner
   test_carry.py              `twine carry probe`
   test_carry_bale.py         `twine carry exchange` and `twine carry response`
+  test_transitions.py        `twine transitions` and the transition table
+  test_spend.py              the cost spine: the usage record, the stream,
+                             prices, totals, the pre-call check, `twine spend`
 """
