@@ -14,7 +14,7 @@ project's inventory.
 
 ## Charter & product
 - `../twine-seed.md` — twine's seed document and the project spec's
-  home: identity, the sitting's rulings T1–T10, harness-seed.md's
+  home: identity, the sitting's rulings T1–T14, harness-seed.md's
   D1–D24 carried with a status each, the runtime's design, the road
   (three arcs), the open questions register, and the sitting's words.
   The `amendment_target` for every later answer about twine. Default
