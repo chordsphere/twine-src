@@ -122,6 +122,14 @@ walked surface and drops comments — an accidental run on 2026-10-02
 replaced session 0's explanatory header — so the rationale lives in
 this annotation, not in the file.]
 
+[2026-10-03-twine-seed-tidy-001: a correction to the annotation above. `bale.toml` does
+hold its rationale today: the re-attempt of
+`2026-10-02-twine-take-read-001` shipped the file back as its pinned
+bytes, seed-001's explanatory header included, so the accidental
+`bale config init` cost nothing that stayed lost. The annotation's
+point stands: the next run of the wizard drops the header again, and
+this annotation is the copy that survives it.]
+
 [2026-10-02-twine-seed-close-003: checkpoint authoring, learned at session
 `2026-10-02-twine-take-read-001`'s HOLD: a blind checkpoint pins bytes
 only inside the session's write forecast. Paths outside it are
@@ -130,6 +138,17 @@ that the operator does not admit; a pinned hash on such a path adds
 no protection and turns operator drift into a HOLD of correct work —
 that HOLD was the accidental `bale config init` above, not the
 worker. Checkpoints authored after it follow this rule.]
+
+[2026-10-03-twine-seed-tidy-001: brief authoring, learned at session
+`2026-10-02-twine-seed-close-003`'s HOLD: a brief that hands over
+text for substitution spells its target so that it cannot collide
+with a placeholder in a command the text itself quotes. That brief
+said to replace each `<sid>`, and one of its texts quoted
+`bale relay <sid> -`, where `<sid>` is the exchange's session, not
+the brief's; the worker replaced all three in that text, the
+template's included, and the checkpoint held the result. Briefs
+after it name a target no command uses, and substitute it only in
+the annotation openers.]
 
 **T4 — twine has three faces, one core: courier, runtime,
 scheduler.** Ratified (block 2 [1], "as assumed"): "yes; the runtime
@@ -170,6 +189,13 @@ probe output, light, exchange, relay — and reports as the turn's
 `shape` the kind of the last one. The dated annotation on
 `nisaba-seed.md` §3.3 recording the three faces was authored at this
 sitting's close as a nisaba-src session.]
+
+[2026-10-03-twine-seed-tidy-001: a note on the parenthetical above. It summarizes
+AGENT.md §3 rather than quoting it: §3 names five shapes within
+tarball mode, the fifth being the bailout response, which is a
+response tarball by kind (`response_kind: "bailout"`). A courier
+that carries response tarballs carries bailouts with them, so the
+count of four holds.]
 
 **T5 — The arcs run courier, then runtime, then scheduler.** Ratified
 (block 2 [2], "as assumed"): "yes; the scheduler moves from nisaba's
@@ -967,6 +993,13 @@ every sentinel prefix (`=== PROBE `, `=== LIGHT `, `BALE EXCHANGE`),
 not only `=== RELAY `, so that text inlined into a relay block can
 never read as another shape to a reader that is not span-aware.]
 
+[2026-10-03-twine-seed-tidy-001: row 2 of the table above is superseded in one clause.
+Its "a response to `bale apply --no-interact --json`" describes the
+path T12 rules out: with `--no-interact` the walkthrough merges on
+PASS, and twine never merges at rung 1. The response hand-off is
+2b-ii's `carry response`: `bale apply --dry-run --json`, then the
+exact `bale apply` line handed to the operator.]
+
 ### 5.2 Arc 2 — the runtime
 
 Not yet cut into sessions; its parts, each a session or a few: the
@@ -990,6 +1023,21 @@ forecasts are disjoint and serialized where they are not, and
 enforces the spend cap with bailout semantics. What it reads is
 `blueprints/drafting-table.md` in nisaba-src — cited by name, not
 copied here. Arc 3 is cut at the sitting that opens it.
+
+[2026-10-03-twine-seed-tidy-001: the drafting-table this arc reads is the home
+office's. After the sitting closed, the architect wrote (message 12,
+2026-10-02, verbatim): "one last thing, I developed offce to the
+point where "nisaba office" is out of date language. I just have one
+home office, probe if you need facts to update the plan". Probe
+`home-office` (2026-10-02) found the office at `~/home-office`,
+founded 2026-09-30 by `office init` from office-src 0.4.0, the
+install now at 0.5.0, and no drafting-table in it: that is a
+renovation space, and office-src's `renovate` verb is not built in
+0.5.0. So "office 0.5.0's drafting-table" above names a space that
+does not exist yet, and Arc 3 waits on two things: `renovate`
+landing in office-src, and the home office's renovation with it.
+`blueprints/drafting-table.md` in nisaba-src stays the spec of what
+the scheduler reads.]
 
 ---
 
