@@ -40,7 +40,8 @@ class RegistryParity(unittest.TestCase):
     def test_this_sessions_verbs_are_registered(self):
         self.assertEqual(set(load_registry()),
                          {"commands", "status", "bale check", "take", "carry probe",
-                          "carry exchange", "carry response", "transitions"})
+                          "carry exchange", "carry response", "transitions",
+                          "spend totals", "spend check"})
 
     def test_verb_names_are_space_joined_paths(self):
         for name, cmd in load_registry().items():
@@ -60,6 +61,13 @@ class RegistryDiscovery(unittest.TestCase):
         """Arc 1 session 4: `transitions` is a verb of its own module."""
         self.assertIn("twine.commands.transitions", discover_modules())
         self.assertEqual(load_registry()["transitions"].path, ("transitions",))
+
+    def test_discovers_spend_module_as_a_group(self):
+        """Arc 1 session 5a: `spend` is a group of two verbs, both from
+        twine/commands/spend.py."""
+        self.assertIn("twine.commands.spend", discover_modules())
+        spend = [n for n in load_registry() if n.split(" ")[0] == "spend"]
+        self.assertEqual(spend, ["spend check", "spend totals"])
 
     def test_discovers_carry_module_as_a_group(self):
         """`carry` is a verb family: its verbs share the group prefix, and

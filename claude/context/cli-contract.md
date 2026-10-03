@@ -10,8 +10,9 @@
 > `2026-10-03-twine-carry-bale-002` (§11, and the lines naming `carry
 > exchange`, `carry response`, per-run values or recorded exits) and by
 > `2026-10-03-twine-transitions-004` (§12, the `[[vocabulary]]` lines of
-> §6, and §11.1's pin gate); a later session that changes a line changes
-> it here in the same response.
+> §6, and §11.1's pin gate) and by `2026-10-03-twine-cost-spine-005` (§13,
+> and the lines naming `spend`); a later session that changes a line
+> changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -45,10 +46,11 @@
   `command` key carries the same string.
 - Verbs today: `commands`, `status`, `bale check`, `take`, the
   `carry` group — `carry probe` (`twine/commands/carry.py`), `carry
-  exchange` and `carry response` (`twine/commands/carry_bale.py`) — and
-  `transitions` (`twine/commands/transitions.py`, §12). One group's verbs
-  may live in several modules; the parser assembles the group from all
-  of them.
+  exchange` and `carry response` (`twine/commands/carry_bale.py`) —
+  `transitions` (`twine/commands/transitions.py`, §12), and the `spend`
+  group — `spend totals` and `spend check` (`twine/commands/spend.py`,
+  §13). One group's verbs may live in several modules; the parser
+  assembles the group from all of them.
 - `twine commands --json` emits
   `{"command": "commands", "ok": true, "commands": [{"name", "summary",
   "json", "cli_only"}, …]}` — every registered verb, in registry order,
@@ -190,7 +192,8 @@ placeholders mechanically (`tests/helpers.py` `filled_probe`). `bale check` is t
 (`bin/VERSION` at the pin, at another version, and absent), never a
 real install, and every CLI subprocess runs with `TWINE_BALE_ROOT`
 pinned to a temp directory so a bale on `PATH` cannot leak into a
-verdict.
+verdict. The spend verbs (§13) read only temp state directories the tests
+build, never the real default (§13.9).
 
 ## 9. `twine take FILE [--json]` — the courier's read
 
@@ -676,3 +679,274 @@ problems). The bale axes are held to `tests/helpers.py`
 `BALE_VOCABULARIES`, the probe's lists, and
 `tests/test_consumption_manifest.py` asserts the manifest's lists and
 the table's bale-axis keys agree.
+
+## 13. `twine spend` — the cost spine (D15, without the kill-switch)
+
+Arc 1 session 5a. Twine's usage record, the running totals over it, and
+the hard cap's pre-call check. The kill-switch — the between-calls abort,
+the process-level kill and the `aborted` closure — is session 5b's and is
+not here. The pure module is `twine/spend.py`; the verbs are
+`twine/commands/spend.py`. Doctrine: PLANNER.md §17, "refuse loudly, never
+degrade silently".
+
+### 13.1 What is known, and what is not
+
+**No provider usage has been recorded yet.** Nobody has seen what a
+provider's API returns as usage: its field names, whether it reports
+thinking separately, its cache-write tiers. The gated probe
+**`twine-usage-record`** is what will record it; it waits on a funded key.
+So the spine **never sees a provider's shape**: it reads and writes only
+twine's own usage record (§13.3), in twine's own five token classes.
+Mapping a provider's usage onto that record is the model adapter's job
+(Arc 2), verified against that recording when it exists. Every usage value
+in `tests/` is a twine record built by `tests/helpers.py`
+`usage_double`, named as a double; nothing in the tree claims to be an API
+response.
+
+**Twine ships no prices** (§13.4). Neither module makes a network call,
+starts a subprocess (the verbs never call `ctx.run`) or imports a provider
+SDK; a test asserts the imports.
+
+### 13.2 The state directory
+
+`--state-dir DIR` on every spend verb, else `$TWINE_STATE_DIR`, else
+`${XDG_STATE_HOME:-$HOME/.local/state}/twine` — first rule that answers. A
+relative `$XDG_STATE_HOME` is ignored (the XDG spec). With none of them
+set, the verbs refuse (`no-state-dir`) rather than invent a location; the
+working directory is never a fallback. An empty `--state-dir` or `--prices`
+names nothing and is refused (`bad-argument`), never read as an absent flag;
+an empty environment variable is unset. The JSON names the directory and
+the rule (`state_dir`, `state_dir_source`: `"--state-dir"`,
+`"TWINE_STATE_DIR"`, `"XDG_STATE_HOME"` or `"HOME"`).
+
+Spend never lands inside a bale project's working tree by default: it would
+dirty the tree bale checks, and it is twine's state, not the project's
+(N4: deleting twine's state loses "spend history and nothing else"). The
+tests never touch the real default; each uses its own temporary
+directory.
+
+### 13.3 The usage record: `<state-dir>/spend.jsonl`
+
+Twine's durable spend stream. **Append-only, one JSON object per line, one
+line per model call**, UTF-8, every line LF-terminated. Required keys:
+
+| key | value |
+|---|---|
+| `sid` | the session the call ran in (a non-empty string) |
+| `served_sid` | the session the spend served, or `null`. T11's envelope: a `delegate` child or a `compare` session bills to the session it served. Reserved now, nullable, and `null` when the call served its own session — a record whose `served_sid` equals its `sid` is malformed (it would count twice against that session) |
+| `model` | the model id the call ran on (a non-empty string) |
+| `tokens` | an object with exactly five keys, `input`, `output`, `thinking`, `cache_read`, `cache_write`; each a non-negative integer, except `thinking`, which is `null` when the provider does not report thinking separately |
+
+The classes are **disjoint**: tokens counted in `thinking` are not also in
+`output`. When `thinking` is `null` the provider's thinking tokens are
+inside `output`, counted once. Cached thinking that is read back counts as
+`cache_read` (D20: "cached thinking reads count as input").
+
+Other keys are allowed. Twine's writer adds `recorded_at` (UTC, RFC 3339,
+seconds) and takes any other key a caller passes (a call id, a stop
+reason). **A reader keeps unknown keys and never fails on them.**
+
+The writer is `twine.spend.append_record(state_dir, sid=, model=, tokens=,
+served_sid=None, extra=None)` — the Arc 2 loop's, after every call; no verb
+writes the stream. It validates the record by the same rule the reader
+applies (`record_faults`) before a byte is written, creates the directory
+(mode 0700) and the file (0600) when absent, writes the line with one
+`O_APPEND` write and fsyncs it, and refuses to append onto a stream whose
+last line is not LF-terminated (a torn write), leaving it untouched.
+
+A **malformed line** — not UTF-8, not JSON, blank, a JSON value that is not
+an object, a duplicate key, a missing required key, a `tokens` without
+exactly the five classes, a count that is negative or not an integer
+(`true` and `1.5` are not counts), a torn last line — makes the stream
+unusable. It is named by its 1-based line number and **never skipped
+silently**; every bad line is reported, not just the first.
+
+### 13.4 Prices are operator data
+
+- **The file:** `--prices PATH`, else `<state-dir>/prices.toml`. One table
+  per model id, in US dollars per million tokens:
+
+  ```toml
+  [model."<model id>"]
+  input = <USD per million tokens>
+  output = <USD per million tokens>
+  cache_read = <USD per million tokens>
+  cache_write = <USD per million tokens>
+  source = "<where the price was read>"      # optional, yours
+  as_of = "<date>"                           # optional, yours
+  ```
+
+  All four classes are required; each a finite, non-negative number. Other
+  keys, in a row or at the top, are the operator's and are kept. Thinking
+  has no price of its own: it is **billed at the model's `output` price**
+  (D20).
+- **What ships:** twine ships no price file and no price values. The
+  tests' price tables are doubles with invented prices for invented model
+  ids (`tests/helpers.py` `PRICES_DOUBLE`), and a test asserts that no
+  price file, and no price table with a number in it, is in anything twine
+  ships — `bin/`, `twine/`, `share/`, `fixtures/` and the docs. The scan is
+  an allow-list: it never reads `claude/checkpoints/` (blind), archived
+  responses or `tests/`.
+- **Refusals:** a model with no price row is `unpriced-model`, naming it;
+  an absent file is `no-prices` (it says twine ships none); a file that is
+  not TOML, whose `model` is not a table of tables, or any row of which
+  lacks a class or carries a bad value is `malformed-prices`, naming each
+  fault. The whole file is validated, not only the rows a caller needs.
+  None is ever a zero, a guess or a skip.
+
+### 13.5 Cost
+
+For one call: `(input × input_price + output × output_price + cache_read ×
+cache_read_price + cache_write × cache_write_price + thinking ×
+output_price) / 1 000 000`, the thinking term only when `thinking` is not
+`null`. Prices are parsed as decimals and the arithmetic is exact
+(`decimal.Decimal`): every sum and the cap comparison are made on the
+exact value. The JSON numbers are that value rounded to a double at the
+edge; a check's decision was made on the exact value, not on them. Human
+output prints the exact amount (`$0.0068175`).
+
+### 13.6 `twine spend totals [--sid SID] [--state-dir DIR] [--prices PATH] [--json]`
+
+Renders the stream: per session, the call count, the token totals by
+class, and the cost. Writes nothing.
+
+The JSON twin, beside `command` and `ok`. Fixed names:
+
+| key | value |
+|---|---|
+| `sessions` | one object per session in the stream, in order of first appearance (as `sid` or as `served_sid`); only the named one with `--sid` (`[]` when the stream has none for it) |
+| `total_cost_usd` | the whole stream's cost, each record counted once — whatever `--sid` says; a JSON number, or `null` when the stream cannot be priced or read |
+
+Each session object:
+
+| key | value |
+|---|---|
+| `sid` | the session |
+| `calls` | its own records (`sid` is this session), an int |
+| `tokens` | the five classes summed over its own records. `thinking` is the sum of the non-null values, and `null` only when every one of its records had `null` (a session with no records of its own reports `0`) |
+| `cost_usd` | its own records' cost, a JSON number |
+| `served_cost_usd` | the cost of records whose `served_sid` is this session, a JSON number |
+| `served_calls` | how many records those are |
+| `models` | the model ids of its own records, sorted |
+
+A session the stream names only as a `served_sid` has a row with
+`calls: 0`. And beside them: `sid` (the `--sid` given, or null), `records`,
+`unpriced_models`, `refusal`, `reason`, `problems` (each `{line, message}`,
+at most 50) and `problems_total`, `state_dir`, `state_dir_source`, `stream`,
+`stream_present`, `prices`, `prices_source` (`"--prices"` or
+`"state-dir"`), `prices_read`.
+
+**ok.** An empty or absent stream is `ok` true with `sessions: []`; the
+price file is not read (there is nothing to price). Otherwise every record
+is priced. Not ok — exit 1, one JSON line, no traceback, `refusal` naming
+the fault and `reason` saying it:
+
+| `refusal` | when | what still renders |
+|---|---|---|
+| `malformed-stream` | a line is not a usage record (§13.3), named by number in `problems` and `reason` | `sessions: []` — a partly read stream is not totalled |
+| `unreadable-stream` | `spend.jsonl` exists and cannot be read | `sessions: []` |
+| `no-prices`, `malformed-prices` | the price file is absent or not a price table (§13.4) | the sessions' calls and tokens; every cost `null` |
+| `unpriced-model` | any record's model has no price row; `unpriced_models` lists them | the sessions' calls and tokens; every cost `null` — a partial sum is never reported as a total |
+| `no-state-dir`, `bad-argument` | §13.2 (including an empty `--state-dir` or `--prices`); a `--sid` that is not a session id | nothing; the paths `null` when unresolved |
+
+Human mode: a verdict line, then per session a line of calls and costs and
+a line of tokens; each line problem.
+
+### 13.7 `twine spend check --sid SID --cap USD --model MODEL --input N --max-output N [--state-dir DIR] [--prices PATH] [--json]`
+
+**The hard cap's pre-call check.** What the Arc 2 loop will run, as a
+function (§13.8), before every model call; here it can be run by hand. It
+writes nothing. It admits the call only if
+
+    spend so far + worst case <= cap
+
+- **Spend so far** is the session's own `cost_usd` plus its
+  `served_cost_usd` (§13.6). T11: what an effort mechanism spent for this
+  session counts against its envelope. Other sessions' spend does not.
+- **The worst case** prices all `--input` tokens at the dearest input-side
+  price the model has — the largest of `input`, `cache_read` and
+  `cache_write` — and all `--max-output` tokens at the `output` price.
+  Thinking falls inside the output bound, at the output price.
+- **The cap** is a per-session value passed in (`--cap`, in US dollars, or
+  the function's argument). Where its value comes from — the office's house
+  rules (Q-6) — is not this session's.
+
+**Admitted:** `ok` true, `admitted` true, exit 0. **Refused by the cap:**
+`ok` false, exit 1, `refusal` and **`stop` both `"cap-reached"`** — the key
+on the transition table's `stop` axis whose move is `stop-at-cap` (§12) —
+and the numbers that decided it. **A refusal never shrinks the call to
+fit**: the call as asked (`input_tokens`, `max_output_tokens`) is reported
+unchanged, and nothing in the result offers a smaller one.
+
+**If the cap cannot be checked, the call does not happen.** Each of these
+is `ok` false, `admitted` false, exit 1, `stop` `null`, its own `refusal`
+and `reason` — never an admission:
+
+| `refusal` | when |
+|---|---|
+| `unpriced-model` | the call's model, or a model in the session's own or served records, has no price row (`unpriced_models` names them); another session's unpriced history does not block this session |
+| `no-prices`, `malformed-prices` | §13.4 |
+| `malformed-stream`, `unreadable-stream` | §13.3: anywhere in the stream — a stream that cannot be read whole cannot say what this session spent |
+| `bad-argument` | `--cap` is not a finite, non-negative number; `--input` or `--max-output` is not a non-negative integer (a named refusal, exit 1 — not a usage error); `--sid` or `--model` is empty; `--state-dir` or `--prices` is empty |
+| `no-state-dir` | §13.2 |
+
+A missing flag is argparse's usage error (exit 2, nothing on stdout, §3).
+
+The JSON twin, beside `command` and `ok`. Fixed names:
+
+| key | value |
+|---|---|
+| `admitted` | whether the call may be made; equal to `ok` |
+| `stop` | `"cap-reached"` exactly when the cap refused the call; else `null` |
+| `refusal`, `reason` | why it was not admitted; `null` when admitted |
+| `spend_so_far_usd` | own + served, a JSON number |
+| `worst_case_usd` | the call's worst-case cost |
+| `cap_usd` | the cap |
+| `projected_usd` | spend so far + worst case: what was compared with the cap |
+
+And beside them: `sid`, `model`, `own_cost_usd`, `served_cost_usd`,
+`calls_so_far` (the session's own records), `input_tokens`,
+`max_output_tokens`, `input_price_class` (which input-side class was
+dearest), `input_price_usd_per_mtok`, `output_price_usd_per_mtok`,
+`unpriced_models`, `problems`, `problems_total`, `state_dir`,
+`state_dir_source`, `stream`, `prices`, `prices_source`. The money fields
+are `null` when the check could not compute them.
+
+Human mode: one verdict line — `admitted`, `REFUSED (cap-reached) — the call
+is not made, and it is not shrunk to fit`, or `NOT CHECKED (<refusal>) — …;
+the call is not made` — then the arithmetic.
+
+### 13.8 One function, two faces
+
+The verbs are thin over `twine/spend.py`, and the Arc 2 loop calls the same
+functions, so it never re-implements the check:
+
+```
+spend_totals(state_dir: Path, prices_path: Path | None = None,
+             sid: str | None = None) -> TotalsReport
+check_call(state_dir: Path, *, sid: str, cap_usd: Decimal, model: str,
+           input_tokens: int, max_output_tokens: int,
+           prices_path: Path | None = None) -> CallCheck
+append_record(state_dir: Path, *, sid: str, model: str,
+              tokens: Mapping[str, int | None], served_sid: str | None = None,
+              extra: Mapping[str, Any] | None = None) -> UsageRecord
+resolve_state_dir(flag: str | None, env: Mapping[str, str]) -> StateDir
+```
+
+`prices_path` None is `<state_dir>/prices.toml`. Neither `spend_totals` nor
+`check_call` raises for a fault it anticipates: each returns a report whose
+`ok` (the check's `admitted`) is false and whose `refusal` is one of the
+closed set `twine.spend.REFUSALS`. A caller that reads only `admitted`
+fails closed. `as_json()` on each report is the verb's payload; a test
+asserts the verb's JSON equals the function's.
+
+### 13.9 Tests
+
+`tests/test_spend.py`. Every stream is written through `append_record` or,
+for a line the writer would refuse, raw bytes, into a
+`tests/helpers.py` `SpendStateDouble` (a temp directory); every usage value
+is `usage_double`, every price `PRICES_DOUBLE` or a table written inline —
+doubles, named as such, for invented model ids. No test resolves the real
+default state directory: the in-process runs have an empty environment,
+and the subprocess runs carry no `HOME`, so a verb without `--state-dir`
+refuses.

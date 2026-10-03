@@ -21,6 +21,11 @@ Modules:
   transitions  the transition table (D17): share/transitions.toml loaded
             and checked total — every key of every axis one row, every
             row's move declared; pure, reads no bale install
+  spend     the cost spine (D15, session 5a): the usage record and its
+            append-only stream (<state-dir>/spend.jsonl), the operator's
+            prices (twine ships none), the running totals and the hard
+            cap's pre-call check — one function per face, called by the
+            `spend` verbs and, later, the Arc 2 loop; pure, no network
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py and carry_bale.py)
 

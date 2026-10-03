@@ -19,7 +19,11 @@ fixtures/README.md records for the file (refusing to guess one the row
 calls `unrecorded`); and StubBale, a double named as one: a generated
 `bin/bale` script in a temp root that replays given bytes and records
 how it was called, so the CLI can be run end to end as a subprocess
-without any bale."""
+without any bale.
+
+Since session 5a: the spend doubles — PRICES_DOUBLE (invented prices for
+invented model ids), usage_double (a twine usage record's tokens, never a
+provider's response) and SpendStateDouble (a temp state directory)."""
 
 from __future__ import annotations
 
@@ -32,6 +36,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -301,6 +306,23 @@ def process_alive(pid: int) -> bool:
     return state not in ("Z", "X")
 
 
+def dies_within(pid: int, seconds: float = 3.0) -> bool:
+    """Whether `pid` is dead (process_alive false) within `seconds`.
+
+    A SIGKILLed process closes its file descriptors before the kernel
+    marks it a zombie, and the runner returns once the pipes close — so a
+    single process_alive check right after a run can catch the killed
+    sleep in that gap, wider on a loaded machine (session 5a's HOLD, in
+    bale's sandbox). Polling briefly asserts what the contract says — the
+    group is killed — without asserting a scheduler's timing."""
+    deadline = time.monotonic() + seconds
+    while process_alive(pid):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.02)
+    return True
+
+
 class RecordingRunner:
     """A run-seam double: records every call and answers with a canned
     RunResult (exit 0, empty output) unless given one. A test that must
@@ -417,6 +439,83 @@ class StubBale:
     def cwd(self) -> str | None:
         path = self.record / "cwd"
         return path.read_text(encoding="utf-8").strip() if path.exists() else None
+
+    def cleanup(self) -> None:
+        self._dir.cleanup()
+
+
+# ---------------------------------------------------------------------------
+# Spend doubles (Arc 1 session 5a). No provider usage has ever been
+# recorded and twine ships no prices, so every usage value and every price
+# a spend test sees is a double, named as one: the model ids say so, and no
+# price below is any provider's.
+# ---------------------------------------------------------------------------
+
+# Invented model ids: no reader could take one for a real model.
+DOUBLE_MODEL = "double-model-a"
+DOUBLE_MODEL_DEAR_CACHE = "double-model-dear-cache-read"
+DOUBLE_MODEL_UNPRICED = "double-model-with-no-price-row"
+
+# A price table double: invented prices, US dollars per million tokens.
+# `double-model-a`'s dearest input-side price is cache_write; the second
+# model's is cache_read, so the worst case's choice is tested both ways.
+PRICES_DOUBLE = """\
+# A test double written by tests/helpers.py: invented prices, not any
+# provider's. twine ships no prices.
+[model."double-model-a"]
+input = 3
+output = 15
+cache_read = 0.3
+cache_write = 3.75
+source = "tests/helpers.py PRICES_DOUBLE (invented)"
+as_of = "never"
+
+[model."double-model-dear-cache-read"]
+input = 1
+output = 2
+cache_read = 5
+cache_write = 4
+"""
+
+
+def usage_double(input: int = 0, output: int = 0, thinking: int | None = None,
+                 cache_read: int = 0, cache_write: int = 0) -> dict[str, int | None]:
+    """A twine usage record's `tokens`, as a double: never a provider's
+    response, which nobody has recorded yet (the gated probe
+    `twine-usage-record` will)."""
+    return {"input": input, "output": output, "thinking": thinking,
+            "cache_read": cache_read, "cache_write": cache_write}
+
+
+class SpendStateDouble:
+    """A temp state directory: `path` (holding spend.jsonl, written through
+    twine.spend.append_record — the writer the Arc 2 loop will call) and,
+    unless `prices` is None, prices.toml holding `prices`. Never the real
+    default state directory."""
+
+    def __init__(self, prices: str | None = PRICES_DOUBLE) -> None:
+        self._dir = tempfile.TemporaryDirectory(prefix="twine-spend-")
+        self.path = Path(self._dir.name) / "state"
+        self.path.mkdir()
+        self.stream = self.path / "spend.jsonl"
+        self.prices = self.path / "prices.toml"
+        if prices is not None:
+            self.prices.write_text(prices, encoding="utf-8")
+
+    def call(self, sid: str, model: str = DOUBLE_MODEL, served_sid: str | None = None,
+             **tokens: int | None):
+        """Append one record — one model call, a double — and return it."""
+        from twine import spend
+        return spend.append_record(self.path, sid=sid, model=model,
+                                   served_sid=served_sid, tokens=usage_double(**tokens),
+                                   clock=lambda: "2026-10-03T00:00:00Z")
+
+    def raw(self, text: str | bytes) -> None:
+        """Append raw bytes to the stream, bypassing the writer: how a test
+        lays down a line the writer would refuse."""
+        data = text.encode("utf-8") if isinstance(text, str) else text
+        with self.stream.open("ab") as fh:
+            fh.write(data)
 
     def cleanup(self) -> None:
         self._dir.cleanup()

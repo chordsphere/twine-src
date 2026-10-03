@@ -41,6 +41,17 @@ project's inventory.
   outcome or a stop, adds a stop, or bumps the pin; the header comment
   spells the shape and `twine transitions` checks it is total.
 
+- `<state-dir>/spend.jsonl` and `<state-dir>/prices.toml` — not in this
+  repository: twine's state directory (`--state-dir`, else
+  `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`).
+  The spend stream is twine's durable usage record (D15, N4): append-only,
+  one JSON line per model call, tokens by class and a nullable
+  `served_sid`. The price file is the operator's — twine ships no prices —
+  one `[model."<id>"]` table per model in US dollars per million tokens.
+  Both shapes, and that no provider usage has been recorded yet, are
+  `context/cli-contract.md` §13. Pull when a session reads or writes spend,
+  prices a model, or maps a provider's usage onto the record (Arc 2).
+
 ## Explainers
 - `context/cli-contract.md` — the `twine` CLI's interface outcomes:
   the entrypoint, the registry and its discovery, the `--json`
@@ -50,11 +61,15 @@ project's inventory.
   refusals, `--run`, the output cap, `confined: false`, its keys) and
   the run seam (`Context.run`, the signature later carry verbs build
   on), §11 — the bale hand-offs (`carry exchange`, `carry response`),
-  how bale is found and the pin gate, T12's one `apply` argv — and
+  how bale is found and the pin gate, T12's one `apply` argv —
   §12, `transitions` (the table's axes, its ok rule and the problems
-  that name a fault), the manifest and fixture shapes (per-run fixture
+  that name a fault), and §13, `spend totals` and `spend check` (the cost
+  spine: the usage record, the state directory, prices as operator data,
+  the hard cap's pre-call check and its refusals), the manifest and
+  fixture shapes (per-run fixture
   names, by role), how the tests run. Default inclusion for any session
-  that adds a verb, runs a subprocess, or routes a courier's block.
+  that adds a verb, runs a subprocess, routes a courier's block, or
+  touches spend.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter
