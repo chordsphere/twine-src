@@ -48,8 +48,10 @@ BALE_AXES = ("telemetry-outcome", "closure-reason", "apply-outcome")
 PINNED_STOPS = ["end-turn", "max-tokens", "model-refusal", "window-exhausted",
                 "rate-limited", "overloaded", "network-failure", "timeout",
                 "tool-error", "malformed-shape"]
-# Stop keys this session added, each flagged in its notes.md (D15).
-ADDED_STOPS = ["cap-reached", "killed"]
+# Stop keys session 4 added, each flagged in its notes.md (D15), and the
+# one session 5b added: cap-unchecked, the pre-call check that could not
+# run (cost-spine-005's Proposal, ratified at continue-twine-006).
+ADDED_STOPS = ["cap-reached", "killed", "cap-unchecked"]
 
 
 def raw_table() -> dict:
@@ -229,7 +231,7 @@ class TheMoves(unittest.TestCase):
                 with self.subTest(move=move.name):
                     self.assertNotEqual(move.actor, "twine", move.description)
 
-    def test_the_stop_set_is_the_brief_s_ten_plus_two_flagged(self):
+    def test_the_stop_set_is_the_brief_s_ten_plus_the_three_added(self):
         stop = list(self.table.axis("stop").keys)
         self.assertEqual(stop, PINNED_STOPS + ADDED_STOPS)
         self.assertEqual(self.table.axis("stop").source, "twine")
@@ -239,6 +241,13 @@ class TheMoves(unittest.TestCase):
         kill = self.table.moves[self.rows[("stop", "killed")]]
         self.assertIn("`aborted`", kill.description)
         self.assertIn(("closure-reason", "aborted"), self.rows)
+
+    def test_cap_unchecked_is_the_operators_and_not_stop_at_cap(self):
+        """Session 5b: a check that could not run has its own move, the
+        operator's, distinct from the cap refusal's."""
+        move = self.table.moves[self.rows[("stop", "cap-unchecked")]]
+        self.assertEqual((move.name, move.actor), ("fix-and-resume", "operator"))
+        self.assertNotEqual(move.name, self.rows[("stop", "cap-reached")])
 
     def test_unlocked_defers_to_its_closure_reason(self):
         move = self.table.moves[self.rows[("telemetry-outcome", "unlocked")]]
@@ -467,7 +476,8 @@ class TheVerb(unittest.TestCase):
         obj = one_line(self, run.stdout)
         self.assertEqual((run.code, obj["ok"], obj["reason"], obj["problems"]),
                          (0, True, None, []))
-        self.assertEqual(len(obj["rows"]), 13 + 9 + 9 + 12)
+        self.assertEqual(len(obj["rows"]), 13 + 9 + 9 + 13)
+        self.assertEqual(obj["counts"]["rows"], 44)
         for row in obj["rows"]:
             for key in ("axis", "key", "move"):
                 self.assertIsInstance(row[key], str, row)

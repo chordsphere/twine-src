@@ -41,7 +41,7 @@ class RegistryParity(unittest.TestCase):
         self.assertEqual(set(load_registry()),
                          {"commands", "status", "bale check", "take", "carry probe",
                           "carry exchange", "carry response", "transitions",
-                          "spend totals", "spend check"})
+                          "spend totals", "spend check", "kill"})
 
     def test_verb_names_are_space_joined_paths(self):
         for name, cmd in load_registry().items():
@@ -61,6 +61,12 @@ class RegistryDiscovery(unittest.TestCase):
         """Arc 1 session 4: `transitions` is a verb of its own module."""
         self.assertIn("twine.commands.transitions", discover_modules())
         self.assertEqual(load_registry()["transitions"].path, ("transitions",))
+
+    def test_discovers_kill_module(self):
+        """Arc 1 session 5b: `kill` is a verb of its own module, discovered
+        like every other — no shared list changed."""
+        self.assertIn("twine.commands.kill", discover_modules())
+        self.assertEqual(load_registry()["kill"].path, ("kill",))
 
     def test_discovers_spend_module_as_a_group(self):
         """Arc 1 session 5a: `spend` is a group of two verbs, both from

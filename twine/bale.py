@@ -18,6 +18,14 @@ transition table keys on (twine/transitions.py), and the pin gates
 because the table's bale axes are that version's spellings and no
 other's (`Executable.drive_refusal`).
 
+Since Arc 1 session 5b, `twine kill` closes a killed session with one more
+argv built here, `unlock_argv`: `bale unlock <sid> --reason aborted
+--json`, the sid always explicit and the reason always `aborted` — never
+the no-sid form (bale would close whichever one session is open), never an
+inferred reason, never the flag that clears the lock past a HOLD branch
+(that state is `bale revert`'s, the operator's). No other `unlock` argv
+exists in twine.
+
 Sections:
   1. Install-root resolution     (~line 50)
   2. The installed version       (~line 105)
@@ -267,6 +275,10 @@ EXECUTABLE_RELPATH = Path("bin") / "bale"
 # reported as one JSON line. No admission, override or interaction flag
 # exists anywhere in twine; the merge stays the operator's.
 DRY_RUN_FLAGS = ("--dry-run", "--json")
+# The one closure reason twine ever passes to `bale unlock` (session 5b): a
+# kill's. bale 0.4.35 added it to CLOSURE_REASONS; the closure-reason
+# vocabulary in share/bale-consumption.toml records it.
+UNLOCK_REASON = "aborted"
 # A session id twine will pass to bale as an argument. Not bale's sid
 # grammar (YYYY-MM-DD-<slug>-NNN, which twine does not re-declare) but a
 # floor under it: it starts with a letter or digit, so it can never be
@@ -379,3 +391,28 @@ def absolute_path(name: str) -> str:
     directory (`~` expanded, `..` folded, symlinks left as named). No
     search path: the operator names the file."""
     return os.path.abspath(os.path.expanduser(name))
+
+
+def unlock_argv(executable: Path, sid: str) -> list[str]:
+    """`bale unlock <sid> --reason aborted --json` — the one `unlock` argv
+    twine builds (session 5b; brief ruling 2). The sid is always explicit:
+    without it bale closes whichever single session is open. The reason is
+    always `aborted`: without it bale infers `closed-read-only` or
+    `abandoned`. Nothing else is ever added. Raises ValueError for a sid
+    that could read as a flag or carries whitespace."""
+    if not SID_ARGUMENT.fullmatch(sid):
+        raise ValueError(f"session id {sid!r} is not safe to pass to bale")
+    return [str(executable), "unlock", sid, "--reason", UNLOCK_REASON, "--json"]
+
+
+def unlock_line(sid: str) -> str:
+    """The line an operator runs to close a killed session by hand, in the
+    repo whose session it is — the same argv without `--json`."""
+    return f"bale unlock {shlex.quote(sid)} --reason {UNLOCK_REASON}"
+
+
+def revert_line(sid: str) -> str:
+    """bale's own remedy when a session reached HOLD: revert discards the
+    `bale/<sid>` branch and clears the lock together. It touches git, so it
+    is always the operator's; twine never runs it."""
+    return f"bale revert {shlex.quote(sid)}"

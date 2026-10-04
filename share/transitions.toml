@@ -64,7 +64,7 @@ means = "the outcome `bale apply --json` prints — what twine meets through `ca
 order = 4
 source = "twine"
 means = "how a worker turn stops on the API side of twine's runtime (Arc 2), in twine's own names: each model adapter maps its provider's stop reasons onto these when the loop is built, verified against the SDK then, never named here from memory"
-keys = ["end-turn", "max-tokens", "model-refusal", "window-exhausted", "rate-limited", "overloaded", "network-failure", "timeout", "tool-error", "malformed-shape", "cap-reached", "killed"]
+keys = ["end-turn", "max-tokens", "model-refusal", "window-exhausted", "rate-limited", "overloaded", "network-failure", "timeout", "tool-error", "malformed-shape", "cap-reached", "killed", "cap-unchecked"]
 
 # ---------------------------------------------------------------------------
 # Moves
@@ -148,6 +148,11 @@ grounds = "cli-contract.md §11.2; bin/bale_relay.py 204-209 ('relay-refused')"
 actor = "operator"
 description = "The hard cap refused the call before it was made, so nothing more was spent; the operator decides whether to raise the cap or close the session, and in-flight work hands off as a bailout would."
 grounds = "D15 (the hard cap refuses loudly; a cap breach has bailout semantics); Arc 1 session 5"
+
+[move.fix-and-resume]
+actor = "operator"
+description = "The pre-call check could not run, so the call was not made and nothing was spent; the operator fixes the fault the refusal names — writes the missing price row, repairs the named stream line, names a state directory — and resumes the session, never by raising the cap."
+grounds = "D15 (refuse loudly, never degrade silently); session 2026-10-03-twine-cost-spine-005's Proposal 'A stop key for a cap that cannot be checked', ratified at sitting 2026-10-03-continue-twine-006 (ruling 4)"
 
 # --- the planner's: a decision about the work ---
 
@@ -400,7 +405,7 @@ move = "repack-on-new-base"
 means = "the base-drift gate refused (exit 1, session open; also under --dry-run)"
 
 # ---------------------------------------------------------------------------
-# Rows — stop (twine's own, 12)
+# Rows — stop (twine's own, 13)
 # ---------------------------------------------------------------------------
 
 [[row]]
@@ -474,3 +479,9 @@ axis = "stop"
 key = "killed"
 move = "close-aborted"
 means = "the kill-switch stopped the session from outside the model (D15; added by session 4)"
+
+[[row]]
+axis = "stop"
+key = "cap-unchecked"
+move = "fix-and-resume"
+means = "the cost spine's pre-call check could not run — an unpriced model, a malformed or unreadable stream, an absent or malformed price file, no state directory, a bad argument — so the call was not made (D15; added by session 5b)"

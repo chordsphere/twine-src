@@ -34,6 +34,11 @@
 #                    tests replay in its place, and why they may
 #   doubles          the test doubles standing in for this surface's
 #                    unrecorded outputs; a later recording replaces them
+#   unrecorded       kind = verb with neither a fixture nor a stand_in: why
+#                    nothing is recorded yet and what will record it; the
+#                    doubles alone stand in (session 2026-10-04-twine-kill-switch-002)
+#   read_at          optional: the probe(s) that read the surface's contract
+#                    from bale's source, when no output is recorded
 #   vocabulary       kind = verb, optional: the [[vocabulary]] entry (by its
 #                    `axis`) whose values the key twine reads from this
 #                    output takes — `apply`'s `outcome` is `apply-outcome`
@@ -185,6 +190,25 @@ doubles = ["tests/helpers.py StubBale and tests/test_carry_bale.py BaleDouble: r
 written_against = "0.4.45"
 note = "stdin is exactly the exchange block's own lines (twine.shapes.block_text); twine passes stdout through as text and reads no key from it. No relay output is recorded: the stand-in is the crafter's --emit-block rendering, which TARBALL.md 5.9.2 pins byte-identical to relay's rendering of the same record. A recording of relay_sid_stdin.txt (and its exit code) replaces the stand-in and the doubles"
 
+# --- the verb the kill-switch runs (session 2026-10-04-twine-kill-switch-002) ---
+
+[[surface]]
+kind = "verb"
+verb = "unlock"
+flags = ["--reason", "--json"]
+argv = ["unlock", "<sid>", "--reason", "aborted", "--json"]
+cwd = "repo"
+stdout = "exactly one JSON object line on a close (exit 0, outcome \"unlocked\"); a refusal is bale's fail(): exit 1, nothing on stdout, `[bale] error: <msg>` on stderr"
+keys = ["outcome", "sid", "closure_reason", "telemetry"]
+key_owner = "format_unlock_json docstring in bin/bale_report.py, lines 2920-2986 (outcome, sid, log, closure_reason, session_dir_wiped, branch_preserved, telemetry, debris, sweep)"
+vocabulary = "closure-reason"
+read_by = ["kill"]
+read_at = ["twine-unlock-contract", "twine-unlock-code"]
+doubles = ["tests/helpers.py unlock_json_double (the close, built from format_unlock_json's key contract), unlock_refusal_double (fail()'s stderr line), UnlockDouble (the run-seam double) and StubBale's unlock_stdout: a close, a refusal with exit 1 and empty stdout, the HOLD-branch refusal, a no-op, another sid or reason, stdout that is not one JSON object, a timeout"]
+unrecorded = "no `bale unlock --json` output has been recorded for any outcome: unlock mutates the registry, so a read-only probe cannot record one. Two recordings are queued at sitting 2026-10-03-continue-twine-006 (the sitting's own closed-read-only close, and an aborted close in a scratch repository); either replaces the doubles, never joins them"
+written_against = "0.4.45"
+note = "the only unlock argv twine builds (twine.bale.unlock_argv; read by `twine kill` and the Arc 2 loop's closure): the sid always explicit (without one bale closes whichever single session is open), the reason always aborted (without one bale infers closed-read-only or abandoned), no other flag — never the one that clears the lock past a HOLD branch — and never a retry. Exit and stdout alone tell a close from a refusal (cmd_unlock, bin/bale lines 3234-3479): ok only on exit 0 with outcome unlocked, sid the session and closure_reason aborted. Beyond the keys, twine reads one stderr text: the HOLD refusal's prefix `branch bale/<sid> exists`, to hand the operator bale's own remedy, `bale revert <sid>` (twine never runs revert); every other refusal is surfaced verbatim. The vocabulary named is closure_reason's. A pin bump re-reads the key contract and that text by probe"
+
 # --- text formats `twine take` reads (session 2026-10-02-twine-take-read-001) ---
 
 [[surface]]
@@ -283,7 +307,7 @@ home = "schemas/telemetry-record.schema.json"
 pointer = "/properties/attempts/items/properties/closure_reason"
 also_at = []
 excluded = ["null: the enum's tenth member, meaning the session is not closed; not a reason, so not a key"]
-read_by = ["transitions"]
+read_by = ["kill", "transitions"]
 written_against = "0.4.45"
 read_at = ["twine-table-vocab"]
 note = "why a session closed, stamped on unlock and revert events; `bale unlock --help` lists the same nine as --reason choices, and an omitted reason infers 'closed-read-only' for an empty recorded scope, 'abandoned' otherwise. Two spell with underscores (no_response, malformed_response); bale's spelling is the key"

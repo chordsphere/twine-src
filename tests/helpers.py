@@ -23,7 +23,16 @@ without any bale.
 
 Since session 5a: the spend doubles — PRICES_DOUBLE (invented prices for
 invented model ids), usage_double (a twine usage record's tokens, never a
-provider's response) and SpendStateDouble (a temp state directory)."""
+provider's response) and SpendStateDouble (a temp state directory).
+
+Since session 5b: the unlock doubles. No `bale unlock --json` output has
+been recorded for any outcome (a read-only probe cannot record one: unlock
+mutates the registry), so every unlock answer a test sees is built here
+from the key contract `format_unlock_json`'s docstring owns (quoted in the
+session-5b brief §2.1) and named as a double: unlock_json_double (the one
+line), UnlockDouble (a run-seam double answering the unlock argv) and
+StubBale's `unlock_stdout`. A recording replaces them; it never joins them.
+And RealGroup: a real `setsid`-led process group for the kill to kill."""
 
 from __future__ import annotations
 
@@ -166,6 +175,9 @@ def fixture_key(argv: list[str]) -> list[str]:
     if argv[:1] == ["apply"]:
         return ["apply"] + [t if t.startswith("-") else Role("tarball")
                             for t in argv[1:]]
+    if argv[:1] == ["unlock"] and len(argv) >= 2 and not argv[1].startswith("-"):
+        # `unlock <sid> --reason aborted --json` (session 5b): the sid is per run.
+        return ["unlock", Role("sid"), *argv[2:]]
     return argv
 
 
@@ -393,14 +405,15 @@ class StubBale:
     """A double, not bale: a temp install root whose `bin/bale` is a
     bash script this class writes, and `bin/VERSION` at the pin. The
     script records its argv, cwd and (for `relay`) stdin under `record`,
-    then replays the bytes of `relay_stdout` or `apply_stdout` on stdout,
+    then replays the bytes of `relay_stdout`, `apply_stdout` or (session
+    5b, a double built by unlock_json_double) `unlock_stdout` on stdout,
     `stderr` on stderr, and exits `exit_code`. It lets the CLI run end to
     end as a subprocess (`--bale-root`) with no bale anywhere; the bytes
     it replays are a recorded fixture or a double the test names."""
 
     def __init__(self, relay_stdout: Path | None = None,
                  apply_stdout: Path | None = None, exit_code: int = 0,
-                 stderr: str = "") -> None:
+                 stderr: str = "", unlock_stdout: Path | None = None) -> None:
         self._dir = tempfile.TemporaryDirectory(prefix="twine-stub-bale-")
         base = Path(self._dir.name)
         self.root = base / "root"
@@ -409,7 +422,8 @@ class StubBale:
         self.record.mkdir()
         (self.root / "bin" / "VERSION").write_text(PIN + "\n", encoding="utf-8")
         q = shlex.quote
-        replay = {"relay": relay_stdout, "apply": apply_stdout}
+        replay = {"relay": relay_stdout, "apply": apply_stdout,
+                  "unlock": unlock_stdout}
         # bash by absolute path: a verb run in-process may hand the child an
         # empty environment, and the shebang must not depend on PATH.
         bash = shutil.which("bash") or "/bin/bash"
@@ -519,3 +533,102 @@ class SpendStateDouble:
 
     def cleanup(self) -> None:
         self._dir.cleanup()
+
+
+# ---------------------------------------------------------------------------
+# Unlock doubles (Arc 1 session 5b). No `bale unlock --json` output has been
+# recorded: every answer below is built from format_unlock_json's key
+# contract (bale 0.4.45, bin/bale_report.py, quoted verbatim in the
+# session-5b brief §2.1) and is a double, named as one. The two recordings
+# queued at sitting continue-twine-006 replace them.
+# ---------------------------------------------------------------------------
+
+# format_unlock_json's nine keys, in the order its body builds them.
+UNLOCK_KEYS = ("outcome", "sid", "log", "closure_reason", "session_dir_wiped",
+               "branch_preserved", "telemetry", "debris", "sweep")
+
+
+def unlock_json_double(sid: str, /, **overrides) -> bytes:
+    """A `bale unlock <sid> --reason aborted --json` stdout line, as a double:
+    the nine keys of the key contract in its order, `json.dumps` with
+    default separators, one line, LF — the close of a session (`outcome`
+    "unlocked", exit 0). `overrides` replaces values (a `no-op`, another
+    sid, another reason) to prove what twine refuses."""
+    import json as _json
+    obj = {"outcome": "unlocked", "sid": sid,
+           "log": f"/double/repo/.bale/logs/{sid}.log",
+           "closure_reason": "aborted", "session_dir_wiped": True,
+           "branch_preserved": False,
+           "telemetry": f"claude/telemetry/{sid}.json", "debris": None,
+           "sweep": None}
+    for key, value in overrides.items():
+        if key not in obj:
+            raise KeyError(f"{key!r} is not in format_unlock_json's key contract")
+        obj[key] = value
+    assert tuple(obj) == UNLOCK_KEYS
+    return (_json.dumps(obj) + "\n").encode("utf-8")
+
+
+def unlock_refusal_double(message: str) -> bytes:
+    """bale's fail() on stderr, as a double: `[bale] error: <msg>` (bin/bale
+    lines 517-543); stdout is empty and the exit is 1."""
+    return f"[bale] error: {message}\n".encode("utf-8")
+
+
+class UnlockDouble:
+    """A run-seam double for the closure: records every call and answers it
+    with the given stdout, stderr and exit (default: the close of the sid
+    the argv names, exit 0). `timed_out` answers as the seam does for a call
+    it killed. Never bale: it answers only the one unlock argv shape and
+    fails the test on anything else."""
+
+    def __init__(self, stdout: bytes | None = None, stderr: bytes = b"",
+                 exit_code: int | None = 0, timed_out: bool = False) -> None:
+        self.calls: list[dict] = []
+        self.stdout, self.stderr = stdout, stderr
+        self.exit_code, self.timed_out = exit_code, timed_out
+
+    def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
+                 stdout_cap=None):
+        from twine.process import RunResult
+        argv = [str(a) for a in argv]
+        self.calls.append({"argv": argv, "cwd": cwd, "stdin": stdin,
+                           "timeout": timeout, "env": env, "stdout_cap": stdout_cap})
+        if Path(argv[0]).name != "bale" or argv[1:2] != ["unlock"]:
+            raise AssertionError(f"UnlockDouble answers the unlock argv only: {argv}")
+        stdout = (unlock_json_double(argv[2]) if self.stdout is None
+                  else self.stdout)
+        if self.timed_out:
+            return RunResult(argv=tuple(argv), exit_code=None, stdout=b"",
+                             stderr=self.stderr, timed_out=True)
+        return RunResult(argv=tuple(argv), exit_code=self.exit_code, stdout=stdout,
+                         stderr=self.stderr)
+
+
+class RealGroup:
+    """A real process group to kill: bash started as a session leader
+    (`setsid`, so it leads its own group), running `body` and printing the
+    pid of each background child it starts. `pgid` is bash's pid. Cleanup
+    SIGKILLs the group and reaps bash, whatever the test did."""
+
+    def __init__(self, body: str = "sleep 60 & echo $!; sleep 60 & echo $!; wait",
+                 children: int = 2) -> None:
+        bash = shutil.which("bash") or "/bin/bash"
+        self.proc = subprocess.Popen([bash, "-c", body], start_new_session=True,
+                                     stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+        self.pgid = self.proc.pid
+        self.children = [int(self.proc.stdout.readline()) for _ in range(children)]
+
+    @property
+    def pids(self) -> list[int]:
+        return [self.pgid, *self.children]
+
+    def cleanup(self) -> None:
+        import signal as _signal
+        try:
+            os.killpg(self.pgid, _signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        self.proc.stdout.close()
+        self.proc.wait(timeout=10)
+

@@ -11,8 +11,10 @@
 > exchange`, `carry response`, per-run values or recorded exits) and by
 > `2026-10-03-twine-transitions-004` (§12, the `[[vocabulary]]` lines of
 > §6, and §11.1's pin gate) and by `2026-10-03-twine-cost-spine-005` (§13,
-> and the lines naming `spend`); a later session that changes a line
-> changes it here in the same response.
+> and the lines naming `spend`) and by `2026-10-04-twine-kill-switch-002`
+> (§14, the `cap-unchecked` lines of §12.2 and §13.7, §10.6's group wait,
+> the `unrecorded` line of §6, and the lines naming `kill` or `unlock`); a
+> later session that changes a line changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -47,10 +49,11 @@
 - Verbs today: `commands`, `status`, `bale check`, `take`, the
   `carry` group — `carry probe` (`twine/commands/carry.py`), `carry
   exchange` and `carry response` (`twine/commands/carry_bale.py`) —
-  `transitions` (`twine/commands/transitions.py`, §12), and the `spend`
+  `transitions` (`twine/commands/transitions.py`, §12), the `spend`
   group — `spend totals` and `spend check` (`twine/commands/spend.py`,
-  §13). One group's verbs may live in several modules; the parser
-  assembles the group from all of them.
+  §13) — and `kill` (`twine/commands/kill.py`, §14). One group's verbs
+  may live in several modules; the parser assembles the group from all
+  of them.
 - `twine commands --json` emits
   `{"command": "commands", "ok": true, "commands": [{"name", "summary",
   "json", "cli_only"}, …]}` — every registered verb, in registry order,
@@ -122,7 +125,10 @@ sha256, one `[[surface]]` per bale surface twine reads (the file
 where none yet — `key_owner`, `read_by`, `fixture`, `written_against`;
 a per-run value in `argv` is written `<role>` (§7); a verb with no
 recording has no `fixture` and names its `stand_in` and the `doubles`
-standing in for it, until a recording replaces them;
+standing in for it, until a recording replaces them — or, when nothing
+recorded can stand in (`unlock`, §14.7), no `stand_in` but `unrecorded`,
+saying why and what will record it, and `read_at`, the probes that read
+its contract from bale's source;
 and, `kind = "format"`, each text format `take` parses out of a paste:
 `format`, `locator`, `home`, `emitted_by`, `fixtures`, `keys`, `read_by`,
 `written_against`),
@@ -141,8 +147,9 @@ whose key takes one of them names it as `vocabulary` (`apply`'s
 `outcome` is `apply-outcome`). A pin bump re-reads them by probe and
 diffs them as data (D4). The verbs twine runs today: `bale apply
 --dry-run --json <tarball>` (read by `carry response`: the key
-`outcome`) and `bale relay <sid> -` (read by `carry exchange`: stdout as
-text, no key). The file's header comment spells the entry shapes;
+`outcome`), `bale relay <sid> -` (read by `carry exchange`: stdout as
+text, no key) and `bale unlock <sid> --reason aborted --json` (read by
+`kill`: the keys `outcome`, `sid`, `closure_reason` and `telemetry`; §14). The file's header comment spells the entry shapes;
 `tests/test_consumption_manifest.py` walks them. `twine.bale.load_manifest`
 refuses a `[[vocabulary]]` entry without an axis or a home, a second
 entry for one axis, or values that are empty or repeat.
@@ -160,7 +167,9 @@ A **per-run value** — a session id read out of a block, a tarball's
 path — never enters a name: `fixture_key(argv)` replaces it with its
 role, and a role is a `_` group of its own. `bale relay <sid> -` names
 `relay_sid_stdin.txt`; `bale apply --dry-run --json <tarball>` names
-`apply_--dry-run_--json_tarball.json`. A row's **exit** column is the
+`apply_--dry-run_--json_tarball.json`; `bale unlock <sid> --reason
+aborted --json` would name `unlock_sid_--reason-aborted_--json.json`
+(nothing is recorded there yet: §14.7). A row's **exit** column is the
 exit code the fixture player answers; a row that did not capture it
 says `unrecorded`, and the player answers it only when the test names
 the code it assumes. No row records stderr; the player answers it
@@ -192,8 +201,9 @@ placeholders mechanically (`tests/helpers.py` `filled_probe`). `bale check` is t
 (`bin/VERSION` at the pin, at another version, and absent), never a
 real install, and every CLI subprocess runs with `TWINE_BALE_ROOT`
 pinned to a temp directory so a bale on `PATH` cannot leak into a
-verdict. The spend verbs (§13) read only temp state directories the tests
-build, never the real default (§13.9).
+verdict. The spend verbs (§13) and `kill` (§14) read and write only temp
+state directories the tests build, never the real default (§13.9,
+§14.8); no test runs a real `bale unlock`.
 
 ## 9. `twine take FILE [--json]` — the courier's read
 
@@ -427,7 +437,32 @@ The default, `run_process`, starts the child as a new session (its own
 process group) and kills the group on timeout, on the cap, and when
 the child exits; a grandchild that leaves the group with `setsid` is
 beyond its reach (it waits two seconds for the pipes, then logs and
-gives up). Tests inject a double with the same signature:
+gives up).
+
+**The group wait** (session 5b). However the run ended — the child's exit,
+the timeout, the cap, or the pipes reaching EOF in the same instant the
+child exits (before session 5b that last case could skip the kill, leaving
+a member that held no pipe alive) — `run_process` sends SIGKILL to the
+group, then returns only once no member of it is alive, or after two more
+seconds (`GROUP_GRACE_SECONDS`), naming the members still alive in
+`RunResult.group_survivors` (a tuple of pids, default `()`) and logging
+them. Both happen before the child is reaped — the runner learns of the
+exit without reaping (`waitid` with `WNOWAIT`) — so the child's zombie still
+holds the group id and neither can reach a group that reused the number. When
+the pipes reach EOF with no timeout or cap, the runner first gives the
+child up to two seconds (`PIPE_GRACE_SECONDS`) to exit on its own — a child
+that closes its pipes in its exit handler (coreutils `cat`) would otherwise
+be killed in that gap and reported as the runner's SIGKILL — so a clean
+exit's code is always the child's own. A member is alive unless the kernel
+reports it a zombie or dead: a SIGKILLed process closes its descriptors
+before it becomes a zombie, and before this wait a caller could see the
+pipes close while a member still ran (session 5a's HOLD). Members are
+read from `/proc`; where there is none the wait is skipped and logged and
+`group_survivors` is `()`. So a `RunResult` promises: the group was sent
+SIGKILL, and — on Linux — nothing of it was alive when the run returned,
+or the survivors are named. It promises nothing about a process that left
+the group. `twine kill` does not rely on it: its group wait is its own
+(§14.4). Tests inject a double with the same signature:
 `tests/helpers.py` carries `RecordingRunner` and `FixturePlayer`, the
 latter answering a `bale …` argv from `fixture_relpath(argv[1:], where)`
 — the argv normalized, per-run values replaced by their roles — with
@@ -445,7 +480,8 @@ and build its argv only in `twine/bale.py` (`relay_argv`,
 The executable is `<root>/bin/bale`, the root resolved exactly as `bale
 check` resolves it (§5): `--bale-root DIR`, else `TWINE_BALE_ROOT`, else
 `command -v bale` followed to its real path and up. No root found is a
-refusal; a root with no runnable `bin/bale` is learned by starting it,
+refusal; so, since session 5b, is a current directory that no longer
+exists when `--cwd` is not given; a root with no runnable `bin/bale` is learned by starting it,
 also a refusal (`ran` false). The installed `bin/VERSION` is reported
 beside the pin in `bale` (`executable`, `root`, `source`, `installed`,
 `pin`, `pin_matches`).
@@ -611,7 +647,7 @@ Four axes, rendered in this order:
 | `telemetry-outcome` | bale 0.4.45's 13 telemetry outcomes | §6 `[[vocabulary]]` |
 | `closure-reason` | bale 0.4.45's 9 closure reasons (`null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
 | `apply-outcome` | the 9 outcomes `bale apply --json` prints | §6 `[[vocabulary]]` |
-| `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `cap-reached`, `killed` | the table's `keys` |
+| `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `cap-reached`, `killed`, `cap-unchecked` (13; the last added by session 5b) | the table's `keys` |
 
 A bale axis takes its keys from the manifest's vocabulary of the same
 name and never declares its own, so its keys are exactly bale's
@@ -624,7 +660,12 @@ what happens next. No move has twine merge or apply anything (T12).
 Two moves are D17's, ratified: `revert-and-repack` for `held` (both
 `telemetry-outcome` and `apply-outcome`), and `respawn-from-request`
 for `malformed_response` (`closure-reason`) and `malformed-shape`
-(`stop`).
+(`stop`). The cost spine's two stops have two moves: `cap-reached` is
+`stop-at-cap` (the cap refused; raise it or close), and `cap-unchecked` is
+`fix-and-resume`, the operator's — the check could not run, so the remedy
+is to fix the named fault (write the price row, repair the stream line,
+name a state directory) and resume, never to raise the cap. `killed` is
+`close-aborted`, twine's (§14). The table has 44 rows.
 
 ### 12.3 ok, and the problems that make it false
 
@@ -680,12 +721,11 @@ problems). The bale axes are held to `tests/helpers.py`
 `tests/test_consumption_manifest.py` asserts the manifest's lists and
 the table's bale-axis keys agree.
 
-## 13. `twine spend` — the cost spine (D15, without the kill-switch)
+## 13. `twine spend` — the cost spine (D15)
 
 Arc 1 session 5a. Twine's usage record, the running totals over it, and
 the hard cap's pre-call check. The kill-switch — the between-calls abort,
-the process-level kill and the `aborted` closure — is session 5b's and is
-not here. The pure module is `twine/spend.py`; the verbs are
+the process-level kill and the `aborted` closure — is session 5b's: §14. The pure module is `twine/spend.py`; the verbs are
 `twine/commands/spend.py`. Doctrine: PLANNER.md §17, "refuse loudly, never
 degrade silently".
 
@@ -871,16 +911,17 @@ writes nothing. It admits the call only if
   the function's argument). Where its value comes from — the office's house
   rules (Q-6) — is not this session's.
 
-**Admitted:** `ok` true, `admitted` true, exit 0. **Refused by the cap:**
-`ok` false, exit 1, `refusal` and **`stop` both `"cap-reached"`** — the key
-on the transition table's `stop` axis whose move is `stop-at-cap` (§12) —
-and the numbers that decided it. **A refusal never shrinks the call to
+**Admitted:** `ok` true, `admitted` true, `stop` null, exit 0. **Refused
+by the cap:** `ok` false, exit 1, `refusal` and **`stop` both
+`"cap-reached"`** — the key on the transition table's `stop` axis whose
+move is `stop-at-cap` (§12) — and the numbers that decided it. **A refusal never shrinks the call to
 fit**: the call as asked (`input_tokens`, `max_output_tokens`) is reported
 unchanged, and nothing in the result offers a smaller one.
 
 **If the cap cannot be checked, the call does not happen.** Each of these
-is `ok` false, `admitted` false, exit 1, `stop` `null`, its own `refusal`
-and `reason` — never an admission:
+is `ok` false, `admitted` false, exit 1, **`stop` `"cap-unchecked"`** (the
+`stop` key whose move is `fix-and-resume`, the operator's; session 5b),
+its own `refusal` and `reason` — never an admission:
 
 | `refusal` | when |
 |---|---|
@@ -897,7 +938,7 @@ The JSON twin, beside `command` and `ok`. Fixed names:
 | key | value |
 |---|---|
 | `admitted` | whether the call may be made; equal to `ok` |
-| `stop` | `"cap-reached"` exactly when the cap refused the call; else `null` |
+| `stop` | `null` when admitted; `"cap-reached"` exactly when the cap refused the call; `"cap-unchecked"` for every other refusal (`twine.spend.STOP_CAP_REACHED`, `STOP_CAP_UNCHECKED`) — so the loop always stops with a key the table has a move for |
 | `refusal`, `reason` | why it was not admitted; `null` when admitted |
 | `spend_so_far_usd` | own + served, a JSON number |
 | `worst_case_usd` | the call's worst-case cost |
@@ -913,8 +954,8 @@ dearest), `input_price_usd_per_mtok`, `output_price_usd_per_mtok`,
 are `null` when the check could not compute them.
 
 Human mode: one verdict line — `admitted`, `REFUSED (cap-reached) — the call
-is not made, and it is not shrunk to fit`, or `NOT CHECKED (<refusal>) — …;
-the call is not made` — then the arithmetic.
+is not made, and it is not shrunk to fit`, or `NOT CHECKED (<refusal>; stop
+cap-unchecked) — …; the call is not made` — then the arithmetic.
 
 ### 13.8 One function, two faces
 
@@ -950,3 +991,260 @@ doubles, named as such, for invented model ids. No test resolves the real
 default state directory: the in-process runs have an empty environment,
 and the subprocess runs carry no `HOME`, so a verb without `--state-dir`
 refuses.
+
+## 14. `twine kill SID [--state-dir DIR] [--cwd DIR] [--bale-root DIR] [--grace SECONDS] [--json]` — the kill-switch (D15)
+
+Arc 1 session 5b. D15, the architect's words: "every session spawn should
+come with a foolproof kill-switch and running total of the money used
+through the api, including a hard cap for budget reasons"; the kill "must
+work when the harness itself is wedged". The running total and the cap
+are §13's. This is the kill-switch, in three layers: the **between-calls
+abort**, the **process-level kill** and the **`aborted` closure**. The
+module is `twine/kill.py`; the verb is `twine/commands/kill.py`, thin over
+it. `twine kill` is the operator's one line; the Arc 2 loop calls the same
+functions (§14.8).
+
+### 14.1 Refused before anything is done
+
+Every reason named at once, in `refusals` and `reason`; `ok` false, exit 1,
+`stopped_at` `"refused"`, and **nothing is done** — no file written, no
+signal sent, no bale started:
+
+- SID is not a session id: it must start with a letter or digit, hold
+  only letters, digits, `.`, `_`, `-` (the rule `relay_argv` applies, §11.2;
+  it names a file and is passed to bale as an argument) and be at most 200
+  characters (`twine.kill.is_sid`);
+- no state directory (§13.2's resolution and refusals: `--state-dir`, else
+  `$TWINE_STATE_DIR`, else XDG, else refused; never the working directory;
+  an empty `--state-dir` is refused), **or one that does not exist** (or is
+  not a directory). A kill never creates the directory it reports to: the
+  runtime writes its running record there and the loop reads its abort
+  request there, so a kill written anywhere else — a mistyped `--state-dir`
+  — would be an ok kill that stopped nothing. A session that never ran
+  under twine has nothing to kill; the reason names `bale unlock <sid>
+  --reason aborted` for it;
+- `--cwd` is not a directory, or, without `--cwd`, the current directory no
+  longer exists;
+- `--grace` is not a finite, non-negative number of seconds of at most 600
+  (a named refusal, not a usage error);
+- no bale is found, or it is not the pinned one (§11.1's pin gate). **The
+  pin is checked before the abort is requested**, so an unpinned bale
+  refuses the whole kill rather than leaving a half-done one.
+
+A missing SID is argparse's usage error (exit 2, nothing on stdout, §3).
+
+### 14.2 The three steps, in order
+
+1. **Request the between-calls abort** (§14.3) — durably, idempotently.
+2. **Kill the recorded process group**, if the session's runtime recorded
+   one (§14.4): SIGTERM to the group, then SIGCONT (a stopped member sees
+   SIGTERM only once continued), up to `--grace` seconds (default 5) for its
+   members to go, SIGKILL to the group if any remain, then up to 5 more
+   seconds until **no member of the group is alive**. The step is
+   finished only then; otherwise it names every surviving pid and stops.
+   No running record is not a fault — a session between runs, or one whose
+   runtime never started, has no process to kill, and `process` is `null`.
+   A malformed record is a named refusal of this step (the abort request
+   still lands), never a guess at a pgid.
+3. **Close the session in bale with `aborted`** (§14.5) — only when the
+   abort request stands and no process of the group is alive (or none was
+   recorded). **No closure is attempted while a member of the killed group
+   is alive**: a record that says `aborted` while the worker's shell still
+   runs is the mystery D15 forbids.
+
+Each step is reported on stderr as it happens, and in the twin. `ok` is
+true exactly when all three landed; exit 0. Otherwise exit 1, `stopped_at`
+names the first step that did not complete — `abort`, `process` or
+`closure` — and `operator_line` is the one line that finishes by hand:
+
+| stopped at | `operator_line` |
+|---|---|
+| any step, while the recorded group is not known to be gone (survivors, no `/proc`, twine kill's own group) — whichever step stopped first | `kill -KILL -- -<pgid>` — the pgid and the signal; then run `twine kill` again to close. A close is never handed out while a member may live |
+| `process`, the record malformed | `null` — no one line finishes it safely: the record names no group, and the reason says to find and stop the session's runtime before closing it |
+| `abort` (the request could not be written), no group alive | the unlock line; the reason says the abort request is missing |
+| `closure`, bale refused because the session reached HOLD (its stderr names the branch `bale/<sid>`) | `bale revert <sid>` — bale's own remedy, which touches git and so stays the operator's; **twine never runs `revert`** |
+| `closure`, any other refusal, a timeout, or a line that was not the close | `bale unlock <sid> --reason aborted` (run in the repo whose session it is) |
+| nothing (ok), or `refused` | `null` — nothing is left, or nothing was done: fix the named fault and run `twine kill` again |
+
+Requesting the abort is idempotent. Running `twine kill` again after a
+kill that stopped short finishes it; after one that closed the session, the
+abort request and the process step are no-ops and bale refuses the closure
+("not open") — not ok, exit 1, the refusal surfaced.
+
+### 14.3 The abort request: `<state-dir>/abort/<sid>.json`
+
+One file per session: a JSON object, `sid` and `requested_at` (UTC, RFC
+3339), written durably (a temp file, fsynced, hard-linked into place, the
+directory fsynced; the directory 0700, the file 0600) and only if absent —
+the first request's time stands. **Its presence is the signal**: the loop
+reads any file at that path, whatever its content, as a request. It
+survives the runtime's death and needs no runtime to exist. It is twine's
+record of intent to stop, and is never removed by twine.
+
+`abort_requested(state_dir, sid)` is what the Arc 2 loop checks before every
+model call, beside `check_call` (§13.8). Only a path that does not exist
+reads as no request. A request that cannot be looked for — the state
+directory unreadable, or a file where `abort/` should be — reads as
+**requested** and is logged: a kill-switch that cannot be read stops the loop rather than letting
+it spend (fail closed). Observed, the loop stops with the `stop` key
+`killed` (`twine.kill.STOP_KILLED`; its move is `close-aborted`, twine's,
+§12.2) and runs the closure (§14.5).
+
+### 14.4 The running record, and the process kill
+
+The runtime (Arc 2) records, before it starts a model call or a tool, the
+process group it runs in: `register_running(state_dir, sid, pgid, pid)`
+writes `<state-dir>/running/<sid>.json` — `sid`, `pgid`, `pid`, `started_at`
+(UTC, RFC 3339) and `leader_start_ticks` (the group leader's start time,
+`/proc/<pgid>/stat` field 22, or `null` when it could not be read) — durably,
+replacing an older one (the directory is created when absent: the
+runtime's is the state directory); `clear_running(state_dir, sid)` removes
+it on a clean end. It is a **cache** in N4's sense (re-derivable; deleting it loses
+nothing of record), unlike `spend.jsonl`. Nothing writes it in Arc 1 but
+the tests. A pgid or pid that is not an integer above 1 is refused at
+registration and is malformed on reading (0 would signal the signaller's own
+group, 1 is init's); so is a record that is not one JSON object, whose
+`sid` is not the file's, whose `started_at` is not a non-empty string, or
+whose `leader_start_ticks` is neither a non-negative integer nor null.
+
+`twine kill` needs nothing from the runtime but this record (brief ruling
+5): it is its own process, reads the state directory and signals. Members
+of the group are read from `/proc` (a member is alive unless the kernel
+reports it a zombie or dead). Before signalling:
+
+- the recorded group is **twine kill's own** process group → not signalled;
+  the step stops ("run twine kill from another shell");
+- **stale**: the record carries `leader_start_ticks`, and a live process now
+  holds the number `pgid` with another start time → the recorded group is
+  gone (Linux never hands out a pid still in use as a group id), so nothing
+  is signalled, `stale` and `dead` are true, and the closure proceeds;
+- **no member alive** → nothing is signalled; `dead` is true.
+
+Without `/proc` the group is still signalled, but it is never reported
+dead: the step stops, saying its members cannot be enumerated. Once the
+group is confirmed gone, `twine kill` removes the running record (a cache)
+so a later kill cannot signal a number that has been reused;
+`record_cleared` says whether it did. A malformed record is left in place
+for the operator.
+
+**One group, not every group.** The record holds the one group the runtime
+runs in. A process the runtime starts through the seam (§10.6) leads a
+group of its own (`run_process` starts every child in a new session), so it
+is outside the recorded group: `twine kill` neither signals nor waits for
+it. Today nothing runs a session under twine, so nothing is missed; the
+Arc 2 runtime must either record every group it starts or start its tools
+inside its own (session 5b's notes propose the shape). Until it does, `dead`
+means the recorded group is gone, not every process the session started.
+
+### 14.5 The closure: `bale unlock <sid> --reason aborted --json`
+
+Run through the seam (§10.6), with the pinned bale (§11.1), in `--cwd`
+(default: the current directory — the repo whose session SID is), with
+twine's environment, stdin `/dev/null`, a 120-second timeout and a 1 MiB
+stdout cap, and only with the pinned bale: `close_aborted` checks the pin
+itself (`Executable.drive_refusal`) and fails without starting a bale that
+is not the pin, so the loop cannot reach one by forgetting the gate. **This
+is the only `unlock` argv twine builds**
+(`twine.bale.unlock_argv`; a test asserts no other code builds one): the
+sid always explicit — `bale unlock` with no sid closes whichever one session
+is open — the reason always `aborted` — without it bale infers
+`closed-read-only` or `abandoned` — never the flag that clears the lock past
+a HOLD branch, never another flag, and **never a retry**. `bale unlock`
+performs no git operation and merges nothing (T12 is untouched).
+
+**ok** exactly when bale exits 0 and its stdout is one JSON object whose
+`outcome` is `"unlocked"`, whose `sid` is SID and whose `closure_reason` is
+`"aborted"`; its `telemetry` (the closure record's repo-relative path, or
+null) is reported. Otherwise not ok: bale's exit, its stderr (bale's refusal
+is `[bale] error: <msg>` on stderr with exit 1 and nothing on stdout, under
+`--json` too) and, when stdout was not that object, what it was instead.
+Exit and stdout alone tell a close from a refusal; the one stderr text twine
+reads is the HOLD refusal's `branch bale/<sid> exists`, to hand back bale's
+own remedy (§14.2). A closure that timed out may or may not have closed the
+session; the reason says so, and `bale status` is how to tell.
+
+The closure is `close_aborted(run, executable, sid, cwd=, env=)`, shared by
+the verb and the loop (§14.8).
+
+### 14.6 The JSON twin
+
+One line (§3), `command` `"kill"`. Fixed names:
+
+| key | value |
+|---|---|
+| `sid` | SID as given |
+| `abort_requested` | the abort request stands (written now, or already) |
+| `process` | `null` when no running record was found; else an object: `pgid`, `pid`, `started_at` (the record's; null when it was malformed), `signalled` (whether a signal was delivered), `signals` (those delivered, in order: `"SIGTERM"`, `"SIGCONT"`, `"SIGKILL"`), `dead`, `survivors` (the pids still alive; `[]` when dead), `stale`, `record_cleared`, `record` (its path), `error` (why the step could not finish, or null) |
+| `closed` | bale closed the session `aborted` (§14.5's ok) |
+| `closure` | bale's one JSON object, parsed; null when bale was not reached or printed none |
+| `telemetry` | `closure`'s `telemetry`, or null |
+| `operator_line` | the line that finishes by hand (§14.2), or null |
+| `stopped_at` | `"refused"`, `"abort"`, `"process"`, `"closure"`, or null when ok |
+| `reason` | every refusal and failure, `; `-joined; null when ok |
+| `refusals` | the reasons nothing was done (§14.1), in order |
+
+And beside them: `abort` (`path`, `already_requested`, `requested_at`),
+`argv`, `ran`, `exit_code`, `stdout`, `stderr`, `stderr_truncated`,
+`timed_out`, `capped`, `duration_seconds` (the bale call, as §11.2's),
+`state_dir`, `state_dir_source`, `cwd`, `grace_seconds`, `bale` (§11.1).
+Every path — refused, stopped at any step, ok — carries the same key set,
+the uncomputed values null.
+
+Human mode: a verdict line — `kill SID: done — …`, `kill SID: refused —
+nothing was done: …` or `kill SID: NOT FINISHED (stopped at <step>) — …` —
+then one line per step (`abort:`, `process:`, `closure:`) and, when there is
+one, `finish by hand: <operator_line>`. bale's stderr goes to stderr.
+
+### 14.7 What is recorded, and what stands in
+
+**No `bale unlock --json` output has been recorded**, for any outcome: unlock
+mutates the registry, so a read-only probe cannot record one. What twine
+relies on is read from bale 0.4.45's source by the probes
+`twine-unlock-contract` and `twine-unlock-code` (2026-10-04):
+`format_unlock_json`'s docstring owns the key contract — nine keys, in
+order: `outcome` (`"unlocked"` or `"no-op"`), `sid`, `log`,
+`closure_reason`, `session_dir_wiped`, `branch_preserved`, `telemetry`,
+`debris`, `sweep` — and `cmd_unlock`'s paths say a refusal exits 1 with an
+empty stdout. Every unlock answer in `tests/` is a **double built from that
+key contract, named as a double** (`tests/helpers.py` `unlock_json_double`,
+`unlock_refusal_double`, `UnlockDouble`, and `StubBale`'s `unlock_stdout`),
+and the consumption manifest's `unlock` surface says so (`unrecorded`, §6).
+Two recordings are queued — a `closed-read-only` close and an `aborted` close
+in a scratch repository; a recording, landed at
+`fixtures/bale-0.4.45/twine-src/unlock_sid_--reason-aborted_--json.json`,
+replaces the doubles and never joins them.
+
+### 14.8 One function, two faces
+
+The verb is thin over `twine/kill.py`, and the Arc 2 loop calls the same
+functions:
+
+```
+request_abort(state_dir: Path, sid: str) -> AbortRequest     # raises KillError
+abort_requested(state_dir: Path, sid: str) -> bool           # before every call
+register_running(state_dir: Path, sid: str, pgid: int, pid: int) -> RunningRecord
+clear_running(state_dir: Path, sid: str) -> bool
+read_running(state_dir: Path, sid: str) -> RunningRecord | None   # raises RunningRecordError
+kill_group(record: RunningRecord, *, grace: float, wait: float) -> ProcessStep
+close_aborted(run: Runner, executable: bale.Executable, sid: str, *, cwd, env) -> Closure
+kill_session(state_dir: Path, sid: str, *, run: Runner, executable: bale.Executable,
+             cwd, env, grace: float = 5.0, wait: float = 5.0) -> KillReport
+STOP_KILLED = "killed"
+```
+
+`close_aborted` takes the seam's runner, so the tests inject a double, and
+the executable as `locate_executable` found it, whose pin it checks; the
+caller has checked that no member of the group is alive.
+`KillReport.as_json()` is the verb's payload; a test asserts the verb's JSON
+equals the function's. Neither module spawns a process or reaches a
+network: bale runs through the runner it is handed, and signals and `/proc`
+reads go through `twine/process.py`'s group helpers (`group_members`,
+`signal_group`, `read_stat`, `wait_group_gone`).
+
+The tests (`tests/test_kill.py`) kill real `setsid`-led process groups they
+start (`tests/helpers.py` `RealGroup`) — one that honours SIGTERM, one that
+ignores it, one with a stopped member — and drive survivors, a missing `/proc` and twine kill's own
+group through doubles of the group helpers. Every state directory is a
+temporary one; the in-process runs carry an empty environment, so a verb
+without `--state-dir` refuses rather than touch the real default; tests that
+wait on a kill poll rather than check once.
