@@ -26,6 +26,12 @@ Modules:
             prices (twine ships none), the running totals and the hard
             cap's pre-call check — one function per face, called by the
             `spend` verbs and, later, the Arc 2 loop; pure, no network
+  kill      the kill-switch (D15, session 5b): the between-calls abort
+            (<state-dir>/abort/<sid>.json), the running record and the
+            process-level kill of a session's recorded group, and the
+            `aborted` closure (`bale unlock <sid> --reason aborted --json`,
+            through the seam) — called by `twine kill` and, later, the Arc
+            2 loop; spawns nothing itself
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py and carry_bale.py)
 

@@ -382,9 +382,15 @@ def response_lines(outcome: ResponseOutcome) -> list[str]:
 
 def resolve_cwd(name: str | None, refusals: list[str]) -> str:
     """Where bale runs: `--cwd`, else the current directory — the repo
-    whose session the block or tarball belongs to."""
+    whose session the block or tarball belongs to. A current directory
+    that no longer exists is a refusal, never a traceback (session 5b)."""
     if name is None:
-        return str(Path.cwd())
+        try:
+            return str(Path.cwd())
+        except OSError as exc:
+            refusals.append(f"the current directory cannot be resolved "
+                            f"({exc.strerror or exc}); name the repo with --cwd")
+            return "."
     path = Path(name).expanduser()
     if not path.is_dir():
         refusals.append(f"--cwd {name} is not a directory")

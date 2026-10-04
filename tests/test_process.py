@@ -6,15 +6,18 @@ from __future__ import annotations
 
 import ast
 import shutil
+import signal
+import tempfile
 import time
 import unittest
+from pathlib import Path
 
-from twine import REPO_ROOT
+from twine import REPO_ROOT, process
 from twine.cli import Context
 from twine.process import (DEFAULT_STDERR_CAP, RunError, RunResult,
                            run_process, runner_confines)
 
-from tests.helpers import FixturePlayer, dies_within
+from tests.helpers import FixturePlayer, RealGroup, dies_within
 
 # Every command below is bash, the one interpreter the seam's first caller
 # (carry probe) needs; none of them reaches outside its temp state. The
@@ -52,6 +55,42 @@ class RealRuns(unittest.TestCase):
         self.assertLess(elapsed, 8, f"the run outlived its timeout: {elapsed:.1f}s")
         child = int(r.stdout.split()[0])
         self.assertTrue(dies_within(child), f"sleep {child} outlived the timeout")
+
+    def test_the_run_returns_only_once_its_group_is_gone(self):
+        """Session 5b: after a kill the runner waits for every member of the
+        group, so one check right after the run is enough — no polling."""
+        r = run_process([BASH, "-c", "sleep 30 & echo $!; sleep 30 & echo $!; wait"],
+                        timeout=1)
+        self.assertTrue(r.timed_out)
+        self.assertEqual(r.group_survivors, ())
+        for pid in map(int, r.stdout.split()):
+            # Polled, not checked once (brief §7; cost-spine-005's race): the
+            # guarantee is group_survivors == (), asserted above.
+            self.assertTrue(dies_within(pid), f"{pid} outlived the run")
+
+    def test_a_member_with_its_pipes_closed_dies_with_the_run(self):
+        """Session 5b's review: the child exits as its pipes reach EOF, and a
+        backgrounded member holds no pipe — the loop can end before it sees
+        the exit. The group is SIGKILLed anyway, every time."""
+        script = "sleep 30 >/dev/null 2>&1 </dev/null & echo $!; exit 0"
+        for attempt in range(25):
+            with self.subTest(attempt=attempt):
+                r = run_process([BASH, "-c", script], timeout=20)
+                self.assertEqual((r.exit_code, r.group_survivors), (0, ()))
+                pid = int(r.stdout.split()[0])
+                # Polled (brief §7): a SIGKILLed sleep can close its
+                # descriptors before the kernel marks it a zombie; a sleep the
+                # runner never killed is still alive after 3 s and fails here.
+                self.assertTrue(dies_within(pid), f"sleep {pid} outlived the run")
+
+    def test_a_clean_exit_is_never_reported_as_the_runners_kill(self):
+        """Session 5b's review: `cat` closes its pipes in its exit handler,
+        just before it exits; the runner waits for the exit before it kills
+        the group, so the exit code is the child's own."""
+        for attempt in range(200):
+            with self.subTest(attempt=attempt):
+                r = run_process([BASH, "-c", "cat"], timeout=10)
+                self.assertEqual((r.exit_code, r.stdout), (0, b""))
 
     def test_a_backgrounded_child_cannot_hold_the_pipes_open(self):
         """bash exits at once; the sleep it left behind holds stdout. The
@@ -111,6 +150,42 @@ class TheSeam(unittest.TestCase):
                     roots.add(node.module.split(".")[0])
             with self.subTest(module=path.name):
                 self.assertFalse(roots & forbidden, roots & forbidden)
+
+    def test_group_members_reads_a_real_group(self):
+        group = RealGroup()
+        self.addCleanup(group.cleanup)
+        self.assertEqual(process.group_members(group.pgid), sorted(group.pids))
+        self.assertEqual(process.start_ticks(group.pgid),
+                         process.read_stat(group.pgid).start_ticks)
+        self.assertIsNone(process.signal_group(group.pgid, signal.SIGKILL))
+        self.assertEqual(process.wait_group_gone(group.pgid, 3.0), [])
+        self.assertEqual(process.group_members(group.pgid), [])
+        self.assertEqual(process.signal_group(2 ** 22 + 7, 0), "gone")
+
+    def test_signal_group_never_signals_group_0_or_1(self):
+        for pgid in (-5, 0, 1):
+            with self.subTest(pgid=pgid), self.assertRaises(ValueError):
+                process.signal_group(pgid, signal.SIGTERM)
+
+    def test_read_stat_survives_a_command_name_with_parens_and_counts_zombies_dead(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "self").mkdir()
+            (root / "self" / "stat").write_text("1 (x) S 0 1 1")
+            rest = " ".join(["0"] * 16) + " 4242 0"
+            for pid, comm, state, pgrp in ((10, "a) b (c", "S", 77), (11, "z", "Z", 77),
+                                           (12, "y", "R", 78)):
+                (root / str(pid)).mkdir()
+                (root / str(pid) / "stat").write_text(
+                    f"{pid} ({comm}) {state} 1 {pgrp} {rest}\n")
+            st = process.read_stat(10, root)
+            self.assertEqual((st.pid, st.state, st.pgid, st.start_ticks, st.alive),
+                             (10, "S", 77, 4242, True))
+            self.assertFalse(process.read_stat(11, root).alive)
+            self.assertEqual(process.group_members(77, root), [10])
+            self.assertIsNone(process.read_stat(99, root))
+            self.assertIsNone(process.group_members(77, root / "absent"),
+                              "no procfs: the members cannot be enumerated")
 
     def test_fixture_player_answers_a_recorded_bale_argv(self):
         """The double session 2b-ii builds on: `bale status --json` run in

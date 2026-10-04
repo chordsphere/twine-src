@@ -578,7 +578,7 @@ class PreCallCheck(StateCase):
     def test_an_unpriced_model_is_never_admitted(self):
         check = self.check(model=DOUBLE_MODEL_UNPRICED, cap="1000000")
         self.assertEqual((check.admitted, check.refusal, check.stop),
-                         (False, "unpriced-model", None))
+                         (False, "unpriced-model", "cap-unchecked"))
         self.assertEqual(check.unpriced_models, [DOUBLE_MODEL_UNPRICED])
 
     def test_an_unpriced_model_in_the_sessions_history_is_never_admitted(self):
@@ -605,7 +605,7 @@ class PreCallCheck(StateCase):
         for kind, check in cases.items():
             with self.subTest(kind):
                 self.assertEqual((check.admitted, check.ok, check.refusal, check.stop),
-                                 (False, False, kind, None))
+                                 (False, False, kind, "cap-unchecked"))
 
     def test_bad_arguments_are_refused_by_the_function_too(self):
         for kwargs in (dict(cap_usd=D(-1)), dict(cap_usd=D("NaN")),
@@ -617,7 +617,8 @@ class PreCallCheck(StateCase):
                             max_output_tokens=0)
                 args.update(kwargs)
                 check = spend.check_call(self.state.path, **args)
-                self.assertEqual((check.admitted, check.refusal), (False, "bad-argument"))
+                self.assertEqual((check.admitted, check.refusal, check.stop),
+                                 (False, "bad-argument", "cap-unchecked"))
 
     def test_the_check_writes_nothing(self):
         self.state.call("s1", input=1)
@@ -634,6 +635,33 @@ class PreCallCheck(StateCase):
         rows = [r for r in table["row"]
                 if (r["axis"], r["key"]) == ("stop", spend.STOP_CAP_REACHED)]
         self.assertEqual([r["move"] for r in rows], ["stop-at-cap"])
+
+    def test_every_other_refusal_stops_cap_unchecked_with_an_operator_move(self):
+        """Session 5b: a check that could not run names its own stop key,
+        whose move is the operator's and is not stop-at-cap — raising the
+        cap is the wrong remedy for a missing price (cost-spine-005's
+        Proposal, ratified)."""
+        with TRANSITIONS_TABLE.open("rb") as fh:
+            table = tomllib.load(fh)
+        keys = table["axis"]["stop"]["keys"]
+        self.assertEqual(keys[-2:], ["killed", spend.STOP_CAP_UNCHECKED])
+        rows = [r for r in table["row"]
+                if (r["axis"], r["key"]) == ("stop", spend.STOP_CAP_UNCHECKED)]
+        self.assertEqual([r["move"] for r in rows], ["fix-and-resume"])
+        move = table["move"]["fix-and-resume"]
+        self.assertEqual(move["actor"], "operator")
+        for fault in ("price row", "stream line", "state directory"):
+            self.assertIn(fault, move["description"])
+        for kind in spend.REFUSALS:
+            with self.subTest(refusal=kind):
+                check = spend.CallCheck(sid="s1", model=DOUBLE_MODEL, cap_usd=None,
+                                        input_tokens=None, max_output_tokens=None,
+                                        state_dir=Path(), stream=Path(), prices=Path())
+                check.refuse(spend.SpendError(kind, "a refusal double"))
+                expected = ("cap-reached" if kind == "cap-reached"
+                            else "cap-unchecked")
+                self.assertEqual((check.admitted, check.stop), (False, expected))
+                self.assertIn(check.stop, keys)
 
 
 # ---------------------------------------------------------------------------
@@ -774,6 +802,9 @@ class SpendCheckVerb(StateCase):
                          ("bad-argument", None, None))
         self.assertEqual((nowhere["refusal"], nowhere["state_dir"], nowhere["stream"]),
                          ("no-state-dir", None, None))
+        for obj in (unpriced, bad, nowhere):
+            self.assertEqual(obj["stop"], "cap-unchecked", obj["refusal"])
+        self.assertEqual((admitted["stop"], refused["stop"]), (None, "cap-reached"))
         self.assertIsNone(unpriced["worst_case_usd"])
 
     def test_a_missing_flag_is_argparses_usage_error(self):
@@ -788,7 +819,7 @@ class SpendCheckVerb(StateCase):
         run = run_cli(*argv, "--json")
         obj = json_line(run.stdout)
         self.assertEqual((run.code, obj["admitted"], obj["refusal"], obj["stop"]),
-                         (1, False, "unpriced-model", None))
+                         (1, False, "unpriced-model", "cap-unchecked"))
 
 
 # ---------------------------------------------------------------------------

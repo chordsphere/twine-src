@@ -73,8 +73,10 @@ class SurfacesAreWalkable(unittest.TestCase):
     def test_every_verb_surface_fixture_exists_and_follows_the_naming_rule(self):
         """A verb surface with a recording points at it by the naming rule
         (the argv normalized: a `<role>` placeholder names its role). One
-        without names its stand-in, and the file the rule would give does
-        not exist — so recording it forces this entry to be updated."""
+        without names its stand-in — or, when nothing recorded can stand in
+        (session 5b's unlock), says why it is `unrecorded` — and its doubles,
+        and the file the rule would give does not exist — so recording it
+        forces this entry to be updated."""
         verbs = [s for s in self.manifest.surfaces if s["kind"] == "verb"]
         self.assertGreaterEqual(len(verbs), 3)
         for s in verbs:
@@ -86,7 +88,13 @@ class SurfacesAreWalkable(unittest.TestCase):
                 else:
                     self.assertFalse((REPO_ROOT / expected).exists(),
                                      f"{expected} is recorded; point `fixture` at it")
-                    self.assertTrue((REPO_ROOT / s["stand_in"]).is_file(), s["stand_in"])
+                    if "stand_in" in s:
+                        self.assertNotIn("unrecorded", s)
+                        self.assertTrue((REPO_ROOT / s["stand_in"]).is_file(),
+                                        s["stand_in"])
+                    else:
+                        self.assertIsInstance(s["unrecorded"], str)
+                        self.assertTrue(s["unrecorded"].strip())
                     self.assertTrue(s["doubles"])
                 self.assertEqual(s["argv"][0], s["verb"])
                 for flag in s["flags"]:
@@ -120,6 +128,28 @@ class SurfacesAreWalkable(unittest.TestCase):
                          (["relay", "<sid>", "-"], [], ["carry exchange"]))
         self.assertEqual(relay["stand_in"],
                          emission_relpath("crafter", ["--emit-block", "-"]))
+
+    def test_the_kill_switchs_unlock_surface(self):
+        """Session 5b: `twine kill` runs exactly `bale unlock <sid> --reason
+        aborted --json` and reads four keys of format_unlock_json's contract.
+        Nothing is recorded: doubles stand in, named as such, and the entry
+        says so and names the probes that read the contract."""
+        by_verb = {s["verb"]: s for s in self.manifest.surfaces if s["kind"] == "verb"}
+        unlock = by_verb["unlock"]
+        self.assertEqual((unlock["argv"], unlock["keys"], unlock["read_by"]),
+                         (["unlock", "<sid>", "--reason", "aborted", "--json"],
+                          ["outcome", "sid", "closure_reason", "telemetry"], ["kill"]))
+        self.assertEqual(unlock["read_at"], ["twine-unlock-contract", "twine-unlock-code"])
+        self.assertNotIn("fixture", unlock)
+        self.assertNotIn("stand_in", unlock)
+        self.assertIn("double", unlock["doubles"][0])
+        self.assertIn("format_unlock_json", unlock["key_owner"])
+        self.assertEqual(unlock["vocabulary"], "closure-reason")
+        self.assertIn("aborted", self.manifest.vocabularies["closure-reason"]["values"])
+        self.assertIn("kill", self.manifest.vocabularies["closure-reason"]["read_by"])
+        self.assertEqual(fixture_relpath(unlock["argv"], unlock["cwd"]),
+                         "fixtures/bale-0.4.45/twine-src/"
+                         "unlock_sid_--reason-aborted_--json.json")
 
     def test_the_two_json_verbs_the_brief_names_are_recorded(self):
         argvs = [tuple(s["argv"]) for s in self.manifest.surfaces if s["kind"] == "verb"]

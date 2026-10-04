@@ -81,9 +81,14 @@ RECORDED_AT = "recorded_at"
 
 PER_MILLION = Decimal(1_000_000)
 
-# The transition table's `stop` key for a refused cap check
-# (share/transitions.toml: cap-reached -> stop-at-cap).
+# The transition table's `stop` keys for a call the check did not admit
+# (share/transitions.toml). Every refusal names one, so the Arc 2 loop
+# always stops with a key the table has a move for (D17: no default case):
+#   cap-reached    the cap refused the call       -> stop-at-cap
+#   cap-unchecked  the check itself could not run -> fix-and-resume
+#                  (every refusal that is not cap-reached; session 5b)
 STOP_CAP_REACHED = "cap-reached"
+STOP_CAP_UNCHECKED = "cap-unchecked"
 
 # Why a totals report or a check is not ok. Closed; each names a fault.
 REFUSALS = (
@@ -870,7 +875,8 @@ class CallCheck:
     `admitted` is True exactly when the session's spend so far plus the
     call's worst-case cost is at most the cap. When it is False the call is
     not made: `refusal` says why, and `stop` is "cap-reached" exactly when
-    the cap refused it. The call as asked is reported unchanged — a refused
+    the cap refused it and "cap-unchecked" for every other refusal — the
+    check could not run, so the cap was never compared. The call as asked is reported unchanged — a refused
     call is never shrunk to fit (D15: refuse loudly, never degrade
     silently)."""
 
@@ -905,7 +911,8 @@ class CallCheck:
     def refuse(self, error: SpendError) -> "CallCheck":
         self.admitted = False
         self.refusal, self.reason = error.kind, error.message
-        self.stop = STOP_CAP_REACHED if error.kind == "cap-reached" else None
+        self.stop = (STOP_CAP_REACHED if error.kind == "cap-reached"
+                     else STOP_CAP_UNCHECKED)
         log.info("spend check %s: %s: %s", self.sid, error.kind, error.message)
         return self
 
@@ -954,8 +961,9 @@ def check_call(state_dir: Path, *, sid: str, cap_usd: Decimal, model: str,
     `worst_case_cost(price, input_tokens, max_output_tokens)`.
 
     Not admitted, with `refusal` naming why: the cap (`cap-reached`, with
-    `stop` "cap-reached"); an argument that is not a cap, a count or a sid;
-    an unreadable or malformed stream; an absent or malformed price file; a
+    `stop` "cap-reached"); and, each with `stop` "cap-unchecked" (the check
+    could not run): an argument that is not a cap, a count or a sid; an
+    unreadable or malformed stream; an absent or malformed price file; a
     model — the call's, or one in the session's history — with no price
     row. If the cap cannot be checked the call does not happen. Never
     raises for those.

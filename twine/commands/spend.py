@@ -178,8 +178,8 @@ def check_lines(check: spend.CallCheck) -> list[str]:
         head = (f"spend check {check.sid}: REFUSED (cap-reached) — the call is not made, "
                 "and it is not shrunk to fit")
     else:
-        head = (f"spend check {check.sid}: NOT CHECKED ({check.refusal}) — "
-                f"{check.reason}; the call is not made")
+        head = (f"spend check {check.sid}: NOT CHECKED ({check.refusal}; stop "
+                f"{check.stop}) — {check.reason}; the call is not made")
     lines = [head]
     if check.projected_usd is not None:
         relation = "<=" if check.admitted else ">"
@@ -252,5 +252,6 @@ COMMANDS = (
                     "decided it; the call is never shrunk to fit. An unpriced "
                     "model, an unreadable or malformed stream, a missing or "
                     "malformed price file or a bad argument is also exit 1, with "
-                    "its own refusal, and never an admission. Writes nothing."),
+                    "its own refusal and `stop` \"cap-unchecked\", and never an "
+                    "admission. Writes nothing."),
 )

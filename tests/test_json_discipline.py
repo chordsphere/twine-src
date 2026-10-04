@@ -18,7 +18,10 @@ from twine import REPO_ROOT
 
 from tests.helpers import (DOUBLE_MODEL, SpendStateDouble, StubBale, TempRoots,
                            emission_relpath, fenced_probe, filled_probe,
-                           fixture_relpath, run_cli, run_inprocess)
+                           fixture_relpath, run_cli, run_inprocess,
+                           unlock_json_double)
+
+KILL_SID = "2026-10-04-json-discipline-001"
 
 
 def one_json_line(test: unittest.TestCase, stdout: str, command: str) -> dict:
@@ -45,7 +48,15 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.exchange = REPO_ROOT / emission_relpath("crafter", ["--emit-block", "-"])
         self.dry_run = REPO_ROOT / fixture_relpath(
             ["apply", "--dry-run", "--json", "/any/response.tar.gz"], "repo")
-        self.stub = StubBale(relay_stdout=self.exchange, apply_stdout=self.dry_run)
+        # kill's closure: the stub answers unlock with a close of KILL_SID,
+        # a double built from format_unlock_json's key contract (nothing of
+        # unlock is recorded).
+        self.unlock_line = Path(self._turns.name) / "unlock.json"
+        self.unlock_line.write_bytes(unlock_json_double(KILL_SID))
+        self.kill_repo = Path(self._turns.name) / "repo"
+        self.kill_repo.mkdir()
+        self.stub = StubBale(relay_stdout=self.exchange, apply_stdout=self.dry_run,
+                             unlock_stdout=self.unlock_line)
         # The spend verbs read a temp state directory holding one usage
         # record and the price table — doubles both — never the default.
         self.spend_state = SpendStateDouble()
@@ -66,7 +77,9 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         each against the stub bale (ok true, exit 0); transitions on the
         real table (ok true, exit 0; it reads no bale); spend totals and
         spend check against a temp state directory double (ok true, exit 0;
-        the check admits a call well under its cap)."""
+        the check admits a call well under its cap); kill on a temp state
+        directory with no running record, closed by the stub (ok true, exit
+        0; requesting the abort again is idempotent)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
@@ -79,6 +92,9 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
             argv += [str(self.exchange), "--bale-root", str(self.stub.root)]
         if name == "carry response":
             argv += [str(self.dry_run), "--bale-root", str(self.stub.root)]
+        if name == "kill":
+            argv += [KILL_SID, "--state-dir", str(self.spend_state.path), "--cwd",
+                     str(self.kill_repo), "--bale-root", str(self.stub.root)]
         if name in ("spend totals", "spend check"):
             argv += ["--state-dir", str(self.spend_state.path)]
         if name == "spend check":

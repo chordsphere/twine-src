@@ -41,16 +41,24 @@ project's inventory.
   outcome or a stop, adds a stop, or bumps the pin; the header comment
   spells the shape and `twine transitions` checks it is total.
 
-- `<state-dir>/spend.jsonl` and `<state-dir>/prices.toml` — not in this
-  repository: twine's state directory (`--state-dir`, else
+- `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`,
+  `<state-dir>/abort/<sid>.json` and `<state-dir>/running/<sid>.json` — not
+  in this repository: twine's state directory (`--state-dir`, else
   `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`).
   The spend stream is twine's durable usage record (D15, N4): append-only,
   one JSON line per model call, tokens by class and a nullable
   `served_sid`. The price file is the operator's — twine ships no prices —
   one `[model."<id>"]` table per model in US dollars per million tokens.
   Both shapes, and that no provider usage has been recorded yet, are
-  `context/cli-contract.md` §13. Pull when a session reads or writes spend,
-  prices a model, or maps a provider's usage onto the record (Arc 2).
+  `context/cli-contract.md` §13. The abort request is the kill-switch's
+  durable between-calls abort — its presence is the signal the loop checks
+  before every model call, written by `twine kill` and never removed — and
+  the running record is the process group a session's runtime runs in, a
+  cache (`pgid`, `pid`, `started_at`, `leader_start_ticks`) the runtime
+  writes before it works and `twine kill` reads, signals and clears; both
+  are `context/cli-contract.md` §14. Pull when a session reads or writes
+  spend, prices a model, maps a provider's usage onto the record (Arc 2),
+  or starts, stops or kills a session's runtime.
 
 ## Explainers
 - `context/cli-contract.md` — the `twine` CLI's interface outcomes:
@@ -65,11 +73,14 @@ project's inventory.
   §12, `transitions` (the table's axes, its ok rule and the problems
   that name a fault), and §13, `spend totals` and `spend check` (the cost
   spine: the usage record, the state directory, prices as operator data,
-  the hard cap's pre-call check and its refusals), the manifest and
-  fixture shapes (per-run fixture
+  the hard cap's pre-call check and its refusals, `stop` `cap-reached` and
+  `cap-unchecked`), §14, `kill` (the kill-switch: the between-calls abort,
+  the running record and the process-level kill, the one `unlock` argv and
+  the `aborted` closure, what stands in for an unrecorded unlock), the
+  manifest and fixture shapes (per-run fixture
   names, by role), how the tests run. Default inclusion for any session
   that adds a verb, runs a subprocess, routes a courier's block, or
-  touches spend.
+  touches spend or the kill-switch.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter
