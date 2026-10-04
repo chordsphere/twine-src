@@ -431,6 +431,12 @@ contains that churn.
 [2026-10-01-twine-seed-001: carried — Arc 1 session 1 lands `twine
 bale check`, the pin against the installed `bin/VERSION`.]
 
+[2026-10-03-twine-transitions-004: carried, and now enforced on the
+courier — `carry exchange` and `carry response` refuse a bale whose
+`bin/VERSION` is not the pin, or cannot be read, before starting it;
+carry-bale-002's provisional report-only reading ended when the
+transition table keyed on the pinned version's whole vocabulary.]
+
 **D3 — Narrowest consumption surface.** Rung 1 consumes the
 minimum bale surface that works: exit codes, the
 one-stdout-JSON-line discipline, an allowlisted key set, the
@@ -642,6 +648,14 @@ durable closure record has its vocabulary.]
 spine and the two-layer kill-switch against fixtures, before any
 online call exists (T8).]
 
+[2026-10-03-twine-cost-spine-005: landed in part — the spine:
+`twine/spend.py` and `twine spend totals|check`; the usage record
+(`<state-dir>/spend.jsonl`, five disjoint token classes, a nullable
+`served_sid`), prices as operator data (twine ships none; an unpriced
+model is a refusal), and the hard cap's pre-call check (own + served
+spend plus the worst case, at most the cap, else `cap-reached`, never
+shrunk). The kill-switch is session 5b's.]
+
 **D16 — Effort is envelope × policy.** The effort slider sets the
 budget envelope; ledger-driven policy allocates within it, per
 work class (PLANNER.md §17: effort is not uniform, and not a
@@ -705,6 +719,18 @@ named here from memory.]
 as data over bale 0.4.45's 13 outcomes and 9 closure reasons plus
 twine's API-side stop set, with the provider axis §4.3 names; a test
 fails by name on any outcome without a move.]
+
+[2026-10-03-twine-transitions-004: landed — `share/transitions.toml`,
+rendered by `twine transitions`: bale 0.4.45's 13 telemetry outcomes, 9
+closure reasons and the 9 outcomes `bale apply --json` prints (a third
+vocabulary the seed did not name, read by probe at sitting
+2026-10-03-continue-twine-003), keyed on the consumption manifest's
+`[[vocabulary]]` data, plus twine's stop set — the sitting's ten and
+`cap-reached` and `killed` from D15 — 43 rows over 25 declared moves,
+each with one actor (twine, operator or planner), no default case. The
+ratified edges hold: `held` gets `revert-and-repack`,
+`malformed_response` and `malformed-shape` get `respawn-from-request`.
+`tests/test_transitions.py` fails by name on any key without a move.]
 
 **D18 — Discussion paths are artifact rounds.** Master↔child
 clarification is structured records out and answer records in —
@@ -1000,6 +1026,26 @@ PASS, and twine never merges at rung 1. The response hand-off is
 2b-ii's `carry response`: `bale apply --dry-run --json`, then the
 exact `bale apply` line handed to the operator.]
 
+[2026-10-04-twine-seed-landings-001: row 4 landed as `2026-10-03-twine-transitions-004` —
+`share/transitions.toml` and `twine transitions`, the stop set grown by
+`cap-reached` and `killed` from D15, and the pin gate on the two carry
+verbs (D2); `VERSION` 0.4.0. Ratified at sitting
+2026-10-03-continue-twine-003 (light block 2 [1], "as assumed"); the
+decisions it asks to have read are in
+`claude/responses/2026-10-03-twine-transitions-004/notes.md`.]
+
+[2026-10-04-twine-seed-landings-001: row 5 split at sitting 2026-10-03-continue-twine-003 (light
+block 4, "as assumed"). **5a — the cost spine**, landed as
+`2026-10-03-twine-cost-spine-005` (one HOLD — a worker-test defect and a
+pre-existing race in 2b-i's timeout tests — then applied on retry under
+the same session, the checkpoint unamended; `VERSION` 0.5.0; its
+decisions are in
+`claude/responses/2026-10-03-twine-cost-spine-005/notes.md`). **5b — the
+kill-switch**, queued: the between-calls abort, the process-level kill
+and the `aborted` closure, carrying cost-spine-005's proposed
+`cap-unchecked` stop key and the runner's open question, whether a run
+returns only after every member of the killed group is reaped.]
+
 ### 5.2 Arc 2 — the runtime
 
 Not yet cut into sessions; its parts, each a session or a few: the
@@ -1072,6 +1118,15 @@ are twine's own.
   (the Nisaba seed's Q-6: office holds the policy, twine reads it,
   bale's telemetry is the evidence). Session 5's worker proposes the
   shape in its `notes.md`; the architect ratifies.
+
+  [2026-10-03-twine-cost-spine-005: ratified at sitting
+  2026-10-03-continue-twine-003 (light block 5 [2], "as assumed") —
+  per-session and per-arc envelopes, both checked before each call, the
+  tighter binds; an arc keyed on the office's arc id with membership the
+  office's declaration, arc spend counting each record once; no `arc`
+  key in the record; an absent cap refuses. Shape in the session's
+  notes.md.]
+
 - **Q-7 — The suite seams.** *Answered by the Nisaba seed* (its §1
   and §3); this seed's §1 points there.
 - **Q-8 — Where spend lands.** *Still open bale-side.* The Nisaba
@@ -1080,6 +1135,10 @@ are twine's own.
   the cost spine (Arc 1 session 5) is the owner. Whether bale grows
   an input for the mirror is a bale-src decision (D6 linked pair);
   the architect, at the Arc 2 sitting.
+
+  [2026-10-03-twine-cost-spine-005: twine-side landed — the stream
+  exists and is the owner; bale's mirror remains bale-src's.]
+
 - **TQ-1 — Where a worker's transcript lands.** Twine's log, or the
   office's folder (the Nisaba seed's Q-3 is the neighbour).
   Recommend twine's log, kept as a log and not as a record of intent,
