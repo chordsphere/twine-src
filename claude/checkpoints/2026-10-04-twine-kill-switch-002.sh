@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Blind checkpoint — twine-src road 5b, the kill-switch (slug twine-kill-switch), v1.
+# Blind checkpoint — twine-src road 5b, the kill-switch (slug twine-kill-switch), v2.
+# v2 (2026-10-04, after the HOLD of 2026-10-04-twine-kill-switch-002): the running
+# record the kill fixture writes now carries the session's `sid` beside pgid, pid
+# and started_at — the desk ratified the worker's reading that a record names its
+# session. Only that fixture line changed; every probe is as in v1.
 # Authored at sitting 2026-10-03-continue-twine-006 from the request alone,
 # before the work existed. Outcomes graded, never mechanisms:
 #   - the suite passes; VERSION moved off 0.5.0 and --version agrees;
@@ -19,7 +23,7 @@
 # oracle itself is broken or cannot run.
 set -u
 export PYTHONDONTWRITEBYTECODE=1
-echo "[checkpoint] twine-kill-switch v1"
+echo "[checkpoint] twine-kill-switch v2"
 TMP="$PWD/.checkpoint-twine-kill-switch.tmp"
 echo "[checkpoint] writes: $TMP (created now, removed at exit); nothing else"
 for tool in python3 setsid sleep; do
@@ -221,7 +225,7 @@ probe("spend-check-stop-cap-reached-unchanged",
 state_k = os.path.join(TMP, "state-k"); os.makedirs(os.path.join(state_k, "running"))
 repo_k = os.path.join(TMP, "repo"); os.makedirs(repo_k)
 with open(os.path.join(state_k, "running", f"{SID}.json"), "w") as fh:
-    json.dump({"pgid": SLEEP_PID, "pid": SLEEP_PID,
+    json.dump({"sid": SID, "pgid": SLEEP_PID, "pid": SLEEP_PID,
                "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, fh)
 close_root = os.path.join(TMP, "bale-close"); close_log = make_stub(close_root, "close")
 code, out, err = run(TWINE + ["kill", SID, "--state-dir", state_k, "--cwd", repo_k,
