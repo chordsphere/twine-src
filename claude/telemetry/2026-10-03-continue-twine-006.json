@@ -1,0 +1,78 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-03-continue-twine-006",
+  "created_at": "2026-10-03T23:49:03+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-03T23:49:03+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-03-continue-twine-006.log",
+      "bundle": {
+        "stem": "2026-10-03-continue-twine",
+        "brief_sha256": "bcd14618a3d61dfa065f616794625ae6d7208f4e27fb9929fdd8c9187edadcf3",
+        "checkpoint_sha256": null,
+        "manifest_sha256": "cea683985608484a736bb15be19660bde5f7b96dc9d7717efaf08e54dc64c411"
+      },
+      "provenance": {
+        "work_class": "meta",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-03T23:49:03+00:00"
+      }
+    },
+    {
+      "at": "2026-10-05T00:38:41+00:00",
+      "outcome": "unlocked",
+      "command": "unlock",
+      "closure_reason": "closed-read-only",
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-03-continue-twine-006.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-05T00:38:41+00:00",
+  "outcome": "unlocked"
+}
