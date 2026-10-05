@@ -1,0 +1,216 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-05-twine-seed-row5-001",
+  "created_at": "2026-10-05T00:10:37+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-05T00:10:37+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "twine-seed.md"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-05-twine-seed-row5-001.log",
+      "bundle": {
+        "stem": "2026-10-04-twine-seed-row5",
+        "brief_sha256": "5c638c978b0d249ef3fcb0a5b1d4d6f1e2558182ef86225fb014409f295679a8",
+        "checkpoint_sha256": "24788e09f90b8ed89b0befff8d770a7524a33a755082a3ed3cb1b50b040e5180",
+        "manifest_sha256": "2103ca37c23cec2fdd3ec293165d7a73b3f3f5466a960f003b36cd793e87c9db"
+      },
+      "provenance": {
+        "work_class": "doc",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-05T00:10:37+00:00"
+      }
+    },
+    {
+      "at": "2026-10-05T00:27:04+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-05-twine-seed-row5-001.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "text G lands beneath D15 byte-exact": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "text H lands beneath the 5.1 road table byte-exact": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "removing both insertions restores the shipped seed": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "placeholder counts: <sid> 10 on 9 lines, <this-sid> 0": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "landed seed is 1358 lines": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "text G lands beneath D15 byte-exact": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "text H lands beneath the 5.1 road table byte-exact": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "removing both insertions restores the shipped seed": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "placeholder counts: <sid> 10 on 9 lines, <this-sid> 0": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "landed seed is 1358 lines": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "twine-seed.md is UTF-8, LF, newline-terminated",
+          "text G lands beneath D15 byte-exact",
+          "text H lands beneath the 5.1 road table byte-exact",
+          "removing both insertions restores the shipped seed",
+          "placeholder counts: <sid> 10 on 9 lines, <this-sid> 0",
+          "landed seed is 1358 lines"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "twine-seed.md"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "twine-seed.md"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.45",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "f6c3326ee3c827498371886ead46349b50fa4f448e2facb0d40ee4d137ce234a",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"
+            },
+            "packer": "chordsphere",
+            "work_class": "doc",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-05-twine-seed-row5-001.sh",
+              "sha256": "24788e09f90b8ed89b0befff8d770a7524a33a755082a3ed3cb1b50b040e5180"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-05T00:10:37+00:00",
+            "base_files": {
+              "twine-seed.md": "12e87314ab46b053d90952856b80c4b9419d07e1f38416dac08f7f478e3f011c"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "The session's model_identity is the configured model; the serving model can differ and no picker is visible to this session."
+          ],
+          "judgment_calls": [
+            "Claimed the five session-specific assertions: no project-level check runs (the brief says the suite does not read the seed), so they are the claimable checks (TARBALL.md 5.3). The encoding check is listed but not claimed.",
+            "Ran the crafter's claims-reconciliation epilogue under python3 -B instead of python3, per the brief's -B rule."
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [
+            "The brief says text H's facts come from kill-switch-002's relay and notes 'which you hold'; only the notes shipped, so the HOLD's judges, the checkpoint's v2 amendment and the retry's acceptance were not checkable against bytes."
+          ],
+          "compaction_occurred": {
+            "occurred": false
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md",
+            "README.md",
+            "TARBALL.md",
+            "DOCS.md",
+            "twine-seed.md",
+            "claude/responses/2026-10-04-twine-kill-switch-002/notes.md",
+            "tools/craft_response.py",
+            "tools/response_lint.py"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-05-twine-seed-row5-001.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-05-twine-seed-row5-001.sh",
+          "sha256": "24788e09f90b8ed89b0befff8d770a7524a33a755082a3ed3cb1b50b040e5180"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-05T00:27:04+00:00",
+  "outcome": "applied"
+}
