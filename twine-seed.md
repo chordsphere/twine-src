@@ -656,6 +656,19 @@ model is a refusal), and the hard cap's pre-call check (own + served
 spend plus the worst case, at most the cap, else `cap-reached`, never
 shrunk). The kill-switch is session 5b's.]
 
+[2026-10-04-twine-kill-switch-002: landed — the kill-switch's three
+layers: the between-calls abort (`<state-dir>/abort/<sid>.json`, checked
+by `twine.kill.abort_requested` before every call; observed, the loop
+stops `killed` and closes), the process-level kill (the runtime's
+running record `<state-dir>/running/<sid>.json`; SIGTERM, SIGCONT, a
+grace, SIGKILL, finished only when no member of the group is alive, else
+the survivors named), and the `aborted` closure (exactly `bale unlock
+<sid> --reason aborted --json`, pinned bale, once, never while a member
+lives). The operator's line is `twine kill <sid>`. The cost spine's
+uncheckable cap stops `cap-unchecked` (move `fix-and-resume`, the
+operator's). The record covers one process group; the runtime's tools in
+groups of their own are Arc 2's (contract §14.4).]
+
 **D16 — Effort is envelope × policy.** The effort slider sets the
 budget envelope; ledger-driven policy allocates within it, per
 work class (PLANNER.md §17: effort is not uniform, and not a
@@ -1045,6 +1058,19 @@ kill-switch**, queued: the between-calls abort, the process-level kill
 and the `aborted` closure, carrying cost-spine-005's proposed
 `cap-unchecked` stop key and the runner's open question, whether a run
 returns only after every member of the killed group is reaped.]
+
+[2026-10-05-twine-seed-row5-001: row 5 done — 5b landed as
+`2026-10-04-twine-kill-switch-002` (one HOLD, both judges: a worker test
+checked a killed process once instead of polling, and the blind
+checkpoint's running-record fixture lacked the `sid` key the worker's
+reader requires, so the checkpoint was amended to v2 at the desk and the
+retry applied with the change accepted; `VERSION` 0.6.0). The runner now
+waits for the whole killed group (`RunResult.group_survivors`), which
+plausibly explains cost-spine-005's HOLD sleep. Ratified at sitting
+2026-10-03-continue-twine-006 from the session's notes, with one
+correction queued: the pin gate moves to the closure alone, so the abort
+and the signal need no bale. Of Arc 1, row 3 remains, waiting on `bale
+open --json`.]
 
 ### 5.2 Arc 2 — the runtime
 
