@@ -19,7 +19,10 @@ Arc 1 (the courier) session 1 landed twine's core:
   is the single source for the verbs; argparse, `--help` and
   `twine commands` are rendered from it, and every verb has a `--json`
   twin that emits exactly one JSON object line on stdout.
-- Verbs: `commands` (list the registry), `status` (twine's own facts),
+- Verbs: `commands` (list the registry), `status` (twine's own facts —
+  since session 5c also where its state directory resolves, whether it
+  exists, and whether `spend.jsonl`, `prices.toml`, `abort/` and
+  `running/` are in it; it never creates the directory),
   `bale check` (the installed bale's `bin/VERSION` against the pin),
   and `take` (session 2a): read a pasted turn, find each bale shape in
   it — probe, probe output, light block, exchange block, relay block —
@@ -63,21 +66,29 @@ Arc 1 (the courier) session 1 landed twine's core:
   model is a refusal, never an estimate. No provider's usage has been
   recorded yet (the gated probe `twine-usage-record` will), so the spine
   reads only twine's own record; mapping a provider onto it is Arc 2's.
-- `kill` (session 5b): the kill-switch (D15), in three layers. `twine kill
-  <sid>` requests the **between-calls abort** — a file in twine's state
-  directory, `abort/<sid>.json`, that the runtime's loop will check before
-  every model call; it survives the runtime's death. Then the
-  **process-level kill**: if the session's runtime recorded the process
-  group it runs in (`running/<sid>.json`), twine signals the group —
-  SIGTERM, then SIGKILL after `--grace` seconds — and waits until no member
-  is alive, or names the survivors and stops. The state directory must be
-  the runtime's and must exist: a kill never creates one, because an abort
-  written where the runtime does not look stops nothing. Then, only when nothing of the
-  session is still running, the **`aborted` closure**: twine runs exactly
-  `bale unlock <sid> --reason aborted --json`, with the pinned bale, once, so
-  the kill leaves a durable record in bale. When it cannot finish, it says
-  where it stopped and prints the one line that finishes by hand — the
-  signal for the surviving group, the unlock line, or, for a session that
+- `kill` (sessions 5b and 5c): the kill-switch (D15), in three layers.
+  `twine kill <sid>` requests the **between-calls abort** — a file in
+  twine's state directory, `abort/<sid>.json`, that the runtime's loop will
+  check before every model call; it survives the runtime's death. Then the
+  **process-level kill**: if the session's runtime recorded its process
+  groups (`running/<sid>.json` — its own group, and every group it started
+  since, registered by the run seam's spawn hook the moment a tool
+  exists), twine signals each of them — the runtime's first, then the rest
+  in order; SIGTERM, then SIGKILL after `--grace` seconds — and waits until
+  no member of any of them is alive, or names the survivors and stops; it
+  re-reads the record once for a group registered while it ran. The state
+  directory must be the runtime's and must exist: a kill never creates
+  one, because an abort written where the runtime does not look stops
+  nothing (`twine status` says which directory twine resolves). Then, only
+  when nothing of the session is still running, the **`aborted` closure**:
+  twine runs exactly `bale unlock <sid> --reason aborted --json`, with the
+  pinned bale, once, so the kill leaves a durable record in bale. The abort
+  and the kill run with any bale or none — a kill-switch must work when
+  the harness is wedged, and an install drifted off the pin is one way it
+  can be; only the closure needs the pin, and without it the kill stops
+  there and hands you the unlock line. When it cannot finish, it says where
+  it stopped and prints the one line that finishes by hand — the signal for
+  every group with survivors, the unlock line, or, for a session that
   reached HOLD, bale's own `bale revert <sid>`, which stays yours: twine
   never reverts, merges or applies anything. Nothing records a running
   group yet (the runtime is Arc 2's), so today a kill requests the abort
@@ -107,7 +118,7 @@ is no model adapter or sandbox (Arc 2).
 python3 -I -S bin/twine --help
 python3 -I -S bin/twine --version
 python3 -I -S bin/twine commands --json
-python3 -I -S bin/twine status
+python3 -I -S bin/twine status [--state-dir DIR]              # twine's facts; where its state lives
 python3 -I -S bin/twine bale check --json [--bale-root DIR]
 python3 -I -S bin/twine take turn.txt --json     # or `take -` to read stdin
 python3 -I -S bin/twine carry probe turn.txt               # show the probe; runs nothing
@@ -117,7 +128,7 @@ python3 -I -S bin/twine carry response response-<sid>.tar.gz     # dry-run it; s
 python3 -I -S bin/twine transitions [--json]                     # the transition table; ok when it is total
 python3 -I -S bin/twine spend totals [--sid SID] [--json]        # spend per session, at your prices
 python3 -I -S bin/twine spend check --sid SID --cap USD --model M --input N --max-output N   # admit or refuse one call
-python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill its process group, close it `aborted`
+python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill its process groups, close it `aborted`
 ```
 
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to

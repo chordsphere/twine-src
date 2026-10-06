@@ -53,29 +53,36 @@ project's inventory.
   `context/cli-contract.md` §13. The abort request is the kill-switch's
   durable between-calls abort — its presence is the signal the loop checks
   before every model call, written by `twine kill` and never removed — and
-  the running record is the process group a session's runtime runs in, a
-  cache (`pgid`, `pid`, `started_at`, `leader_start_ticks`) the runtime
-  writes before it works and `twine kill` reads, signals and clears; both
-  are `context/cli-contract.md` §14. Pull when a session reads or writes
-  spend, prices a model, maps a provider's usage onto the record (Arc 2),
-  or starts, stops or kills a session's runtime.
+  the running record is the process groups a session's runtime runs in, a
+  cache of exactly six keys (`sid`, `pgid`, `pid`, `started_at`,
+  `leader_start_ticks`, and `groups` — one entry per further group the
+  runtime registered through the run seam's spawn hook, session 5c) the
+  runtime writes before it works and grows as it starts tools, and `twine
+  kill` reads, signals every group of, re-reads once and clears; both are
+  `context/cli-contract.md` §14, and `twine status` reports which state
+  directory twine resolves and what of it exists (§4). Pull when a session
+  reads or writes spend, prices a model, maps a provider's usage onto the
+  record (Arc 2), or starts, stops or kills a session's runtime.
 
 ## Explainers
 - `context/cli-contract.md` — the `twine` CLI's interface outcomes:
   the entrypoint, the registry and its discovery, the `--json`
-  discipline and exit codes, `status`, `bale check` and `take`'s keys,
+  discipline and exit codes, `status` (its keys, and since session 5c
+  the state directory it resolves), `bale check` and `take`'s keys,
   the five block kinds and the no-nest rule, the relay routing rule
   (a `to: planner` block never reaches a worker), `carry probe` (its
   refusals, `--run`, the output cap, `confined: false`, its keys) and
   the run seam (`Context.run`, the signature later carry verbs build
-  on), §11 — the bale hand-offs (`carry exchange`, `carry response`),
+  on, its group wait and its spawn hook), §11 — the bale hand-offs
+  (`carry exchange`, `carry response`),
   how bale is found and the pin gate, T12's one `apply` argv —
   §12, `transitions` (the table's axes, its ok rule and the problems
   that name a fault), and §13, `spend totals` and `spend check` (the cost
   spine: the usage record, the state directory, prices as operator data,
   the hard cap's pre-call check and its refusals, `stop` `cap-reached` and
   `cap-unchecked`), §14, `kill` (the kill-switch: the between-calls abort,
-  the running record and the process-level kill, the one `unlock` argv and
+  the running record with its `groups` and the process-level kill of every
+  one of them, the pin gating the closure alone, the one `unlock` argv and
   the `aborted` closure, what stands in for an unrecorded unlock), the
   manifest and fixture shapes (per-run fixture
   names, by role), how the tests run. Default inclusion for any session

@@ -35,16 +35,24 @@ What the default runner guarantees:
     rely on the group being gone (members are enumerated from /proc;
     where there is none, the wait is skipped and logged, and
     `group_survivors` is empty). Both happen before the child is reaped,
-    while its zombie still holds the group id.
+    while its zombie still holds the group id;
+  - since session 5c, an optional spawn hook: `on_spawn(pid)` is called
+    once, with the child's pid (its pgid: a new session), the moment
+    Popen returns — before stdin is fed and before the collector starts —
+    so a runtime can register the group with `twine kill` (twine.kill
+    .register_group) before the child has done anything. A hook that
+    raises never leaves the child running unattended: the group is
+    killed, the child reaped, and the exception re-raised.
 
 Section 3's process-group helpers are also what `twine kill` (twine/kill.py,
 session 5b) signals and waits with: they read /proc and send signals, and
-spawn nothing.
+spawn nothing. `twine kill` never reads the hook; it relies on the record
+alone.
 
 Sections:
-  1. The result and the signature   (~line 65)
-  2. The default runner             (~line 145)
-  3. Process-group helpers          (~line 310)
+  1. The result and the signature   (~line 75)
+  2. The default runner             (~line 160)
+  3. Process-group helpers          (~line 350)
 """
 
 from __future__ import annotations
@@ -58,7 +66,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Protocol, Sequence
+from typing import Callable, Mapping, Protocol, Sequence
 
 log = logging.getLogger("twine.process")
 
@@ -135,13 +143,20 @@ def runner_confines(runner: object) -> bool:
     return getattr(runner, "confines", False) is True
 
 
+# The spawn hook (session 5c): called once with the child's pid, which is
+# its pgid, the moment it exists. The Arc 2 loop composes it with the
+# running record: `on_spawn=lambda pid: register_group(state_dir, sid, pid)`.
+SpawnHook = Callable[[int], None]
+
+
 class Runner(Protocol):
     """The seam's signature — every runner, real or double, takes this."""
 
     def __call__(self, argv: Sequence[str], *, cwd: str | Path | None = None,
                  stdin: bytes | None = None, timeout: float | None = None,
                  env: Mapping[str, str] | None = None,
-                 stdout_cap: int | None = None) -> RunResult: ...
+                 stdout_cap: int | None = None,
+                 on_spawn: SpawnHook | None = None) -> RunResult: ...
 
 
 # ---------------------------------------------------------------------------
@@ -152,12 +167,17 @@ class Runner(Protocol):
 def run_process(argv: Sequence[str], *, cwd: str | Path | None = None,
                 stdin: bytes | None = None, timeout: float | None = None,
                 env: Mapping[str, str] | None = None,
-                stdout_cap: int | None = None) -> RunResult:
+                stdout_cap: int | None = None,
+                on_spawn: SpawnHook | None = None) -> RunResult:
     """Spawn `argv` for real and collect it under the guarantees above.
 
     `cwd` None inherits the caller's directory; `env` None inherits the
     caller's environment (a handler passes ctx.env); `timeout` None
-    waits forever; `stdout_cap` None is DEFAULT_STDOUT_CAP.
+    waits forever; `stdout_cap` None is DEFAULT_STDOUT_CAP. `on_spawn`,
+    when given, is called once with the child's pid (its pgid) as soon as
+    Popen returns, before stdin is fed and before the pipes are read; if
+    it raises, the child's group is killed and reaped and the exception
+    propagates — the child never runs on unregistered.
     """
     argv = tuple(str(a) for a in argv)
     if not argv:
@@ -177,6 +197,8 @@ def run_process(argv: Sequence[str], *, cwd: str | Path | None = None,
         log.error("run: cannot start %s: %s", argv[0], exc)
         raise RunError(exc.errno, f"cannot start {argv[0]}: "
                                   f"{exc.strerror or exc}") from exc
+    if on_spawn is not None:
+        _call_spawn_hook(proc, on_spawn)
     feeder = _feed_stdin(proc, stdin) if stdin is not None else None
     collected = _collect(proc, cap, DEFAULT_STDERR_CAP,
                          None if timeout is None else started + timeout)
@@ -207,6 +229,32 @@ def run_process(argv: Sequence[str], *, cwd: str | Path | None = None,
 # The default runner confines nothing: the child gets the caller's
 # privileges, environment, files and network (cli-contract.md §10.5).
 run_process.confines = False  # type: ignore[attr-defined]
+
+
+def _call_spawn_hook(proc: subprocess.Popen, on_spawn: SpawnHook) -> None:
+    """Hand the child's pid to the hook before anything else happens to the
+    child. A hook that raises must not leave the child running unattended
+    (brief §2.2): its group is SIGKILLed, waited for, the child reaped and
+    our pipe ends closed; then the exception is re-raised as it was."""
+    try:
+        on_spawn(proc.pid)
+    except BaseException:
+        log.error("run: the spawn hook raised for child %d; killing its group and "
+                  "re-raising", proc.pid)
+        _kill_group(proc)
+        survivors = wait_group_gone(proc.pid, GROUP_GRACE_SECONDS)
+        if survivors:
+            log.error("run: process group %d still has live members %s after the "
+                      "spawn hook failed", proc.pid, survivors)
+        for pipe in (proc.stdin, proc.stdout, proc.stderr):
+            if pipe is not None:
+                try:
+                    pipe.close()
+                except OSError:
+                    pass
+        _reap(proc)
+        raise
+    log.debug("run: spawn hook called for child %d", proc.pid)
 
 
 @dataclass

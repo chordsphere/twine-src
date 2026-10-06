@@ -283,6 +283,12 @@ flags = ["--json"]
 needed_by = "Arc 1 session 2b-ii (offline courier — act: carry exchange) landed without it, passing relay's stdout through as text; with --json, carry exchange could report the round relay recorded instead of only relaying it"
 status = "absent in 0.4.45: `bale relay [-h] sid [file]`; stdout is the counterpart's paste block, [bale] lines on stderr"
 
+[[wanted]]
+verb = "unlock"
+flags = ["--json"]
+needed_by = "`twine kill`'s `bale revert` hand line (Arc 1 session 2026-10-04-twine-kill-switch-002, the `aborted` closure): twine keys that one decision on the words of a stderr message, the HOLD refusal's prefix `branch bale/<sid> exists`; a reworded message would silently downgrade the hand line to the unlock line (fail-safe — bale would refuse again, naming the branch — but a code is the contract)"
+status = "absent in 0.4.45: on a refusal `bale unlock <sid> --reason aborted --json` exits 1 with nothing on stdout and `[bale] error: <msg>` on stderr, under --json too (cmd_unlock; cli-contract.md §14.5). Wanted: a refusal printed as a JSON line as well, with a reason code (for example `hold-branch`, `not-open`, `several-open`), as `bale apply --json` prints its *-refused outcomes. The change is bale-src's, carried as a slip by sitting 2026-10-05-continue-twine-002; twine's reading of the stderr text stays as 5b landed it until the pin carries the code"
+
 # --- the vocabularies the transition table keys on (session 2026-10-03-twine-transitions-004) ---
 # Read by the probes twine-table-vocab and twine-apply-vocab (2026-10-03,
 # bale 0.4.45 at /home/chordsphere/bale; all eight schemas hashed to the

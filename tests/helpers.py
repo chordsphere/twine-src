@@ -32,7 +32,10 @@ from the key contract `format_unlock_json`'s docstring owns (quoted in the
 session-5b brief §2.1) and named as a double: unlock_json_double (the one
 line), UnlockDouble (a run-seam double answering the unlock argv) and
 StubBale's `unlock_stdout`. A recording replaces them; it never joins them.
-And RealGroup: a real `setsid`-led process group for the kill to kill."""
+And RealGroup: a real `setsid`-led process group for the kill to kill.
+
+Since session 5c: the run-seam doubles accept the seam's `on_spawn` hook
+(and record it, never call it)."""
 
 from __future__ import annotations
 
@@ -338,18 +341,21 @@ def dies_within(pid: int, seconds: float = 3.0) -> bool:
 class RecordingRunner:
     """A run-seam double: records every call and answers with a canned
     RunResult (exit 0, empty output) unless given one. A test that must
-    prove nothing executed asserts `calls == []`."""
+    prove nothing executed asserts `calls == []`. Every run-seam double
+    here takes the seam's whole signature, `on_spawn` included (session
+    5c), and records it; none calls it — a double spawns nothing, so it
+    has no pid to hand over."""
 
     def __init__(self, result=None) -> None:
         self.calls: list[dict] = []
         self.result = result
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
-                 stdout_cap=None):
+                 stdout_cap=None, on_spawn=None):
         from twine.process import RunResult
         self.calls.append({"argv": list(argv), "cwd": cwd, "stdin": stdin,
                            "timeout": timeout, "env": env,
-                           "stdout_cap": stdout_cap})
+                           "stdout_cap": stdout_cap, "on_spawn": on_spawn})
         return self.result or RunResult(argv=tuple(argv), exit_code=0,
                                         stdout=b"", stderr=b"")
 
@@ -376,7 +382,7 @@ class FixturePlayer:
         self.assumed_exits = dict(assumed_exits or {})
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
-                 stdout_cap=None):
+                 stdout_cap=None, on_spawn=None):
         from twine.process import RunResult
         argv = [str(a) for a in argv]
         self.calls.append(argv)
@@ -589,11 +595,12 @@ class UnlockDouble:
         self.exit_code, self.timed_out = exit_code, timed_out
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
-                 stdout_cap=None):
+                 stdout_cap=None, on_spawn=None):
         from twine.process import RunResult
         argv = [str(a) for a in argv]
         self.calls.append({"argv": argv, "cwd": cwd, "stdin": stdin,
-                           "timeout": timeout, "env": env, "stdout_cap": stdout_cap})
+                           "timeout": timeout, "env": env, "stdout_cap": stdout_cap,
+                           "on_spawn": on_spawn})
         if Path(argv[0]).name != "bale" or argv[1:2] != ["unlock"]:
             raise AssertionError(f"UnlockDouble answers the unlock argv only: {argv}")
         stdout = (unlock_json_double(argv[2]) if self.stdout is None

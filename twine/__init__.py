@@ -17,7 +17,8 @@ Modules:
             pure, executes nothing — `twine take` is the verb over it
   process   the run seam: the one way a handler runs a subprocess
             (Context.run) — a process group, a timeout that reaches its
-            children, a stdout cap; tests inject a double
+            children, a stdout cap, a spawn hook that hands the child's
+            group to the kill-switch's record; tests inject a double
   transitions  the transition table (D17): share/transitions.toml loaded
             and checked total — every key of every axis one row, every
             row's move declared; pure, reads no bale install
@@ -26,12 +27,13 @@ Modules:
             prices (twine ships none), the running totals and the hard
             cap's pre-call check — one function per face, called by the
             `spend` verbs and, later, the Arc 2 loop; pure, no network
-  kill      the kill-switch (D15, session 5b): the between-calls abort
-            (<state-dir>/abort/<sid>.json), the running record and the
-            process-level kill of a session's recorded group, and the
-            `aborted` closure (`bale unlock <sid> --reason aborted --json`,
-            through the seam) — called by `twine kill` and, later, the Arc
-            2 loop; spawns nothing itself
+  kill      the kill-switch (D15, sessions 5b and 5c): the between-calls
+            abort (<state-dir>/abort/<sid>.json), the running record — the
+            runtime's group and every group it registered — and the
+            process-level kill of all of them, and the `aborted` closure
+            (`bale unlock <sid> --reason aborted --json`, through the seam,
+            the one step the pin gates) — called by `twine kill` and,
+            later, the Arc 2 loop; spawns nothing itself
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py and carry_bale.py)
 

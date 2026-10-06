@@ -220,6 +220,19 @@ class SurfacesAreWalkable(unittest.TestCase):
         for w in wanted:
             self.assertTrue(w["needed_by"] and w["status"])
 
+    def test_the_unlock_json_refusal_is_wanted(self):
+        """Session 5c: `twine kill` keys its `bale revert` hand line on the
+        words of bale's HOLD refusal; the entry asks bale-src for a code."""
+        wanted = self.manifest.data.get("wanted", [])
+        entries = [w for w in wanted if (w["verb"], w["flags"]) == ("unlock", ["--json"])]
+        self.assertEqual(len(entries), 1, wanted)
+        entry = entries[0]
+        self.assertEqual(set(entry), {"verb", "flags", "needed_by", "status"})
+        self.assertIn("2026-10-04-twine-kill-switch-002", entry["needed_by"])
+        self.assertIn("bale revert", entry["needed_by"])
+        for needle in ("0.4.45", "exit", "stdout", "stderr", "reason code"):
+            self.assertIn(needle, entry["status"])
+
 
 class VocabulariesAreWalkable(unittest.TestCase):
     """[[vocabulary]] (session 2026-10-03-twine-transitions-004): bale's three
