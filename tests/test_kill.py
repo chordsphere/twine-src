@@ -16,9 +16,14 @@ runtime registered, `register_group`), the kill signals every one of them
 and re-reads the record once, and the pin gates the closure alone — an
 unpinned or absent bale no longer refuses the abort or the signal.
 
+Session 2026-10-06-twine-clear-group-003: `clear_group` forgets one group
+once its run has returned with no survivor, under the writers' lock, and
+`clear_running` takes that lock too, so a record the kill removed does not
+come back; a cleared group is not signalled by the kill.
+
 Sections:
   1. The between-calls abort
-  2. The running record (and its groups)
+  2. The running record (and its groups; clearing one)
   3. The process-level kill (every recorded group)
   4. The aborted closure
   5. The kill, end to end (the function; the re-read)
@@ -29,6 +34,7 @@ Sections:
 from __future__ import annotations
 
 import ast
+import errno
 import io
 import json
 import logging
@@ -392,6 +398,432 @@ class RunningRecord(StateCase):
         self.assertEqual(record.groups, (kill.GroupEntry(4250, None, "t"),
                                          kill.GroupEntry(4251, 9, "t")))
         self.assertEqual(record.pgids, [4242, 4250, 4251])
+
+
+class ClearGroup(StateCase):
+    """`clear_group` (session 2026-10-06-twine-clear-group-003): the loop
+    forgets a group once its run has returned with no survivor, so the
+    record holds what is alive. Brief §2.1's outcomes, one by one, and
+    §2.3's with real groups."""
+
+    RUNTIME, PID = 4242, 4243
+
+    def setUp(self):
+        super().setUp()
+        # An empty /proc: the leaders' start ticks read as null, so the
+        # numbers below need no live process behind them.
+        self.noproc = self.base / "noproc"
+        self.noproc.mkdir()
+        self.path = kill.running_path(self.state, SID)
+        self._releases: list = []
+
+    def register(self, *pgids: int) -> kill.RunningRecord:
+        record = kill.register_running(self.state, SID, self.RUNTIME, self.PID,
+                                       clock=lambda: "2026-10-06T00:00:00Z",
+                                       proc_root=self.noproc)
+        for n, pgid in enumerate(pgids, 1):
+            record = kill.register_group(self.state, SID, pgid,
+                                         clock=lambda n=n: f"2026-10-06T00:00:{n:02d}Z",
+                                         proc_root=self.noproc)
+        return record
+
+    def write(self, record: dict) -> bytes:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        raw = (json.dumps(record) + "\n").encode()
+        self.path.write_bytes(raw)
+        return raw
+
+    def entries(self) -> list[dict]:
+        return json.loads(self.path.read_text())["groups"]
+
+    # --- True: the entry is gone, the rest as it was ------------------------
+
+    def test_clear_removes_the_one_entry_and_rewrites_as_register_group_does(self):
+        before = json.loads(self.register(5001, 5002, 5003).path.read_text())
+        self.assertTrue(kill.clear_group(self.state, SID, 5002))
+        after = json.loads(self.path.read_text())
+        self.assertEqual(tuple(after), RECORD_KEYS, "exactly the six keys, in order")
+        for key in RECORD_KEYS[:-1]:
+            self.assertEqual(after[key], before[key], f"the runtime's {key} untouched")
+        self.assertEqual(after["groups"], [before["groups"][0], before["groups"][2]],
+                         "the other entries untouched and in their order")
+        for entry in after["groups"]:
+            self.assertEqual(tuple(entry), GROUP_KEYS)
+        record = kill.read_running(self.state, SID)
+        self.assertEqual(record.pgids, [self.RUNTIME, 5001, 5003])
+        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+        self.assertEqual(sorted(p.name for p in self.path.parent.iterdir()),
+                         [f"{SID}.json"], "no lock file and no temp file beside the record")
+        # The last ones go too; the record stays, naming the runtime alone.
+        self.assertTrue(kill.clear_group(self.state, SID, 5001))
+        self.assertTrue(kill.clear_group(self.state, SID, 5003))
+        self.assertEqual(kill.read_running(self.state, SID).pgids, [self.RUNTIME])
+        self.assertEqual(json.loads(self.path.read_text())["groups"], [])
+
+    def test_the_rewrite_is_the_same_durable_replace(self):
+        self.register(5001)
+        with mock.patch.object(kill, "_write_replacing",
+                               wraps=kill._write_replacing) as replacing:
+            self.assertTrue(kill.clear_group(self.state, SID, 5001))
+        replacing.assert_called_once()
+        self.assertEqual(replacing.call_args.args[0], self.path)
+
+    def test_a_pgid_the_record_names_twice_is_forgotten_every_time(self):
+        entry = {"pgid": 5001, "leader_start_ticks": None, "registered_at": "t1"}
+        other = {"pgid": 5002, "leader_start_ticks": 7, "registered_at": "t2"}
+        last = {"pgid": 5003, "leader_start_ticks": None, "registered_at": "t3"}
+        self.write(good_record(groups=[entry, other, {**entry, "registered_at": "t4"},
+                                       last]))
+        self.assertTrue(kill.clear_group(self.state, SID, 5001))
+        self.assertEqual(self.entries(), [other, last])
+
+    # --- False: nothing to forget, nothing written --------------------------
+
+    def test_a_group_the_record_does_not_name_is_false_and_nothing_is_written(self):
+        self.register(5001)
+        for pgid, why in ((5999, "never registered"), (5001, "cleared already")):
+            if why == "cleared already":
+                self.assertTrue(kill.clear_group(self.state, SID, 5001))
+            before, inode = self.path.read_bytes(), self.path.stat().st_ino
+            with self.subTest(why=why), \
+                    mock.patch.object(kill, "_write_replacing") as replacing:
+                self.assertFalse(kill.clear_group(self.state, SID, pgid))
+                replacing.assert_not_called()
+            self.assertEqual(self.path.read_bytes(), before)
+            self.assertEqual(self.path.stat().st_ino, inode, "the file was not replaced")
+            self.assertEqual(sorted(p.name for p in self.path.parent.iterdir()),
+                             [f"{SID}.json"])
+
+    def test_no_record_is_false_and_creates_nothing(self):
+        """A kill may have removed the record under the loop; a session
+        between runs has none. No `running/` appears where there was none."""
+        self.assertFalse(kill.clear_group(self.state, SID, 5001))
+        self.assertTrue(self.state_is_empty(), "no running/ directory created")
+        self.assertFalse(kill.clear_group(self.base / "no-such-state", SID, 5001))
+        self.assertFalse((self.base / "no-such-state").exists())
+        # running/ exists, holding another session's record: still False,
+        # and that record untouched.
+        other = "2026-10-06-other-001"
+        kill.register_running(self.state, other, self.RUNTIME, self.PID,
+                              proc_root=self.noproc)
+        kill.register_group(self.state, other, 5001, proc_root=self.noproc)
+        theirs = kill.running_path(self.state, other).read_bytes()
+        self.assertFalse(kill.clear_group(self.state, SID, 5001))
+        self.assertEqual(kill.running_path(self.state, other).read_bytes(), theirs)
+        self.assertEqual(sorted(p.name for p in self.path.parent.iterdir()),
+                         [f"{other}.json"])
+
+    def test_both_falses_are_logged_at_info(self):
+        with self.assertLogs("twine.kill", logging.INFO) as logs:
+            self.assertFalse(kill.clear_group(self.state, SID, 5001))
+        self.assertIn("nothing to clear", "\n".join(logs.output))
+        self.register()
+        with self.assertLogs("twine.kill", logging.INFO) as logs:
+            self.assertFalse(kill.clear_group(self.state, SID, 5001))
+        self.assertTrue(all(line.startswith("INFO:") for line in logs.output))
+        self.assertIn("not in it", "\n".join(logs.output))
+
+    # --- refusals: RunningRecordError, the record untouched ------------------
+
+    def test_a_pgid_that_could_not_be_a_group_is_refused_untouched(self):
+        self.register(5001)
+        before = self.path.read_bytes()
+        for pgid in (0, 1, -4, True, False, "5001", None, 5001.0):
+            with self.subTest(pgid=pgid), self.assertRaises(kill.RunningRecordError) as caught:
+                kill.clear_group(self.state, SID, pgid)
+            self.assertIn("is not a process id above 1", str(caught.exception))
+        self.assertEqual(self.path.read_bytes(), before)
+        # Refused before any record is looked for: nothing is created either.
+        empty = self.base / "empty-state"
+        empty.mkdir()
+        with self.assertRaises(kill.RunningRecordError):
+            kill.clear_group(empty, SID, 1)
+        self.assertEqual(list(empty.iterdir()), [])
+
+    def test_the_runtimes_own_group_is_refused_untouched(self):
+        """It is forgotten with the whole record (clear_running), never one
+        entry at a time."""
+        self.register(5001)
+        before = self.path.read_bytes()
+        with self.assertRaises(kill.RunningRecordError) as caught:
+            kill.clear_group(self.state, SID, self.RUNTIME)
+        self.assertIn("runtime's own", str(caught.exception))
+        self.assertIn("clear_running", str(caught.exception))
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_a_malformed_record_is_refused_untouched_every_fault_named(self):
+        entry = {"pgid": 5001, "leader_start_ticks": None, "registered_at": "t"}
+        cases = {
+            "not a JSON object": b"{nope",
+            "has no groups key": json.dumps(
+                {k: v for k, v in good_record().items() if k != "groups"}).encode(),
+            "groups 'x' is not an array": json.dumps(good_record(groups="x")).encode(),
+            "not '" + SID: json.dumps(good_record(sid="2026-10-06-other-001",
+                                                  groups=[entry])).encode(),
+        }
+        for needle, raw in cases.items():
+            with self.subTest(needle=needle):
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                self.path.write_bytes(raw)
+                with self.assertRaises(kill.RunningRecordError) as caught:
+                    kill.clear_group(self.state, SID, 5001)
+                self.assertIn(needle, str(caught.exception))
+                self.assertEqual(self.path.read_bytes(), raw)
+        raw = self.write(good_record(pid=1, groups=[entry, {**entry, "pgid": 1}]))
+        with self.assertRaises(kill.RunningRecordError) as caught:
+            kill.clear_group(self.state, SID, 5001)
+        self.assertIn("pid 1 is not", str(caught.exception))
+        self.assertIn("groups[1] pgid 1 is not", str(caught.exception))
+        self.assertEqual(self.path.read_bytes(), raw)
+
+    def test_a_record_that_cannot_be_rewritten_is_kill_error_untouched(self):
+        self.register(5001)
+        before = self.path.read_bytes()
+        with mock.patch.object(kill, "_write_replacing",
+                               side_effect=OSError(28, "No space left on device")), \
+                self.assertRaises(kill.KillError) as caught:
+            kill.clear_group(self.state, SID, 5001)
+        self.assertIn("No space left", str(caught.exception))
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_a_sid_that_is_not_one_is_refused(self):
+        with self.assertRaises(ValueError):
+            kill.clear_group(self.state, "../escape", 5001)
+        self.assertTrue(self.state_is_empty())
+
+    # --- the lock -----------------------------------------------------------
+
+    def hold_the_lock(self):
+        """Take the writers' lock on running/ the way another process would:
+        its own open file description, an exclusive flock. Returns release."""
+        import fcntl
+        fd = os.open(self.path.parent, os.O_RDONLY)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        released = []
+
+        def release():
+            if not released:
+                released.append(True)
+                os.close(fd)
+        self.addCleanup(release)
+        self._releases.append(release)
+        return release
+
+    def in_a_thread(self, fn, *args):
+        import threading
+        out: dict = {}
+        done = threading.Event()
+
+        def body():
+            try:
+                out["value"] = fn(*args)
+            except BaseException as exc:  # noqa: BLE001 — asserted by the caller
+                out["error"] = exc
+            finally:
+                done.set()
+        thread = threading.Thread(target=body)
+        thread.start()
+
+        def release_then_join():
+            # A failed assertion may leave the lock held: let go of it first,
+            # or the join would wait out its timeout behind the test's own lock.
+            for release in self._releases:
+                release()
+            thread.join(30)
+        self.addCleanup(release_then_join)
+        return done, out
+
+    def test_clear_group_waits_for_the_lock_register_group_takes(self):
+        self.register(5001)
+        release = self.hold_the_lock()
+        done, out = self.in_a_thread(kill.clear_group, self.state, SID, 5001)
+        self.assertFalse(done.wait(0.3), "clear_group ran while the lock was held")
+        self.assertEqual([e["pgid"] for e in self.entries()], [5001])
+        release()
+        self.assertTrue(done.wait(10))
+        self.assertEqual(out, {"value": True})
+        self.assertEqual(self.entries(), [])
+
+    def test_concurrent_registrations_and_clears_lose_nothing(self):
+        """Twenty writers at once — ten clears of groups already recorded,
+        ten registrations of new ones: afterwards the record names exactly
+        the groups registered and not cleared, the survivors of the first
+        batch still in their order, ahead of the new ones."""
+        import threading
+        kept, doomed = [5001, 5003, 5005], list(range(6000, 6010))
+        self.register(5001, *doomed[:5], 5003, *doomed[5:], 5005)
+        fresh = list(range(7000, 7010))
+        errors: list[BaseException] = []
+        results: list[bool] = []
+        gate = threading.Barrier(len(doomed) + len(fresh))
+
+        def clear(pgid: int) -> None:
+            try:
+                gate.wait(5)
+                results.append(kill.clear_group(self.state, SID, pgid))
+            except BaseException as exc:  # noqa: BLE001 — reported below
+                errors.append(exc)
+
+        def register(pgid: int) -> None:
+            try:
+                gate.wait(5)
+                kill.register_group(self.state, SID, pgid, proc_root=self.noproc)
+            except BaseException as exc:  # noqa: BLE001 — reported below
+                errors.append(exc)
+
+        threads = ([threading.Thread(target=clear, args=(p,)) for p in doomed]
+                   + [threading.Thread(target=register, args=(p,)) for p in fresh])
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(30)
+        self.assertEqual(errors, [])
+        self.assertEqual(results, [True] * len(doomed))
+        pgids = [g.pgid for g in kill.read_running(self.state, SID).groups]
+        self.assertEqual(pgids[:3], kept, "the uncleared survivors, in their order")
+        self.assertEqual(sorted(pgids[3:]), fresh, "every new registration landed")
+        self.assertEqual(sorted(p.name for p in self.path.parent.iterdir()),
+                         [f"{SID}.json"])
+
+    # --- a record twine kill has removed does not come back ----------------
+
+    def test_the_kills_removal_waits_for_a_clear_between_its_read_and_its_replace(self):
+        """Staged deterministically: clear_group has read the record and is
+        about to replace it when twine kill's clear_running arrives. The
+        removal cannot slip in between (bounded here to 0.2 s, it gives up
+        rather than remove), so the replace never re-creates a removed file;
+        and once the clear is done, the removal lands and the record stays
+        gone."""
+        self.register(5001, 5002)
+        real_replace = kill._write_replacing
+        staged: dict = {}
+
+        def the_kill_arrives_first(path, data):
+            try:
+                staged["cleared"] = kill.clear_running(self.state, SID)
+            except kill.KillError as exc:
+                staged["error"] = exc
+            return real_replace(path, data)
+
+        with mock.patch.object(kill, "CLEAR_LOCK_SECONDS", 0.2), \
+                mock.patch.object(kill, "_write_replacing",
+                                  side_effect=the_kill_arrives_first):
+            self.assertTrue(kill.clear_group(self.state, SID, 5001))
+        self.assertNotIn("cleared", staged, "the removal slipped between read and replace")
+        self.assertEqual(staged["error"].errno, errno.EWOULDBLOCK)
+        self.assertEqual([e["pgid"] for e in self.entries()], [5002])
+        self.assertTrue(kill.clear_running(self.state, SID))
+        self.assertFalse(self.path.exists())
+        self.assertFalse(kill.clear_group(self.state, SID, 5002))
+        self.assertFalse(self.path.exists(), "a clear after the removal re-creates nothing")
+        self.assertEqual(list(self.path.parent.iterdir()), [])
+
+    def test_a_removal_racing_a_clear_is_never_undone(self):
+        """The race with an unbounded wait: twine kill's clear_running starts
+        while clear_group holds the record it read. Whatever the order, the
+        record is gone at the end — the removal waits for the replace, then
+        removes what it wrote."""
+        self.register(5001)
+        real_read = kill.read_running
+        race: dict = {}
+
+        def read_then_the_kill_clears(state_dir, sid):
+            record = real_read(state_dir, sid)
+            race["done"], race["out"] = self.in_a_thread(kill.clear_running, self.state, SID)
+            self.assertFalse(race["done"].wait(0.3), "the removal did not wait for the lock")
+            return record
+
+        with mock.patch.object(kill, "read_running", side_effect=read_then_the_kill_clears):
+            self.assertTrue(kill.clear_group(self.state, SID, 5001))
+        self.assertTrue(race["done"].wait(10))
+        self.assertEqual(race["out"], {"value": True})
+        self.assertFalse(self.path.exists(), "the removed record came back")
+
+    def test_a_kill_that_cannot_have_the_lock_leaves_the_record_and_still_closes(self):
+        """The bound on clear_running's wait: a writer wedged holding the
+        lock (here, the test) does not hang `twine kill`. The groups are
+        gone, so the closure lands; the record — a cache — is left, and
+        `record_cleared` says so."""
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        self.hold_the_lock()
+        with mock.patch.object(kill, "CLEAR_LOCK_SECONDS", 0.2):
+            report = kill.kill_session(self.state, SID, run=UnlockDouble(),
+                                       executable=executable(), cwd=self.repo, env={},
+                                       grace=2)
+        self.assertTrue(report.ok, report.reason)
+        self.assertEqual((report.process.dead, report.process.record_cleared), (True, False))
+        self.assertTrue(self.path.exists())
+        for pid in runtime.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+
+    def test_a_filesystem_that_refuses_the_lock_runs_unlocked_and_the_kill_finishes(self):
+        """flock failing outright (ENOLCK, as on some network mounts) is the
+        lock being unavailable, not a fault: logged, and the writers and the
+        kill's removal go on unlocked, as they did before any lock existed."""
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        refused = OSError(errno.ENOLCK, "No locks available")
+        with mock.patch.object(kill.fcntl, "flock", side_effect=refused), \
+                self.assertLogs("twine.kill", logging.WARNING) as logs:
+            kill.register_group(self.state, SID, 5001, proc_root=self.noproc)
+            self.assertTrue(kill.clear_group(self.state, SID, 5001))
+            report = kill.kill_session(self.state, SID, run=UnlockDouble(),
+                                       executable=executable(), cwd=self.repo, env={},
+                                       grace=2)
+        self.assertTrue(report.ok, report.reason)
+        self.assertEqual([s.pgid for s in report.process.steps], [runtime.pgid])
+        self.assertTrue(report.process.record_cleared)
+        self.assertFalse(self.path.exists())
+        self.assertIn("No locks available", "\n".join(logs.output))
+
+    # --- §2.3: the kill signals what the record still names -----------------
+
+    def test_a_cleared_group_is_not_signalled_by_the_kill(self):
+        """A real group registered, then cleared, is alive after `twine kill`
+        finishes with every other recorded group dead; the twin's
+        `process.groups` lists only what the record still named."""
+        runtime, tool_a, cleared, tool_b = (self.group(), self.group(), self.group(),
+                                            self.group())
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        for g in (tool_a, cleared, tool_b):
+            kill.register_group(self.state, SID, g.pgid)
+        self.assertTrue(kill.clear_group(self.state, SID, cleared.pgid))
+        report = kill.kill_session(self.state, SID, run=UnlockDouble(),
+                                   executable=executable(), cwd=self.repo, env={}, grace=2)
+        self.assertTrue(report.ok, report.reason)
+        for pid in runtime.pids + tool_a.pids + tool_b.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+        for pid in cleared.pids:
+            self.assertTrue(process_alive(pid), f"{pid} of the cleared group was signalled")
+        twin = report.as_json()["process"]
+        self.assertEqual([g["pgid"] for g in twin["groups"]], [tool_a.pgid, tool_b.pgid])
+        self.assertEqual([s.pgid for s in report.process.steps],
+                         [runtime.pgid, tool_a.pgid, tool_b.pgid])
+
+    def test_the_loops_composition_register_on_spawn_clear_on_a_clean_return(self):
+        """The rule contract §14.4 writes for the Arc 2 loop, composed by
+        hand: the hook registers the tool's group the moment it exists, and
+        the loop clears it once `run` returns with no survivor — leaving the
+        record naming the runtime alone."""
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        seen: list[int] = []
+
+        def hook(pid: int) -> None:
+            seen.append(pid)
+            kill.register_group(self.state, SID, pid)
+
+        # The child waits for a line on stdin, which the seam feeds only
+        # after the hook has returned: it reads the record once registered.
+        result = process.run_process(["/bin/sh", "-c", f"read -r go; cat {self.path}"],
+                                     stdin=b"go\n", timeout=10, on_spawn=hook)
+        self.assertEqual(result.exit_code, 0, result.stderr)
+        self.assertEqual([g["pgid"] for g in json.loads(result.stdout)["groups"]], seen,
+                         "registered while it ran")
+        self.assertEqual(result.group_survivors, ())
+        self.assertTrue(kill.clear_group(self.state, SID, seen[0]))
+        self.assertEqual(kill.read_running(self.state, SID).pgids, [runtime.pgid])
 
 
 # ---------------------------------------------------------------------------

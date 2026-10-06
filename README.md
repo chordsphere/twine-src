@@ -73,7 +73,8 @@ Arc 1 (the courier) session 1 landed twine's core:
   **process-level kill**: if the session's runtime recorded its process
   groups (`running/<sid>.json` — its own group, and every group it started
   since, registered by the run seam's spawn hook the moment a tool
-  exists), twine signals each of them — the runtime's first, then the rest
+  exists and forgotten by the loop once its run returns with none of it
+  alive), twine signals each of them — the runtime's first, then the rest
   in order; SIGTERM, then SIGKILL after `--grace` seconds — and waits until
   no member of any of them is alive, or names the survivors and stops; it
   re-reads the record once for a group registered while it ran. The state
