@@ -687,6 +687,17 @@ reports which state directory twine resolves and what of it exists. The
 code; twine keys the `bale revert` hand line on the stderr text until
 then.]
 
+[2026-10-06-twine-clear-group-003: landed —
+`twine.kill.clear_group(state_dir, sid, pgid)` forgets a group once its
+run has returned with no survivor, so the running record holds what is
+alive rather than one entry per tool. It runs under `register_group`'s
+lock on `running/`, and `clear_running` takes that lock too (bounded, so
+a wedged writer cannot hang the kill), so a record `twine kill` removed
+never comes back. The loop calls it itself after `run` returns with
+`group_survivors` empty; an entry whose run returned survivors stays for
+the kill (contract §14.4). `twine kill` is unchanged and does not signal
+a cleared group.]
+
 **D16 — Effort is envelope × policy.** The effort slider sets the
 budget envelope; ledger-driven policy allocates within it, per
 work class (PLANNER.md §17: effort is not uniform, and not a
@@ -1105,6 +1116,12 @@ operator, T12), the recorded dry-run fixture, the fixture player on
 normalized argvs, contract §11 and the `confined` switch point;
 `VERSION` 0.3.0. With rows 0, 1, 4 and 5 landed above, Arc 1 waits only
 on row 3.]
+
+[2026-10-06-twine-clear-group-003: `clear_group` landed (`VERSION`
+0.7.1): the record's registered groups can now be forgotten as their
+runs return. Arc 2's loop composes
+`on_spawn=lambda pid: register_group(state_dir, sid, pid)` with
+`clear_group(state_dir, sid, pid)` after a survivor-free return.]
 
 ### 5.2 Arc 2 — the runtime
 
