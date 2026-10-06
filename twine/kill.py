@@ -19,10 +19,14 @@ harness itself is wedged". The running total and the cap are session 5a's
      letting it run on (fail closed).
   2. **The process-level kill.** Before it starts a model call or a tool,
      the runtime records the process group it runs in (`register_running`,
-     `<state-dir>/running/<sid>.json`; a cache, re-derivable). `kill_group`
-     needs nothing else from the runtime: SIGTERM to the group, a grace,
-     SIGKILL, then a bounded wait until no member is alive — or the
-     survivors, named. It is finished only when the group is gone.
+     `<state-dir>/running/<sid>.json`; a cache, re-derivable), and every
+     further group it starts — a tool run through the seam leads a group of
+     its own — the moment the child exists (`register_group`, from the
+     seam's `on_spawn` hook; session 5c). `kill_group` needs nothing else
+     from the runtime: the runtime's group first, so it can start nothing
+     more, then each recorded group in record order — SIGTERM, SIGCONT, a
+     grace, SIGKILL, then a bounded wait until no member is alive — or the
+     survivors, named. It is finished only when every one of them is gone.
   3. **The `aborted` closure.** `close_aborted` runs, through the run seam
      and only with the pinned bale, exactly `bale unlock <sid> --reason
      aborted --json` (twine.bale.unlock_argv), once, never retried, and
@@ -33,31 +37,35 @@ harness itself is wedged". The running total and the cap are session 5a's
 
 `kill_session` is the operator's kill, `twine kill <sid>`: the three layers
 in order, each reported, stopping short of the closure while any member of
-the killed group lives (brief ruling 3: a record that says `aborted` while
-the worker's shell still runs is the mystery D15 forbids). When it cannot
-finish, its report names where it stopped and the one line that finishes
-by hand (`operator_line`).
+any killed group lives (brief ruling 3: a record that says `aborted` while
+the worker's shell still runs is the mystery D15 forbids). Once the
+recorded groups are gone it re-reads the record once, so a group a hook
+registered while the kill ran is killed too, and only then removes the
+record and attempts the closure. When it cannot finish, its report names
+where it stopped and the one line that finishes by hand (`operator_line`).
 
-One group, not every group: the running record holds the one process group
-the runtime runs in. A child the runtime starts through the seam
-(twine.process.run_process) leads a group of its own and is outside it; the
-Arc 2 runtime must record those too or start them inside its own group
-(cli-contract.md §14.4).
+The pin gates the closure alone (session 5c, the sitting's correction to
+5b): the abort request and the process kill run with any bale or none —
+D15's kill "must work when the harness itself is wedged", and a bale
+drifted off the pin is one way it can be — while the closure, whose
+vocabulary the pin exists for (D17), is only ever attempted with the pinned
+bale (`close_aborted` checks `Executable.drive_refusal` itself).
 
 What it never does: merge, apply or revert anything (T12 — `bale unlock`
 performs no git operation); run any `unlock` argv but the one; retry a
 closure; guess a process group from anything but the running record; or
 signal twine kill's own group. It spawns nothing itself: signals and
 /proc reads go through twine.process's group helpers, and bale through the
-runner it is handed.
+runner it is handed. It never reads the seam's hook: the record is all it
+relies on.
 
 Sections:
-  1. Names and errors                 (~line 75)
-  2. The abort request                (~line 215)
-  3. The running record               (~line 295)
-  4. The process-level kill           (~line 415)
-  5. The aborted closure              (~line 525)
-  6. The kill, end to end             (~line 675)
+  1. Names and errors                 (~line 85)
+  2. The abort request                (~line 230)
+  3. The running record               (~line 310)
+  4. The process-level kill           (~line 540)
+  5. The aborted closure              (~line 735)
+  6. The kill, end to end             (~line 885)
 """
 
 from __future__ import annotations
@@ -67,10 +75,16 @@ import logging
 import os
 import signal
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterator, Mapping, Sequence
+
+try:
+    import fcntl
+except ImportError:  # not a POSIX platform; register_group then runs unlocked
+    fcntl = None  # type: ignore[assignment]
 
 from twine import bale, process
 
@@ -83,6 +97,10 @@ log = logging.getLogger("twine.kill")
 ABORT_SUBDIR = "abort"
 RUNNING_SUBDIR = "running"
 RECORD_SUFFIX = ".json"
+# The running record's six keys and a group entry's three (brief 5c §2.1):
+# what register_running and register_group write, what read_running requires.
+RECORD_KEYS = ("sid", "pgid", "pid", "started_at", "leader_start_ticks", "groups")
+GROUP_KEYS = ("pgid", "leader_start_ticks", "registered_at")
 
 # The transition table's `stop` key for a session the loop finds killed
 # (share/transitions.toml: killed -> close-aborted, actor twine).
@@ -307,13 +325,36 @@ def running_path(state_dir: Path, sid: str) -> Path:
 
 
 @dataclass(frozen=True)
+class GroupEntry:
+    """One additional process group the runtime started and registered
+    (`register_group`, from the seam's spawn hook): its id, its leader's
+    start time at registration (as the record's own `leader_start_ticks`,
+    or None), and when it was registered (UTC, RFC 3339)."""
+
+    pgid: int
+    leader_start_ticks: int | None
+    registered_at: str
+
+    def as_json(self) -> dict[str, Any]:
+        return {"pgid": self.pgid, "leader_start_ticks": self.leader_start_ticks,
+                "registered_at": self.registered_at}
+
+
+@dataclass(frozen=True)
 class RunningRecord:
-    """The process group a session's runtime runs in, as the runtime wrote
-    it before it started working (brief item 3). `leader_start_ticks` is
-    the group leader's start time (/proc/<pgid>/stat field 22) when the
-    leader was alive and readable at registration, else None: with it, a
-    kill can tell the recorded group from a later one that reuses the
-    number (twine/kill.py kill_group)."""
+    """The process groups a session's runtime runs in, as the runtime wrote
+    them: its own (`pgid`, `pid`, `started_at`, `leader_start_ticks`,
+    written before it started working — brief item 3) and, in `groups`,
+    every additional group it started and registered since, in
+    registration order (session 5c; the runtime's own is never repeated
+    there). `leader_start_ticks` is a group leader's start time
+    (/proc/<pgid>/stat field 22) when the leader was alive and readable at
+    registration, else None: with it, a kill can tell the recorded group
+    from a later one that reuses the number (kill_group).
+
+    The file is one JSON object with exactly six keys — `sid`, `pgid`,
+    `pid`, `started_at`, `leader_start_ticks`, `groups` — and a reader
+    requires every one of them (read_running)."""
 
     sid: str
     pgid: int
@@ -321,11 +362,27 @@ class RunningRecord:
     started_at: str
     leader_start_ticks: int | None
     path: Path
+    groups: tuple[GroupEntry, ...] = ()
 
     def as_json(self) -> dict[str, Any]:
         return {"sid": self.sid, "pgid": self.pgid, "pid": self.pid,
                 "started_at": self.started_at,
-                "leader_start_ticks": self.leader_start_ticks}
+                "leader_start_ticks": self.leader_start_ticks,
+                "groups": [g.as_json() for g in self.groups]}
+
+    @property
+    def pgids(self) -> list[int]:
+        """Every group the record names, the runtime's first."""
+        return [self.pgid, *(g.pgid for g in self.groups)]
+
+
+def _write_record(record: RunningRecord) -> None:
+    body = json.dumps(record.as_json(), ensure_ascii=True) + "\n"
+    try:
+        _write_replacing(record.path, body.encode("ascii"))
+    except OSError as exc:
+        raise KillError(exc.errno, f"cannot write the running record {record.path}: "
+                                   f"{exc.strerror or exc}") from exc
 
 
 def register_running(state_dir: Path, sid: str, pgid: int, pid: int, *,
@@ -334,24 +391,88 @@ def register_running(state_dir: Path, sid: str, pgid: int, pid: int, *,
     """Record the process group `sid`'s runtime runs in — the runtime's,
     before it starts a model call or a tool (Arc 2). Writes
     `<state-dir>/running/<sid>.json` (`sid`, `pgid`, `pid`, `started_at`,
-    `leader_start_ticks`), replacing an older one. A cache in N4's sense:
-    deleting it loses nothing of record. Raises RunningRecordError for a
-    pgid or pid that could not be a group to kill, KillError when it
-    cannot be written."""
+    `leader_start_ticks`, `groups: []`), replacing an older one — and so
+    forgetting an older one's groups: the runtime registers itself once,
+    before it starts anything. A cache in N4's sense: deleting it loses
+    nothing of record. Raises RunningRecordError for a pgid or pid that
+    could not be a group to kill, KillError when it cannot be written."""
     faults = _id_faults(pgid, pid)
     if faults:
         raise RunningRecordError("; ".join(faults))
     path = running_path(state_dir, sid)
     record = RunningRecord(sid, pgid, pid, clock(),
-                           process.start_ticks(pgid, proc_root), path)
-    body = json.dumps(record.as_json(), ensure_ascii=True) + "\n"
-    try:
-        _write_replacing(path, body.encode("ascii"))
-    except OSError as exc:
-        raise KillError(exc.errno, f"cannot write the running record {path}: "
-                                   f"{exc.strerror or exc}") from exc
+                           process.start_ticks(pgid, proc_root), path, ())
+    _write_record(record)
     log.info("running record for %s: group %d, pid %d (%s)", sid, pgid, pid, path)
     return record
+
+
+def register_group(state_dir: Path, sid: str, pgid: int, *,
+                   clock: Callable[[], str] = utc_now,
+                   proc_root: Path = process.PROC_ROOT) -> RunningRecord:
+    """Add one more process group to `sid`'s running record — a group the
+    runtime started, registered the moment the child exists (the seam's
+    `on_spawn` hook hands over the child's pid, which is its pgid: the Arc
+    2 loop composes `run(argv, …, on_spawn=lambda pid: register_group(
+    state_dir, sid, pid))`). Reads the leader's start ticks as
+    register_running does, appends `{pgid, leader_start_ticks,
+    registered_at}` to `groups`, rewrites the record durably, and returns
+    the grown record.
+
+    Refuses (RunningRecordError) when there is no record to grow — the
+    runtime registers itself before it starts anything — when the record
+    is malformed (read_running's faults), when `pgid` could not be a group
+    to kill, and when it is the runtime's own group, which the record
+    already names. Raises KillError when the record cannot be rewritten.
+
+    Two registrations at once cannot lose each other's entry: the
+    read-append-replace runs under an exclusive lock on the `running/`
+    directory (flock; no lock file is added beside the record), so hooks
+    from concurrent runs serialize. Where flock is unavailable the lock is
+    skipped and logged."""
+    fault = _id_fault("pgid", pgid)
+    if fault:
+        raise RunningRecordError(fault)
+    path = running_path(state_dir, sid)
+    with _locked(path.parent):
+        record = read_running(state_dir, sid)
+        if record is None:
+            raise RunningRecordError(
+                f"no running record for {sid} at {path} to add group {pgid} to: the "
+                "runtime registers itself (register_running) before it starts anything")
+        if pgid == record.pgid:
+            raise RunningRecordError(f"process group {pgid} is the runtime's own, which "
+                                     f"the running record {path} already names")
+        entry = GroupEntry(pgid, process.start_ticks(pgid, proc_root), clock())
+        grown = RunningRecord(record.sid, record.pgid, record.pid, record.started_at,
+                              record.leader_start_ticks, path, (*record.groups, entry))
+        _write_record(grown)
+    log.info("running record for %s: group %d registered (%d groups beside the "
+             "runtime's; %s)", sid, pgid, len(grown.groups), path)
+    return grown
+
+
+@contextmanager
+def _locked(directory: Path) -> Iterator[None]:
+    """An exclusive advisory lock on `directory` for the body's duration —
+    what serializes concurrent register_group calls. A directory that does
+    not exist is not locked (there is no record in it to grow, and the
+    body says so); a platform without flock proceeds unlocked and logs it."""
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+    except OSError as exc:
+        log.debug("cannot open %s to lock it: %s", directory, exc)
+        yield
+        return
+    try:
+        if fcntl is None:
+            log.warning("fcntl is unavailable; %s is not locked while the running "
+                        "record is grown", directory)
+        else:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
 
 
 def clear_running(state_dir: Path, sid: str) -> bool:
@@ -375,7 +496,11 @@ def read_running(state_dir: Path, sid: str) -> RunningRecord | None:
     """`sid`'s running record, or None when there is none (a session between
     runs, or one whose runtime never started). Raises RunningRecordError,
     naming every fault, for one that cannot be read as a record — never a
-    guess at a pgid."""
+    guess at a pgid. Every one of the six keys is required: a record
+    without `groups`, or whose `groups` is not an array of group entries
+    (`pgid` an integer above 1, `leader_start_ticks` a non-negative integer
+    or null, `registered_at` a non-empty string), is malformed, fault by
+    fault, as a record whose `sid` is not the file's is."""
     path = running_path(state_dir, sid)
     try:
         raw = path.read_bytes()
@@ -399,22 +524,81 @@ def read_running(state_dir: Path, sid: str) -> RunningRecord | None:
     if not isinstance(started_at, str) or not started_at:
         faults.append(f"started_at {started_at!r} is not a timestamp")
     ticks = obj.get("leader_start_ticks")
-    if ticks is not None and (type(ticks) is not int or ticks < 0):
-        faults.append(f"leader_start_ticks {ticks!r} is not a tick count or null")
+    fault = _ticks_fault("leader_start_ticks", ticks)
+    if fault:
+        faults.append(fault)
+    groups, group_faults = _read_groups(obj)
+    faults.extend(group_faults)
     if faults:
         raise RunningRecordError(f"{path} is not a running record: "
                                  + "; ".join(faults))
-    return RunningRecord(sid, obj["pgid"], obj["pid"], started_at, ticks, path)
+    return RunningRecord(sid, obj["pgid"], obj["pid"], started_at, ticks, path,
+                         tuple(groups))
+
+
+def _read_groups(obj: dict[str, Any]) -> tuple[list[GroupEntry], list[str]]:
+    """The record's `groups`, read entry by entry, and every fault found —
+    a missing key, a value that is not an array, an entry that is not an
+    object or lacks a well-formed `pgid`, `leader_start_ticks` or
+    `registered_at`."""
+    if "groups" not in obj:
+        return [], ["it has no groups key (a record written against the five-key "
+                    "format of session 5b; the runtime that wrote it is not this "
+                    "twine's)"]
+    raw = obj["groups"]
+    if not isinstance(raw, list):
+        return [], [f"groups {_short(raw)} is not an array"]
+    groups: list[GroupEntry] = []
+    faults: list[str] = []
+    for index, entry in enumerate(raw):
+        where = f"groups[{index}]"
+        if not isinstance(entry, dict):
+            faults.append(f"{where} {_short(entry)} is not a group entry")
+            continue
+        entry_faults = [f"{where} has no {key}" for key in GROUP_KEYS if key not in entry]
+        if "pgid" in entry:
+            fault = _id_fault(f"{where} pgid", entry["pgid"])
+            if fault:
+                entry_faults.append(fault)
+        if "leader_start_ticks" in entry:
+            fault = _ticks_fault(f"{where} leader_start_ticks", entry["leader_start_ticks"])
+            if fault:
+                entry_faults.append(fault)
+        registered_at = entry.get("registered_at")
+        if "registered_at" in entry and (not isinstance(registered_at, str)
+                                         or not registered_at):
+            entry_faults.append(f"{where} registered_at {registered_at!r} is not a "
+                                "timestamp")
+        if entry_faults:
+            faults.extend(entry_faults)
+        else:
+            groups.append(GroupEntry(entry["pgid"], entry.get("leader_start_ticks"),
+                                     registered_at))
+    return groups, faults
+
+
+def _short(value: Any) -> str:
+    text = repr(value)
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
+def _id_fault(name: str, value: Any) -> str | None:
+    """A group to kill is a positive id above 1: 0 would signal the
+    signaller's own group, 1 is init's, and a bool is not an id."""
+    if type(value) is not int or value <= 1:
+        return f"{name} {value!r} is not a process id above 1"
+    return None
 
 
 def _id_faults(pgid: Any, pid: Any) -> list[str]:
-    """A group to kill is a positive id above 1: 0 would signal the
-    signaller's own group, 1 is init's, and a bool is not an id."""
-    faults = []
-    for name, value in (("pgid", pgid), ("pid", pid)):
-        if type(value) is not int or value <= 1:
-            faults.append(f"{name} {value!r} is not a process id above 1")
-    return faults
+    faults = [_id_fault("pgid", pgid), _id_fault("pid", pid)]
+    return [f for f in faults if f]
+
+
+def _ticks_fault(name: str, value: Any) -> str | None:
+    if value is not None and (type(value) is not int or value < 0):
+        return f"{name} {value!r} is not a tick count or null"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -423,44 +607,116 @@ def _id_faults(pgid: Any, pid: Any) -> list[str]:
 
 
 @dataclass
-class ProcessStep:
-    """What the kill did to the recorded group, and what is left of it.
+class GroupStep:
+    """What the kill did to one process group, and what is left of it.
 
     `dead` is True only when no member was found alive at the end (or the
     record was stale: the number now leads another process, so the recorded
     group is gone). `survivors` names every member still alive — [] when
-    dead. `error` names why the step could not finish (a malformed record,
-    members that cannot be enumerated, the kill's own group)."""
+    dead. `error` names why this group is not known to be gone (members
+    that cannot be enumerated, the kill's own group, survivors)."""
 
-    record: RunningRecord | None = None
-    record_path: Path | None = None
+    pgid: int
+    leader_start_ticks: int | None = None
     signals: list[str] = field(default_factory=list)
     dead: bool = False
     survivors: list[int] = field(default_factory=list)
     stale: bool = False
-    record_cleared: bool = False
     error: str | None = None
+    # True when the group was not signalled at all because it is twine
+    # kill's own: the kill stops there (the operator runs it from another
+    # shell), and the groups after it are left for that run.
+    refused: bool = False
 
     @property
     def signalled(self) -> bool:
         return bool(self.signals)
 
     def as_json(self) -> dict[str, Any]:
+        """The twin's entry for an additional group (cli-contract.md §14.6)."""
+        return {"pgid": self.pgid, "signalled": self.signalled,
+                "signals": list(self.signals), "dead": self.dead,
+                "survivors": list(self.survivors), "stale": self.stale}
+
+
+@dataclass
+class ProcessStep:
+    """What the kill did to every recorded group, and what is left of them.
+
+    `runtime` is the runtime's own group (None when the record was
+    malformed and named no group); `groups` the additional groups, in
+    signalling order — the record's, then any the one re-read found. The
+    whole is `dead` only when every group is gone (or stale); `survivors`
+    is every surviving pid across all of them, sorted; `error` names why
+    the step could not finish — a malformed record, or each group that is
+    not known to be gone. `signals`, `signalled` and `stale` are the
+    runtime's group's, as session 5b defined them."""
+
+    record: RunningRecord | None = None
+    record_path: Path | None = None
+    runtime: GroupStep | None = None
+    groups: list[GroupStep] = field(default_factory=list)
+    record_cleared: bool = False
+    record_error: str | None = None
+
+    @property
+    def steps(self) -> list[GroupStep]:
+        return ([] if self.runtime is None else [self.runtime]) + list(self.groups)
+
+    @property
+    def signals(self) -> list[str]:
+        return [] if self.runtime is None else list(self.runtime.signals)
+
+    @property
+    def signalled(self) -> bool:
+        return bool(self.signals)
+
+    @property
+    def stale(self) -> bool:
+        return self.runtime is not None and self.runtime.stale
+
+    @property
+    def dead(self) -> bool:
+        """Every group the record names is gone. False while the record's
+        whole is not known — malformed, or malformed on the re-read, so a
+        group registered meanwhile may be unknown."""
+        return (self.runtime is not None and self.record_error is None
+                and all(s.dead for s in self.steps))
+
+    @property
+    def survivors(self) -> list[int]:
+        return sorted({pid for s in self.steps for pid in s.survivors})
+
+    @property
+    def alive_groups(self) -> list[int]:
+        """The pgids not known to be gone, the runtime's first, then in
+        signalling order: what the hand line names."""
+        return [s.pgid for s in self.steps if not s.dead]
+
+    @property
+    def error(self) -> str | None:
+        problems = [self.record_error] if self.record_error else []
+        problems.extend(s.error for s in self.steps if s.error)
+        return "; ".join(problems) if problems else None
+
+    def as_json(self) -> dict[str, Any]:
         r = self.record
         return {"pgid": None if r is None else r.pgid,
                 "pid": None if r is None else r.pid,
                 "started_at": None if r is None else r.started_at,
-                "signalled": self.signalled, "signals": list(self.signals),
-                "dead": self.dead, "survivors": list(self.survivors),
-                "stale": self.stale, "record_cleared": self.record_cleared,
+                "signalled": self.signalled, "signals": self.signals,
+                "dead": self.dead, "survivors": self.survivors,
+                "stale": self.stale,
+                "groups": [g.as_json() for g in self.groups],
+                "record_cleared": self.record_cleared,
                 "record": None if self.record_path is None else str(self.record_path),
                 "error": self.error}
 
 
-def kill_group(record: RunningRecord, *, grace: float = DEFAULT_GRACE_SECONDS,
-               wait: float = KILL_WAIT_SECONDS,
-               proc_root: Path = process.PROC_ROOT) -> ProcessStep:
-    """Kill the recorded process group and wait until no member is alive.
+def kill_one_group(pgid: int, leader_start_ticks: int | None, *,
+                   grace: float = DEFAULT_GRACE_SECONDS, wait: float = KILL_WAIT_SECONDS,
+                   proc_root: Path = process.PROC_ROOT, sid: str = "") -> GroupStep:
+    """Kill one process group and wait until no member is alive.
 
     In order: refuse to signal twine kill's own group; if the record carries
     the leader's start time and a live process now holds that number with
@@ -473,21 +729,20 @@ def kill_group(record: RunningRecord, *, grace: float = DEFAULT_GRACE_SECONDS,
     otherwise `survivors` names them. Members are enumerated from /proc:
     where there is none the group is still signalled, but it is never
     reported dead."""
-    step = ProcessStep(record=record, record_path=record.path)
-    pgid = record.pgid
+    step = GroupStep(pgid=pgid, leader_start_ticks=leader_start_ticks)
     own = os.getpgrp()
     if pgid == own:
+        step.refused = True
         step.error = (f"the recorded process group {pgid} is twine kill's own; it "
                       "is not signalled — run twine kill from another shell")
         return step
-    if record.leader_start_ticks is not None:
+    if leader_start_ticks is not None:
         now = process.read_stat(pgid, proc_root)
-        if now is not None and now.start_ticks != record.leader_start_ticks:
+        if now is not None and now.start_ticks != leader_start_ticks:
             step.stale, step.dead = True, True
             log.warning("running record for %s is stale: pid %d started at tick %d, "
                         "the record says %d; the recorded group is gone and nothing "
-                        "is signalled", record.sid, pgid, now.start_ticks,
-                        record.leader_start_ticks)
+                        "is signalled", sid, pgid, now.start_ticks, leader_start_ticks)
             return step
     members = process.group_members(pgid, proc_root)
     if members == []:
@@ -515,6 +770,56 @@ def kill_group(record: RunningRecord, *, grace: float = DEFAULT_GRACE_SECONDS,
     step.error = (f"process group {pgid} still has live members after SIGKILL and "
                   f"{wait:g}s: {', '.join(str(p) for p in members)}")
     return step
+
+
+def kill_group(record: RunningRecord, *, grace: float = DEFAULT_GRACE_SECONDS,
+               wait: float = KILL_WAIT_SECONDS,
+               proc_root: Path = process.PROC_ROOT) -> ProcessStep:
+    """Kill every process group the record names and wait until no member
+    of any of them is alive: the runtime's own group first, so it can start
+    nothing more, then each group in `record.groups` in record order, each
+    as kill_one_group does it (the same signals, grace and wait; the stale
+    check on its own `leader_start_ticks`). The step is done only when
+    every group is gone; otherwise the survivors of all of them are named.
+    A runtime group that is twine kill's own is not signalled and the step
+    stops there — the groups after it are not signalled either, since the
+    runtime that could start more is not stopped; the run from another
+    shell takes them all. The caller (kill_session) re-reads the record
+    once afterwards for a group registered while this ran: `kill_more`
+    takes those."""
+    step = ProcessStep(record=record, record_path=record.path)
+    step.runtime = kill_one_group(record.pgid, record.leader_start_ticks, grace=grace,
+                                  wait=wait, proc_root=proc_root, sid=record.sid)
+    if step.runtime.refused:
+        log.error("kill %s: the runtime's group is twine kill's own; %d further "
+                  "recorded group(s) left for a run from another shell", record.sid,
+                  len(record.groups))
+        return step
+    kill_more(step, record.groups, grace=grace, wait=wait, proc_root=proc_root)
+    return step
+
+
+def kill_more(step: ProcessStep, groups: Sequence[GroupEntry], *,
+              grace: float = DEFAULT_GRACE_SECONDS, wait: float = KILL_WAIT_SECONDS,
+              proc_root: Path = process.PROC_ROOT) -> None:
+    """Kill each of `groups`, in order, the same way, and append each to
+    `step.groups`. A pgid the step already handled is not signalled twice:
+    its number could by now lead a stranger's group."""
+    done = {s.pgid for s in step.steps}
+    sid = "" if step.record is None else step.record.sid
+    for entry in groups:
+        if entry.pgid in done:
+            log.info("process group %d is already handled; not signalled again",
+                     entry.pgid)
+            continue
+        done.add(entry.pgid)
+        one = kill_one_group(entry.pgid, entry.leader_start_ticks, grace=grace,
+                             wait=wait, proc_root=proc_root, sid=sid)
+        step.groups.append(one)
+        if one.refused:
+            log.error("kill %s: recorded group %d is twine kill's own; the groups "
+                      "after it are left for a run from another shell", sid, one.pgid)
+            return
 
 
 def _await_members_gone(pgid: int, timeout: float, proc_root: Path) -> list[int] | None:
@@ -687,7 +992,7 @@ def _text(data: bytes) -> str:
 class KillReport:
     """Everything `twine kill <sid>` did, in order, and where it stopped.
 
-    ok exactly when the abort request stands, no process of the recorded
+    ok exactly when the abort request stands, no process of any recorded
     group is alive (or none was recorded), and bale closed the session
     `aborted`. `as_json()` is the verb's payload (cli-contract.md §14)."""
 
@@ -738,13 +1043,14 @@ class KillReport:
     @property
     def operator_line(self) -> str | None:
         """The one line that finishes the kill by hand, or None when nothing
-        is left to do. Members alive: the signal to their group. The closure
-        refused or not reached: bale's own remedy for a HOLD branch, else the
-        unlock line. None when no one line finishes it safely — a malformed
-        running record names no group, and a close must wait until the
-        runtime is found and stopped (the reason says so) — and when the kill
-        was refused before anything was done: fix the named fault and run
-        twine kill again."""
+        is left to do. Members alive: the signal to every group not known
+        to be gone, the runtime's first then record order — `kill -KILL --
+        -<pgid> -<pgid> …`. The closure refused or not reached: bale's own
+        remedy for a HOLD branch, else the unlock line. None when no one
+        line finishes it safely — a malformed running record names no
+        group, and a close must wait until the runtime is found and stopped
+        (the reason says so) — and when the kill was refused before anything
+        was done: fix the named fault and run twine kill again."""
         stop = self.stopped_at
         if stop is None or stop == "refused":
             return None
@@ -752,7 +1058,8 @@ class KillReport:
         if p is not None and not self.process_done:
             # Whatever else stopped, a group that may be alive comes first:
             # never hand out a close while a member of it may live.
-            return None if p.record is None else f"kill -KILL -- -{p.record.pgid}"
+            alive = p.alive_groups
+            return None if not alive else "kill -KILL -- " + " ".join(f"-{g}" for g in alive)
         if self.closure is not None:
             return self.closure.operator_line
         return bale.unlock_line(self.sid)
@@ -828,19 +1135,20 @@ class KillReport:
         p = self.process
         if p is None:
             lines.append("  process: no running record — no process to kill")
-        elif p.record is None:
+        elif p.record is None or p.runtime is None:
             lines.append(f"  process: NOT KILLED — {p.error}")
         else:
-            did = ", ".join(p.signals) if p.signals else "nothing signalled"
-            if p.stale:
-                state = "stale record (the number now leads another process); the group is gone"
-            elif p.dead:
-                state = "no member alive"
-            elif p.survivors:
-                state = "survivors " + ", ".join(str(s) for s in p.survivors)
-            else:
-                state = p.error or "not known to be gone"
-            lines.append(f"  process: group {p.record.pgid}: {did}; {state}")
+            label = "  process: "
+            for step in p.steps:
+                lines.append(f"{label}group {step.pgid}: {_group_state(step)}")
+                label = "           "
+            if p.groups:
+                lines.append(f"           {len(p.steps)} groups in all: "
+                             + ("none alive" if p.dead
+                                else "survivors " + ", ".join(str(s) for s in p.survivors)
+                                if p.survivors else "not all known to be gone"))
+            if p.record_error:
+                lines.append(f"           record: {p.record_error}")
         c = self.closure
         if c is None:
             lines.append(f"  closure: not attempted — {self.closure_skipped}")
@@ -854,6 +1162,20 @@ class KillReport:
         return lines
 
 
+def _group_state(step: GroupStep) -> str:
+    """One group's line in the human rendering: what was sent, what is left."""
+    did = ", ".join(step.signals) if step.signals else "nothing signalled"
+    if step.stale:
+        state = "stale record (the number now leads another process); the group is gone"
+    elif step.dead:
+        state = "no member alive"
+    elif step.survivors:
+        state = "survivors " + ", ".join(str(s) for s in step.survivors)
+    else:
+        state = step.error or "not known to be gone"
+    return f"{did}; {state}"
+
+
 def kill_session(state_dir: Path, sid: str, *, run: process.Runner,
                  executable: bale.Executable,
                  cwd: str | Path, env: Mapping[str, str],
@@ -863,17 +1185,21 @@ def kill_session(state_dir: Path, sid: str, *, run: process.Runner,
     """`twine kill <sid>`'s three steps, in order, each reported (brief item 1):
 
     1. request the between-calls abort (durable, idempotent);
-    2. kill the recorded process group, if a running record exists, and wait
-       until no member is alive — a malformed record is a named refusal of
-       this step, never a guess; once the group is confirmed gone the record
-       (a cache) is removed so a later kill cannot signal a reused number;
+    2. kill every recorded process group, if a running record exists — the
+       runtime's first, then each registered group in record order — and
+       wait until no member of any of them is alive; a malformed record is
+       a named refusal of this step, never a guess. Once they are gone the
+       record is re-read once, and a group registered since (a hook racing
+       the kill) is killed the same way; only then is the record (a cache)
+       removed, so a later kill cannot signal a reused number;
     3. close the session in bale `aborted` (close_aborted) — only when the
-       abort request stands and no process is alive or none was recorded.
+       abort request stands and no process is alive or none was recorded,
+       and only with the pinned bale: the pin gates this step alone, and
+       close_aborted checks it.
 
     The caller has validated the sid, the state directory, `cwd` and the
-    grace, and checked the pin before anything was done (close_aborted
-    checks it again). A report the caller started (the verb's, with its
-    locations) may be passed in."""
+    grace. A report the caller started (the verb's, with its locations)
+    may be passed in."""
     report = report if report is not None else KillReport(sid=sid)
     report.state_dir = Path(state_dir)
     try:
@@ -884,20 +1210,24 @@ def kill_session(state_dir: Path, sid: str, *, run: process.Runner,
     try:
         record = read_running(state_dir, sid)
     except RunningRecordError as exc:
-        report.process = ProcessStep(record_path=running_path(state_dir, sid),
-                                     error=f"the running record is malformed, so no "
-                                           f"process group is known to kill — find and "
-                                           f"stop the session's runtime yourself before "
-                                           f"closing it: {exc}")
+        report.process = ProcessStep(
+            record_path=running_path(state_dir, sid),
+            record_error=f"the running record is malformed, so no process group "
+                         f"is known to kill — find and stop the session's runtime "
+                         f"yourself before closing it: {exc}")
         log.error("kill %s: %s", sid, report.process.error)
         record = None
     if record is not None:
-        report.process = kill_group(record, grace=grace, wait=wait, proc_root=proc_root)
-        if report.process.dead and report.process.error is None:
+        step = kill_group(record, grace=grace, wait=wait, proc_root=proc_root)
+        report.process = step
+        if step.dead and step.error is None:
+            _kill_registered_since(step, state_dir, sid, grace=grace, wait=wait,
+                                   proc_root=proc_root)
+        if step.dead and step.error is None:
             try:
-                report.process.record_cleared = clear_running(state_dir, sid)
+                step.record_cleared = clear_running(state_dir, sid)
             except KillError as exc:
-                log.warning("kill %s: the group is gone but %s (a cache; "
+                log.warning("kill %s: the groups are gone but %s (a cache; "
                             "nothing of record is lost)", sid, exc.strerror or exc)
     if not report.abort_requested:
         report.closure_skipped = ("the abort request could not be written, so the "
@@ -910,3 +1240,36 @@ def kill_session(state_dir: Path, sid: str, *, run: process.Runner,
         report.closure = close_aborted(run, executable, sid, cwd=cwd, env=env)
     log.info("kill %s: ok=%s stopped_at=%s", sid, report.ok, report.stopped_at)
     return report
+
+
+def _kill_registered_since(step: ProcessStep, state_dir: Path, sid: str, *,
+                           grace: float, wait: float, proc_root: Path) -> None:
+    """The one re-read (brief §2.3): a hook that raced the kill may have
+    registered a group after the record was first read. Any group the
+    re-read names that the step has not handled — in `groups`, or a
+    runtime that re-registered under a new number — is killed the same
+    way. A record that has become malformed is an error of the step (the
+    record is left for the operator); one that is gone is nothing more to
+    do. What this cannot close is the window between a child's Popen and
+    its hook's write in a runtime that is itself SIGKILLed (§14.4)."""
+    try:
+        again = read_running(state_dir, sid)
+    except RunningRecordError as exc:
+        step.record_error = (f"the running record changed under the kill and is "
+                             f"malformed now, so a group registered meanwhile may be "
+                             f"unknown — find and stop the session's runtime yourself "
+                             f"before closing it: {exc}")
+        log.error("kill %s: %s", sid, step.record_error)
+        return
+    if again is None:
+        log.info("kill %s: the running record is gone already; nothing registered "
+                 "since", sid)
+        return
+    handled = {s.pgid for s in step.steps}
+    named = [GroupEntry(again.pgid, again.leader_start_ticks, again.started_at),
+             *again.groups]
+    new = [g for g in named if g.pgid not in handled]
+    if new:
+        log.warning("kill %s: %d group(s) registered while the kill ran: %s", sid,
+                    len(new), ", ".join(str(g.pgid) for g in new))
+    kill_more(step, new, grace=grace, wait=wait, proc_root=proc_root)

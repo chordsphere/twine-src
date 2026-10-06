@@ -5,22 +5,30 @@ session 5b).
                    [--grace SECONDS] [--json]
 
 Thin over twine/kill.py's `kill_session`, the same functions the Arc 2 loop
-will call: it requests the between-calls abort, kills the process group the
-session's runtime recorded and waits until none of it is alive, then closes
-the session in bale with the closure reason `aborted` — `bale unlock <sid>
---reason aborted --json`, through the run seam (ctx.run) and only with the
-pinned bale. When it cannot finish, the report says where it stopped and
-gives the one line that finishes by hand.
+will call: it requests the between-calls abort, kills every process group
+the session's runtime recorded — its own, then each it registered — and
+waits until none of them is alive, then closes the session in bale with the
+closure reason `aborted` — `bale unlock <sid> --reason aborted --json`,
+through the run seam (ctx.run) and only with the pinned bale. When it
+cannot finish, the report says where it stopped and gives the one line that
+finishes by hand.
 
 Refused before anything is done, every reason named at once: SID is not a
 session id (relay_argv's rule); no state directory (resolved as the spend
 verbs resolve it, cli-contract.md §13.2), or one that does not exist — a
 kill never creates the directory it reports to, since an abort written
 where the runtime does not look stops nothing; `--cwd` is not a directory;
-`--grace` is not a non-negative number of at most 600 seconds; no bale, or
-not the pinned one (D2).
-The pin is checked before the abort is requested, so an unpinned bale
-refuses the whole kill rather than leaving a half-done one (brief item 1).
+`--grace` is not a non-negative number of at most 600 seconds.
+
+The bale is located first, so the report says what was found, but a bale
+that is absent, unreadable or not the pin is **not a refusal** (session 5c,
+the sitting's correction to 5b): the abort request and the process kill run
+with any bale or none — D15's kill must work when the harness itself is
+wedged, and an install drifted off the pin is one way it can be. The pin
+gates the closure alone, which `close_aborted` checks itself: such a kill
+ends `stopped_at: "closure"`, not ok, with the drive refusal in `reason`
+and the unlock line to finish by hand (D2, D17: the pin exists for the
+closure's vocabulary, not for the signal).
 
 No module here spawns a process: bale runs through ctx.run, and signals go
 through twine.process's group helpers. The contract is
@@ -31,10 +39,12 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
+import stat
 
-from twine import kill, spend
+from twine import bale, kill, spend
 from twine.cli import Context
-from twine.commands.carry_bale import BALE_ROOT_ARGUMENT, locate, resolve_cwd
+from twine.commands.carry_bale import BALE_ROOT_ARGUMENT, resolve_cwd
 from twine.registry import Argument, Command, Result
 
 
@@ -54,6 +64,20 @@ def parse_grace(text: str) -> float:
     return value
 
 
+def state_dir_fault(path) -> str | None:
+    """Why `path` is not a state directory to kill in, or None when it is
+    one: it does not exist, is not a directory, or cannot be looked at (no
+    search permission on a parent, say) — a named refusal, never a
+    traceback (session 5c, found by its review)."""
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        return "does not exist"
+    except OSError as exc:
+        return f"cannot be read ({exc.strerror or exc})"
+    return None if stat.S_ISDIR(st.st_mode) else "is not a directory"
+
+
 def cmd_kill(ctx: Context, args: argparse.Namespace) -> Result:
     """Collect every refusal first; do nothing unless there is none; then the
     three steps, each reported on stderr as it happens."""
@@ -66,10 +90,10 @@ def cmd_kill(ctx: Context, args: argparse.Namespace) -> Result:
     try:
         where = spend.resolve_state_dir(args.state_dir, ctx.env)
         report.state_dir, report.state_dir_source = where.path, where.source
-        if not where.path.is_dir():
+        fault = state_dir_fault(where.path)
+        if fault is not None:
             report.refusals.append(
-                f"the state directory {where.path} (from {where.source}) "
-                f"{'is not a directory' if where.path.exists() else 'does not exist'}"
+                f"the state directory {where.path} (from {where.source}) {fault}"
                 " — the runtime writes its running record there and the loop reads "
                 "its abort request there, so a kill reported anywhere else stops "
                 "nothing; name the runtime's with --state-dir or $TWINE_STATE_DIR "
@@ -82,17 +106,22 @@ def cmd_kill(ctx: Context, args: argparse.Namespace) -> Result:
         report.grace_seconds = parse_grace(args.grace)
     except ValueError as exc:
         report.refusals.append(str(exc))
-    executable = locate(ctx, args, report.refusals)
+    # The bale is located first so the report says what was found, but its
+    # drive refusal does not join `refusals`: the pin gates the closure
+    # alone (close_aborted checks it), never the abort or the signal.
+    executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which)
     report.bale = executable.as_json()
     if report.refusals:
         for problem in report.refusals:
             ctx.info(problem)
         ctx.info(f"kill {args.sid}: refused; nothing was done")
         return Result(False, report.as_json(), report.lines())
-    assert report.state_dir is not None and executable.path is not None
-    assert report.grace_seconds is not None
+    assert report.state_dir is not None and report.grace_seconds is not None
+    if executable.drive_refusal is not None:
+        ctx.info(f"kill {args.sid}: {executable.drive_refusal} — the abort and the "
+                 "process kill go ahead; the closure will not")
     ctx.info(f"kill {args.sid}: requesting the abort in {report.state_dir}, then "
-             f"killing any recorded process group (grace {report.grace_seconds:g}s), "
+             f"killing every recorded process group (grace {report.grace_seconds:g}s), "
              f"then closing it in bale (in {report.cwd})")
     kill.kill_session(report.state_dir, args.sid, run=ctx.run,
                       executable=executable, cwd=report.cwd, env=ctx.env,
@@ -110,9 +139,9 @@ def cmd_kill(ctx: Context, args: argparse.Namespace) -> Result:
 COMMANDS = (
     Command(
         name="kill",
-        summary="the kill-switch: request the between-calls abort, kill the "
-                "session's recorded process group, and close it in bale as "
-                "`aborted`",
+        summary="the kill-switch: request the between-calls abort, kill every "
+                "process group the session's runtime recorded, and close it in "
+                "bale as `aborted`",
         handler=cmd_kill,
         arguments=(
             Argument(("sid",), {
@@ -136,12 +165,15 @@ COMMANDS = (
         ),
         description="Request the between-calls abort for SID in twine's state "
                     "directory (durable, idempotent); if the session's runtime "
-                    "recorded a process group, SIGTERM it, SIGKILL it after "
-                    "--grace seconds, and wait until no member is alive — or name "
-                    "the survivors and stop; then, only when nothing of it is "
-                    "alive, close the session in bale with `bale unlock SID "
-                    "--reason aborted --json`, run in --cwd with the pinned bale, "
-                    "once. ok when all three landed. Otherwise the report says "
-                    "where it stopped and gives the one line that finishes by "
-                    "hand. twine never reverts, merges or applies anything."),
+                    "recorded its process groups, SIGTERM each — the runtime's "
+                    "own first, then every group it registered — SIGKILL it after "
+                    "--grace seconds, and wait until no member of any is alive — "
+                    "or name the survivors and stop; then, only when nothing of "
+                    "them is alive, close the session in bale with `bale unlock "
+                    "SID --reason aborted --json`, run in --cwd with the pinned "
+                    "bale, once. The abort and the kill run with any bale or "
+                    "none; only the closure needs the pin. ok when all three "
+                    "landed. Otherwise the report says where it stopped and gives "
+                    "the one line that finishes by hand. twine never reverts, "
+                    "merges or applies anything."),
 )

@@ -1,4 +1,5 @@
-"""The kill-switch (D15; Arc 1 session 5b): twine/kill.py and `twine kill`.
+"""The kill-switch (D15; Arc 1 sessions 5b and 5c): twine/kill.py and
+`twine kill`.
 
 No test here, and nothing in the suite, runs a real `bale unlock`: every
 unlock answer is a double built from format_unlock_json's key contract
@@ -10,12 +11,17 @@ for it (`dies_within`, brief §7) rather than checking once — and every state
 directory is a temporary one
 — never the real default: the in-process runs carry an empty environment.
 
+Session 5c: the running record carries `groups` (every further group the
+runtime registered, `register_group`), the kill signals every one of them
+and re-reads the record once, and the pin gates the closure alone — an
+unpinned or absent bale no longer refuses the abort or the signal.
+
 Sections:
   1. The between-calls abort
-  2. The running record
-  3. The process-level kill
+  2. The running record (and its groups)
+  3. The process-level kill (every recorded group)
   4. The aborted closure
-  5. The kill, end to end (the function)
+  5. The kill, end to end (the function; the re-read)
   6. `twine kill`, the verb
   7. Guards: one unlock argv, nothing spawned, the stop key
 """
@@ -177,6 +183,21 @@ class BetweenCallsAbort(StateCase):
 # ---------------------------------------------------------------------------
 
 
+# A well-formed record's six keys (brief §2.1): what register_running writes
+# and what read_running requires, every one of them.
+RECORD_KEYS = ("sid", "pgid", "pid", "started_at", "leader_start_ticks", "groups")
+GROUP_KEYS = ("pgid", "leader_start_ticks", "registered_at")
+
+
+def good_record(**overrides) -> dict:
+    """A record that reads, for the malformed-record tests to break one key
+    at a time. No process holds 4242 or 4243 for long; nothing signals it."""
+    record = {"sid": SID, "pgid": 4242, "pid": 4243, "started_at": "t",
+              "leader_start_ticks": None, "groups": []}
+    record.update(overrides)
+    return record
+
+
 class RunningRecord(StateCase):
 
     def test_register_read_clear(self):
@@ -184,11 +205,15 @@ class RunningRecord(StateCase):
         rec = kill.register_running(self.state, SID, group.pgid, group.pgid,
                                     clock=lambda: "2026-10-04T01:00:00Z")
         self.assertEqual(rec.path, self.state / "running" / f"{SID}.json")
-        self.assertEqual(json.loads(rec.path.read_text()),
+        written = json.loads(rec.path.read_text())
+        self.assertEqual(tuple(written), RECORD_KEYS, "exactly the six keys, in order")
+        self.assertEqual(written,
                          {"sid": SID, "pgid": group.pgid, "pid": group.pgid,
                           "started_at": "2026-10-04T01:00:00Z",
-                          "leader_start_ticks": process.start_ticks(group.pgid)})
+                          "leader_start_ticks": process.start_ticks(group.pgid),
+                          "groups": []})
         self.assertIsInstance(rec.leader_start_ticks, int)
+        self.assertEqual((rec.groups, rec.pgids), ((), [group.pgid]))
         self.assertEqual(kill.read_running(self.state, SID), rec)
         self.assertEqual(stat.S_IMODE(rec.path.stat().st_mode), 0o600)
         self.assertTrue(kill.clear_running(self.state, SID))
@@ -202,11 +227,98 @@ class RunningRecord(StateCase):
                     kill.register_running(self.state, SID, pgid, pid)
         self.assertTrue(self.state_is_empty())
 
+    def test_register_group_appends_in_order_and_rewrites_durably(self):
+        """Session 5c: each registered group is one entry, in registration
+        order, with its leader's start ticks read as the runtime's were; the
+        runtime's own group is never repeated in `groups`."""
+        runtime, first, second = self.group(), self.group(), self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid,
+                              clock=lambda: "2026-10-05T00:00:00Z")
+        grown = kill.register_group(self.state, SID, first.pgid,
+                                    clock=lambda: "2026-10-05T00:00:01Z")
+        self.assertEqual([g.pgid for g in grown.groups], [first.pgid])
+        grown = kill.register_group(self.state, SID, second.pgid,
+                                    clock=lambda: "2026-10-05T00:00:02Z")
+        self.assertEqual(grown.pgids, [runtime.pgid, first.pgid, second.pgid])
+        written = json.loads(grown.path.read_text())
+        self.assertEqual(tuple(written), RECORD_KEYS)
+        self.assertEqual(written["groups"], [
+            {"pgid": first.pgid, "leader_start_ticks": process.start_ticks(first.pgid),
+             "registered_at": "2026-10-05T00:00:01Z"},
+            {"pgid": second.pgid, "leader_start_ticks": process.start_ticks(second.pgid),
+             "registered_at": "2026-10-05T00:00:02Z"}])
+        for entry in written["groups"]:
+            self.assertEqual(tuple(entry), GROUP_KEYS)
+            self.assertIsInstance(entry["leader_start_ticks"], int)
+        self.assertEqual((written["pgid"], written["started_at"]),
+                         (runtime.pgid, "2026-10-05T00:00:00Z"), "the runtime's part stands")
+        self.assertEqual(kill.read_running(self.state, SID), grown)
+        self.assertEqual(stat.S_IMODE(grown.path.stat().st_mode), 0o600)
+        self.assertEqual(sorted(p.name for p in grown.path.parent.iterdir()),
+                         [f"{SID}.json"], "no temp file left behind")
+
+    def test_register_group_refuses_without_a_record_to_grow(self):
+        """The runtime registers itself before it starts anything."""
+        with self.assertRaises(kill.RunningRecordError) as caught:
+            kill.register_group(self.state, SID, 4242)
+        self.assertIn("no running record", str(caught.exception))
+        self.assertIn("register_running", str(caught.exception))
+        self.assertTrue(self.state_is_empty(), "nothing written")
+
+    def test_register_group_refuses_the_runtimes_own_group_and_a_non_group(self):
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        before = kill.running_path(self.state, SID).read_bytes()
+        with self.assertRaises(kill.RunningRecordError) as caught:
+            kill.register_group(self.state, SID, runtime.pgid)
+        self.assertIn("runtime's own", str(caught.exception))
+        for pgid in (0, 1, -4, True, "7", None):
+            with self.subTest(pgid=pgid), self.assertRaises(kill.RunningRecordError):
+                kill.register_group(self.state, SID, pgid)
+        self.assertEqual(kill.running_path(self.state, SID).read_bytes(), before,
+                         "a refused registration leaves the record as it was")
+
+    def test_concurrent_registrations_all_land(self):
+        """The read-append-replace runs under a lock on running/: twenty
+        hooks at once register twenty groups, none lost (session 5c's
+        review found 3 of 20 landing without it)."""
+        import threading
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        pgids = list(range(100_000, 100_020))
+        errors: list[BaseException] = []
+        gate = threading.Barrier(len(pgids))
+
+        def register(pgid: int) -> None:
+            try:
+                gate.wait(5)
+                kill.register_group(self.state, SID, pgid)
+            except BaseException as exc:  # noqa: BLE001 — reported below
+                errors.append(exc)
+
+        threads = [threading.Thread(target=register, args=(p,)) for p in pgids]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(30)
+        self.assertEqual(errors, [])
+        record = kill.read_running(self.state, SID)
+        self.assertEqual(sorted(g.pgid for g in record.groups), pgids)
+        self.assertEqual(sorted(p.name for p in record.path.parent.iterdir()),
+                         [f"{SID}.json"], "no lock file and no temp file beside the record")
+
+    def test_register_group_refuses_a_malformed_record(self):
+        path = kill.running_path(self.state, SID)
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(good_record(groups="not an array")))
+        with self.assertRaises(kill.RunningRecordError) as caught:
+            kill.register_group(self.state, SID, 4244)
+        self.assertIn("is not an array", str(caught.exception))
+
     def test_a_malformed_record_is_named_never_guessed(self):
         path = kill.running_path(self.state, SID)
         path.parent.mkdir(parents=True)
-        good = {"sid": SID, "pgid": 4242, "pid": 4243, "started_at": "t",
-                "leader_start_ticks": None}
+        good = good_record()
         cases = {
             "not a JSON object": b"{nope",
             "is not a JSON object": b"[1, 2]",
@@ -225,6 +337,61 @@ class RunningRecord(StateCase):
                     kill.read_running(self.state, SID)
                 self.assertIn(needle, str(caught.exception))
                 self.assertIn(str(path), str(caught.exception))
+
+    def test_a_groups_array_that_is_not_one_is_named_fault_by_fault(self):
+        """Session 5c, brief §7: a record without `groups`, or whose groups is
+        not an array of entries, is malformed — each fault named. The
+        five-key record of session 5b is one such record now."""
+        path = kill.running_path(self.state, SID)
+        path.parent.mkdir(parents=True)
+        entry = {"pgid": 4250, "leader_start_ticks": None, "registered_at": "t"}
+        cases = {
+            "has no groups key": {k: v for k, v in good_record().items() if k != "groups"},
+            "groups 'x' is not an array": good_record(groups="x"),
+            "groups {} is not an array": good_record(groups={}),
+            "groups[0] 7 is not a group entry": good_record(groups=[7]),
+            "groups[0] has no pgid": good_record(
+                groups=[{"leader_start_ticks": None, "registered_at": "t"}]),
+            "groups[1] pgid 1 is not a process id above 1": good_record(
+                groups=[entry, {**entry, "pgid": 1}]),
+            "groups[0] pgid 0 is not": good_record(groups=[{**entry, "pgid": 0}]),
+            "groups[0] pgid True is not": good_record(groups=[{**entry, "pgid": True}]),
+            "groups[0] pgid '4250' is not": good_record(groups=[{**entry, "pgid": "4250"}]),
+            "groups[0] leader_start_ticks -1 is not a tick count or null": good_record(
+                groups=[{**entry, "leader_start_ticks": -1}]),
+            "groups[0] leader_start_ticks 'now' is not": good_record(
+                groups=[{**entry, "leader_start_ticks": "now"}]),
+            "groups[0] has no registered_at": good_record(
+                groups=[{"pgid": 4250, "leader_start_ticks": None}]),
+            "groups[0] has no leader_start_ticks": good_record(
+                groups=[{"pgid": 4250, "registered_at": "t"}]),
+            "groups[0] registered_at None is not a timestamp": good_record(
+                groups=[{**entry, "registered_at": None}]),
+            "groups[0] registered_at 5 is not a timestamp": good_record(
+                groups=[{**entry, "registered_at": 5}]),
+            "groups[0] registered_at '' is not a timestamp": good_record(
+                groups=[{**entry, "registered_at": ""}]),
+        }
+        for needle, record in cases.items():
+            with self.subTest(needle=needle):
+                path.write_text(json.dumps(record))
+                with self.assertRaises(kill.RunningRecordError) as caught:
+                    kill.read_running(self.state, SID)
+                self.assertIn(needle, str(caught.exception))
+                self.assertIn(str(path), str(caught.exception))
+        # Two faults in one record are both named.
+        path.write_text(json.dumps(good_record(pid=1, groups=[{**entry, "pgid": 1}])))
+        with self.assertRaises(kill.RunningRecordError) as caught:
+            kill.read_running(self.state, SID)
+        self.assertIn("pid 1 is not", str(caught.exception))
+        self.assertIn("groups[0] pgid 1 is not", str(caught.exception))
+        # And a well-formed one with two entries reads as written.
+        path.write_text(json.dumps(good_record(groups=[entry, {**entry, "pgid": 4251,
+                                                                 "leader_start_ticks": 9}])))
+        record = kill.read_running(self.state, SID)
+        self.assertEqual(record.groups, (kill.GroupEntry(4250, None, "t"),
+                                         kill.GroupEntry(4251, 9, "t")))
+        self.assertEqual(record.pgids, [4242, 4250, 4251])
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +492,123 @@ class ProcessLevelKill(StateCase):
         self.assertEqual(sent, [signal.SIGTERM, signal.SIGCONT, signal.SIGKILL])
         self.assertFalse(step.dead)
         self.assertIn("cannot be enumerated", step.error)
+
+    # --- every recorded group (session 5c) ---------------------------------
+
+    def with_groups(self, runtime: RealGroup, *more: RealGroup) -> kill.RunningRecord:
+        record = kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        for group in more:
+            record = kill.register_group(self.state, SID, group.pgid)
+        return record
+
+    def test_every_recorded_group_is_killed_the_runtimes_first(self):
+        """Three real groups — the runtime's, one that honours SIGTERM, one
+        that ignores it — all gone, each with its own signals, in order."""
+        runtime = self.group()
+        polite = self.group()
+        stubborn = self.group(body='trap "" TERM; sleep 60 & echo $!; sleep 60 & echo $!; wait')
+        sent: list[tuple[int, int]] = []
+        real_signal = process.signal_group
+
+        def spy(pgid, signum):
+            sent.append((pgid, signum))
+            return real_signal(pgid, signum)
+
+        with mock.patch.object(process, "signal_group", side_effect=spy):
+            step = kill.kill_group(self.with_groups(runtime, polite, stubborn),
+                                   grace=0.4, wait=5)
+        self.assertEqual((step.dead, step.survivors, step.error), (True, [], None))
+        self.assertEqual([s.pgid for s in step.steps],
+                         [runtime.pgid, polite.pgid, stubborn.pgid])
+        self.assertEqual([g.pgid for g in step.groups], [polite.pgid, stubborn.pgid])
+        self.assertEqual(step.signals, ["SIGTERM", "SIGCONT"], "the runtime's")
+        self.assertEqual([g.signals for g in step.groups],
+                         [["SIGTERM", "SIGCONT"], ["SIGTERM", "SIGCONT", "SIGKILL"]])
+        self.assertEqual([pgid for pgid, _ in sent][:2], [runtime.pgid] * 2,
+                         "the runtime's group is signalled first")
+        self.assertLess(max(i for i, (p, _) in enumerate(sent) if p == polite.pgid),
+                        min(i for i, (p, _) in enumerate(sent) if p == stubborn.pgid),
+                        "then record order")
+        for pid in runtime.pids + polite.pids + stubborn.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+        twin = step.as_json()
+        self.assertEqual([tuple(g) for g in twin["groups"]],
+                         [("pgid", "signalled", "signals", "dead", "survivors", "stale")] * 2)
+        self.assertEqual((twin["dead"], twin["survivors"], twin["signals"]),
+                         (True, [], ["SIGTERM", "SIGCONT"]))
+
+    def test_dead_is_the_whole_and_survivors_span_every_group(self):
+        """One additional group will not die (a double): the step is not
+        done, `survivors` is every surviving pid across the groups, sorted,
+        and the error names the group."""
+        rec = kill.RunningRecord(SID, 4242, 4242, "t", None, kill.running_path(self.state, SID),
+                                 (kill.GroupEntry(4300, None, "t"),
+                                  kill.GroupEntry(4400, None, "t")))
+        alive = {4242: [], 4300: [4300, 4310], 4400: []}
+        sent = []
+        with mock.patch.object(process, "group_members", side_effect=lambda g, r: alive[g]), \
+                mock.patch.object(process, "signal_group",
+                                  side_effect=lambda g, s: sent.append((g, s))):
+            step = kill.kill_group(rec, grace=0.05, wait=0.05)
+        self.assertEqual(sent, [(4300, signal.SIGTERM), (4300, signal.SIGCONT),
+                                (4300, signal.SIGKILL)], "only the live group is signalled")
+        self.assertEqual((step.runtime.dead, step.dead, step.survivors), (True, False, [4300, 4310]))
+        self.assertEqual([(g.pgid, g.dead, g.survivors) for g in step.groups],
+                         [(4300, False, [4300, 4310]), (4400, True, [])])
+        self.assertEqual(step.alive_groups, [4300])
+        self.assertIn("process group 4300 still has live members", step.error)
+        self.assertEqual(step.signals, [], "the runtime's group needed nothing")
+        self.assertEqual(step.as_json()["groups"][0]["survivors"], [4300, 4310])
+
+    def test_the_stale_check_is_per_group_on_its_own_ticks(self):
+        """A group whose number now leads another process is gone and not
+        touched; the group beside it is still killed."""
+        runtime, reused, live = self.group(), self.group(), self.group()
+        record = self.with_groups(runtime, reused, live)
+        entries = list(record.groups)
+        entries[0] = kill.GroupEntry(reused.pgid, entries[0].leader_start_ticks + 1, "t")
+        record = kill.RunningRecord(SID, record.pgid, record.pid, record.started_at,
+                                    record.leader_start_ticks, record.path, tuple(entries))
+        step = kill.kill_group(record, grace=2, wait=2)
+        self.assertEqual((step.dead, step.stale), (True, False), "the runtime's was real")
+        self.assertEqual([(g.pgid, g.stale, g.dead, g.signals) for g in step.groups],
+                         [(reused.pgid, True, True, []),
+                          (live.pgid, False, True, ["SIGTERM", "SIGCONT"])])
+        for pid in reused.pids:
+            self.assertTrue(process_alive(pid), f"{pid} was signalled on a stale entry")
+        for pid in runtime.pids + live.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+
+    def test_twine_kills_own_group_stops_the_step_before_the_other_groups(self):
+        """The runtime's group is twine kill's own: nothing is signalled, not
+        the groups after it either — the runtime that could start more is
+        not stopped, and the run from another shell takes them all."""
+        own = os.getpgrp()
+        tool = self.group()
+        rec = kill.RunningRecord(SID, own, own, "t", None, kill.running_path(self.state, SID),
+                                 (kill.GroupEntry(tool.pgid, None, "t"),))
+        with mock.patch.object(process, "signal_group",
+                               side_effect=AssertionError("signalled")):
+            step = kill.kill_group(rec, grace=0, wait=0)
+        self.assertEqual((step.dead, step.groups, step.runtime.refused), (False, [], True))
+        self.assertIn("twine kill's own", step.error)
+        self.assertEqual(step.alive_groups, [own])
+        for pid in tool.pids:
+            self.assertTrue(process_alive(pid), f"{pid} was signalled past the refusal")
+
+    def test_a_group_recorded_twice_is_signalled_once(self):
+        """A pgid already handled is not signalled again: by then its
+        number could lead a stranger's group."""
+        rec = kill.RunningRecord(SID, 4242, 4242, "t", None, kill.running_path(self.state, SID),
+                                 (kill.GroupEntry(4300, None, "t"),
+                                  kill.GroupEntry(4300, None, "t"),
+                                  kill.GroupEntry(4242, None, "t")))
+        with mock.patch.object(process, "group_members", return_value=[]), \
+                mock.patch.object(process, "signal_group",
+                                  side_effect=AssertionError("signalled")):
+            step = kill.kill_group(rec)
+        self.assertEqual([g.pgid for g in step.groups], [4300])
+        self.assertTrue(step.dead)
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +794,142 @@ class KillSession(StateCase):
         self.assertEqual(report.as_json()["stderr"],
                          unlock_refusal_double(HOLD_REFUSAL).decode())
 
+    # --- every recorded group, and the re-read (session 5c) ----------------
+
+    def test_every_recorded_group_is_killed_before_the_closure(self):
+        runtime, tool_a, tool_b = self.group(), self.group(), self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        kill.register_group(self.state, SID, tool_a.pgid)
+        kill.register_group(self.state, SID, tool_b.pgid)
+        report, runner = self.kill(grace=2)
+        self.assertTrue(report.ok, report.reason)
+        self.assertEqual([s.pgid for s in report.process.steps],
+                         [runtime.pgid, tool_a.pgid, tool_b.pgid])
+        self.assertEqual((report.process.dead, report.process.record_cleared), (True, True))
+        self.assertIsNone(kill.read_running(self.state, SID))
+        self.assertEqual(len(runner.calls), 1)
+        for pid in runtime.pids + tool_a.pids + tool_b.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+
+    def test_the_hand_line_names_every_group_with_survivors(self):
+        """Brief §2.3: `kill -KILL -- -<pgid> -<pgid> …`, the runtime's first,
+        then record order — only the groups not known to be gone."""
+        rec = kill.RunningRecord(SID, 4242, 4242, "t", None, kill.running_path(self.state, SID),
+                                 (kill.GroupEntry(4300, None, "t"),
+                                  kill.GroupEntry(4400, None, "t"),
+                                  kill.GroupEntry(4500, None, "t")))
+        alive = {4242: [4242], 4300: [], 4400: [4401], 4500: [4500, 4501]}
+        with mock.patch.object(kill, "read_running", return_value=rec), \
+                mock.patch.object(process, "group_members", side_effect=lambda g, r: alive[g]), \
+                mock.patch.object(process, "signal_group", return_value=None):
+            report, runner = self.kill(grace=0, wait=0)
+        self.assertEqual(runner.calls, [], "no closure while a member lives")
+        self.assertEqual((report.stopped_at, report.operator_line),
+                         ("process", "kill -KILL -- -4242 -4400 -4500"))
+        twin = report.as_json()["process"]
+        self.assertEqual((twin["dead"], twin["survivors"]), (False, [4242, 4401, 4500, 4501]))
+        self.assertEqual([g["pgid"] for g in twin["groups"]], [4300, 4400, 4500])
+        self.assertEqual([g["dead"] for g in twin["groups"]], [True, False, False])
+        self.assertFalse(twin["record_cleared"], "a record whose groups live stays")
+        # The runtime's group gone, one tool's alive: only the tool is named.
+        alive = {4242: [], 4300: [], 4400: [4401], 4500: []}
+        with mock.patch.object(kill, "read_running", return_value=rec), \
+                mock.patch.object(process, "group_members", side_effect=lambda g, r: alive[g]), \
+                mock.patch.object(process, "signal_group", return_value=None):
+            report, runner = self.kill(grace=0, wait=0)
+        self.assertEqual(report.operator_line, "kill -KILL -- -4400")
+        self.assertEqual(runner.calls, [])
+
+    def test_a_group_registered_during_the_kill_is_killed_on_the_re_read(self):
+        """A hook racing the kill: after the first read, one more group is
+        registered. The one re-read finds it; it is killed too, the record
+        then cleared, the closure attempted once."""
+        runtime, early, late = self.group(), self.group(), self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        kill.register_group(self.state, SID, early.pgid)
+        real_kill_group = kill.kill_group
+
+        def kill_group_then_a_hook_fires(record, **kwargs):
+            step = real_kill_group(record, **kwargs)
+            kill.register_group(self.state, SID, late.pgid)
+            return step
+
+        with mock.patch.object(kill, "kill_group", side_effect=kill_group_then_a_hook_fires):
+            report, runner = self.kill(grace=2)
+        self.assertTrue(report.ok, report.reason)
+        self.assertEqual([s.pgid for s in report.process.steps],
+                         [runtime.pgid, early.pgid, late.pgid])
+        self.assertEqual(report.process.groups[-1].signals, ["SIGTERM", "SIGCONT"])
+        self.assertTrue(report.process.record_cleared)
+        self.assertIsNone(kill.read_running(self.state, SID))
+        self.assertEqual(len(runner.calls), 1)
+        for pid in runtime.pids + early.pids + late.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+        twin = report.as_json()["process"]
+        self.assertEqual([g["pgid"] for g in twin["groups"]], [early.pgid, late.pgid])
+
+    def test_the_re_read_happens_once_and_only_after_the_groups_are_gone(self):
+        """Two reads of the record in all: the first, and the one re-read
+        once its groups are dead. A kill that stops with survivors re-reads
+        nothing — it is not finished, and reads again when run again."""
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        real_read = kill.read_running
+        reads = []
+        with mock.patch.object(kill, "read_running",
+                               side_effect=lambda *a: (reads.append(a), real_read(*a))[1]):
+            report, _ = self.kill(grace=2)
+        self.assertTrue(report.ok, report.reason)
+        self.assertEqual(len(reads), 2)
+        rec = kill.RunningRecord(SID, 4242, 4242, "t", None, kill.running_path(self.state, SID))
+        reads.clear()
+        with mock.patch.object(kill, "read_running",
+                               side_effect=lambda *a: (reads.append(a), rec)[1]), \
+                mock.patch.object(process, "group_members", return_value=[4242]), \
+                mock.patch.object(process, "signal_group", return_value=None):
+            report, _ = self.kill(grace=0, wait=0)
+        self.assertEqual((report.stopped_at, len(reads)), ("process", 1))
+
+    def test_a_record_that_turns_malformed_under_the_kill_stops_it(self):
+        """The re-read finds a record that no longer reads: the groups killed
+        so far are gone, but a group registered meanwhile may be unknown, so
+        the step is not done, the record is left, and no close is handed out."""
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        real_kill_group = kill.kill_group
+        path = kill.running_path(self.state, SID)
+
+        def kill_group_then_the_record_breaks(record, **kwargs):
+            step = real_kill_group(record, **kwargs)
+            path.write_text("{broken")
+            return step
+
+        with mock.patch.object(kill, "kill_group", side_effect=kill_group_then_the_record_breaks):
+            report, runner = self.kill(grace=2)
+        self.assertEqual((report.ok, report.stopped_at, runner.calls), (False, "process", []))
+        self.assertTrue(report.process.runtime.dead)
+        self.assertFalse(report.process.dead)
+        self.assertIn("changed under the kill", report.reason)
+        self.assertIsNone(report.operator_line)
+        self.assertTrue(path.exists(), "left for the operator")
+        self.assertFalse(report.process.record_cleared)
+
+    def test_a_record_removed_under_the_kill_is_nothing_more_to_do(self):
+        runtime = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        real_kill_group = kill.kill_group
+
+        def kill_group_then_the_runtime_clears(record, **kwargs):
+            step = real_kill_group(record, **kwargs)
+            kill.clear_running(self.state, SID)
+            return step
+
+        with mock.patch.object(kill, "kill_group", side_effect=kill_group_then_the_runtime_clears):
+            report, runner = self.kill(grace=2)
+        self.assertTrue(report.ok, report.reason)
+        self.assertFalse(report.process.record_cleared, "someone else did")
+        self.assertEqual(len(runner.calls), 1)
+
 
 # ---------------------------------------------------------------------------
 # 6. `twine kill`, the verb
@@ -638,6 +1058,34 @@ class KillVerb(StateCase):
                               obj["reason"])
         self.assertFalse(typo.exists(), "a kill never creates its state directory")
 
+    def test_a_state_directory_that_cannot_be_looked_at_is_a_refusal_not_a_traceback(self):
+        """Session 5c's review: no search permission on a parent is a named
+        refusal, as a missing directory is — and nothing is done."""
+        with mock.patch("os.stat", side_effect=PermissionError(13, "Permission denied")):
+            fault = kill_verb.state_dir_fault(self.state)
+        self.assertEqual(fault, "cannot be read (Permission denied)")
+        self.assertEqual((kill_verb.state_dir_fault(self.state),
+                          kill_verb.state_dir_fault(self.base / "absent"),
+                          kill_verb.state_dir_fault(self.roots.ok / "bin" / "VERSION")),
+                         (None, "does not exist", "is not a directory"))
+        if os.geteuid() == 0:
+            self.skipTest("root bypasses mode bits; the verb's path cannot be made unreadable")
+        parent = self.base / "private"
+        (parent / "state").mkdir(parents=True)
+        parent.chmod(0)
+        # tearDown removes the temp tree first (it copes with the mode), so
+        # the restore only applies when the directory is still there.
+        self.addCleanup(lambda: parent.exists() and parent.chmod(0o700))
+        out = io.StringIO()
+        runner = UnlockDouble()
+        ctx = Context(env={}, stdout=out, stderr=io.StringIO(), which=lambda n: None,
+                      stdin=io.BytesIO(b""), run=runner)
+        code = main(["kill", SID, "--state-dir", str(parent / "state"), "--cwd",
+                     str(self.repo), "--bale-root", str(self.roots.ok), "--json"], ctx=ctx)
+        obj = json.loads(out.getvalue())
+        self.assertEqual((code, obj["stopped_at"], runner.calls), (1, "refused", []))
+        self.assertIn("cannot be read", obj["reason"])
+
     def test_a_current_directory_that_is_gone_is_a_refusal_not_a_traceback(self):
         gone = self.base / "gone"
         gone.mkdir()
@@ -668,44 +1116,104 @@ class KillVerb(StateCase):
         self.assertIn("cannot resolve twine's state directory", obj["reason"])
         self.assertEqual(runner.calls, [])
 
-    def test_the_pin_gate_comes_before_the_abort(self):
-        """An unpinned bale refuses the whole kill: no abort request, no
-        signal, no unlock."""
-        for root in (self.roots.other, self.roots.absent):
+    def test_the_pin_gates_the_closure_alone(self):
+        """Session 5c, the sitting's correction to 5b: a bale that is not the
+        pin, or is absent, is not a refusal. The abort request is written, a
+        real group is killed, bale is never reached (the run-seam double
+        records no call), and the kill stops at the closure with the drive
+        refusal in `reason`, the unlock line to finish by hand, and the
+        `bale` object saying what was found."""
+        for root, found in ((self.roots.other, "0.4.46"), (self.roots.absent, None),
+                            (self.base / "no-such-root", None)):
             with self.subTest(root=root.name):
+                for sub in ("abort", "running"):
+                    if (self.state / sub).is_dir():
+                        for stale in (self.state / sub).iterdir():
+                            stale.unlink()
+                group = self.group()
+                kill.register_running(self.state, SID, group.pgid, group.pgid)
                 out = io.StringIO()
                 runner = UnlockDouble()
                 ctx = Context(env={}, stdout=out, stderr=io.StringIO(),
                               which=lambda n: None, stdin=io.BytesIO(b""), run=runner)
                 code = main(["kill", SID, "--state-dir", str(self.state), "--cwd",
-                             str(self.repo), "--bale-root", str(root), "--json"], ctx=ctx)
+                             str(self.repo), "--bale-root", str(root), "--grace", "2",
+                             "--json"], ctx=ctx)
                 obj = json.loads(out.getvalue())
-                self.assertEqual((code, obj["stopped_at"]), (1, "refused"))
+                self.assertEqual((code, obj["ok"], obj["stopped_at"], obj["closed"],
+                                  obj["refusals"]),
+                                 (1, False, "closure", False, []))
+                self.assertEqual(runner.calls, [], "bale is never reached")
+                self.assertEqual((obj["ran"], obj["argv"], obj["closure"]), (False, None, None))
                 self.assertIn("pinned bale", obj["reason"])
-                self.assertEqual(runner.calls, [])
-                self.assertFalse(kill.abort_requested(self.state, SID))
-                self.assertTrue(self.state_is_empty())
+                self.assertEqual(obj["operator_line"], f"bale unlock {SID} --reason aborted")
+                self.assertTrue(obj["abort_requested"])
+                self.assertTrue(kill.abort_requested(self.state, SID))
+                self.assertEqual((obj["process"]["dead"], obj["process"]["record_cleared"]),
+                                 (True, True))
+                for pid in group.pids:
+                    self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+                self.assertEqual((obj["bale"]["installed"], obj["bale"]["pin_matches"]),
+                                 (found, False if found else None))
+                self.assertEqual(obj["bale"]["root"], str(root), "what --bale-root named")
+
+    def test_an_unpinned_bale_renders_not_finished_at_the_closure(self):
+        code, out, err, runner = self.run_verb("--bale-root", str(self.roots.other))
+        self.assertEqual((code, runner.calls), (1, []))
+        lines = out.splitlines()
+        self.assertIn("NOT FINISHED (stopped at closure)", lines[0])
+        self.assertTrue(any(l.strip().startswith("abort:   requested") for l in lines), out)
+        self.assertIn("closure: NOT CLOSED", out)
+        self.assertIn("not the pin", out)
+        self.assertIn(f"finish by hand: bale unlock {SID} --reason aborted", out)
+        self.assertIn("the abort and the process kill go ahead; the closure will not", err)
+
+    def test_a_pinned_bale_closes_as_before(self):
+        group = self.group()
+        kill.register_running(self.state, SID, group.pgid, group.pgid)
+        code, obj, err, runner = self.json_of("--grace", "2")
+        self.assertEqual((code, obj["ok"], obj["closed"], obj["bale"]["pin_matches"]),
+                         (0, True, True, True))
+        self.assertEqual(len(runner.calls), 1)
+        for pid in group.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
 
     def test_every_path_carries_the_same_keys(self):
         ok = self.json_of()[1]
         refused = self.json_of("--grace", "x")[1]
         closure_refused = self.json_of(runner=UnlockDouble(stdout=b"", exit_code=1))[1]
+        unpinned = self.json_of("--bale-root", str(self.roots.other))[1]
         with mock.patch.object(process, "group_members", return_value=[4242]), \
                 mock.patch.object(process, "signal_group", return_value=None):
             rec = kill.RunningRecord(SID, 4242, 4242, "t", None,
                                      kill.running_path(self.state, SID))
             with mock.patch.object(kill, "read_running", return_value=rec):
                 survivors = self.json_of("--grace", "0")[1]
-        for obj in (refused, closure_refused, survivors):
+        for obj in (refused, closure_refused, unpinned, survivors):
             self.assertEqual(set(obj), set(ok))
         self.assertEqual(set(survivors["process"]),
                          {"pgid", "pid", "started_at", "signalled", "signals", "dead",
-                          "survivors", "stale", "record_cleared", "record", "error"})
+                          "survivors", "stale", "groups", "record_cleared", "record", "error"})
         self.assertEqual(survivors["process"]["signals"], ["SIGTERM", "SIGCONT", "SIGKILL"])
+        self.assertEqual(survivors["process"]["groups"], [])
         self.assertEqual((survivors["stopped_at"], survivors["operator_line"]),
                          ("process", "kill -KILL -- -4242"))
         self.assertEqual((closure_refused["stopped_at"], closure_refused["operator_line"]),
                          ("closure", f"bale unlock {SID} --reason aborted"))
+        self.assertEqual((unpinned["stopped_at"], unpinned["operator_line"]),
+                         ("closure", f"bale unlock {SID} --reason aborted"))
+
+    def test_human_mode_names_each_group(self):
+        runtime, tool = self.group(), self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        kill.register_group(self.state, SID, tool.pgid)
+        code, out, err, _ = self.run_verb("--grace", "2")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"process: group {runtime.pgid}: SIGTERM, SIGCONT; no member alive", out)
+        self.assertIn(f"group {tool.pgid}: SIGTERM, SIGCONT; no member alive", out)
+        self.assertIn("2 groups in all: none alive", out)
+        for pid in runtime.pids + tool.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
 
     def test_human_mode_names_each_step_and_the_hand_line(self):
         code, out, err, _ = self.run_verb()
@@ -749,6 +1257,40 @@ class KillEndToEnd(StateCase):
         for pid in group.pids:
             self.assertTrue(dies_within(pid), f"{pid} outlived twine kill")
         self.assertTrue(kill.abort_requested(self.state, SID))
+
+    def test_kill_three_real_groups_and_close_through_a_stub_bale(self):
+        """Brief §7's proof of §2.3's whole: the runtime's group and two more,
+        registered as the hook would register them, `twine kill` run as a
+        subprocess — every pid of all three dead, the record cleared, the
+        stub saw exactly the one unlock argv, ok."""
+        line = self.base / "unlock.json"
+        line.write_bytes(unlock_json_double(SID))
+        stub = self.stub(unlock_stdout=line)
+        runtime = self.group()
+        tool_a = self.group(body='trap "" TERM; sleep 60 & echo $!; sleep 60 & echo $!; wait')
+        tool_b = self.group()
+        kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
+        kill.register_group(self.state, SID, tool_a.pgid)
+        kill.register_group(self.state, SID, tool_b.pgid)
+        run = run_cli("kill", SID, "--state-dir", str(self.state), "--cwd", str(self.repo),
+                      "--grace", "0.3", "--json", bale_root=stub.root)
+        obj = json.loads(run.stdout)
+        self.assertEqual((run.code, obj["ok"], obj["closed"], obj["stopped_at"]),
+                         (0, True, True, None), run.stderr)
+        proc = obj["process"]
+        self.assertEqual((proc["pgid"], proc["dead"], proc["survivors"], proc["record_cleared"]),
+                         (runtime.pgid, True, [], True))
+        self.assertEqual([g["pgid"] for g in proc["groups"]], [tool_a.pgid, tool_b.pgid])
+        self.assertEqual([g["signals"] for g in proc["groups"]],
+                         [["SIGTERM", "SIGCONT", "SIGKILL"], ["SIGTERM", "SIGCONT"]])
+        self.assertTrue(all(g["dead"] and g["survivors"] == [] for g in proc["groups"]))
+        self.assertEqual(stub.argv(), ["unlock", SID, "--reason", "aborted", "--json"])
+        self.assertEqual(Path(stub.cwd()).resolve(), self.repo.resolve())
+        for pid in runtime.pids + tool_a.pids + tool_b.pids:
+            self.assertTrue(dies_within(pid), f"{pid} outlived twine kill")
+        self.assertIsNone(kill.read_running(self.state, SID))
+        self.assertTrue(kill.abort_requested(self.state, SID))
+        self.assertNotIn("Traceback", run.stderr)
 
     def test_a_refusing_stub_is_not_ok_and_shows_bales_stderr(self):
         stub = self.stub(exit_code=1, stderr=unlock_refusal_double(

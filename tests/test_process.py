@@ -1,16 +1,19 @@
 """The run seam (twine/process.py, Context.run): a real process group,
-the timeout that reaches children, the stdout cap, stderr capture, and
-the rule that no verb module spawns a process of its own."""
+the timeout that reaches children, the stdout cap, stderr capture, the
+spawn hook (session 5c), and the rule that no verb module spawns a
+process of its own."""
 
 from __future__ import annotations
 
 import ast
+import json
 import shutil
 import signal
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from twine import REPO_ROOT, process
 from twine.cli import Context
@@ -122,6 +125,115 @@ class RealRuns(unittest.TestCase):
             run_process(["/nonexistent/twine-no-such-program"])
         with self.assertRaises(RunError):
             run_process([])
+
+
+class SpawnHook(unittest.TestCase):
+    """Session 5c: `on_spawn(pid)` the moment Popen returns, before stdin is
+    fed and before the collector starts; a hook that raises never leaves
+    the child running."""
+
+    def test_the_hook_sees_the_childs_pid_before_stdin_is_fed(self):
+        """The child waits for stdin, then prints its pid and pgid; the
+        hook recorded that pid before the child could read a byte — and,
+        in the runner, before the stdin feeder and the collector started
+        (both are spied on, so the order is asserted, not inferred)."""
+        order: list[str] = []
+        real_feed, real_collect = process._feed_stdin, process._collect
+
+        def feed(proc, data):
+            order.append("feed")
+            return real_feed(proc, data)
+
+        def collect(*args):
+            order.append("collect")
+            return real_collect(*args)
+
+        def hook(pid: int) -> None:
+            order.append(f"hook:{pid}")
+
+        with mock.patch.object(process, "_feed_stdin", side_effect=feed), \
+                mock.patch.object(process, "_collect", side_effect=collect):
+            r = run_process([BASH, "-c", "read -r go; echo $$ $(ps -o pgid= -p $$)"],
+                            stdin=b"go\n", timeout=10, on_spawn=hook)
+        self.assertEqual(r.exit_code, 0, r.stderr)
+        pid, pgid = (int(t) for t in r.stdout.split())
+        self.assertEqual(order, [f"hook:{pid}", "feed", "collect"])
+        self.assertEqual(pgid, pid, "the child leads its own group: pid is pgid")
+
+    def test_no_hook_is_the_default_and_nothing_changes(self):
+        r = run_process([BASH, "-c", "echo out"], on_spawn=None)
+        self.assertEqual((r.exit_code, r.stdout), (0, b"out\n"))
+
+    def test_a_hook_that_raises_kills_the_child_and_re_raises(self):
+        """Nothing runs on unregistered: the group is killed and reaped,
+        and the hook's own exception comes back unchanged."""
+        seen: list[int] = []
+
+        def refuse(pid: int) -> None:
+            seen.append(pid)
+            raise RuntimeError("the record could not be grown")
+
+        with self.assertRaises(RuntimeError) as caught:
+            run_process([BASH, "-c", "sleep 30 & echo $!; wait"], stdin=b"x",
+                        timeout=30, on_spawn=refuse)
+        self.assertEqual(str(caught.exception), "the record could not be grown")
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(dies_within(seen[0]), f"child {seen[0]} outlived the failed hook")
+        self.assertEqual(process.wait_group_gone(seen[0], 3.0), [],
+                         "the child's whole group goes with it")
+
+    def test_the_hook_registers_the_group_with_twine_kill_end_to_end(self):
+        """Brief §2.2: a child started through run_process, with the hook
+        registering into a temp state directory, appears in that directory's
+        running record while it runs — the child itself reads the record
+        back and prints it."""
+        from twine import kill
+        sid = "2026-10-05-hook-test-001"
+        with tempfile.TemporaryDirectory(prefix="twine-hook-") as tmp:
+            state = Path(tmp) / "state"
+            state.mkdir()
+            runtime = RealGroup()
+            self.addCleanup(runtime.cleanup)
+            kill.register_running(state, sid, runtime.pgid, runtime.pgid)
+            record = kill.running_path(state, sid)
+            r = run_process([BASH, "-c", f"read -r go; echo $$; cat {record}"],
+                            stdin=b"go\n", timeout=10,
+                            on_spawn=lambda pid: kill.register_group(state, sid, pid))
+            self.assertEqual(r.exit_code, 0, r.stderr)
+            first, rest = r.stdout.split(b"\n", 1)
+            child = int(first)
+            seen_by_child = json.loads(rest)
+            self.assertEqual([g["pgid"] for g in seen_by_child["groups"]], [child],
+                             "the child found itself registered")
+            self.assertEqual(seen_by_child["pgid"], runtime.pgid)
+            after = kill.read_running(state, sid)
+            self.assertEqual([g.pgid for g in after.groups], [child])
+            self.assertIsInstance(after.groups[0].leader_start_ticks, int,
+                                  "the leader was alive when registered")
+            self.assertTrue(dies_within(child))
+
+    def test_every_run_seam_double_accepts_the_hook(self):
+        """The Runner protocol grew the keyword; the doubles take it (and
+        never call it — a double spawns nothing, so it has no pid)."""
+        from tests.helpers import RecordingRunner, UnlockDouble
+
+        def never(pid: int) -> None:
+            raise AssertionError("a double called the hook")
+
+        recorder = RecordingRunner()
+        recorder(["x"], on_spawn=never)
+        self.assertIs(recorder.calls[0]["on_spawn"], never)
+        unlock = UnlockDouble()
+        unlock(["/double/bin/bale", "unlock", "sid", "--reason", "aborted", "--json"],
+               on_spawn=never)
+        self.assertIs(unlock.calls[0]["on_spawn"], never)
+        player = FixturePlayer(REPO_ROOT)
+        r = player(["bale", "status", "--json"], cwd=REPO_ROOT, on_spawn=never)
+        self.assertEqual(r.exit_code, 0)
+        import inspect
+        for runner in (run_process, recorder, unlock, player):
+            with self.subTest(runner=type(runner).__name__):
+                self.assertIn("on_spawn", inspect.signature(runner).parameters)
 
 
 class TheSeam(unittest.TestCase):

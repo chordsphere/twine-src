@@ -13,8 +13,11 @@
 > §6, and §11.1's pin gate) and by `2026-10-03-twine-cost-spine-005` (§13,
 > and the lines naming `spend`) and by `2026-10-04-twine-kill-switch-002`
 > (§14, the `cap-unchecked` lines of §12.2 and §13.7, §10.6's group wait,
-> the `unrecorded` line of §6, and the lines naming `kill` or `unlock`); a
-> later session that changes a line changes it here in the same response.
+> the `unrecorded` line of §6, and the lines naming `kill` or `unlock`) and
+> by `2026-10-05-twine-kill-followups-003` (§4's state-directory rows,
+> §10.6's spawn hook, the running record's `groups` and the pin gate's move
+> to the closure in §14); a later session that changes a line changes it
+> here in the same response.
 
 ## 1. The entrypoint
 
@@ -80,7 +83,7 @@
 - `command` and `ok` are the dispatcher's: a handler payload cannot set
   them (an attempt is logged and ignored).
 
-## 4. `twine status [--json] [--bale-root DIR]`
+## 4. `twine status [--json] [--bale-root DIR] [--state-dir DIR]`
 
 Twine's own facts, no bale repo state (reading `bale status --json` is
 session 3's):
@@ -94,12 +97,29 @@ session 3's):
 | `fixtures` | absolute path of `fixtures/`; `fixtures_present` says whether it exists |
 | `pin` | the manifest's `[bale] pin`, or null when the manifest is unusable |
 | `bale` | the `bale check` result object (§5), or null when the manifest is unusable |
+| `state_dir` | the directory `spend.resolve_state_dir` resolves (§13.2's rules: `--state-dir`, else `$TWINE_STATE_DIR`, else XDG, else `$HOME`), as a string; `null` when none resolves (session 5c) |
+| `state_dir_source` | `"--state-dir"`, `"TWINE_STATE_DIR"`, `"XDG_STATE_HOME"` or `"HOME"`; `null` when none resolves |
+| `state_dir_reason` | `null` when one resolves; otherwise the refusal text (`spend.SpendError`'s message) — a null `state_dir` is never silent |
+| `state_dir_exists` | whether it exists and is a directory; `null` when none resolves |
+| `state_present` | `null` when none resolves; otherwise an object with four booleans — `spend_jsonl`, `prices_toml`, `abort`, `running` — whether `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`, `<state-dir>/abort/` and `<state-dir>/running/` exist (the two files as files, the two directories as directories); all false when the directory itself does not exist |
 | `ok_reason` | why `ok` is what it is |
 
 `ok` is true when twine itself is intact — the manifest parses and its
 pin resolves — regardless of whether a bale install is present; the
 bale result rides inside, and a mismatch there leaves `status` at exit
-0. An unusable manifest is `ok` false, exit 1.
+0. An unusable manifest is `ok` false, exit 1 (the state keys ride on
+that path too).
+
+`--state-dir DIR` is the same argument the spend verbs and `kill` take,
+so an operator can ask what a given flag resolves to — an operator whose
+`twine kill` was refused for a missing state directory (§14.1) finds out
+here which one twine resolves. A state directory that does not resolve,
+or does not exist, is a fact about the machine, not a fault in twine:
+`status` stays exit 0 with the nulls or falses above, and **never creates
+the directory**. Human mode says so in one line each — `state dir: <path>
+(from <source>)`, with `(does not exist)` when it does not, then `state
+present: …` naming what is there and what is missing; or `state dir:
+none resolves — <reason>`.
 
 ## 5. `twine bale check [--json] [--bale-root DIR]` (D2)
 
@@ -421,11 +441,12 @@ builds on:
 run(argv: Sequence[str], *, cwd: str | Path | None = None,
     stdin: bytes | None = None, timeout: float | None = None,
     env: Mapping[str, str] | None = None,
-    stdout_cap: int | None = None) -> RunResult
+    stdout_cap: int | None = None,
+    on_spawn: Callable[[int], None] | None = None) -> RunResult
 
 RunResult(argv, exit_code: int | None, stdout: bytes, stderr: bytes,
           timed_out: bool, stdout_capped: bool, stderr_truncated: bool,
-          duration_seconds: float)
+          duration_seconds: float, group_survivors: tuple[int, ...])
 ```
 
 `cwd` None inherits the caller's; `env` None inherits the process
@@ -438,6 +459,22 @@ process group) and kills the group on timeout, on the cap, and when
 the child exits; a grandchild that leaves the group with `setsid` is
 beyond its reach (it waits two seconds for the pipes, then logs and
 gives up).
+
+**The spawn hook** (session 5c). `on_spawn`, when given, is called once
+with the child's pid — which is its pgid, since the child starts a new
+session — **the moment `Popen` returns, before stdin is fed and before
+the collector starts**, so a runtime can register the group with `twine
+kill` before the child has done anything: the Arc 2 loop composes
+`run(argv, …, on_spawn=lambda pid: register_group(state_dir, sid, pid))`
+(§14.4). A hook that raises must not leave the child running unattended:
+the runner SIGKILLs the child's group, waits for it, reaps the child and
+re-raises the hook's exception unchanged. Every runner takes the keyword,
+the doubles in `tests/helpers.py` included (they record it and never call
+it — a double spawns nothing). Nothing in Arc 1 wires the hook to the
+record for real; a test does, end to end (a child started through
+`run_process` with the hook registering into a temp state directory reads
+itself back out of that directory's record while it runs). `twine kill`
+never reads the hook; the record is all it relies on.
 
 **The group wait** (session 5b). However the run ended — the child's exit,
 the timeout, the cap, or the pipes reaching EOF in the same instant the
@@ -994,15 +1031,16 @@ refuses.
 
 ## 14. `twine kill SID [--state-dir DIR] [--cwd DIR] [--bale-root DIR] [--grace SECONDS] [--json]` — the kill-switch (D15)
 
-Arc 1 session 5b. D15, the architect's words: "every session spawn should
-come with a foolproof kill-switch and running total of the money used
-through the api, including a hard cap for budget reasons"; the kill "must
-work when the harness itself is wedged". The running total and the cap
-are §13's. This is the kill-switch, in three layers: the **between-calls
-abort**, the **process-level kill** and the **`aborted` closure**. The
-module is `twine/kill.py`; the verb is `twine/commands/kill.py`, thin over
-it. `twine kill` is the operator's one line; the Arc 2 loop calls the same
-functions (§14.8).
+Arc 1 session 5b, corrected and extended by session 5c
+(`2026-10-05-twine-kill-followups-003`). D15, the architect's words: "every
+session spawn should come with a foolproof kill-switch and running total
+of the money used through the api, including a hard cap for budget
+reasons"; the kill "must work when the harness itself is wedged". The
+running total and the cap are §13's. This is the kill-switch, in three
+layers: the **between-calls abort**, the **process-level kill** and the
+**`aborted` closure**. The module is `twine/kill.py`; the verb is
+`twine/commands/kill.py`, thin over it. `twine kill` is the operator's one
+line; the Arc 2 loop calls the same functions (§14.8).
 
 ### 14.1 Refused before anything is done
 
@@ -1017,40 +1055,62 @@ signal sent, no bale started:
 - no state directory (§13.2's resolution and refusals: `--state-dir`, else
   `$TWINE_STATE_DIR`, else XDG, else refused; never the working directory;
   an empty `--state-dir` is refused), **or one that does not exist** (or is
-  not a directory). A kill never creates the directory it reports to: the
+  not a directory, or cannot be looked at — no search permission on a
+  parent — each a named refusal, never a traceback). A kill never creates
+  the directory it reports to: the
   runtime writes its running record there and the loop reads its abort
   request there, so a kill written anywhere else — a mistyped `--state-dir`
   — would be an ok kill that stopped nothing. A session that never ran
   under twine has nothing to kill; the reason names `bale unlock <sid>
-  --reason aborted` for it;
+  --reason aborted` for it (`twine status` says which directory twine
+  resolves, §4);
 - `--cwd` is not a directory, or, without `--cwd`, the current directory no
   longer exists;
 - `--grace` is not a finite, non-negative number of seconds of at most 600
-  (a named refusal, not a usage error);
-- no bale is found, or it is not the pinned one (§11.1's pin gate). **The
-  pin is checked before the abort is requested**, so an unpinned bale
-  refuses the whole kill rather than leaving a half-done one.
+  (a named refusal, not a usage error).
+
+A bale that is absent, unreadable or not the pin is **not a refusal**
+(session 5c, the sitting's correction to 5b, on the worker's reading of
+D15: the kill must work when the harness itself is wedged, and a bale
+install drifted off the pin is one of the ways it can be; the pin exists
+for the closure's vocabulary, D17, not for the signal). The bale is still
+located first, so the `bale` object reports what was found on every path,
+but `refusals` stays empty on its account: the abort request is written
+and the recorded groups are signalled and waited for, exactly as with the
+pin. **The pin gates the closure alone** — `close_aborted` checks
+`Executable.drive_refusal` itself and fails without starting bale (§14.5)
+— so such a kill ends `stopped_at` `"closure"`, `closed` false, `ok` false,
+exit 1, with the drive refusal in `reason` and the unlock line as
+`operator_line`; human mode says `NOT FINISHED (stopped at closure)` and
+gives the hand line.
 
 A missing SID is argparse's usage error (exit 2, nothing on stdout, §3).
 
 ### 14.2 The three steps, in order
 
 1. **Request the between-calls abort** (§14.3) — durably, idempotently.
-2. **Kill the recorded process group**, if the session's runtime recorded
-   one (§14.4): SIGTERM to the group, then SIGCONT (a stopped member sees
-   SIGTERM only once continued), up to `--grace` seconds (default 5) for its
-   members to go, SIGKILL to the group if any remain, then up to 5 more
-   seconds until **no member of the group is alive**. The step is
-   finished only then; otherwise it names every surviving pid and stops.
-   No running record is not a fault — a session between runs, or one whose
-   runtime never started, has no process to kill, and `process` is `null`.
-   A malformed record is a named refusal of this step (the abort request
-   still lands), never a guess at a pgid.
+2. **Kill every recorded process group**, if the session's runtime recorded
+   its groups (§14.4): the runtime's own group first (so it can start
+   nothing more), then every group in the record's `groups`, in record
+   order — to each, SIGTERM, then SIGCONT (a stopped member sees SIGTERM
+   only once continued), up to `--grace` seconds (default 5) for its
+   members to go, SIGKILL if any remain, then up to 5 more seconds; the
+   stale check (§14.4) per group on its own `leader_start_ticks`. The step
+   is done only when **no member of any of them is alive** (or each is
+   stale, or the record names no groups beyond the runtime's); otherwise it
+   names every surviving pid, across all groups, and stops. Once they are
+   gone the record is **re-read once**, and a group registered since (a
+   hook racing the kill) is killed the same way; only then is the record
+   removed. No running record is not a fault — a session between runs, or
+   one whose runtime never started, has no process to kill, and `process`
+   is `null`. A malformed record is a named refusal of this step (the abort
+   request still lands), never a guess at a pgid.
 3. **Close the session in bale with `aborted`** (§14.5) — only when the
-   abort request stands and no process of the group is alive (or none was
-   recorded). **No closure is attempted while a member of the killed group
-   is alive**: a record that says `aborted` while the worker's shell still
-   runs is the mystery D15 forbids.
+   abort request stands and no process of any recorded group is alive (or
+   none was recorded), and only with the pinned bale (§14.1). **No closure
+   is attempted while a member of a killed group is alive**: a record that
+   says `aborted` while the worker's shell still runs is the mystery D15
+   forbids.
 
 Each step is reported on stderr as it happens, and in the twin. `ok` is
 true exactly when all three landed; exit 0. Otherwise exit 1, `stopped_at`
@@ -1059,11 +1119,11 @@ names the first step that did not complete — `abort`, `process` or
 
 | stopped at | `operator_line` |
 |---|---|
-| any step, while the recorded group is not known to be gone (survivors, no `/proc`, twine kill's own group) — whichever step stopped first | `kill -KILL -- -<pgid>` — the pgid and the signal; then run `twine kill` again to close. A close is never handed out while a member may live |
-| `process`, the record malformed | `null` — no one line finishes it safely: the record names no group, and the reason says to find and stop the session's runtime before closing it |
+| any step, while a recorded group is not known to be gone (survivors, no `/proc`, twine kill's own group) — whichever step stopped first | `kill -KILL -- -<pgid> -<pgid> …` — the signal and every group with survivors (every group not known to be gone), the runtime's first, then record order; one group, one pgid; then run `twine kill` again to close. A close is never handed out while a member may live |
+| `process`, the record malformed — on the first read, or on the re-read | `null` — no one line finishes it safely: the record names no group (or a group registered meanwhile may be unknown), and the reason says to find and stop the session's runtime before closing it |
 | `abort` (the request could not be written), no group alive | the unlock line; the reason says the abort request is missing |
 | `closure`, bale refused because the session reached HOLD (its stderr names the branch `bale/<sid>`) | `bale revert <sid>` — bale's own remedy, which touches git and so stays the operator's; **twine never runs `revert`** |
-| `closure`, any other refusal, a timeout, or a line that was not the close | `bale unlock <sid> --reason aborted` (run in the repo whose session it is) |
+| `closure`, any other refusal, a timeout, a line that was not the close, or a bale that is absent or not the pin | `bale unlock <sid> --reason aborted` (run in the repo whose session it is) |
 | nothing (ok), or `refused` | `null` — nothing is left, or nothing was done: fix the named fault and run `twine kill` again |
 
 Requesting the abort is idempotent. Running `twine kill` again after a
@@ -1094,47 +1154,97 @@ it spend (fail closed). Observed, the loop stops with the `stop` key
 
 The runtime (Arc 2) records, before it starts a model call or a tool, the
 process group it runs in: `register_running(state_dir, sid, pgid, pid)`
-writes `<state-dir>/running/<sid>.json` — `sid`, `pgid`, `pid`, `started_at`
-(UTC, RFC 3339) and `leader_start_ticks` (the group leader's start time,
-`/proc/<pgid>/stat` field 22, or `null` when it could not be read) — durably,
-replacing an older one (the directory is created when absent: the
-runtime's is the state directory); `clear_running(state_dir, sid)` removes
-it on a clean end. It is a **cache** in N4's sense (re-derivable; deleting it loses
-nothing of record), unlike `spend.jsonl`. Nothing writes it in Arc 1 but
-the tests. A pgid or pid that is not an integer above 1 is refused at
-registration and is malformed on reading (0 would signal the signaller's own
-group, 1 is init's); so is a record that is not one JSON object, whose
-`sid` is not the file's, whose `started_at` is not a non-empty string, or
-whose `leader_start_ticks` is neither a non-negative integer nor null.
+writes `<state-dir>/running/<sid>.json` durably, replacing an older one
+(the directory is created when absent: the runtime's is the state
+directory). The record is one JSON object with **exactly these six keys**
+(session 5c; 5b's five and `groups`):
+
+| key | value |
+|---|---|
+| `sid` | the session's; a record whose `sid` is missing or differs is malformed |
+| `pgid`, `pid`, `started_at`, `leader_start_ticks` | the runtime's own group: its id, the runtime's pid, when it registered (UTC, RFC 3339), and the group leader's start time (`/proc/<pgid>/stat` field 22, or `null` when it could not be read) |
+| `groups` | a JSON array, one object per **additional** group the runtime started and registered, in registration order: `{"pgid": <int above 1>, "leader_start_ticks": <int ≥ 0 or null>, "registered_at": <UTC, RFC 3339>}`; `[]` when none. The runtime's own group is **not** repeated in it |
+
+`register_running` writes `groups: []`. `register_group(state_dir, sid,
+pgid)` appends one entry — the leader's start ticks read as
+`register_running` reads them, `registered_at` stamped — rewrites the
+record durably the same way, and returns the grown `RunningRecord`; it
+refuses (`RunningRecordError`) when there is no record to grow (the runtime
+registers itself before it starts anything), when the record is malformed,
+when `pgid` could not be a group to kill, and when it is the runtime's own.
+It is what the seam's spawn hook calls (§10.6): the Arc 2 loop composes
+`run(argv, …, on_spawn=lambda pid: register_group(state_dir, sid, pid))`,
+so every tool's group is in the record the moment the tool exists. The
+read-append-replace runs under an exclusive `flock` on the `running/`
+directory (no lock file is added beside the record), so two registrations
+at once cannot lose each other's entry. `clear_running(state_dir, sid)`
+removes the record on a clean end. The record is a **cache** in N4's
+sense (re-derivable; deleting it loses nothing of record), unlike
+`spend.jsonl`. Nothing writes it in Arc 1 but the tests.
+
+`read_running` requires every key. A pgid or pid that is not an integer
+above 1 is refused at registration and is malformed on reading (0 would
+signal the signaller's own group, 1 is init's); so is a record that is not
+one JSON object, whose `sid` is not the file's, whose `started_at` is not a
+non-empty string, whose `leader_start_ticks` is neither a non-negative
+integer nor null, **or whose `groups` key is missing or is not an array of
+such objects** — an entry that is not an object, lacks `pgid`, whose `pgid`
+is not an integer above 1, whose `leader_start_ticks` is neither a
+non-negative integer nor null, or whose `registered_at` is not a non-empty
+string, or lacks any of the three keys; each fault named (a five-key
+record of session 5b's format is one such record now, and the fault says
+so). A key the format does not name is ignored on reading, as it was in 5b.
 
 `twine kill` needs nothing from the runtime but this record (brief ruling
-5): it is its own process, reads the state directory and signals. Members
-of the group are read from `/proc` (a member is alive unless the kernel
-reports it a zombie or dead). Before signalling:
+5): it is its own process, reads the state directory and signals; it never
+reads the hook. Members of a group are read from `/proc` (a member is alive
+unless the kernel reports it a zombie or dead). It signals **the runtime's
+own group first**, so the runtime can start nothing more, then every group
+in `groups`, in record order — each with the same SIGTERM, SIGCONT, grace,
+SIGKILL and bounded wait (§14.2). Before signalling a group:
 
-- the recorded group is **twine kill's own** process group → not signalled;
-  the step stops ("run twine kill from another shell");
-- **stale**: the record carries `leader_start_ticks`, and a live process now
-  holds the number `pgid` with another start time → the recorded group is
-  gone (Linux never hands out a pid still in use as a group id), so nothing
-  is signalled, `stale` and `dead` are true, and the closure proceeds;
-- **no member alive** → nothing is signalled; `dead` is true.
+- it is **twine kill's own** process group → not signalled, and the step
+  stops there: the groups after it are not signalled either, since the
+  runtime that could start more is not stopped ("run twine kill from
+  another shell", which takes them all);
+- **stale**: its entry carries `leader_start_ticks`, and a live process now
+  holds its number with another start time → that group is gone (Linux
+  never hands out a pid still in use as a group id), so nothing is
+  signalled, its `stale` and `dead` are true, and the kill goes on to the
+  next group;
+- **no member alive** → nothing is signalled; its `dead` is true.
 
-Without `/proc` the group is still signalled, but it is never reported
-dead: the step stops, saying its members cannot be enumerated. Once the
-group is confirmed gone, `twine kill` removes the running record (a cache)
+Without `/proc` a group is still signalled, but it is never reported dead:
+the step stops, saying its members cannot be enumerated. The step is
+**done only when no member of any recorded group is alive** (or each is
+stale, or the record names no groups beyond the runtime's): `dead` is the
+record's whole, not the runtime's group alone, and `survivors` is every
+surviving pid across all groups. A pgid the record names twice is signalled
+once and reported once — by then its number could lead a stranger's group.
+
+**The re-read.** Once its groups are gone, `twine kill` re-reads the record
+once and treats any group registered since — a hook racing the kill — as
+one more to kill the same way; a runtime that re-registered under another
+number counts as such a group. Only then is the record removed (a cache,
 so a later kill cannot signal a number that has been reused;
-`record_cleared` says whether it did. A malformed record is left in place
-for the operator.
+`record_cleared` says whether it did) and the closure attempted. A record
+that is gone on the re-read is nothing more to do; one that has become
+malformed stops the step (a group registered meanwhile may be unknown) and
+is left in place, as a record malformed on the first read is left for the
+operator.
 
-**One group, not every group.** The record holds the one group the runtime
-runs in. A process the runtime starts through the seam (§10.6) leads a
-group of its own (`run_process` starts every child in a new session), so it
-is outside the recorded group: `twine kill` neither signals nor waits for
-it. Today nothing runs a session under twine, so nothing is missed; the
-Arc 2 runtime must either record every group it starts or start its tools
-inside its own (session 5b's notes propose the shape). Until it does, `dead`
-means the recorded group is gone, not every process the session started.
+**What `dead` covers, and what it does not.** `dead` means every group the
+record named — on the first read and on the re-read — is gone. Two
+residuals are accepted, bounded and named. The pid-reuse residual (session
+5b): a recorded group dies, its number is reused by a new group, that
+group's leader dies and its members remain — a full pid wrap plus that
+sequence, which `leader_start_ticks` cannot tell apart. The hook's window
+(session 5c): between a child's `Popen` returning and its hook's write to
+the record, a runtime that is itself SIGKILLed leaves that one child
+unrecorded, and no re-read can find it; the window is the hook's write,
+which the seam performs before it feeds the child a byte (§10.6). A
+process that left its group with `setsid` is outside every group and
+outside this record, as it is outside the runner's reach.
 
 ### 14.5 The closure: `bale unlock <sid> --reason aborted --json`
 
@@ -1174,7 +1284,7 @@ One line (§3), `command` `"kill"`. Fixed names:
 |---|---|
 | `sid` | SID as given |
 | `abort_requested` | the abort request stands (written now, or already) |
-| `process` | `null` when no running record was found; else an object: `pgid`, `pid`, `started_at` (the record's; null when it was malformed), `signalled` (whether a signal was delivered), `signals` (those delivered, in order: `"SIGTERM"`, `"SIGCONT"`, `"SIGKILL"`), `dead`, `survivors` (the pids still alive; `[]` when dead), `stale`, `record_cleared`, `record` (its path), `error` (why the step could not finish, or null) |
+| `process` | `null` when no running record was found; else an object: `pgid`, `pid`, `started_at` (the record's; null when it was malformed), `signalled` (whether a signal was delivered to the runtime's group), `signals` (those delivered to it, in order: `"SIGTERM"`, `"SIGCONT"`, `"SIGKILL"`), `stale` (the runtime's group's), `dead` (true only when **every** recorded group is gone, §14.4), `survivors` (every pid still alive across all groups, sorted; `[]` when dead), `groups` (session 5c: an array in signalling order, one object per additional group — the record's, then any the re-read found — with `pgid`, `signalled`, `signals`, `dead`, `survivors`, `stale`; `[]` when the record named none), `record_cleared`, `record` (its path), `error` (why the step could not finish — the whole's, each group's fault named — or null) |
 | `closed` | bale closed the session `aborted` (§14.5's ok) |
 | `closure` | bale's one JSON object, parsed; null when bale was not reached or printed none |
 | `telemetry` | `closure`'s `telemetry`, or null |
@@ -1192,8 +1302,11 @@ the uncomputed values null.
 
 Human mode: a verdict line — `kill SID: done — …`, `kill SID: refused —
 nothing was done: …` or `kill SID: NOT FINISHED (stopped at <step>) — …` —
-then one line per step (`abort:`, `process:`, `closure:`) and, when there is
-one, `finish by hand: <operator_line>`. bale's stderr goes to stderr.
+then one line per step (`abort:`, `process:`, `closure:`), the `process:`
+step one line per group (`group <pgid>: <signals>; <state>`, the runtime's
+first) with a `N groups in all: …` line when there is more than one, and,
+when there is one, `finish by hand: <operator_line>`. bale's stderr goes
+to stderr.
 
 ### 14.7 What is recorded, and what stands in
 
@@ -1223,28 +1336,43 @@ functions:
 request_abort(state_dir: Path, sid: str) -> AbortRequest     # raises KillError
 abort_requested(state_dir: Path, sid: str) -> bool           # before every call
 register_running(state_dir: Path, sid: str, pgid: int, pid: int) -> RunningRecord
+register_group(state_dir: Path, sid: str, pgid: int, *, clock=, proc_root=) -> RunningRecord
+                                                             # raises RunningRecordError, KillError
 clear_running(state_dir: Path, sid: str) -> bool
 read_running(state_dir: Path, sid: str) -> RunningRecord | None   # raises RunningRecordError
+kill_one_group(pgid: int, leader_start_ticks: int | None, *, grace, wait) -> GroupStep
 kill_group(record: RunningRecord, *, grace: float, wait: float) -> ProcessStep
+                                                             # the runtime's group, then record.groups
 close_aborted(run: Runner, executable: bale.Executable, sid: str, *, cwd, env) -> Closure
 kill_session(state_dir: Path, sid: str, *, run: Runner, executable: bale.Executable,
              cwd, env, grace: float = 5.0, wait: float = 5.0) -> KillReport
 STOP_KILLED = "killed"
 ```
 
-`close_aborted` takes the seam's runner, so the tests inject a double, and
-the executable as `locate_executable` found it, whose pin it checks; the
-caller has checked that no member of the group is alive.
-`KillReport.as_json()` is the verb's payload; a test asserts the verb's JSON
-equals the function's. Neither module spawns a process or reaches a
-network: bale runs through the runner it is handed, and signals and `/proc`
-reads go through `twine/process.py`'s group helpers (`group_members`,
-`signal_group`, `read_stat`, `wait_group_gone`).
+`RunningRecord` carries `groups: tuple[GroupEntry, ...]` (`GroupEntry`:
+`pgid`, `leader_start_ticks`, `registered_at`) and `pgids`, every group it
+names with the runtime's first. `ProcessStep` carries `runtime` (the
+runtime's `GroupStep`) and `groups` (the additional groups' steps, in
+signalling order); its `dead`, `survivors`, `error` and `alive_groups` are
+the whole's. `close_aborted` takes the seam's runner, so the tests inject a
+double, and the executable as `locate_executable` found it, whose pin it
+checks — the one place the pin is checked (§14.1); the caller has checked
+that no member of any group is alive. `KillReport.as_json()` is the verb's
+payload; a test asserts the verb's JSON equals the function's. Neither
+module spawns a process or reaches a network: bale runs through the runner
+it is handed, and signals and `/proc` reads go through `twine/process.py`'s
+group helpers (`group_members`, `signal_group`, `read_stat`,
+`wait_group_gone`).
 
 The tests (`tests/test_kill.py`) kill real `setsid`-led process groups they
 start (`tests/helpers.py` `RealGroup`) — one that honours SIGTERM, one that
-ignores it, one with a stopped member — and drive survivors, a missing `/proc` and twine kill's own
-group through doubles of the group helpers. Every state directory is a
-temporary one; the in-process runs carry an empty environment, so a verb
-without `--state-dir` refuses rather than touch the real default; tests that
-wait on a kill poll rather than check once.
+ignores it, one with a stopped member, and records naming the runtime's
+group and two more — and drive survivors, a missing `/proc`, twine kill's
+own group, a hook racing the kill and a record that breaks under it
+through doubles of the group helpers and of the module's own functions.
+`twine kill` is run as a subprocess against a stub bale (`StubBale`) with
+three real groups recorded: every pid dead, the record cleared, the stub
+seeing exactly the one unlock argv. Every state directory is a temporary
+one; the in-process runs carry an empty environment, so a verb without
+`--state-dir` refuses rather than touch the real default; tests that wait
+on a kill poll rather than check once.
