@@ -22,7 +22,10 @@ harness itself is wedged". The running total and the cap are session 5a's
      `<state-dir>/running/<sid>.json`; a cache, re-derivable), and every
      further group it starts — a tool run through the seam leads a group of
      its own — the moment the child exists (`register_group`, from the
-     seam's `on_spawn` hook; session 5c). `kill_group` needs nothing else
+     seam's `on_spawn` hook; session 5c), and forgets each such group once
+     its run has returned with no survivor (`clear_group`, beside it, which
+     the loop calls itself; session 2026-10-06-twine-clear-group-003), so
+     the record holds what is alive. `kill_group` needs nothing else
      from the runtime: the runtime's group first, so it can start nothing
      more, then each recorded group in record order — SIGTERM, SIGCONT, a
      grace, SIGKILL, then a bounded wait until no member is alive — or the
@@ -60,16 +63,17 @@ runner it is handed. It never reads the seam's hook: the record is all it
 relies on.
 
 Sections:
-  1. Names and errors                 (~line 85)
-  2. The abort request                (~line 230)
-  3. The running record               (~line 310)
-  4. The process-level kill           (~line 540)
-  5. The aborted closure              (~line 735)
-  6. The kill, end to end             (~line 885)
+  1. Names and errors                 (~line 98)
+  2. The abort request                (~line 247)
+  3. The running record               (~line 328)
+  4. The process-level kill           (~line 719)
+  5. The aborted closure              (~line 951)
+  6. The kill, end to end             (~line 1101)
 """
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
 import os
@@ -83,7 +87,7 @@ from typing import Any, Callable, Iterator, Mapping, Sequence
 
 try:
     import fcntl
-except ImportError:  # not a POSIX platform; register_group then runs unlocked
+except ImportError:  # not a POSIX platform; the record's writers then run unlocked
     fcntl = None  # type: ignore[assignment]
 
 from twine import bale, process
@@ -111,6 +115,12 @@ STOP_KILLED = "killed"
 DEFAULT_GRACE_SECONDS = 5.0
 KILL_WAIT_SECONDS = 5.0
 POLL_SECONDS = 0.05
+# How long clear_running waits for the lock on `running/` before it gives up
+# and leaves the record in place (KillError). register_group and clear_group
+# hold that lock for one read and one replace; the bound exists because the
+# lock is the directory's, shared by every session's record, and `twine kill`
+# must not hang behind a writer that is wedged (a runtime stopped mid-write).
+CLEAR_LOCK_SECONDS = 5.0
 
 # `bale unlock` closes a session's records and wipes its directory: seconds.
 # Past these it is stuck, is killed by the seam, and is not ok (and never
@@ -452,12 +462,82 @@ def register_group(state_dir: Path, sid: str, pgid: int, *,
     return grown
 
 
+def clear_group(state_dir: Path, sid: str, pgid: int) -> bool:
+    """Forget one process group in `sid`'s running record — the tidy that
+    keeps a long session's record to what is alive. The Arc 2 loop calls it
+    itself, after a `run` returns with `RunResult.group_survivors` empty
+    (the seam's promise that the group is gone, contract §10.6); a run that
+    returned survivors leaves its entry for `twine kill` to reach. The loop
+    never forgets a group that may be alive.
+
+    Removes every entry of `groups` whose pgid is `pgid` — one, normally;
+    each of them when the record names it twice — and rewrites the record
+    durably, as register_group does: the same six keys, the runtime's four
+    values and every other entry untouched and in their order. True.
+
+    False, nothing written and nothing created (no `running/` appears where
+    there was none), when the record names no such group or there is no
+    record — a `twine kill` may have removed it, or the session is between
+    runs. Both are logged; neither is a fault: the record is a cache (N4),
+    and a group already forgotten is what the caller wanted.
+
+    Refuses (RunningRecordError), the record untouched, for a `pgid` that
+    could not be a group to kill (an integer above 1, never a bool), for
+    the runtime's own group — the record's `pgid`, forgotten only with the
+    whole record by clear_running — and for a malformed record
+    (read_running's faults, each named). Raises KillError when the record
+    cannot be rewritten, ValueError for a sid that is not one.
+
+    The read-filter-replace runs under the exclusive lock register_group
+    takes on `running/`, so a registration and a clear at once lose nothing
+    of each other: afterwards the record names exactly the groups registered
+    and not cleared, in registration order. clear_running takes the same
+    lock, so a record `twine kill` has removed does not come back: either
+    this clear finishes before the removal, or it reads no record and
+    writes nothing. Where flock is unavailable it runs unlocked and logs
+    it, as register_group does."""
+    fault = _id_fault("pgid", pgid)
+    if fault:
+        raise RunningRecordError(fault)
+    path = running_path(state_dir, sid)
+    with _locked(path.parent):
+        record = read_running(state_dir, sid)
+        if record is None:
+            log.info("running record for %s: none at %s, so group %d is not in it; "
+                     "nothing to clear", sid, path, pgid)
+            return False
+        if pgid == record.pgid:
+            raise RunningRecordError(
+                f"process group {pgid} is the runtime's own, which the running record "
+                f"{path} names as its pgid, not in groups: it is forgotten with the whole "
+                "record (clear_running), never one entry at a time")
+        kept = tuple(g for g in record.groups if g.pgid != pgid)
+        removed = len(record.groups) - len(kept)
+        if not removed:
+            log.info("running record for %s: group %d is not in it (already "
+                     "cleared, or never registered); nothing to clear (%s)",
+                     sid, pgid, path)
+            return False
+        shrunk = RunningRecord(record.sid, record.pgid, record.pid, record.started_at,
+                               record.leader_start_ticks, path, kept)
+        _write_record(shrunk)
+    log.info("running record for %s: group %d cleared (%d entr%s removed; %d groups "
+             "beside the runtime's; %s)", sid, pgid, removed,
+             "y" if removed == 1 else "ies", len(kept), path)
+    return True
+
+
 @contextmanager
-def _locked(directory: Path) -> Iterator[None]:
+def _locked(directory: Path, *, timeout: float | None = None) -> Iterator[None]:
     """An exclusive advisory lock on `directory` for the body's duration —
-    what serializes concurrent register_group calls. A directory that does
-    not exist is not locked (there is no record in it to grow, and the
-    body says so); a platform without flock proceeds unlocked and logs it."""
+    what serializes register_group, clear_group and clear_running. A
+    directory that does not exist is not locked (there is no record in it
+    to change, and the body says so); where flock is unavailable — no
+    fcntl on the platform, or a filesystem that refuses the lock (ENOLCK on
+    some network mounts) — the body runs unlocked and that is logged, as it
+    was before any lock existed. With `timeout`, the lock is waited for that
+    many seconds at most and KillError (EWOULDBLOCK) is raised when another
+    holder keeps it, the body not run; without one it is waited for."""
     try:
         fd = os.open(directory, os.O_RDONLY)
     except OSError as exc:
@@ -467,27 +547,61 @@ def _locked(directory: Path) -> Iterator[None]:
     try:
         if fcntl is None:
             log.warning("fcntl is unavailable; %s is not locked while the running "
-                        "record is grown", directory)
+                        "record is changed", directory)
         else:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+            _flock(fd, directory, timeout)
         yield
     finally:
         os.close(fd)
 
 
+def _flock(fd: int, directory: Path, timeout: float | None) -> None:
+    """Take an exclusive flock on `fd` — waiting, or polling for at most
+    `timeout` seconds and then raising KillError (EWOULDBLOCK) naming
+    `directory`. A flock the filesystem refuses outright (any error but
+    another holder's) is logged and the caller goes on unlocked: the lock
+    serializes twine's own writers, and `twine kill` must not fail on a
+    state directory that cannot lock."""
+    deadline = None if timeout is None else time.monotonic() + max(timeout, 0.0)
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX if deadline is None
+                        else fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            if deadline is None or time.monotonic() >= deadline:
+                raise KillError(errno.EWOULDBLOCK,
+                                f"{directory} stayed locked by a running-record writer "
+                                f"for {timeout or 0:g}s, so no record in it was "
+                                "changed") from None
+            time.sleep(POLL_SECONDS)
+        except OSError as exc:
+            log.warning("cannot lock %s (%s); the running record is changed unlocked",
+                        directory, exc.strerror or exc)
+            return
+
+
 def clear_running(state_dir: Path, sid: str) -> bool:
     """Remove `sid`'s running record — the runtime's, on a clean end, and
     `twine kill`'s once the group is confirmed gone. True when one was
-    removed, False when there was none. Raises KillError otherwise."""
+    removed, False when there was none. Raises KillError otherwise.
+
+    The removal runs under the lock register_group and clear_group take on
+    `running/`, so neither can be between its read and its replace when the
+    record goes — a replace there would bring the removed record back.
+    Unlike theirs, this wait is bounded (CLEAR_LOCK_SECONDS): past it the
+    record is left in place and KillError says so, since `twine kill` must
+    not hang behind a wedged writer, and a record left behind is a cache."""
     path = running_path(state_dir, sid)
-    try:
-        path.unlink()
-    except FileNotFoundError:
-        return False
-    except OSError as exc:
-        raise KillError(exc.errno, f"cannot remove the running record {path}: "
-                                   f"{exc.strerror or exc}") from exc
-    _fsync_dir(path.parent)
+    with _locked(path.parent, timeout=CLEAR_LOCK_SECONDS):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            raise KillError(exc.errno, f"cannot remove the running record {path}: "
+                                       f"{exc.strerror or exc}") from exc
+        _fsync_dir(path.parent)
     log.info("running record for %s removed (%s)", sid, path)
     return True
 

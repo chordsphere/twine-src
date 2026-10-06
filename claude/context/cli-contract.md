@@ -1032,7 +1032,8 @@ refuses.
 ## 14. `twine kill SID [--state-dir DIR] [--cwd DIR] [--bale-root DIR] [--grace SECONDS] [--json]` — the kill-switch (D15)
 
 Arc 1 session 5b, corrected and extended by session 5c
-(`2026-10-05-twine-kill-followups-003`). D15, the architect's words: "every
+(`2026-10-05-twine-kill-followups-003`) and by
+`2026-10-06-twine-clear-group-003`. D15, the architect's words: "every
 session spawn should come with a foolproof kill-switch and running total
 of the money used through the api, including a hard cap for budget
 reasons"; the kill "must work when the harness itself is wedged". The
@@ -1181,6 +1182,46 @@ at once cannot lose each other's entry. `clear_running(state_dir, sid)`
 removes the record on a clean end. The record is a **cache** in N4's
 sense (re-derivable; deleting it loses nothing of record), unlike
 `spend.jsonl`. Nothing writes it in Arc 1 but the tests.
+
+`clear_group(state_dir, sid, pgid)` (`2026-10-06-twine-clear-group-003`)
+forgets one group: it removes **every entry of `groups` whose `pgid` is
+`pgid`** — one, normally; each of them when the record names it twice (the
+kill signals such a pgid once and reports it once; the clear forgets it the
+same way) — rewrites the record durably as `register_group` does, still
+exactly the six keys, the runtime's four values and every other entry
+untouched and in their order, and returns `true`. It returns **`false`,
+writing and creating nothing** (no `running/` appears where there was none),
+when the record names no such group and when there is no record — a `twine
+kill` may have removed it, and a session between runs has none; both are
+logged, and neither is a fault: the record is a cache, and a group already
+forgotten is what the caller wanted. It **refuses** (`RunningRecordError`,
+the record untouched) a `pgid` that could not be a group to kill (an
+integer above 1, never a bool), **the runtime's own group** (the record's
+`pgid`, which is forgotten only with the whole record, by `clear_running`,
+never one entry at a time) and a malformed record (`read_running`'s faults,
+each named); `KillError` when the record cannot be rewritten. It runs
+**under the same exclusive `flock` on `running/`** as `register_group`, so a
+registration and a clear at once lose nothing of each other: afterwards the
+record names exactly the groups registered and not cleared, in registration
+order. `clear_running` takes that lock too, so a clear racing `twine kill`'s
+removal either finishes before it or finds no record and writes nothing — a
+record the kill removed **does not come back**. `clear_running`'s wait for
+the lock is bounded (5 seconds; the lock is the directory's, shared by every
+session's record, and a kill must not hang behind a wedged writer): past it
+the record is left in place, `KillError` says so, and `twine kill` goes on
+with `record_cleared` false — the groups are gone and the record is a cache.
+Where `flock` is unavailable — no `fcntl`, or a filesystem that refuses the
+lock (`ENOLCK`) — all three run unlocked and log it.
+
+**The composition rule, for the Arc 2 loop.** The loop calls
+`clear_group(state_dir, sid, pid)` itself, after a `run` returns with
+`RunResult.group_survivors` empty — the seam's promise that the group is
+gone (§10.6); the seam gets no hook for it. **An entry whose run returned
+survivors stays in the record** for `twine kill` to reach: the loop never
+forgets a group that may be alive. Driven so, the record holds only what is
+alive — the runtime's own group and the tools still running — instead of
+growing by one entry per tool for as long as the session runs. Nothing in
+Arc 1 calls `clear_group` but the tests.
 
 `read_running` requires every key. A pgid or pid that is not an integer
 above 1 is refused at registration and is malformed on reading (0 would
@@ -1338,6 +1379,7 @@ abort_requested(state_dir: Path, sid: str) -> bool           # before every call
 register_running(state_dir: Path, sid: str, pgid: int, pid: int) -> RunningRecord
 register_group(state_dir: Path, sid: str, pgid: int, *, clock=, proc_root=) -> RunningRecord
                                                              # raises RunningRecordError, KillError
+clear_group(state_dir: Path, sid: str, pgid: int) -> bool    # raises RunningRecordError, KillError
 clear_running(state_dir: Path, sid: str) -> bool
 read_running(state_dir: Path, sid: str) -> RunningRecord | None   # raises RunningRecordError
 kill_one_group(pgid: int, leader_start_ticks: int | None, *, grace, wait) -> GroupStep

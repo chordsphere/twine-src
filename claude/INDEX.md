@@ -57,8 +57,9 @@ project's inventory.
   cache of exactly six keys (`sid`, `pgid`, `pid`, `started_at`,
   `leader_start_ticks`, and `groups` — one entry per further group the
   runtime registered through the run seam's spawn hook, session 5c) the
-  runtime writes before it works and grows as it starts tools, and `twine
-  kill` reads, signals every group of, re-reads once and clears; both are
+  runtime writes before it works, grows as it starts tools and shrinks as
+  they return with nothing left alive (`clear_group`), and `twine kill`
+  reads, signals every group of, re-reads once and clears; both are
   `context/cli-contract.md` §14, and `twine status` reports which state
   directory twine resolves and what of it exists (§4). Pull when a session
   reads or writes spend, prices a model, maps a provider's usage onto the
