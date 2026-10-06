@@ -669,6 +669,24 @@ uncheckable cap stops `cap-unchecked` (move `fix-and-resume`, the
 operator's). The record covers one process group; the runtime's tools in
 groups of their own are Arc 2's (contract §14.4).]
 
+[2026-10-05-twine-kill-followups-003: landed — the kill's follow-ups.
+The pin gates the closure alone (the sitting's correction to 5b, on the
+worker's reading of D15): the abort and the process kill run with any
+bale or none, and an unpinned bale stops the kill at the closure with
+the unlock line. The running record carries `groups` — exactly six keys,
+one entry per group the runtime registers through the run seam's
+`on_spawn` hook (`twine.kill.register_group`, the moment a tool exists,
+under a lock) — and `twine kill` signals every one of them, the
+runtime's first, re-reads the record once for a group registered
+meanwhile, and is done only when no member of any is alive; `dead` is
+the record's whole. Two residuals, named in contract §14.4: pid reuse
+past a full wrap, and the window between a child's `Popen` and its
+hook's write in a runtime that is itself SIGKILLed. `twine status`
+reports which state directory twine resolves and what of it exists. The
+`[[wanted]]` entry asks bale-src for a JSON unlock refusal with a reason
+code; twine keys the `bale revert` hand line on the stderr text until
+then.]
+
 **D16 — Effort is envelope × policy.** The effort slider sets the
 budget envelope; ledger-driven policy allocates within it, per
 work class (PLANNER.md §17: effort is not uniform, and not a
@@ -1071,6 +1089,22 @@ plausibly explains cost-spine-005's HOLD sleep. Ratified at sitting
 correction queued: the pin gate moves to the closure alone, so the abort
 and the signal need no bale. Of Arc 1, row 3 remains, waiting on `bale
 open --json`.]
+
+[2026-10-05-twine-kill-followups-003: the kill follow-ups landed
+(`VERSION` 0.7.0): the pin gate moved to the closure, the running
+record's `groups` and the seam's spawn hook, `twine status`'s state
+directory, the unlock `[[wanted]]`. Arc 2's loop composes the hook with
+the record (`on_spawn=lambda pid: register_group(state_dir, sid, pid)`)
+and may now run a tool.]
+
+[2026-10-06-twine-seed-tidy4-001: row 2 done — 2b-ii landed as
+`2026-10-03-twine-carry-bale-002`: `carry exchange` (an intact exchange
+block's own lines to `bale relay <sid> -`) and `carry response` (`bale
+apply --dry-run --json`, then the one `bale apply` line handed to the
+operator, T12), the recorded dry-run fixture, the fixture player on
+normalized argvs, contract §11 and the `confined` switch point;
+`VERSION` 0.3.0. With rows 0, 1, 4 and 5 landed above, Arc 1 waits only
+on row 3.]
 
 ### 5.2 Arc 2 — the runtime
 
