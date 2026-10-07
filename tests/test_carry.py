@@ -2,10 +2,13 @@
 refusals, nothing executing without --run, the run and its verified
 paste-back, and the ways a run is ran-but-not-ok.
 
-Every probe here is the crafter's recorded scaffold
-(fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt) with its
-placeholders filled mechanically by tests.helpers.filled_probe, or a
-byte-level derivation of that — never a script typed from scratch.
+Every probe here is the crafter's recorded scaffold at the pin
+(fixtures/bale-<pin>/crafter/--probe-twine-take-fixture.txt, 0.4.49's) with
+its placeholders filled mechanically by tests.helpers.filled_probe, or a
+byte-level derivation of that — never a script typed from scratch. The
+0.4.49 scaffold's tail hands the block to whatever `bale` is on PATH
+(`bale clipboard`), so the filled specimen ends before it; the one test
+that keeps the tail runs it under a PATH it builds (section 5).
 Probes that must prove "nothing ran" write a marker file into the test's
 own temp directory, named through the environment. Sections:
 
@@ -35,9 +38,9 @@ from twine.cli import Context, main
 from twine.commands.carry import STDOUT_CAP_BYTES
 from twine.process import RunResult, run_process
 
-from tests.helpers import (PROBE_SLUG, RecordingRunner, Run, emission_relpath,
-                           dies_within, fenced_probe, filled_probe, run_cli,
-                           scaffold, turn)
+from tests.helpers import (PROBE_SLUG, SCAFFOLD_TAIL_NOTICE, SCAFFOLD_TAIL_OPEN,
+                           RecordingRunner, Run, emission_relpath, dies_within,
+                           fenced_probe, filled_probe, run_cli, scaffold, turn)
 
 # ---------------------------------------------------------------------------
 # 1. Helpers
@@ -373,11 +376,71 @@ class WithRun(TempCase):
         body = 'echo "--- section: s ---"\necho visible'
         script = filled_probe(body=body).replace(
             "emit_probe_block\n", "emit_probe_block\necho 'to stderr' >&2\n", 1)
+        self.assertNotIn(SCAFFOLD_TAIL_OPEN, script, "the specimen ends before the tail")
         obj = one_line(self, run_cli("carry", "probe", str(self.probe_turn(script)),
                                      "--run", "--json").stdout)
         self.assertTrue(obj["ok"], obj["reason"])
         self.assertEqual(obj["stderr"], "to stderr\n")
         self.assertNotIn("to stderr", obj["output"])
+
+    def path_with(self, bale: bool) -> str:
+        """A PATH holding only what the scaffold's tail needs — bash, wc,
+        tr — and, when `bale`, a stub `bale` (a double: it records its argv
+        under the test's directory, swallows stdin and exits 0)."""
+        bindir = self.dir / ("bin-with-bale" if bale else "bin-without-bale")
+        bindir.mkdir()
+        for tool in ("bash", "wc", "tr"):
+            real = shutil.which(tool)
+            self.assertIsNotNone(real, f"{tool} is needed to run a probe")
+            (bindir / tool).symlink_to(real)
+        if bale:
+            stub = bindir / "bale"
+            stub.write_text("#!/bin/sh\n# a test double written by tests/test_carry.py\n"
+                            f"printf '%s\\n' \"$@\" > {self.dir / 'bale-argv'}\n"
+                            "while IFS= read -r line; do printf '%s\\n' \"$line\"; done"
+                            f" > {self.dir / 'bale-stdin'}\nexit 0\n", encoding="utf-8")
+            stub.chmod(0o755)
+        return str(bindir)
+
+    def test_the_scaffolds_clipboard_tail_reaches_only_a_bale_the_test_puts_on_path(self):
+        """The 0.4.49 scaffold's tail (contract §10.3): run with the tail
+        kept and a stub `bale` first on PATH, the paste-back is unaffected
+        and ok, the stub saw exactly `clipboard --block "probe block"` with
+        the block on its stdin, and stderr begins with the probe's own
+        line; with no bale on PATH the run is still ok and stderr carries
+        the two `[clipboard]` notices after the probe's own line. No test
+        ever reaches a real bale: the filled specimen cuts the tail, and
+        these two runs control PATH."""
+        body = 'echo "--- section: s ---"\necho visible'
+        script = filled_probe(body=body, clipboard_tail=True).replace(
+            "emit_probe_block\n", "emit_probe_block\necho 'to stderr' >&2\n", 1)
+        self.assertIn(SCAFFOLD_TAIL_OPEN, script)
+        recorded = scaffold()
+        self.assertEqual(script[script.index(SCAFFOLD_TAIL_OPEN):],
+                         recorded[recorded.index(SCAFFOLD_TAIL_OPEN):],
+                         "the tail is the recording's, byte for byte")
+        self.assertIn('bale clipboard --block "probe block"', script)
+        with_bale = self.path_with(bale=True)
+        obj = one_line(self, run_cli("carry", "probe", str(self.probe_turn(script)),
+                                     "--run", "--json", extra_env={"PATH": with_bale}).stdout)
+        self.assertTrue(obj["ok"], obj["reason"])
+        self.assertEqual(obj["stderr"], "to stderr\n")
+        self.assertTrue(obj["output"].startswith(f"=== PROBE BEGIN {PROBE_SLUG} ===\n"))
+        self.assertEqual((self.dir / "bale-argv").read_text(encoding="utf-8"),
+                         "clipboard\n--block\nprobe block\n")
+        self.assertEqual((self.dir / "bale-stdin").read_text(encoding="utf-8"), obj["output"],
+                         "the block the stub was handed is the paste-back")
+        without = self.path_with(bale=False)
+        obj = one_line(self, run_cli("carry", "probe", str(self.probe_turn(script)),
+                                     "--run", "--json", extra_env={"PATH": without}).stdout)
+        self.assertTrue(obj["ok"], obj["reason"])
+        lines = obj["stderr"].splitlines()
+        self.assertEqual(lines[0], "to stderr")
+        self.assertEqual(len(lines), 3)
+        self.assertTrue(all(ln.startswith(SCAFFOLD_TAIL_NOTICE) for ln in lines[1:]), lines)
+        self.assertIn("bale is not on PATH", lines[1])
+        self.assertIn("bale config init --global", lines[2])
+        self.assertNotIn(SCAFFOLD_TAIL_NOTICE, obj["output"])
 
     def test_isolated_entrypoint_runs_carry_probe(self):
         """run_cli is `python3 -I -S -B bin/twine`; the verb works there."""

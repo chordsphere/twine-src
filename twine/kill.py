@@ -127,7 +127,8 @@ CLEAR_LOCK_SECONDS = 5.0
 # retried: it may or may not have closed the session).
 UNLOCK_TIMEOUT_SECONDS = 120.0
 UNLOCK_STDOUT_CAP_BYTES = 1024 * 1024
-# What a close looks like (format_unlock_json's key contract, bale 0.4.45).
+# What a close looks like (format_unlock_json's key contract, bale 0.4.49;
+# recorded: fixtures/bale-0.4.49/scratch/unlock_sid_--reason-aborted_--json.json).
 UNLOCKED_OUTCOME = "unlocked"
 
 # A sid names a file (`<sid>.json`): bounded well under a file name's 255
@@ -951,11 +952,14 @@ def _await_members_gone(pgid: int, timeout: float, proc_root: Path) -> list[int]
 # 5. The aborted closure
 # ---------------------------------------------------------------------------
 
-# bale 0.4.45's refusal when the session reached HOLD (cmd_unlock, bin/bale
-# lines 3234-3479, read by probe twine-unlock-code): `branch bale/<sid>
-# exists — this session reached HOLD. Use `bale revert <sid>` …`. Twine
-# reads only this prefix of bale's stderr, to hand the operator bale's own
-# remedy; every other refusal is surfaced verbatim.
+# bale 0.4.49's refusal when the session reached HOLD, as recorded
+# (fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json,
+# its `message`, also printed as `[bale] error: <message>` on stderr):
+# `branch bale/<sid> exists — this session reached HOLD. Use `bale revert
+# <sid>` …`. Twine reads only this prefix of bale's stderr, to hand the
+# operator bale's own remedy; every other refusal is surfaced verbatim. The
+# recorded line also carries the reason code `hold-branch` (bale 0.4.47);
+# keying on it instead of the text is the next session's.
 HOLD_BRANCH_REFUSAL = "branch bale/{sid} exists"
 
 

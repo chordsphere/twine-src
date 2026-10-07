@@ -16,12 +16,13 @@ from twine.registry import Command, Result, load_registry
 
 from twine import REPO_ROOT
 
-from tests.helpers import (DOUBLE_MODEL, SpendStateDouble, StubBale, TempRoots,
-                           emission_relpath, fenced_probe, filled_probe,
-                           fixture_relpath, run_cli, run_inprocess,
-                           unlock_json_double)
+from tests.helpers import (DOUBLE_MODEL, UNLOCK_RECORDED_SID, SpendStateDouble, StubBale,
+                           TempRoots, emission_relpath, fenced_probe, filled_probe,
+                           fixture_relpath, run_cli, run_inprocess, unlock_recording)
 
-KILL_SID = "2026-10-04-json-discipline-001"
+# The session the recorded `aborted` close names: kill's closure is ok
+# only for it, so it is the sid the happy-path kill closes.
+KILL_SID = UNLOCK_RECORDED_SID
 
 
 def one_json_line(test: unittest.TestCase, stdout: str, command: str) -> dict:
@@ -44,15 +45,13 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.probe_turn.write_text(fenced_probe(filled_probe()), encoding="utf-8")
         # The two bale hand-offs run a stub bale (a double, never bale):
         # relay replays the crafter's exchange emission, apply the recorded
-        # dry-run line.
+        # dry-run line (0.4.49, recorded in the scratch repository).
         self.exchange = REPO_ROOT / emission_relpath("crafter", ["--emit-block", "-"])
         self.dry_run = REPO_ROOT / fixture_relpath(
-            ["apply", "--dry-run", "--json", "/any/response.tar.gz"], "repo")
-        # kill's closure: the stub answers unlock with a close of KILL_SID,
-        # a double built from format_unlock_json's key contract (nothing of
-        # unlock is recorded).
-        self.unlock_line = Path(self._turns.name) / "unlock.json"
-        self.unlock_line.write_bytes(unlock_json_double(KILL_SID))
+            ["apply", "--dry-run", "--json", "/any/response.tar.gz"], "scratch", "dry-run")
+        # kill's closure: the stub answers unlock with the recorded `aborted`
+        # close of KILL_SID (bale 0.4.49; fixtures/README.md).
+        self.unlock_line = unlock_recording("aborted").path
         self.kill_repo = Path(self._turns.name) / "repo"
         self.kill_repo.mkdir()
         self.stub = StubBale(relay_stdout=self.exchange, apply_stdout=self.dry_run,

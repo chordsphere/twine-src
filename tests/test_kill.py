@@ -2,9 +2,13 @@
 `twine kill`.
 
 No test here, and nothing in the suite, runs a real `bale unlock`: every
-unlock answer is a double built from format_unlock_json's key contract
-(tests/helpers.py unlock_json_double, UnlockDouble, StubBale's
-unlock_stdout), named as one; no output of the verb has been recorded. The
+unlock answer is one of the six `bale unlock … --json` lines recorded at
+bale 0.4.49 (tests/helpers.py unlock_recording, replayed by RecordedUnlock
+and StubBale; fixtures/README.md, "bale 0.4.49"), or bytes a test names as
+not bale's at all — the doubles session 5b built from format_unlock_json's
+docstring are gone (session 2026-10-07-twine-pin-049-001, contract §14.7).
+The session id the tests kill is the one the recorded `aborted` close
+names, 2026-10-07-sc-002, so the close is the recording's own. The
 processes the kill kills are real `setsid`-led groups the tests start
 (tests/helpers.py RealGroup) — and a test that asserts one is dead polls
 for it (`dies_within`, brief §7) rather than checking once — and every state
@@ -52,11 +56,14 @@ from twine import REPO_ROOT, TRANSITIONS_TABLE, bale, kill, process
 from twine.cli import Context, main
 from twine.commands import kill as kill_verb
 
-from tests.helpers import (PIN, UNLOCK_KEYS, RealGroup, StubBale, TempRoots, UnlockDouble,
-                           dies_within, process_alive, run_cli, unlock_json_double,
-                           unlock_refusal_double)
+from tests.helpers import (PIN, UNLOCK_KEYS, UNLOCK_RECORDED_ABSENT_SID,
+                           UNLOCK_RECORDED_READ_ONLY_SID, UNLOCK_RECORDED_SID, RealGroup,
+                           RecordedUnlock, StubBale, TempRoots, dies_within, process_alive,
+                           run_cli, unlock_recording)
 
-SID = "2026-10-04-kill-test-001"
+# The session the recorded `aborted` close names (and whose HOLD refusal was
+# recorded just before it): a test that wants the closure ok kills it.
+SID = UNLOCK_RECORDED_SID
 EXE = Path("/double/root/bin/bale")
 
 
@@ -66,12 +73,13 @@ def executable(path: Path = EXE, installed: str = PIN) -> bale.Executable:
     test hands the closure."""
     root = bale.Root(path.parent.parent, "--bale-root", f"--bale-root {path.parent.parent}")
     return bale.Executable(root, path, installed, PIN, f"bin/VERSION reads {installed}")
-# bale 0.4.45's HOLD-branch refusal (cmd_unlock, quoted in the session-5b
-# brief §2.2), for this sid: what a double prints on stderr.
-HOLD_REFUSAL = (f"branch bale/{SID} exists — this session reached HOLD. Use `bale "
-                f"revert {SID}` to discard the branch and clear the lock together, or "
-                "`bale unlock --force` to clear only the lock (the branch would be "
-                "left in place for you to delete manually).")
+# bale 0.4.49's HOLD-branch refusal, as recorded for this sid (fixtures/
+# bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json):
+# its `message`, which bale also printed on stderr as `[bale] error: <message>`
+# — the text twine's kill still reads by its prefix (contract §14.5).
+HOLD = unlock_recording("hold-branch")
+HOLD_REFUSAL = HOLD.line["message"]
+NOT_OPEN = unlock_recording("not-open")
 
 
 _QUIET = logging.NullHandler()
@@ -748,7 +756,7 @@ class ClearGroup(StateCase):
         kill.register_running(self.state, SID, runtime.pgid, runtime.pgid)
         self.hold_the_lock()
         with mock.patch.object(kill, "CLEAR_LOCK_SECONDS", 0.2):
-            report = kill.kill_session(self.state, SID, run=UnlockDouble(),
+            report = kill.kill_session(self.state, SID, run=RecordedUnlock(),
                                        executable=executable(), cwd=self.repo, env={},
                                        grace=2)
         self.assertTrue(report.ok, report.reason)
@@ -768,7 +776,7 @@ class ClearGroup(StateCase):
                 self.assertLogs("twine.kill", logging.WARNING) as logs:
             kill.register_group(self.state, SID, 5001, proc_root=self.noproc)
             self.assertTrue(kill.clear_group(self.state, SID, 5001))
-            report = kill.kill_session(self.state, SID, run=UnlockDouble(),
+            report = kill.kill_session(self.state, SID, run=RecordedUnlock(),
                                        executable=executable(), cwd=self.repo, env={},
                                        grace=2)
         self.assertTrue(report.ok, report.reason)
@@ -789,7 +797,7 @@ class ClearGroup(StateCase):
         for g in (tool_a, cleared, tool_b):
             kill.register_group(self.state, SID, g.pgid)
         self.assertTrue(kill.clear_group(self.state, SID, cleared.pgid))
-        report = kill.kill_session(self.state, SID, run=UnlockDouble(),
+        report = kill.kill_session(self.state, SID, run=RecordedUnlock(),
                                    executable=executable(), cwd=self.repo, env={}, grace=2)
         self.assertTrue(report.ok, report.reason)
         for pid in runtime.pids + tool_a.pids + tool_b.pids:
@@ -1055,7 +1063,7 @@ class AbortedClosure(StateCase):
                                   env={"X": "1"})
 
     def test_the_one_argv_once(self):
-        runner = UnlockDouble()
+        runner = RecordedUnlock()
         closure = self.close(runner)
         self.assertTrue(closure.ok, closure.failures)
         self.assertEqual(len(runner.calls), 1)
@@ -1068,47 +1076,66 @@ class AbortedClosure(StateCase):
         self.assertIsNone(closure.operator_line)
 
     def test_a_refusal_is_not_ok_names_bales_reason_and_is_never_retried(self):
-        runner = UnlockDouble(stdout=b"", exit_code=1, stderr=unlock_refusal_double(
-            f"session {SID} is not open; nothing to unlock. No sessions are open."))
+        """The recorded not-open refusal (bale 0.4.49: exit 1, the
+        `unlock-refused` line on stdout, `[bale] error: <message>` on
+        stderr): not ok, bale's stderr reason named first, then what the
+        line said instead of this close — its outcome, its sid (the one
+        that was never open) and its null closure reason. The line is kept
+        as bale's one JSON object (contract §14.6's `closure`)."""
+        runner = RecordedUnlock(NOT_OPEN)
         closure = self.close(runner)
         self.assertFalse(closure.ok)
         self.assertEqual(len(runner.calls), 1, "a closure is never retried")
-        self.assertEqual(closure.failures,
-                         [f"bale exited 1: [bale] error: session {SID} is not open; "
-                          "nothing to unlock. No sessions are open."])
+        self.assertEqual(closure.failures, [
+            f"bale exited 1: [bale] error: session {UNLOCK_RECORDED_ABSENT_SID} is not open; "
+            "nothing to unlock. No sessions are open.",
+            "bale reported outcome 'unlock-refused', not 'unlocked'",
+            f"bale reported sid {UNLOCK_RECORDED_ABSENT_SID!r}, not {SID!r}",
+            "bale reported closure_reason None, not 'aborted'"])
         self.assertEqual(closure.operator_line, f"bale unlock {SID} --reason aborted")
-        self.assertIsNone(closure.unlock)
+        self.assertEqual(closure.unlock, NOT_OPEN.line)
+        self.assertEqual((closure.unlock["reason"], closure.exit_code), ("not-open", 1))
 
     def test_the_hold_branch_refusal_hands_back_bales_own_remedy(self):
-        runner = UnlockDouble(stdout=b"", exit_code=1,
-                              stderr=unlock_refusal_double(HOLD_REFUSAL))
+        """Row 17 of the 0.4.49 recordings: bale refused to unlock the
+        session whose response had reached HOLD. Twine still keys the hand
+        line on the stderr prefix `branch bale/<sid> exists`, which the
+        recording's stderr carries; the line's `reason` is `hold-branch`
+        (keying on it is the next session's)."""
+        runner = RecordedUnlock(HOLD)
         closure = self.close(runner)
         self.assertFalse(closure.ok)
         self.assertTrue(closure.hold_branch)
+        self.assertTrue(closure.stderr.startswith(f"[bale] error: branch bale/{SID} exists"))
+        self.assertEqual((closure.unlock["reason"], closure.unlock["outcome"]),
+                         ("hold-branch", "unlock-refused"))
         self.assertEqual(closure.operator_line, f"bale revert {SID}")
         self.assertEqual(len(runner.calls), 1)
 
     def test_a_line_that_is_not_this_close_is_not_ok(self):
+        """Two recorded lines that are not this close — the no-op with
+        nothing open (row 20) and the read-only session's close (row 19,
+        another sid, closure reason `closed-read-only`) — and two stdouts
+        that are no bale line at all."""
+        read_only = unlock_recording("closed-read-only")
         cases = {
-            "outcome 'no-op'": unlock_json_double(SID, outcome="no-op", sid=None,
-                                                  closure_reason=None),
-            "sid '2026-10-04-other-001'": unlock_json_double(
-                SID, sid="2026-10-04-other-001"),
-            "closure_reason 'abandoned'": unlock_json_double(SID,
-                                                             closure_reason="abandoned"),
-            "not one JSON object (it began 'unlocked')": b"unlocked\n",
-            "not one JSON object (it was empty)": b"",
+            "outcome 'no-op'": RecordedUnlock("no-op"),
+            f"sid {UNLOCK_RECORDED_READ_ONLY_SID!r}": RecordedUnlock(read_only),
+            "closure_reason 'closed-read-only'": RecordedUnlock(read_only),
+            "not one JSON object (it began 'unlocked')": RecordedUnlock(stdout=b"unlocked\n"),
+            "not one JSON object (it was empty)": RecordedUnlock(stdout=b""),
         }
-        for needle, stdout in cases.items():
+        for needle, runner in cases.items():
             with self.subTest(needle=needle):
-                closure = self.close(UnlockDouble(stdout=stdout))
+                closure = self.close(runner)
                 self.assertFalse(closure.ok)
+                self.assertEqual(closure.exit_code, 0)
                 self.assertIn(needle, "; ".join(closure.failures))
                 self.assertEqual(closure.operator_line,
                                  f"bale unlock {SID} --reason aborted")
 
     def test_a_timeout_is_not_ok_and_not_retried(self):
-        runner = UnlockDouble(timed_out=True)
+        runner = RecordedUnlock(timed_out=True)
         closure = self.close(runner)
         self.assertFalse(closure.ok)
         self.assertEqual(len(runner.calls), 1)
@@ -1117,7 +1144,7 @@ class AbortedClosure(StateCase):
     def test_an_unpinned_bale_is_never_started(self):
         """The closure checks the pin itself, so the loop cannot reach an
         unpinned bale by forgetting the gate."""
-        runner = UnlockDouble()
+        runner = RecordedUnlock()
         closure = self.close(runner, exe=executable(installed="0.4.46"))
         self.assertEqual((closure.ok, closure.ran, runner.calls), (False, False, []))
         self.assertIn("not the pin", closure.failures[0])
@@ -1138,7 +1165,7 @@ class AbortedClosure(StateCase):
 class KillSession(StateCase):
 
     def kill(self, runner=None, **kwargs):
-        runner = runner if runner is not None else UnlockDouble()
+        runner = runner if runner is not None else RecordedUnlock()
         report = kill.kill_session(self.state, SID, run=runner, executable=executable(),
                                    cwd=self.repo, env={}, **kwargs)
         return report, runner
@@ -1217,14 +1244,13 @@ class KillSession(StateCase):
                          ("abort", "kill -KILL -- -4242", []))
 
     def test_a_refused_closure_says_where_it_stopped(self):
-        report, runner = self.kill(UnlockDouble(stdout=b"", exit_code=1,
-                                                stderr=unlock_refusal_double(HOLD_REFUSAL)))
+        report, runner = self.kill(RecordedUnlock(HOLD))
         self.assertEqual((report.ok, report.stopped_at, report.closed),
                          (False, "closure", False))
         self.assertEqual(report.operator_line, f"bale revert {SID}")
         self.assertIn("twine never runs it", report.reason)
-        self.assertEqual(report.as_json()["stderr"],
-                         unlock_refusal_double(HOLD_REFUSAL).decode())
+        self.assertEqual(report.as_json()["stderr"], HOLD.stderr.decode())
+        self.assertEqual(report.as_json()["closure"], HOLD.line)
 
     # --- every recorded group, and the re-read (session 5c) ----------------
 
@@ -1377,7 +1403,7 @@ class KillVerb(StateCase):
 
     def run_verb(self, *extra, runner=None, env=None, sid=SID):
         out, err = io.StringIO(), io.StringIO()
-        runner = runner if runner is not None else UnlockDouble()
+        runner = runner if runner is not None else RecordedUnlock()
         ctx = Context(env=env if env is not None else {}, stdout=out, stderr=err,
                       which=lambda name: None, stdin=io.BytesIO(b""), run=runner)
         argv = ["kill", sid, "--state-dir", str(self.state), "--cwd", str(self.repo),
@@ -1398,7 +1424,7 @@ class KillVerb(StateCase):
                           obj["operator_line"], obj["reason"], obj["refusals"],
                           obj["stopped_at"]),
                          (SID, True, None, True, None, None, [], None))
-        self.assertEqual(obj["closure"], json.loads(unlock_json_double(SID)))
+        self.assertEqual(obj["closure"], unlock_recording("aborted").line)
         self.assertEqual(obj["telemetry"], f"claude/telemetry/{SID}.json")
         self.assertEqual(obj["argv"][1:], ["unlock", SID, "--reason", "aborted", "--json"])
         self.assertEqual(obj["argv"][0], str(self.roots.ok / "bin" / "bale"))
@@ -1424,7 +1450,7 @@ class KillVerb(StateCase):
         exe = bale.locate_executable(str(self.roots.ok), {}, lambda n: None)
         report = kill.KillReport(sid=SID, state_dir_source="--state-dir", cwd=str(self.repo),
                                  grace_seconds=2.0, bale=exe.as_json())
-        report = kill.kill_session(other, SID, run=UnlockDouble(), executable=exe,
+        report = kill.kill_session(other, SID, run=RecordedUnlock(), executable=exe,
                                    cwd=str(self.repo), env={}, grace=2.0, report=report)
         expected = json.loads(json.dumps({"command": "kill", "ok": report.ok,
                                           **report.as_json()}))
@@ -1478,7 +1504,7 @@ class KillVerb(StateCase):
                 path.write_text("not a directory")
             with self.subTest(path=path.name):
                 out, err = io.StringIO(), io.StringIO()
-                runner = UnlockDouble()
+                runner = RecordedUnlock()
                 ctx = Context(env={}, stdout=out, stderr=err, which=lambda n: None,
                               stdin=io.BytesIO(b""), run=runner)
                 code = main(["kill", SID, "--state-dir", str(path), "--cwd",
@@ -1509,7 +1535,7 @@ class KillVerb(StateCase):
         # the restore only applies when the directory is still there.
         self.addCleanup(lambda: parent.exists() and parent.chmod(0o700))
         out = io.StringIO()
-        runner = UnlockDouble()
+        runner = RecordedUnlock()
         ctx = Context(env={}, stdout=out, stderr=io.StringIO(), which=lambda n: None,
                       stdin=io.BytesIO(b""), run=runner)
         code = main(["kill", SID, "--state-dir", str(parent / "state"), "--cwd",
@@ -1527,7 +1553,7 @@ class KillVerb(StateCase):
             gone.rmdir()
             out = io.StringIO()
             ctx = Context(env={}, stdout=out, stderr=io.StringIO(), which=lambda n: None,
-                          stdin=io.BytesIO(b""), run=UnlockDouble())
+                          stdin=io.BytesIO(b""), run=RecordedUnlock())
             code = main(["kill", SID, "--state-dir", str(self.state), "--bale-root",
                          str(self.roots.ok), "--json"], ctx=ctx)
         finally:
@@ -1538,7 +1564,7 @@ class KillVerb(StateCase):
 
     def test_no_state_directory_is_refused(self):
         out, err = io.StringIO(), io.StringIO()
-        runner = UnlockDouble()
+        runner = RecordedUnlock()
         ctx = Context(env={}, stdout=out, stderr=err, which=lambda n: None,
                       stdin=io.BytesIO(b""), run=runner)
         code = main(["kill", SID, "--cwd", str(self.repo), "--bale-root",
@@ -1565,7 +1591,7 @@ class KillVerb(StateCase):
                 group = self.group()
                 kill.register_running(self.state, SID, group.pgid, group.pgid)
                 out = io.StringIO()
-                runner = UnlockDouble()
+                runner = RecordedUnlock()
                 ctx = Context(env={}, stdout=out, stderr=io.StringIO(),
                               which=lambda n: None, stdin=io.BytesIO(b""), run=runner)
                 code = main(["kill", SID, "--state-dir", str(self.state), "--cwd",
@@ -1613,7 +1639,7 @@ class KillVerb(StateCase):
     def test_every_path_carries_the_same_keys(self):
         ok = self.json_of()[1]
         refused = self.json_of("--grace", "x")[1]
-        closure_refused = self.json_of(runner=UnlockDouble(stdout=b"", exit_code=1))[1]
+        closure_refused = self.json_of(runner=RecordedUnlock(NOT_OPEN))[1]
         unpinned = self.json_of("--bale-root", str(self.roots.other))[1]
         with mock.patch.object(process, "group_members", return_value=[4242]), \
                 mock.patch.object(process, "signal_group", return_value=None):
@@ -1655,8 +1681,7 @@ class KillVerb(StateCase):
         self.assertTrue(any(l.strip().startswith("abort:") for l in lines))
         self.assertIn("no running record", out)
         self.assertIn("closure: bale unlocked", out)
-        code, out, err, _ = self.run_verb(runner=UnlockDouble(
-            stdout=b"", exit_code=1, stderr=unlock_refusal_double(HOLD_REFUSAL)))
+        code, out, err, _ = self.run_verb(runner=RecordedUnlock(HOLD))
         self.assertEqual(code, 1)
         self.assertIn("NOT FINISHED (stopped at closure)", out.splitlines()[0])
         self.assertIn(f"finish by hand: bale revert {SID}", out)
@@ -1665,7 +1690,8 @@ class KillVerb(StateCase):
 
 class KillEndToEnd(StateCase):
     """The real entrypoint as a subprocess, a real setsid-led group, and a
-    stub bale (a double: StubBale replays unlock_json_double's line)."""
+    stub bale (a double: StubBale replays the recorded `aborted` close, or a
+    recorded refusal with the stderr line derived from it)."""
 
     def stub(self, **kwargs) -> StubBale:
         stub = StubBale(**kwargs)
@@ -1673,9 +1699,7 @@ class KillEndToEnd(StateCase):
         return stub
 
     def test_kill_a_real_group_and_close_through_a_stub_bale(self):
-        line = self.base / "unlock.json"
-        line.write_bytes(unlock_json_double(SID))
-        stub = self.stub(unlock_stdout=line)
+        stub = self.stub(unlock_stdout=unlock_recording("aborted").path)
         group = self.group(body='trap "" TERM; sleep 60 & echo $!; sleep 60 & echo $!; wait')
         kill.register_running(self.state, SID, group.pgid, group.pgid)
         run = run_cli("kill", SID, "--state-dir", str(self.state), "--cwd", str(self.repo),
@@ -1695,9 +1719,7 @@ class KillEndToEnd(StateCase):
         registered as the hook would register them, `twine kill` run as a
         subprocess — every pid of all three dead, the record cleared, the
         stub saw exactly the one unlock argv, ok."""
-        line = self.base / "unlock.json"
-        line.write_bytes(unlock_json_double(SID))
-        stub = self.stub(unlock_stdout=line)
+        stub = self.stub(unlock_stdout=unlock_recording("aborted").path)
         runtime = self.group()
         tool_a = self.group(body='trap "" TERM; sleep 60 & echo $!; sleep 60 & echo $!; wait')
         tool_b = self.group()
@@ -1725,8 +1747,11 @@ class KillEndToEnd(StateCase):
         self.assertNotIn("Traceback", run.stderr)
 
     def test_a_refusing_stub_is_not_ok_and_shows_bales_stderr(self):
-        stub = self.stub(exit_code=1, stderr=unlock_refusal_double(
-            f"session {SID} is not open; nothing to unlock. No sessions are open.").decode())
+        """The stub replays the recorded not-open refusal as bale 0.4.49
+        printed it: the JSON line on stdout, exit 1, and on stderr the
+        `[bale] error:` line derived from the recording."""
+        stub = self.stub(unlock_stdout=NOT_OPEN.path, exit_code=NOT_OPEN.exit_code,
+                         stderr=NOT_OPEN.stderr.decode())
         run = run_cli("kill", SID, "--state-dir", str(self.state), "--cwd", str(self.repo),
                       "--json", bale_root=stub.root)
         obj = json.loads(run.stdout)
@@ -1734,6 +1759,7 @@ class KillEndToEnd(StateCase):
                          (1, False, "closure", 1))
         self.assertIn("is not open", obj["stderr"])
         self.assertIn("is not open", run.stderr)
+        self.assertEqual(obj["closure"], NOT_OPEN.line)
         self.assertEqual(obj["operator_line"], f"bale unlock {SID} --reason aborted")
         self.assertNotIn("Traceback", run.stderr)
 
