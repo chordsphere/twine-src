@@ -1,0 +1,904 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-07-twine-pin-049-001",
+  "created_at": "2026-10-07T16:28:06+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-07T16:28:06+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share",
+        "tests",
+        "twine/bale.py",
+        "twine/kill.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-07-twine-pin-049-001.log",
+      "bundle": {
+        "stem": "2026-10-07-twine-pin-049",
+        "brief_sha256": "bf18ec64e9cf638b0df8ee78f3ccb0e1a1a575ad967c42f5a6c45197d221bbcb",
+        "checkpoint_sha256": "972936b2e2ca05c2c5dc80f52cc8c56bafd933a4b02cbdc797329f9b0b40e845",
+        "manifest_sha256": "b7cd0b666a61f094e2e9199b70bdd88449cc427f60afc6fa724203580ee7cf97"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-07T16:28:06+00:00"
+      }
+    },
+    {
+      "at": "2026-10-07T17:37:45+00:00",
+      "outcome": "held",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-07-twine-pin-049-001.tar.gz",
+      "validation": {
+        "state": "HOLD",
+        "exit_code": 0,
+        "claims": {
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is exactly 0.8.0 plus LF (cmp)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is exactly 0.8.0 plus LF (cmp)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (ast.parse, json, toml, bash -n)",
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)",
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)",
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)",
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256",
+          "VERSION is exactly 0.8.0 plus LF (cmp)",
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path",
+          "claims reconciliation (TARBALL.md 7.3; diagnostic)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share",
+        "tests",
+        "twine/bale.py",
+        "twine/kill.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures/README.md",
+        "fixtures/bale-0.4.49/anywhere/--version.txt",
+        "fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt",
+        "fixtures/bale-0.4.49/crafter/--light-block-stdin.txt",
+        "fixtures/bale-0.4.49/crafter/--probe-twine-take-fixture.txt",
+        "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+dry-run.json",
+        "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+scope-drift-refused.json",
+        "fixtures/bale-0.4.49/scratch/open_bundle_--json+opened.json",
+        "fixtures/bale-0.4.49/scratch/open_bundle_--json+second-desk.json",
+        "fixtures/bale-0.4.49/scratch/pack_goal_--slug-ro_--read-only_--no-readme_--json.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_--json.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+ingest.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+session-gate.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relayed.json",
+        "fixtures/bale-0.4.49/scratch/unlock_--json.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlocked.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--reason-aborted_--json.json",
+        "fixtures/bale-0.4.49/twine-src/open_--check_bundle_--json.json",
+        "fixtures/bale-0.4.49/twine-src/stats_--json.json",
+        "fixtures/bale-0.4.49/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json",
+        "fixtures/bale-0.4.49/twine-src/status_--json.json",
+        "fixtures/bale-0.4.49/twine-src/unlock_--integration_--json.json",
+        "fixtures/bale-0.4.49/twine-src/unlock_sid_--json+unlock-refused+not-open.json",
+        "share/bale-consumption.toml",
+        "share/transitions.toml",
+        "tests/helpers.py",
+        "tests/test_carry.py",
+        "tests/test_carry_bale.py",
+        "tests/test_consumption_manifest.py",
+        "tests/test_fixtures.py",
+        "tests/test_json_discipline.py",
+        "tests/test_kill.py",
+        "tests/test_process.py",
+        "tests/test_transitions.py",
+        "twine/kill.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.49",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "c32a8dc8bbc01634a9a5bfcff2bc6240b835f3ff6c71144f2e5d651600a04112",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-07-twine-pin-049-001.sh",
+              "sha256": "972936b2e2ca05c2c5dc80f52cc8c56bafd933a4b02cbdc797329f9b0b40e845"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-07T16:28:06+00:00",
+            "base_files": {
+              "README.md": "bb9104f2ad90afc7bbb7f55f7a52b4e47b1949a1a5398b3b8482534c5d983010",
+              "VERSION": "902311c7bb38fa1658ff403def6158ee7378fe9d6e2e284fa1c38735c31bd30b",
+              "claude/INDEX.md": "19e5095f24a278899f7ead41a308f41a8a56e32492e213c79f1f76db776c7053",
+              "claude/context/cli-contract.md": "2889115639a7cab007df7f901404eadb03c9f204488d317218eb0ba7a2acd6cc",
+              "fixtures/README.md": "4a9006b4af69cc6b42037a41bddf2920763e31b2d12299389d703351b35f75e1",
+              "fixtures/bale-0.4.45/anywhere/--version.txt": "20a67ed843d2255f22d492ce3dc4c3bbe42498fe39a86c32e34bb815dd337f69",
+              "fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt": "263f464b4ad141c57cda1d6ef3d39ac2ca678deda7e5e8c7ffe9ce8b8b64097c",
+              "fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt": "58e046e26d8b9c27ea572e4dd89e2951ec1791a45275955c3de56634f51bb888",
+              "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt": "9632439af6dd669e03e7a49d87a79639409e5d9b586f56586a20bccdf98e7d00",
+              "fixtures/bale-0.4.45/crafter/--light-block-stdin.txt": "55c53cfe057b2e5a5cee10b7f6eabbbcb5365e24cc481329b27f19c6f3cebdb8",
+              "fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt": "abb75f26b64728022aa71cfeb17dc4df9b2ac4ed1c23046b5c8299a55125386a",
+              "fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json": "f5bd7e5bbb92363b2993e2aaba5816dc3428dd7acdc0c51e8e194a49c43471ce",
+              "fixtures/bale-0.4.45/twine-src/stats_--json.json": "a9dc5c9bab89e00a3745da8235142f1fe69ad8f6dd1ef23838c605f48ff95add",
+              "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json": "c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455",
+              "fixtures/bale-0.4.45/twine-src/status_--json.json": "081879d0def5abb61d2f48027103051d5fb1326dc97d10274c6287ad3b246f63",
+              "share/bale-consumption.toml": "25365e193cc74598b5dadb0dbca0ec697367622afcffd372f72def2a8f5203dc",
+              "share/transitions.toml": "b98ecd04bc0beeea08eab9e1ba4b47d3ea3d12e9e9fc8aa10fd37e66f42a2610",
+              "tests/__init__.py": "d12d06fa7213ce3e6678e808805c1d9c1699c342431b10e0e2b7fb5ce0414fc5",
+              "tests/helpers.py": "69b9ce2f4caaf47388e853d95a435e86613c54e2fa9b8a6b803f6960151bda7b",
+              "tests/test_bale_check.py": "48047b0e4ee844390093d8e97af5549eb784b11b84311ece0f5fe7c4ed031c90",
+              "tests/test_carry.py": "c06543c3a9330913b6e66374993955860507c8f32e9baf27241e502b53e2899b",
+              "tests/test_carry_bale.py": "8c02903e13ee3facc3aa7ff751425fb5260cc2454a8f0d657a72d7b02b748666",
+              "tests/test_consumption_manifest.py": "5bd40a4997ce19f9fcd3007f163352fde2319aa0323182227e9183901e6cc58f",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "60aaf0a142adf35c5e93f611c846ba185dc260fb5fafab7ef73d284ee721a61f",
+              "tests/test_json_discipline.py": "3bcc655d65aad919f29a9700406b9a003a33a7f8d7d9b4d9b81571200834d254",
+              "tests/test_kill.py": "52764ed0448f28f0cfa870af8c43315a3c1db3a86da77ffd4da155d5b736431a",
+              "tests/test_process.py": "787dccf94a65e666274bb23c47c14f6fdb2065b42d6f56491889bbe2734fc76f",
+              "tests/test_registry.py": "b611cd0f4974c06f213acd1cff1b43d115247c78ccbeef9d293c4f9dac0c0ef9",
+              "tests/test_spend.py": "688356c3a095921296cb711c4f317dbcffd991c104224edc70e17444817d0e07",
+              "tests/test_status.py": "d7aa818c6d6e2525c147d23ede6bba7b304aa631e01f64702a616cd4db675723",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "d2322e6c4992f3419b0d71357cc6225a37cc96c6a8a670f7d4e26feae7865184",
+              "twine/bale.py": "b3aede25158bea8f84426ea731f7e3c12b5d4a461abb1312faedcd35e360a43e",
+              "twine/kill.py": "f36092d558ac777ba37f969ebbf04aa0d1258ca025a8c1c816d474c3e5ade9cb"
+            },
+            "model_identity": "anthropic:claude-fable-5.1"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "the unlock refusals were recorded under `unlock <sid> --json` (no --reason aborted); the tests replay them for twine's argv on the assumption that bale refuses before the reason matters \u2014 named in RecordedUnlock's docstring and fixtures/README.md",
+            "an unlock-refused recording's stderr is derived as `[bale] error: ` + its `message` + LF, since the probes show that line first on each refusal's stderr and no row records stderr byte-exact \u2014 named as a derivation wherever it is used",
+            "the key_owner names format_open_json and format_relay_json as the brief gave them; the desk read bale-src, this session did not"
+          ],
+          "judgment_calls": [
+            "the scratch repository's <where> is `scratch/`",
+            "an outcome group is `+<outcome>` and, only where the outcome still collides within the version, `+<reason>` (the line's reason, or a README-assigned tag when the line carries only a `cause` sentence); the scope is the whole version directory, so unlock_sid_--json's three recordings all carry groups",
+            "FixturePlayer answers a grouped argv only on select={stem: group}, refusing otherwise and naming the candidates; scratch_root names the directory a test treats as the throwaway repository",
+            "the carried pastes stay under bale-0.4.45/, pointed at by path: format entries carry fixtures_version and carried_relpath reads it (the desk's preference)",
+            "filled_probe cuts the 0.4.49 scaffold's clipboard tail by default; one test keeps it and controls PATH with a stub bale, then none",
+            "further recordings of a verb ride the surface as also_recorded rows (argv, cwd, outcome, reason, fixture); the unlock refusal's reason codes ride the surface as `reasons`/`reasons_home`, not a [[vocabulary]] axis",
+            "test_kill's SID is the recorded close's sid 2026-10-07-sc-002, so the close is the recording's own; the refusal tests assert the three extra failures twine names for a 0.4.49 refusal line (unchanged code, new input)"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md (META through 11.2)",
+            "README.md (the brief, in full)",
+            "TARBALL.md sections 1, 2, 5, 7, 7.7, 8, 10.1",
+            "tools/craft_response.py (docstring, skeleton construction, main)",
+            "tools/response_lint.py (docstring, embedded response-manifest schema, check inventory)",
+            "fixtures/README.md",
+            "tests/helpers.py",
+            "share/bale-consumption.toml",
+            "share/transitions.toml (header, axes, row comments)",
+            "tests/test_fixtures.py",
+            "tests/test_consumption_manifest.py",
+            "tests/test_kill.py",
+            "tests/test_carry.py (sections 1, 3, 5)",
+            "tests/test_carry_bale.py (sections 1, 3-4, 6-8)",
+            "tests/test_json_discipline.py (setup)",
+            "tests/test_process.py (the seam tests)",
+            "tests/test_take.py (section 1-2)",
+            "tests/test_spend.py (the shipped-files scan)",
+            "twine/kill.py",
+            "twine/bale.py",
+            "twine/transitions.py (written_against)",
+            "claude/context/cli-contract.md (sections 5-8, 10.3, 11.3-11.4, 12.2, 14.2, 14.5-14.7)",
+            "README.md",
+            "claude/INDEX.md",
+            "claude/responses/2026-10-05-twine-kill-followups-003/notes.md (skimmed)",
+            "the three probe paste-backs (probe-twine-049-fixtures, -scratch, -emissions)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-07-twine-pin-049-001.log",
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "HOLD",
+        "exit_code": 1,
+        "script": {
+          "path": "claude/checkpoints/2026-10-07-twine-pin-049-001.sh",
+          "sha256": "972936b2e2ca05c2c5dc80f52cc8c56bafd933a4b02cbdc797329f9b0b40e845"
+        },
+        "stamp_matched": true,
+        "failed_probes": [
+          "unlock-doubles-gone: tests/helpers.py still defines unlock_json_double; tests/helpers.py still defines UnlockDouble",
+          "no-0.4.45-under-twine-tests-share: 0.4.45 still named in tests/helpers.py; 0.4.45 still named in tests/test_carry_bale.py; 0.4.45 still named in tests/test_consumption_manifest.py; 0.4.45 still named in tests/test_fixtures.py; 0.4.45 still named in share/bale-consumption.toml; 0.4.45 still named in share/transitions.toml"
+        ]
+      }
+    },
+    {
+      "at": "2026-10-07T17:58:51+00:00",
+      "outcome": "held",
+      "command": "retry",
+      "closure_reason": null,
+      "tarball": "response-2026-10-07-twine-pin-049-001.tar.gz",
+      "validation": {
+        "state": "HOLD",
+        "exit_code": 0,
+        "claims": {
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is exactly 0.8.0 plus LF (cmp)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is exactly 0.8.0 plus LF (cmp)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (ast.parse, json, toml, bash -n)",
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)",
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)",
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)",
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256",
+          "VERSION is exactly 0.8.0 plus LF (cmp)",
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path",
+          "claims reconciliation (TARBALL.md 7.3; diagnostic)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share",
+        "tests",
+        "twine/bale.py",
+        "twine/kill.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures/README.md",
+        "fixtures/bale-0.4.49/anywhere/--version.txt",
+        "fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt",
+        "fixtures/bale-0.4.49/crafter/--light-block-stdin.txt",
+        "fixtures/bale-0.4.49/crafter/--probe-twine-take-fixture.txt",
+        "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+dry-run.json",
+        "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+scope-drift-refused.json",
+        "fixtures/bale-0.4.49/scratch/open_bundle_--json+opened.json",
+        "fixtures/bale-0.4.49/scratch/open_bundle_--json+second-desk.json",
+        "fixtures/bale-0.4.49/scratch/pack_goal_--slug-ro_--read-only_--no-readme_--json.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_--json.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+ingest.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+session-gate.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relayed.json",
+        "fixtures/bale-0.4.49/scratch/unlock_--json.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlocked.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--reason-aborted_--json.json",
+        "fixtures/bale-0.4.49/twine-src/open_--check_bundle_--json.json",
+        "fixtures/bale-0.4.49/twine-src/stats_--json.json",
+        "fixtures/bale-0.4.49/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json",
+        "fixtures/bale-0.4.49/twine-src/status_--json.json",
+        "fixtures/bale-0.4.49/twine-src/unlock_--integration_--json.json",
+        "fixtures/bale-0.4.49/twine-src/unlock_sid_--json+unlock-refused+not-open.json",
+        "share/bale-consumption.toml",
+        "share/transitions.toml",
+        "tests/helpers.py",
+        "tests/test_carry.py",
+        "tests/test_carry_bale.py",
+        "tests/test_consumption_manifest.py",
+        "tests/test_fixtures.py",
+        "tests/test_json_discipline.py",
+        "tests/test_kill.py",
+        "tests/test_process.py",
+        "tests/test_transitions.py",
+        "twine/kill.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.49",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "c32a8dc8bbc01634a9a5bfcff2bc6240b835f3ff6c71144f2e5d651600a04112",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-07-twine-pin-049-001.sh",
+              "sha256": "972936b2e2ca05c2c5dc80f52cc8c56bafd933a4b02cbdc797329f9b0b40e845"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-07T16:28:06+00:00",
+            "base_files": {
+              "README.md": "bb9104f2ad90afc7bbb7f55f7a52b4e47b1949a1a5398b3b8482534c5d983010",
+              "VERSION": "902311c7bb38fa1658ff403def6158ee7378fe9d6e2e284fa1c38735c31bd30b",
+              "claude/INDEX.md": "19e5095f24a278899f7ead41a308f41a8a56e32492e213c79f1f76db776c7053",
+              "claude/context/cli-contract.md": "2889115639a7cab007df7f901404eadb03c9f204488d317218eb0ba7a2acd6cc",
+              "fixtures/README.md": "4a9006b4af69cc6b42037a41bddf2920763e31b2d12299389d703351b35f75e1",
+              "fixtures/bale-0.4.45/anywhere/--version.txt": "20a67ed843d2255f22d492ce3dc4c3bbe42498fe39a86c32e34bb815dd337f69",
+              "fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt": "263f464b4ad141c57cda1d6ef3d39ac2ca678deda7e5e8c7ffe9ce8b8b64097c",
+              "fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt": "58e046e26d8b9c27ea572e4dd89e2951ec1791a45275955c3de56634f51bb888",
+              "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt": "9632439af6dd669e03e7a49d87a79639409e5d9b586f56586a20bccdf98e7d00",
+              "fixtures/bale-0.4.45/crafter/--light-block-stdin.txt": "55c53cfe057b2e5a5cee10b7f6eabbbcb5365e24cc481329b27f19c6f3cebdb8",
+              "fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt": "abb75f26b64728022aa71cfeb17dc4df9b2ac4ed1c23046b5c8299a55125386a",
+              "fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json": "f5bd7e5bbb92363b2993e2aaba5816dc3428dd7acdc0c51e8e194a49c43471ce",
+              "fixtures/bale-0.4.45/twine-src/stats_--json.json": "a9dc5c9bab89e00a3745da8235142f1fe69ad8f6dd1ef23838c605f48ff95add",
+              "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json": "c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455",
+              "fixtures/bale-0.4.45/twine-src/status_--json.json": "081879d0def5abb61d2f48027103051d5fb1326dc97d10274c6287ad3b246f63",
+              "share/bale-consumption.toml": "25365e193cc74598b5dadb0dbca0ec697367622afcffd372f72def2a8f5203dc",
+              "share/transitions.toml": "b98ecd04bc0beeea08eab9e1ba4b47d3ea3d12e9e9fc8aa10fd37e66f42a2610",
+              "tests/__init__.py": "d12d06fa7213ce3e6678e808805c1d9c1699c342431b10e0e2b7fb5ce0414fc5",
+              "tests/helpers.py": "69b9ce2f4caaf47388e853d95a435e86613c54e2fa9b8a6b803f6960151bda7b",
+              "tests/test_bale_check.py": "48047b0e4ee844390093d8e97af5549eb784b11b84311ece0f5fe7c4ed031c90",
+              "tests/test_carry.py": "c06543c3a9330913b6e66374993955860507c8f32e9baf27241e502b53e2899b",
+              "tests/test_carry_bale.py": "8c02903e13ee3facc3aa7ff751425fb5260cc2454a8f0d657a72d7b02b748666",
+              "tests/test_consumption_manifest.py": "5bd40a4997ce19f9fcd3007f163352fde2319aa0323182227e9183901e6cc58f",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "60aaf0a142adf35c5e93f611c846ba185dc260fb5fafab7ef73d284ee721a61f",
+              "tests/test_json_discipline.py": "3bcc655d65aad919f29a9700406b9a003a33a7f8d7d9b4d9b81571200834d254",
+              "tests/test_kill.py": "52764ed0448f28f0cfa870af8c43315a3c1db3a86da77ffd4da155d5b736431a",
+              "tests/test_process.py": "787dccf94a65e666274bb23c47c14f6fdb2065b42d6f56491889bbe2734fc76f",
+              "tests/test_registry.py": "b611cd0f4974c06f213acd1cff1b43d115247c78ccbeef9d293c4f9dac0c0ef9",
+              "tests/test_spend.py": "688356c3a095921296cb711c4f317dbcffd991c104224edc70e17444817d0e07",
+              "tests/test_status.py": "d7aa818c6d6e2525c147d23ede6bba7b304aa631e01f64702a616cd4db675723",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "d2322e6c4992f3419b0d71357cc6225a37cc96c6a8a670f7d4e26feae7865184",
+              "twine/bale.py": "b3aede25158bea8f84426ea731f7e3c12b5d4a461abb1312faedcd35e360a43e",
+              "twine/kill.py": "f36092d558ac777ba37f969ebbf04aa0d1258ca025a8c1c816d474c3e5ade9cb"
+            },
+            "model_identity": "anthropic:claude-fable-5.1"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "the unlock refusals were recorded under `unlock <sid> --json` (no --reason aborted); the tests replay them for twine's argv on the assumption that bale refuses before the reason matters \u2014 named in RecordedUnlock's docstring and fixtures/README.md",
+            "an unlock-refused recording's stderr is derived as `[bale] error: ` + its `message` + LF, since the probes show that line first on each refusal's stderr and no row records stderr byte-exact \u2014 named as a derivation wherever it is used",
+            "the key_owner names format_open_json and format_relay_json as the brief gave them; the desk read bale-src, this session did not"
+          ],
+          "judgment_calls": [
+            "the scratch repository's <where> is `scratch/`",
+            "an outcome group is `+<outcome>` and, only where the outcome still collides within the version, `+<reason>` (the line's reason, or a README-assigned tag when the line carries only a `cause` sentence); the scope is the whole version directory, so unlock_sid_--json's three recordings all carry groups",
+            "FixturePlayer answers a grouped argv only on select={stem: group}, refusing otherwise and naming the candidates; scratch_root names the directory a test treats as the throwaway repository",
+            "the carried pastes stay under bale-0.4.45/, pointed at by path: format entries carry fixtures_version and carried_relpath reads it (the desk's preference)",
+            "filled_probe cuts the 0.4.49 scaffold's clipboard tail by default; one test keeps it and controls PATH with a stub bale, then none",
+            "further recordings of a verb ride the surface as also_recorded rows (argv, cwd, outcome, reason, fixture); the unlock refusal's reason codes ride the surface as `reasons`/`reasons_home`, not a [[vocabulary]] axis",
+            "test_kill's SID is the recorded close's sid 2026-10-07-sc-002, so the close is the recording's own; the refusal tests assert the three extra failures twine names for a 0.4.49 refusal line (unchanged code, new input)"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md (META through 11.2)",
+            "README.md (the brief, in full)",
+            "TARBALL.md sections 1, 2, 5, 7, 7.7, 8, 10.1",
+            "tools/craft_response.py (docstring, skeleton construction, main)",
+            "tools/response_lint.py (docstring, embedded response-manifest schema, check inventory)",
+            "fixtures/README.md",
+            "tests/helpers.py",
+            "share/bale-consumption.toml",
+            "share/transitions.toml (header, axes, row comments)",
+            "tests/test_fixtures.py",
+            "tests/test_consumption_manifest.py",
+            "tests/test_kill.py",
+            "tests/test_carry.py (sections 1, 3, 5)",
+            "tests/test_carry_bale.py (sections 1, 3-4, 6-8)",
+            "tests/test_json_discipline.py (setup)",
+            "tests/test_process.py (the seam tests)",
+            "tests/test_take.py (section 1-2)",
+            "tests/test_spend.py (the shipped-files scan)",
+            "twine/kill.py",
+            "twine/bale.py",
+            "twine/transitions.py (written_against)",
+            "claude/context/cli-contract.md (sections 5-8, 10.3, 11.3-11.4, 12.2, 14.2, 14.5-14.7)",
+            "README.md",
+            "claude/INDEX.md",
+            "claude/responses/2026-10-05-twine-kill-followups-003/notes.md (skimmed)",
+            "the three probe paste-backs (probe-twine-049-fixtures, -scratch, -emissions)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-07-twine-pin-049-001.log",
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "HOLD",
+        "exit_code": 1,
+        "script": {
+          "path": "claude/checkpoints/2026-10-07-twine-pin-049-001.sh",
+          "sha256": "972936b2e2ca05c2c5dc80f52cc8c56bafd933a4b02cbdc797329f9b0b40e845"
+        },
+        "stamp_matched": true,
+        "failed_probes": [
+          "unlock-doubles-gone: tests/helpers.py still defines unlock_json_double; tests/helpers.py still defines UnlockDouble",
+          "no-0.4.45-under-twine-tests-share: 0.4.45 still named in tests/helpers.py; 0.4.45 still named in tests/test_carry_bale.py; 0.4.45 still named in tests/test_consumption_manifest.py; 0.4.45 still named in tests/test_fixtures.py; 0.4.45 still named in share/bale-consumption.toml; 0.4.45 still named in share/transitions.toml"
+        ]
+      }
+    },
+    {
+      "at": "2026-10-07T18:03:10+00:00",
+      "outcome": "applied",
+      "command": "retry",
+      "closure_reason": null,
+      "tarball": "response-2026-10-07-twine-pin-049-001.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is exactly 0.8.0 plus LF (cmp)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is exactly 0.8.0 plus LF (cmp)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (ast.parse, json, toml, bash -n)",
+          "unittest suite (python3 -I -B -m unittest discover -s tests -t .)",
+          "fixtures: the 23 recordings under fixtures/bale-0.4.49/ hash to the probe table (sha256sum -c)",
+          "manifest: pin 0.4.49, the eight schema hashes unchanged, no [[wanted]] entry, every surface fixture present and no unrecorded/doubles on unlock (parsed)",
+          "untouched: twine-seed.md, bin/twine, bale.toml and the ten files under fixtures/bale-0.4.45/ by sha256",
+          "VERSION is exactly 0.8.0 plus LF (cmp)",
+          "pin mentions: PIN, [bale] pin and [table] written_against read 0.4.49; the unlock doubles are gone from tests/; the two kill.py comments name 0.4.49; README and the contract carry no 0.4.45 fixture path",
+          "claims reconciliation (TARBALL.md 7.3; diagnostic)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures",
+        "share",
+        "tests",
+        "twine/bale.py",
+        "twine/kill.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "fixtures/README.md",
+        "fixtures/bale-0.4.49/anywhere/--version.txt",
+        "fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt",
+        "fixtures/bale-0.4.49/crafter/--light-block-stdin.txt",
+        "fixtures/bale-0.4.49/crafter/--probe-twine-take-fixture.txt",
+        "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+dry-run.json",
+        "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+scope-drift-refused.json",
+        "fixtures/bale-0.4.49/scratch/open_bundle_--json+opened.json",
+        "fixtures/bale-0.4.49/scratch/open_bundle_--json+second-desk.json",
+        "fixtures/bale-0.4.49/scratch/pack_goal_--slug-ro_--read-only_--no-readme_--json.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_--json.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+ingest.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+session-gate.json",
+        "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relayed.json",
+        "fixtures/bale-0.4.49/scratch/unlock_--json.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlocked.json",
+        "fixtures/bale-0.4.49/scratch/unlock_sid_--reason-aborted_--json.json",
+        "fixtures/bale-0.4.49/twine-src/open_--check_bundle_--json.json",
+        "fixtures/bale-0.4.49/twine-src/stats_--json.json",
+        "fixtures/bale-0.4.49/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json",
+        "fixtures/bale-0.4.49/twine-src/status_--json.json",
+        "fixtures/bale-0.4.49/twine-src/unlock_--integration_--json.json",
+        "fixtures/bale-0.4.49/twine-src/unlock_sid_--json+unlock-refused+not-open.json",
+        "share/bale-consumption.toml",
+        "share/transitions.toml",
+        "tests/helpers.py",
+        "tests/test_carry.py",
+        "tests/test_carry_bale.py",
+        "tests/test_consumption_manifest.py",
+        "tests/test_fixtures.py",
+        "tests/test_json_discipline.py",
+        "tests/test_kill.py",
+        "tests/test_process.py",
+        "tests/test_transitions.py",
+        "twine/kill.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.49",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "c32a8dc8bbc01634a9a5bfcff2bc6240b835f3ff6c71144f2e5d651600a04112",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-07-twine-pin-049-001.sh",
+              "sha256": "972936b2e2ca05c2c5dc80f52cc8c56bafd933a4b02cbdc797329f9b0b40e845"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-07T16:28:06+00:00",
+            "base_files": {
+              "README.md": "bb9104f2ad90afc7bbb7f55f7a52b4e47b1949a1a5398b3b8482534c5d983010",
+              "VERSION": "902311c7bb38fa1658ff403def6158ee7378fe9d6e2e284fa1c38735c31bd30b",
+              "claude/INDEX.md": "19e5095f24a278899f7ead41a308f41a8a56e32492e213c79f1f76db776c7053",
+              "claude/context/cli-contract.md": "2889115639a7cab007df7f901404eadb03c9f204488d317218eb0ba7a2acd6cc",
+              "fixtures/README.md": "4a9006b4af69cc6b42037a41bddf2920763e31b2d12299389d703351b35f75e1",
+              "fixtures/bale-0.4.45/anywhere/--version.txt": "20a67ed843d2255f22d492ce3dc4c3bbe42498fe39a86c32e34bb815dd337f69",
+              "fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt": "263f464b4ad141c57cda1d6ef3d39ac2ca678deda7e5e8c7ffe9ce8b8b64097c",
+              "fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt": "58e046e26d8b9c27ea572e4dd89e2951ec1791a45275955c3de56634f51bb888",
+              "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt": "9632439af6dd669e03e7a49d87a79639409e5d9b586f56586a20bccdf98e7d00",
+              "fixtures/bale-0.4.45/crafter/--light-block-stdin.txt": "55c53cfe057b2e5a5cee10b7f6eabbbcb5365e24cc481329b27f19c6f3cebdb8",
+              "fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt": "abb75f26b64728022aa71cfeb17dc4df9b2ac4ed1c23046b5c8299a55125386a",
+              "fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json": "f5bd7e5bbb92363b2993e2aaba5816dc3428dd7acdc0c51e8e194a49c43471ce",
+              "fixtures/bale-0.4.45/twine-src/stats_--json.json": "a9dc5c9bab89e00a3745da8235142f1fe69ad8f6dd1ef23838c605f48ff95add",
+              "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json": "c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455",
+              "fixtures/bale-0.4.45/twine-src/status_--json.json": "081879d0def5abb61d2f48027103051d5fb1326dc97d10274c6287ad3b246f63",
+              "share/bale-consumption.toml": "25365e193cc74598b5dadb0dbca0ec697367622afcffd372f72def2a8f5203dc",
+              "share/transitions.toml": "b98ecd04bc0beeea08eab9e1ba4b47d3ea3d12e9e9fc8aa10fd37e66f42a2610",
+              "tests/__init__.py": "d12d06fa7213ce3e6678e808805c1d9c1699c342431b10e0e2b7fb5ce0414fc5",
+              "tests/helpers.py": "69b9ce2f4caaf47388e853d95a435e86613c54e2fa9b8a6b803f6960151bda7b",
+              "tests/test_bale_check.py": "48047b0e4ee844390093d8e97af5549eb784b11b84311ece0f5fe7c4ed031c90",
+              "tests/test_carry.py": "c06543c3a9330913b6e66374993955860507c8f32e9baf27241e502b53e2899b",
+              "tests/test_carry_bale.py": "8c02903e13ee3facc3aa7ff751425fb5260cc2454a8f0d657a72d7b02b748666",
+              "tests/test_consumption_manifest.py": "5bd40a4997ce19f9fcd3007f163352fde2319aa0323182227e9183901e6cc58f",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "60aaf0a142adf35c5e93f611c846ba185dc260fb5fafab7ef73d284ee721a61f",
+              "tests/test_json_discipline.py": "3bcc655d65aad919f29a9700406b9a003a33a7f8d7d9b4d9b81571200834d254",
+              "tests/test_kill.py": "52764ed0448f28f0cfa870af8c43315a3c1db3a86da77ffd4da155d5b736431a",
+              "tests/test_process.py": "787dccf94a65e666274bb23c47c14f6fdb2065b42d6f56491889bbe2734fc76f",
+              "tests/test_registry.py": "b611cd0f4974c06f213acd1cff1b43d115247c78ccbeef9d293c4f9dac0c0ef9",
+              "tests/test_spend.py": "688356c3a095921296cb711c4f317dbcffd991c104224edc70e17444817d0e07",
+              "tests/test_status.py": "d7aa818c6d6e2525c147d23ede6bba7b304aa631e01f64702a616cd4db675723",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "d2322e6c4992f3419b0d71357cc6225a37cc96c6a8a670f7d4e26feae7865184",
+              "twine/bale.py": "b3aede25158bea8f84426ea731f7e3c12b5d4a461abb1312faedcd35e360a43e",
+              "twine/kill.py": "f36092d558ac777ba37f969ebbf04aa0d1258ca025a8c1c816d474c3e5ade9cb"
+            },
+            "model_identity": "anthropic:claude-fable-5.1"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "the unlock refusals were recorded under `unlock <sid> --json` (no --reason aborted); the tests replay them for twine's argv on the assumption that bale refuses before the reason matters \u2014 named in RecordedUnlock's docstring and fixtures/README.md",
+            "an unlock-refused recording's stderr is derived as `[bale] error: ` + its `message` + LF, since the probes show that line first on each refusal's stderr and no row records stderr byte-exact \u2014 named as a derivation wherever it is used",
+            "the key_owner names format_open_json and format_relay_json as the brief gave them; the desk read bale-src, this session did not"
+          ],
+          "judgment_calls": [
+            "the scratch repository's <where> is `scratch/`",
+            "an outcome group is `+<outcome>` and, only where the outcome still collides within the version, `+<reason>` (the line's reason, or a README-assigned tag when the line carries only a `cause` sentence); the scope is the whole version directory, so unlock_sid_--json's three recordings all carry groups",
+            "FixturePlayer answers a grouped argv only on select={stem: group}, refusing otherwise and naming the candidates; scratch_root names the directory a test treats as the throwaway repository",
+            "the carried pastes stay under bale-0.4.45/, pointed at by path: format entries carry fixtures_version and carried_relpath reads it (the desk's preference)",
+            "filled_probe cuts the 0.4.49 scaffold's clipboard tail by default; one test keeps it and controls PATH with a stub bale, then none",
+            "further recordings of a verb ride the surface as also_recorded rows (argv, cwd, outcome, reason, fixture); the unlock refusal's reason codes ride the surface as `reasons`/`reasons_home`, not a [[vocabulary]] axis",
+            "test_kill's SID is the recorded close's sid 2026-10-07-sc-002, so the close is the recording's own; the refusal tests assert the three extra failures twine names for a 0.4.49 refusal line (unchanged code, new input)"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md (META through 11.2)",
+            "README.md (the brief, in full)",
+            "TARBALL.md sections 1, 2, 5, 7, 7.7, 8, 10.1",
+            "tools/craft_response.py (docstring, skeleton construction, main)",
+            "tools/response_lint.py (docstring, embedded response-manifest schema, check inventory)",
+            "fixtures/README.md",
+            "tests/helpers.py",
+            "share/bale-consumption.toml",
+            "share/transitions.toml (header, axes, row comments)",
+            "tests/test_fixtures.py",
+            "tests/test_consumption_manifest.py",
+            "tests/test_kill.py",
+            "tests/test_carry.py (sections 1, 3, 5)",
+            "tests/test_carry_bale.py (sections 1, 3-4, 6-8)",
+            "tests/test_json_discipline.py (setup)",
+            "tests/test_process.py (the seam tests)",
+            "tests/test_take.py (section 1-2)",
+            "tests/test_spend.py (the shipped-files scan)",
+            "twine/kill.py",
+            "twine/bale.py",
+            "twine/transitions.py (written_against)",
+            "claude/context/cli-contract.md (sections 5-8, 10.3, 11.3-11.4, 12.2, 14.2, 14.5-14.7)",
+            "README.md",
+            "claude/INDEX.md",
+            "claude/responses/2026-10-05-twine-kill-followups-003/notes.md (skimmed)",
+            "the three probe paste-backs (probe-twine-049-fixtures, -scratch, -emissions)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-07-twine-pin-049-001.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-07-twine-pin-049-001.sh",
+          "sha256": "e57eccb2da22c5126cc78768e3f742ee9acaf7ada6727d9a5ac15b1e82574377"
+        },
+        "stamp_matched": false,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-07T18:03:10+00:00",
+  "outcome": "applied"
+}
