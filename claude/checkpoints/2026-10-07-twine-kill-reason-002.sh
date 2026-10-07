@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Blind checkpoint, v1 — twine-src session `twine-kill-reason` (slug), authored
-# by the twine desk on 2026-10-07 from the brief, before the landing exists.
+# Blind checkpoint, v2 — twine-src session `twine-kill-reason` (slug), authored
+# by the twine desk on 2026-10-07 from the brief, before the landing exists;
+# amended at the first HOLD (v1 → v2): one STALE entry matched the bare
+# phrase "the one derivation", which a history sentence saying the derivation
+# was retired may carry (brief §2.5 binds the fact, not the words). It now
+# names the two stale sentences themselves. Every other byte is v1's.
 # Outcome contracts only: the hand line keys on the recorded `reason` code
 # (the HOLD line with empty stderr hands back `bale revert`; a non-HOLD line
 # with the old stderr text does not), the code is named, the twin's keys are
@@ -65,7 +69,8 @@ STALE = [
     ("claude/context/cli-contract.md", "its stderr names the branch"),
     ("claude/context/cli-contract.md", "the one stderr text twine reads"),
     ("claude/context/cli-contract.md", "keying the hand line on the code instead of the text is the next session's"),
-    ("fixtures/README.md", "the one derivation"),
+    ("fixtures/README.md", "stderr, and the one derivation."),
+    ("fixtures/README.md", "the one derivation the tests make from a recording"),
     ("share/bale-consumption.toml", "keys its one hand-line decision on the stderr prefix"),
     ("share/bale-consumption.toml", "keying on `reason` instead is the next session's"),
 ]
