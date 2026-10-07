@@ -20,8 +20,10 @@
 > bale 0.4.49: §6's `also_recorded`, `fixtures_version` and `reasons`
 > lines and the end of `[[wanted]]`, §7's third `<where>` and outcome
 > groups, §10.3's scaffold tail, §11.4 and §14.7 on what is recorded, and
-> §14.5's refusal line); a later session that changes a line changes it
-> here in the same response.
+> §14.5's refusal line) and by `2026-10-07-twine-kill-reason-002` (the hand
+> line keyed on the refusal line's `reason` code: §6's and §14.7's stderr
+> lines, §14.2's HOLD row and §14.5); a later session that changes a line
+> changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -234,9 +236,9 @@ candidates. A row's **exit** column is the exit code the fixture player
 answers; a row that did not capture it says `unrecorded`, and the player
 answers it only when the test names the code it assumes (every 0.4.49
 row has its exit; the rule stays). No row records stderr; the player
-answers it empty, and the tests derive exactly one stderr from a
-recording — an `unlock-refused` line's `[bale] error: <message>`, named
-as a derivation (§14.7).
+answers it empty, and no stderr is replayed from a fixture — none is
+derived from a recording either: a test that needs a stderr feeds bytes it
+names as not bale's (§14.7).
 
 A fixture that is not a bale argv's stdout keeps the version directory:
 a crafter emission is `fixtures/bale-<version>/crafter/<flag[-value…]>[_…].txt`
@@ -1188,7 +1190,7 @@ names the first step that did not complete — `abort`, `process` or
 | any step, while a recorded group is not known to be gone (survivors, no `/proc`, twine kill's own group) — whichever step stopped first | `kill -KILL -- -<pgid> -<pgid> …` — the signal and every group with survivors (every group not known to be gone), the runtime's first, then record order; one group, one pgid; then run `twine kill` again to close. A close is never handed out while a member may live |
 | `process`, the record malformed — on the first read, or on the re-read | `null` — no one line finishes it safely: the record names no group (or a group registered meanwhile may be unknown), and the reason says to find and stop the session's runtime before closing it |
 | `abort` (the request could not be written), no group alive | the unlock line; the reason says the abort request is missing |
-| `closure`, bale refused because the session reached HOLD (its stderr names the branch `bale/<sid>`) | `bale revert <sid>` — bale's own remedy, which touches git and so stays the operator's; **twine never runs `revert`** |
+| `closure`, bale refused because the session reached HOLD (its line's `outcome` is `unlock-refused` and its `reason` is `hold-branch`) | `bale revert <sid>` — bale's own remedy, which touches git and so stays the operator's; **twine never runs `revert`** |
 | `closure`, any other refusal, a timeout, a line that was not the close, or a bale that is absent or not the pin | `bale unlock <sid> --reason aborted` (run in the repo whose session it is) |
 | nothing (ok), or `refused` | `null` — nothing is left, or nothing was done: fix the named fault and run `twine kill` again |
 
@@ -1375,17 +1377,26 @@ null) is reported. Otherwise not ok: bale's exit, its stderr and what its
 stdout said instead. Since bale 0.4.47 a refusal under `--json` prints one
 JSON line too — `outcome` `"unlock-refused"`, a `reason` from the closed set
 `hold-branch`, `not-open`, `several-open`, `not-a-repo`, `integration-json`,
-bale's `message`, `open_sessions`, the close's keys null — beside `[bale]
-error: <message>` on stderr, exit 1 (recorded at 0.4.49: §14.7); twine
-reads that line as it reads any (it is the twin's `closure`, §14.6) and
-names, after bale's exit and stderr reason, each of `outcome`, `sid` and
-`closure_reason` that is not this close's. Exit and stdout tell a close
-from a refusal; the one stderr text twine reads is the HOLD refusal's
-`branch bale/<sid> exists`, to hand back bale's own remedy (§14.2) — the
-recorded HOLD refusal's stderr carries it, and its line's `reason` is
-`hold-branch`; keying the hand line on the code instead of the text is the
-next session's. A closure that timed out may or may not have closed the
-session; the reason says so, and `bale status` is how to tell.
+bale's `message`, `open_sessions`, the close's keys null — exit 1, with
+bale's error text on stderr (the probes show it; no row records it
+byte-exact; the line recorded at 0.4.49: §14.7); twine reads that line as
+it reads any (it is the twin's `closure`, §14.6) and names, after bale's
+exit (quoting the last line of its stderr, or saying it had nothing on
+stderr), each of `outcome`, `sid` and `closure_reason` that is not this
+close's — the `outcome` with the line's `reason` code beside it, so a
+refusal's failures read `bale reported outcome 'unlock-refused' (reason
+'hold-branch'), not 'unlocked'`. Exit and stdout tell a close from a
+refusal, and **twine reads no stderr text**: the hand line (§14.2) is
+`bale revert <sid>` exactly when the line twine read says `outcome`
+`unlock-refused` and `reason` `hold-branch`, and the unlock line for any
+other reason, any other line or none (since session
+`2026-10-07-twine-kill-reason-002`; before it the HOLD refusal was told by
+the text `branch bale/<sid> exists` on stderr). bale's stderr is still
+captured, reported (`stderr`, `stderr_truncated`) and passed through —
+evidence, never a key. twine drives no bale but the pin, which prints the
+line on every refusal, so there is no text fallback. A closure that timed
+out may or may not have closed the session; the reason says so, and `bale
+status` is how to tell.
 
 The closure is `close_aborted(run, executable, sid, cwd=, env=)`, shared by
 the verb and the loop (§14.8).
@@ -1449,9 +1460,12 @@ section said it would. Two facts the tests name where they use them: the
 refusals were recorded under `unlock <sid> --json`, without `--reason
 aborted`, and are replayed for twine's argv on the assumption that bale
 refuses before the reason matters; and stderr, which no row records
-byte-exact, is derived for an `unlock-refused` line as `[bale] error: ` +
-its `message` + LF — the line the probes show first on each refusal's
-stderr — the only stderr any test replays from a fixture. The session the
+byte-exact, is answered empty for every recording — no test replays a
+stderr from a fixture or derives one from a recording (session
+`2026-10-07-twine-kill-reason-002` retired the derivation with the text
+match it fed). A test that proves stderr passes through feeds bytes it
+names as not bale's (`RecordedUnlock(stderr=…)`, `StubBale(stderr=…)`),
+as `RecordedUnlock(stdout=…)` does for stdout. The session the
 tests kill is the recorded close's own, `2026-10-07-sc-002`; the manifest's
 `unlock` surface points at the close and lists the five other recordings
 as `also_recorded` (§6).

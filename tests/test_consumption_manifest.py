@@ -395,7 +395,10 @@ class SurfacesAreWalkable(unittest.TestCase):
     def test_the_unlock_refusal_line_is_what_the_entry_says(self):
         """Session 5c asked bale-src for a refusal printed as a JSON line
         with a reason code; 0.4.47's is recorded: outcome unlock-refused,
-        a reason from the closed set, bale's message, nothing closed."""
+        a reason from the closed set, bale's message, nothing closed. No
+        recording carries a stderr — none was recorded and none is derived
+        (session 2026-10-07-twine-kill-reason-002): twine reads the refusal
+        by its `reason`."""
         for name in ("hold-branch", "not-open", "integration-json"):
             with self.subTest(recording=name):
                 rec = unlock_recording(name)
@@ -405,7 +408,7 @@ class SurfacesAreWalkable(unittest.TestCase):
                 self.assertTrue(rec.line["message"])
                 self.assertIsNone(rec.line["closure_reason"])
                 self.assertEqual(tuple(rec.line), UNLOCK_KEYS)
-                self.assertEqual(rec.stderr, f"[bale] error: {rec.line['message']}\n".encode())
+                self.assertEqual(rec.stderr, b"")
         close = unlock_recording("aborted")
         self.assertEqual((close.exit_code, close.line["outcome"], close.line["closure_reason"],
                           close.line["reason"], close.stderr),
