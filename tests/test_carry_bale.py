@@ -7,25 +7,30 @@ one run.
 
 What is recorded, and what stands in for what is not:
 
-  - `bale apply --dry-run --json` on a clean response: recorded
-    (fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json);
-    its exit code is unrecorded, so every test replaying it names the
-    exit it assumes (ASSUMED_DRY_RUN_EXIT).
+  - `bale apply --dry-run --json` on a clean response: recorded at bale
+    0.4.49 in a throwaway repository, with its exit (fixtures/bale-0.4.49/
+    scratch/apply_--dry-run_--json_tarball+dry-run.json, exit 0) — the
+    0.4.45 carried line, exit unrecorded, is history; the player answers
+    the argv only when a test selects the `dry-run` group (SELECT_DRY_RUN),
+    since the scope-drift refusal is recorded under the same argv
+    (…+scope-drift-refused.json, exit 1), and replayed in section 4.
   - `bale relay <sid> -`: no output recorded. The crafter's exchange
-    emission (fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt)
+    emission (fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt)
     stands in for its stdout — TARBALL.md §5.9.2 pins the crafter's and
     relay's renderings of a record byte-identical — and is also the
     block a worker hands the courier.
-  - every refusal, HOLD, non-zero exit or timeout from bale: unrecorded;
-    BaleDouble results, each built in this file and named a double.
+  - the other two `*-refused` outcomes, every HOLD, non-zero exit or
+    timeout from bale: unrecorded; BaleDouble results, each built in this
+    file and named a double.
 
 Since Arc 1 session 4 the doubles speak bale's spellings: a refusal under
 --dry-run is one of the three `*-refused` outcomes with exit 1, as bale's
-format_apply_json documents (documented, not recorded); a bale error
-prints nothing on stdout and exits non-zero. The one outcome no bale
-emits, used to prove twine names an outcome it does not know, is spelled
-NOT_A_BALE_OUTCOME (tests/helpers.py) so no reader takes it for bale's.
-And the carry verbs drive only the pinned bale (D2): section 8.
+format_apply_json documents (one of them recorded since the pin at
+0.4.49); a bale error prints nothing on stdout and exits non-zero. The one
+outcome no bale emits, used to prove twine names an outcome it does not
+know, is spelled NOT_A_BALE_OUTCOME (tests/helpers.py) so no reader takes
+it for bale's. And the carry verbs drive only the pinned bale (D2):
+section 8.
 
 Sections:
   1. Helpers and doubles
@@ -68,24 +73,27 @@ EXCHANGE_SID = "2026-10-02-twine-take-read-001"
 LIGHT = REPO_ROOT / emission_relpath("crafter", ["--light-block", "-"])
 RELAY_TO_PLANNER = REPO_ROOT / carried_relpath(
     "relay", "2026-10-01-twine-seed-effort-003", "planner")
-DRY_RUN = REPO_ROOT / fixture_relpath(["apply", "--dry-run", "--json", "/x.tar.gz"], "repo")
-DRY_RUN_REL = DRY_RUN.relative_to(REPO_ROOT).as_posix()
-# The dry-run fixture's exit code is unrecorded (fixtures/README.md). A
-# dry run that printed outcome "dry-run" is taken to have exited 0 — an
-# assumption, named here and nowhere else. bale 0.4.45 documents it
-# (format_apply_json's docstring: '"dry-run" … (exit 0)'), but a
-# documented exit is not a recorded one, so it stays an assumption.
-ASSUMED_DRY_RUN_EXIT = {DRY_RUN_REL: 0}
+DRY_RUN_ARGV = ["apply", "--dry-run", "--json", "/x.tar.gz"]
+DRY_RUN_KEY = "apply_--dry-run_--json_tarball"
+# The 0.4.49 dry run (recorded in the scratch repository, exit 0 in its
+# row — no assumed exit remains) and the scope-drift refusal recorded under
+# the same argv (exit 1); the player replays whichever a test selects.
+DRY_RUN = REPO_ROOT / fixture_relpath(DRY_RUN_ARGV, "scratch", "dry-run")
+DRIFT_REFUSED = REPO_ROOT / fixture_relpath(DRY_RUN_ARGV, "scratch", "scope-drift-refused")
+SELECT_DRY_RUN = {DRY_RUN_KEY: "dry-run"}
+SELECT_DRIFT_REFUSED = {DRY_RUN_KEY: "scope-drift-refused"}
 
 EXCHANGE_FIXED = {"sid", "block", "ran", "exit_code", "stdout", "stderr",
                   "reason", "refusals"}
 RESPONSE_FIXED = {"tarball", "ran", "exit_code", "dry_run", "outcome", "apply_line",
                   "stderr", "reason", "refusals"}
 # What `bale apply --dry-run --json` may answer besides "dry-run", per bale
-# 0.4.45's format_apply_json: a refusal, exit 1, stdout the one line —
-# "Emitted under --dry-run too when the plan would refuse."
+# 0.4.49's format_apply_json (unchanged since 0.4.45): a refusal, exit 1,
+# stdout the one line — "Emitted under --dry-run too when the plan would
+# refuse." The scope-drift one is recorded; the other two are doubles.
 DRY_RUN_REFUSALS = [o for o in BALE_VOCABULARIES["apply-outcome"] if o.endswith("-refused")]
 DRY_RUN_REFUSAL_EXIT = 1
+RECORDED_REFUSAL = "scope-drift-refused"
 
 
 class BaleDouble(RecordingRunner):
@@ -173,9 +181,17 @@ class TempCase(unittest.TestCase):
         self.assertNotIn("Traceback", run.stderr)
         return run, one_line(self, run.stdout, "carry exchange")
 
+    def player(self, select: dict | None = None) -> "RecordingPlayer":
+        """The fixture player with this test's directory as the scratch
+        repository (where the 0.4.49 apply recordings were made) and the
+        dry-run group selected unless the test selects another."""
+        return RecordingPlayer(REPO_ROOT, scratch_root=self.dir,
+                               select=SELECT_DRY_RUN if select is None else select)
+
     def response(self, *argv: str, runner=None, **kw) -> tuple[Run, dict]:
-        runner = runner if runner is not None else RecordingPlayer(
-            REPO_ROOT, assumed_exits=ASSUMED_DRY_RUN_EXIT)
+        runner = runner if runner is not None else self.player()
+        if runner.__class__.__name__ == "RecordingPlayer" and "--cwd" not in argv:
+            argv = (*argv, "--cwd", str(self.dir))
         run = run_verb("response", *argv, "--json", runner=runner, **kw)
         self.assertNotIn("Traceback", run.stderr)
         return run, one_line(self, run.stdout, "carry response")
@@ -440,8 +456,8 @@ class ResponseDryRuns(TempCase):
 
     def test_the_recorded_dry_run_is_ok_and_hands_back_the_apply_line(self):
         tarball = self.tarball()
-        player = RecordingPlayer(REPO_ROOT, assumed_exits=ASSUMED_DRY_RUN_EXIT)
-        run, obj = self.response(str(tarball), "--cwd", str(REPO_ROOT), runner=player)
+        player = self.player()
+        run, obj = self.response(str(tarball), "--cwd", str(self.dir), runner=player)
         self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"]),
                          (0, True, True, 0))
         self.assertTrue(RESPONSE_FIXED <= set(obj), RESPONSE_FIXED - set(obj))
@@ -456,8 +472,8 @@ class ResponseDryRuns(TempCase):
 
     def test_human_stdout_is_exactly_the_apply_line(self):
         tarball = self.tarball()
-        player = FixturePlayer(REPO_ROOT, assumed_exits=ASSUMED_DRY_RUN_EXIT)
-        run = run_verb("response", str(tarball), "--cwd", str(REPO_ROOT), runner=player)
+        player = FixturePlayer(REPO_ROOT, scratch_root=self.dir, select=SELECT_DRY_RUN)
+        run = run_verb("response", str(tarball), "--cwd", str(self.dir), runner=player)
         self.assertEqual((run.code, run.stdout), (0, f"bale apply {tarball}\n"))
         self.assertIn("nothing was applied", run.stderr)
 
@@ -512,14 +528,36 @@ class ResponseDryRuns(TempCase):
         self.assertNotIn("bale apply /", human.stdout)
         return obj
 
+    def test_the_recorded_scope_drift_refusal_is_not_ok(self):
+        """The refusal the 2b-ii carry-forward owed, recorded at 0.4.49 (a
+        response adding `other.txt` beside the forecast's `hello.txt`):
+        exit 1, the line on stdout with `drift` naming the path and bale's
+        remedy line — replayed through the player by selecting its group.
+        Not ok, naming the exit and the outcome, no apply line."""
+        player = self.player(SELECT_DRIFT_REFUSED)
+        run, obj = self.response(str(self.tarball()), runner=player)
+        self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"],
+                          obj["outcome"], obj["apply_line"]),
+                         (1, False, True, 1, RECORDED_REFUSAL, None))
+        recorded = json.loads(DRIFT_REFUSED.read_bytes())
+        self.assertEqual(obj["dry_run"], recorded)
+        self.assertEqual(recorded["drift"]["out_of_scope_paths"], ["other.txt"])
+        self.assertIn("--allow-out-of-scope", recorded["drift"]["remedy"])
+        for needle in ("bale exited 1", f"outcome {RECORDED_REFUSAL!r}", "not 'dry-run'"):
+            self.assertIn(needle, obj["reason"])
+        self.assertEqual(obj["stderr"], "", "no row records stderr")
+        self.assertEqual(len(player.calls), 1)
+
     def test_each_dry_run_refusal_is_named_with_its_exit(self):
         """Doubles in bale's spelling: each of the three *-refused outcomes,
         exit 1, stdout the one JSON line — what format_apply_json documents
-        under --dry-run when the plan would refuse. Not ok, naming both the
-        exit and the outcome, bale's stderr surfaced."""
+        under --dry-run when the plan would refuse (the scope-drift one is
+        also recorded: the test above). Not ok, naming both the exit and
+        the outcome, bale's stderr surfaced."""
         self.assertEqual(DRY_RUN_REFUSALS, ["scope-drift-refused",
                                             "required-check-refused",
                                             "base-drift-refused"])
+        self.assertIn(RECORDED_REFUSAL, DRY_RUN_REFUSALS)
         for outcome in DRY_RUN_REFUSALS:
             with self.subTest(outcome=outcome):
                 line = json.dumps({"outcome": outcome, "sid": "2026-10-03-x-001"})
@@ -544,7 +582,7 @@ class ResponseDryRuns(TempCase):
 
     def test_an_outcome_bale_never_emits_is_named(self):
         """Not bale's: NOT_A_BALE_OUTCOME is in no vocabulary of bale
-        0.4.45, spelled so it cannot be taken for one. Exit 0 and a JSON
+        0.4.49, spelled so it cannot be taken for one. Exit 0 and a JSON
         line, as a dry run's; twine still names the outcome it does not
         know and hands back no apply line."""
         self.assertNotIn(NOT_A_BALE_OUTCOME,
@@ -720,7 +758,7 @@ class EndToEnd(TempCase):
                                  (1, False, False, None))
                 self.assertEqual((obj["bale"]["installed"], obj["bale"]["pin_matches"]),
                                  ("0.4.46", False))
-                self.assertIn("is 0.4.46, not the pin 0.4.45", obj["reason"])
+                self.assertIn(f"is 0.4.46, not the pin {PIN}", obj["reason"])
                 self.assertEqual(obj["refusals"], [obj["reason"]])
                 self.assertIsNone(self.stub.argv(), "the stub was started")
 
@@ -815,7 +853,7 @@ class FindingBale(TempCase):
 
 class ThePinGates(TempCase):
     """The carry verbs drive only a bale whose bin/VERSION is the pin. The
-    transition table keys on bale 0.4.45's outcome and closure
+    transition table keys on bale 0.4.49's outcome and closure
     vocabularies; another version may answer in spellings it has no move
     for, so the version is checked before bale starts — never after."""
 

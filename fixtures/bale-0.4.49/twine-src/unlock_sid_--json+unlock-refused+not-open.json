@@ -1,0 +1,1 @@
+{"outcome": "unlock-refused", "sid": "no-such-sid-twine-049", "log": null, "closure_reason": null, "session_dir_wiped": null, "branch_preserved": false, "telemetry": null, "debris": null, "sweep": null, "reason": "not-open", "message": "session no-such-sid-twine-049 is not open; nothing to unlock. No sessions are open.", "open_sessions": []}

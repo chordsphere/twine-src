@@ -27,13 +27,16 @@ project's inventory.
 ## Schemas & data contracts
 - `../share/bale-consumption.toml` — the bale version pin and the
   consumption manifest (D3, D4): the installed schema hashes, one
-  `[[surface]]` per bale surface twine reads — files, verbs, and the
-  text formats `take` parses — `[[wanted]]` for the surfaces a later
-  session needs and the pin lacks, and `[[vocabulary]]` for bale's three
-  closed vocabularies the transition table keys on (telemetry outcomes,
-  closure reasons, `bale apply --json` outcomes). Pull when a session
-  reads a new bale surface or bumps the pin; the header comment spells
-  the entry shapes.
+  `[[surface]]` per bale surface twine reads — files, verbs (with every
+  further recorded outcome of a verb as `also_recorded`), and the text
+  formats `take` parses, each naming the version that emitted its
+  fixtures — `[[wanted]]`, a shape kept in the header for a surface a
+  later session needs and the pin lacks (none at 0.4.49: the three the
+  0.4.45 manifest carried are surfaces now), and `[[vocabulary]]` for
+  bale's three closed vocabularies the transition table keys on
+  (telemetry outcomes, closure reasons, `bale apply --json` outcomes).
+  Pull when a session reads a new bale surface or bumps the pin; the
+  header comment spells the entry shapes.
 - `../share/transitions.toml` — the transition table (D17): four axes
   (the three bale vocabularies and twine's stop set), one row per key,
   each naming a declared move with its actor (twine, operator or
@@ -84,15 +87,17 @@ project's inventory.
   `cap-unchecked`), §14, `kill` (the kill-switch: the between-calls abort,
   the running record with its `groups` and the process-level kill of every
   one of them, the pin gating the closure alone, the one `unlock` argv and
-  the `aborted` closure, what stands in for an unrecorded unlock), the
-  manifest and fixture shapes (per-run fixture
-  names, by role), how the tests run. Default inclusion for any session
+  the `aborted` closure, the recorded unlock lines the tests replay since
+  the pin at 0.4.49), the manifest and fixture shapes (per-run fixture
+  names, by role; outcome groups), how the tests run. Default inclusion for any session
   that adds a verb, runs a subprocess, routes a courier's block, or
   touches spend or the kill-switch.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter
-  emissions, carried pastes), and per file the command, directory,
-  date, probe, byte count and sha256 —
-  per-run values named by role; exit codes, `unrecorded` where not captured.
-  Pull when recording or reading a fixture.
+  emissions, carried pastes; the three `<where>` directories, per-run
+  values named by role, and the outcome group an argv recorded with more
+  than one outcome carries), and per file the command, directory, date,
+  probe, byte count and sha256 — exit codes, `unrecorded` where not
+  captured (no 0.4.49 row); one section per bale version, earlier
+  sections kept as history. Pull when recording or reading a fixture.

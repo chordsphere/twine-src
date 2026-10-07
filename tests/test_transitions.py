@@ -147,7 +147,7 @@ class TheTableIsTotal(unittest.TestCase):
                 self.assertEqual(len(row_keys), len(set(row_keys)))
 
     def test_bale_axes_carry_exactly_bales_spellings(self):
-        """The three bale axes' keys are bale 0.4.45's spellings, no more and
+        """The three bale axes' keys are bale 0.4.49's spellings, no more and
         no fewer, in bale's order — held to the probe's lists, not to the
         manifest alone."""
         table = load()

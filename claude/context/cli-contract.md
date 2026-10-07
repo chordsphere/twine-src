@@ -16,7 +16,11 @@
 > the `unrecorded` line of §6, and the lines naming `kill` or `unlock`) and
 > by `2026-10-05-twine-kill-followups-003` (§4's state-directory rows,
 > §10.6's spawn hook, the running record's `groups` and the pin gate's move
-> to the closure in §14); a later session that changes a line changes it
+> to the closure in §14) and by `2026-10-07-twine-pin-049-001` (the pin at
+> bale 0.4.49: §6's `also_recorded`, `fixtures_version` and `reasons`
+> lines and the end of `[[wanted]]`, §7's third `<where>` and outcome
+> groups, §10.3's scaffold tail, §11.4 and §14.7 on what is recorded, and
+> §14.5's refusal line); a later session that changes a line changes it
 > here in the same response.
 
 ## 1. The entrypoint
@@ -139,37 +143,57 @@ none resolves — <reason>`.
 
 `share/bale-consumption.toml`, parsed by `tomllib`: `[bale] pin`, a
 `[bale.schemas]` table of the eight installed schema files to their
-sha256, one `[[surface]]` per bale surface twine reads (the file
+sha256 (unchanged from 0.4.45 to 0.4.49; the header says who hashed them
+and when), one `[[surface]]` per bale surface twine reads (the file
 `bin/VERSION` and each recorded `--json` verb: `kind`, `verb`, `flags`,
 `argv`, `cwd`, `stdout`, `keys` — the JSON keys twine reads, `[]`
 where none yet — `key_owner`, `read_by`, `fixture`, `written_against`;
-a per-run value in `argv` is written `<role>` (§7); a verb with no
-recording has no `fixture` and names its `stand_in` and the `doubles`
-standing in for it, until a recording replaces them — or, when nothing
-recorded can stand in (`unlock`, §14.7), no `stand_in` but `unrecorded`,
-saying why and what will record it, and `read_at`, the probes that read
-its contract from bale's source;
+a per-run value in `argv` is written `<role>` (§7); a verb recorded
+under more than one outcome, or under another argv of it, lists each
+further recording as an `also_recorded` row — `argv`, `cwd`, `outcome`,
+`reason` when the line has one, `fixture` — which the tests replay where
+twine's one argv would meet that outcome; a verb with no recording has
+no `fixture` and names its `stand_in` and the `doubles` standing in for
+it, until a recording replaces them — the flagless `relay`, whose
+stand-in is the crafter's exchange emission; no verb is `unrecorded` at
+0.4.49, the shape staying for the next such gap; `read_at`, the probes
+that read a contract from bale's source, stays where one did; `reasons`
+with `reasons_home` records a closed set a key takes that is not a
+table axis — the unlock refusal's five reason codes (§14.5);
 and, `kind = "format"`, each text format `take` parses out of a paste:
-`format`, `locator`, `home`, `emitted_by`, `fixtures`, `keys`, `read_by`,
-`written_against`),
-`[[wanted]]` for a surface a later session needs that the pinned
-bale lacks (`bale open --json`, `bale relay --json` in 0.4.45), and
+`format`, `locator`, `home`, `emitted_by`, `fixtures`, `fixtures_version`
+— the bale version that emitted those files: the pin for a crafter
+emission, re-recorded at every pin; the version that printed a carried
+paste, which stays under that version's directory (§7) — `keys`,
+`read_by`, `written_against`),
+`[[wanted]]` for a surface a later session needs that the pinned bale
+lacks — none at 0.4.49 (`bale open --json`, `bale relay --json` and the
+reason-coded `bale unlock --json` refusal the 0.4.45 manifest wanted
+landed in bale 0.4.47–0.4.48 and are surfaces); the shape stays in the
+header for the next gap — and
 `[[vocabulary]]` for each closed set of spellings bale declares that
 the transition table keys on (§12): `axis` (the table axis whose keys
 they are), `values` (bale's spellings, in bale's order), `home` (the
 installed schema, whose hash `[bale.schemas]` pins, or the bale source
 file, with its `home_sha256`), `pointer`, `also_at`, `excluded` (enum
 members that are not keys — the closure enum's `null`), `read_by`,
-`written_against`, `read_at` (the probes that read them). Three are
-recorded for 0.4.45: `telemetry-outcome` (13), `closure-reason` (9) and
-`apply-outcome` (9, `format_apply_json`'s docstring); a verb surface
-whose key takes one of them names it as `vocabulary` (`apply`'s
-`outcome` is `apply-outcome`). A pin bump re-reads them by probe and
-diffs them as data (D4). The verbs twine runs today: `bale apply
+`written_against`, `read_at` (the probes or readings that read them).
+Three are recorded for 0.4.49, unchanged from 0.4.45 value for value:
+`telemetry-outcome` (13), `closure-reason` (9) and `apply-outcome` (9,
+`format_apply_json`'s docstring, at `bin/bale_report.py` line 3040 of
+0.4.49); a verb surface whose key takes one of them names it as
+`vocabulary` (`apply`'s `outcome` is `apply-outcome`). A pin bump
+re-reads them — by probe, or, as the bump to 0.4.49 did, from bale-src's
+context tarball, `read_at` saying which and that it was not a probe —
+and diffs them as data (D4). The verbs twine runs today: `bale apply
 --dry-run --json <tarball>` (read by `carry response`: the key
 `outcome`), `bale relay <sid> -` (read by `carry exchange`: stdout as
 text, no key) and `bale unlock <sid> --reason aborted --json` (read by
-`kill`: the keys `outcome`, `sid`, `closure_reason` and `telemetry`; §14). The file's header comment spells the entry shapes;
+`kill`: the keys `outcome`, `sid`, `closure_reason` and `telemetry`,
+and since 0.4.49 the refusal line's `reason`, `message` and
+`open_sessions`; §14); `bale open --json`, `bale relay --json` and
+`bale pack --json` are recorded surfaces read by nothing yet. The
+file's header comment spells the entry shapes;
 `tests/test_consumption_manifest.py` walks them. `twine.bale.load_manifest`
 refuses a `[[vocabulary]]` entry without an axis or a home, a second
 entry for one axis, or values that are empty or repeat.
@@ -178,30 +202,51 @@ entry for one axis, or values that are empty or repeat.
 
 `fixtures/README.md` carries the rule and the per-file provenance.
 The path of a recorded output is
-`fixtures/bale-<version>/<where>/<verb>_<flag[-value…]>[_…].<ext>`;
-`tests/helpers.py`'s `fixture_relpath(argv, cwd)` computes it, and each
-manifest surface's `fixture` is asserted equal to it. Every `.json`
-fixture is one object line with a trailing newline.
+`fixtures/bale-<version>/<where>/<verb>_<flag[-value…]>[_…][+<group>].<ext>`;
+`tests/helpers.py`'s `fixture_relpath(argv, cwd, group)` computes it, and
+each manifest surface's `fixture` (and each `also_recorded` row's) is
+asserted equal to it. `<where>` is `twine-src/` (the packing repo),
+`anywhere/` (an output that depends on no directory) or, since the pin at
+0.4.49, `scratch/` — a throwaway repository a probe created and removed,
+where the verbs that write (pack, open, relay, unlock, apply) were
+recorded; its facts are in the README's section. Every `.json` fixture is
+one object line with a trailing newline. The tests read the pinned
+version's directory (`PIN`); earlier versions' directories and README
+sections stay as history.
 
 A **per-run value** — a session id read out of a block, a tarball's
-path — never enters a name: `fixture_key(argv)` replaces it with its
-role, and a role is a `_` group of its own. `bale relay <sid> -` names
-`relay_sid_stdin.txt`; `bale apply --dry-run --json <tarball>` names
-`apply_--dry-run_--json_tarball.json`; `bale unlock <sid> --reason
-aborted --json` would name `unlock_sid_--reason-aborted_--json.json`
-(nothing is recorded there yet: §14.7). A row's **exit** column is the
-exit code the fixture player answers; a row that did not capture it
-says `unrecorded`, and the player answers it only when the test names
-the code it assumes. No row records stderr; the player answers it
-empty.
+path, a bundle file, a pack's goal — never enters a name: `fixture_key(argv)`
+replaces it with its role, and a role is a `_` group of its own. `bale
+relay <sid> -` names `relay_sid_stdin.txt` and `bale relay <sid> <file>
+--json` `relay_sid_file_--json.json`; `bale apply --dry-run --json
+<tarball>` names `apply_--dry-run_--json_tarball.json`; `bale unlock <sid>
+--reason aborted --json` names `unlock_sid_--reason-aborted_--json.json`
+(recorded at 0.4.49: §14.7); `bale open [--check] <bundle> --json` names
+`open_bundle_--json.json` / `open_--check_bundle_--json.json`, and `bale
+pack <goal> --slug ro … --json` `pack_goal_--slug-ro_…_--json.json` (a
+flag's value stays). An **outcome group**: when a version holds more than
+one recording of a normalized argv, each carries `+<outcome>` from its
+line and, where that still collides, `+<reason>` — the line's `reason`,
+or a tag the README assigns when the line has none (relay's `cause`) —
+and the player (`FixturePlayer`) answers such an argv only when the test
+selects the group (`select={...}`), refusing otherwise and naming the
+candidates. A row's **exit** column is the exit code the fixture player
+answers; a row that did not capture it says `unrecorded`, and the player
+answers it only when the test names the code it assumes (every 0.4.49
+row has its exit; the rule stays). No row records stderr; the player
+answers it empty, and the tests derive exactly one stderr from a
+recording — an `unlock-refused` line's `[bale] error: <message>`, named
+as a derivation (§14.7).
 
 A fixture that is not a bale argv's stdout keeps the version directory:
 a crafter emission is `fixtures/bale-<version>/crafter/<flag[-value…]>[_…].txt`
-(`-` spelled `stdin`; `emission_relpath(tool, argv)`), and an
+(`-` spelled `stdin`; `emission_relpath(tool, argv)`, at the pin), and an
 architect-carried paste of bale output is
 `fixtures/bale-<version>/carried/<kind>_<identity>[_to-<addressee>].txt`
-(`carried_relpath(kind, identity, to)`), landed CRLF→LF with both
-hashes in the README.
+(`carried_relpath(kind, identity, to)`, whose version is the one the
+manifest's format entry names as `fixtures_version` — a paste stays under
+the version that printed it across a pin bump, never copied), landed
+CRLF→LF with both hashes in the README.
 
 ## 8. Tests
 
@@ -221,9 +266,13 @@ placeholders mechanically (`tests/helpers.py` `filled_probe`). `bale check` is t
 (`bin/VERSION` at the pin, at another version, and absent), never a
 real install, and every CLI subprocess runs with `TWINE_BALE_ROOT`
 pinned to a temp directory so a bale on `PATH` cannot leak into a
-verdict. The spend verbs (§13) and `kill` (§14) read and write only temp
-state directories the tests build, never the real default (§13.9,
-§14.8); no test runs a real `bale unlock`.
+verdict. The probe the tests run ends before the recorded scaffold's
+clipboard tail (§10.3), which would hand the block to a `bale` on PATH;
+the one test that keeps the tail builds the PATH it runs under. The
+spend verbs (§13) and `kill` (§14) read and write only temp state
+directories the tests build, never the real default (§13.9, §14.8); no
+test runs a real `bale unlock` — the kill's tests replay the recorded
+lines (§14.7).
 
 ## 9. `twine take FILE [--json]` — the courier's read
 
@@ -394,6 +443,16 @@ only file `carry probe` ever writes, and only where the operator named.
 
 A file-based probe (TARBALL.md §4.4, writing `./probe-output/`) is not
 supported: it prints no `probe-output` block, so it is ran-but-not-ok.
+
+The crafter's scaffold at bale 0.4.49 ends in a **clipboard tail**: after
+`emit_probe_block` it pipes the block into `bale clipboard --block "probe
+block"` through whatever `bale` is on PATH, and with none prints two
+`[clipboard]` notices on stderr (the 0.4.45 tail was remedy text in
+comments). `carry probe --run` runs the script as given — the tail
+included, under the operator's PATH — so a probe built on the 0.4.49
+scaffold copies its own paste-back where a current bale is installed,
+and its stderr carries the notices where none is; neither reaches
+`output`, which is the block alone.
 
 ### 10.4 The JSON twin
 
@@ -610,11 +669,12 @@ the line that applies it. **It never applies anything** (T12).
   whose `outcome` is `"dry-run"`. Otherwise not ok, exit 1, the reason
   naming what bale said — its exit status, its outcome, or that its
   stdout was not one JSON object — bale's stderr surfaced; no traceback.
-  Under `--dry-run` bale 0.4.45 documents three answers
-  (`format_apply_json`'s docstring; documented, not recorded): `dry-run`
+  Under `--dry-run` bale 0.4.49 documents three answers
+  (`format_apply_json`'s docstring, unchanged since 0.4.45): `dry-run`
   with exit 0; `scope-drift-refused`, `required-check-refused` or
   `base-drift-refused` with exit 1, the line still on stdout; or an error
   path, nothing on stdout and a non-zero exit (telemetry `rejected`). The
+  first two are recorded (§11.4); the rest documented, not recorded. The
   transition table's `apply-outcome` axis gives each its move.
 - **The apply line**, on ok only: `bale apply ` and the absolute path,
   quoted by Python's `shlex.quote` (only when the shell needs it) — one
@@ -641,19 +701,24 @@ And beside them: `stdout` (bale's, as text), `argv`, `stderr_truncated`,
 
 ### 11.4 What is recorded, and what stands in
 
-The clean dry run is recorded
-(`fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json`;
-its exit is `unrecorded`, and the tests that replay it name the exit
-they assume). No `bale relay` output is recorded: the crafter's
-`--emit-block` emission stands in for it (TARBALL.md §5.9.2 pins the two
-renderings byte-identical), and the manifest's relay surface says so.
-Every refusal, HOLD, non-zero exit and timeout is a double in the tests,
-named as one, never a file under `fixtures/`; a recording replaces it.
-The doubles speak bale's spellings (since session 4): a refusal under
-`--dry-run` is a `*-refused` outcome with exit 1, a bale error prints
-nothing on stdout and exits non-zero, and the one outcome no bale emits
-— used to prove twine names an outcome it does not know — is spelled
-`twine-test-not-a-bale-outcome` (`tests/helpers.py` `NOT_A_BALE_OUTCOME`).
+The clean dry run is recorded at bale 0.4.49 with its exit
+(`fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+dry-run.json`,
+exit 0, in the scratch repository for its scoped session), and so is the
+scope-drift refusal the 2b-ii carry-forward owed (`…+scope-drift-refused.json`,
+exit 1, `drift` naming the out-of-scope path and bale's remedy line) —
+the tests replay each by selecting its group (§7). No flagless `bale
+relay` output is recorded: the crafter's `--emit-block` emission stands in
+for it (TARBALL.md §5.9.2 pins the two renderings byte-identical), and the
+manifest's relay surface says so; `bale relay --json` is recorded (four
+outcomes), for the session that moves `carry exchange` onto it. The other
+two `*-refused` outcomes, every HOLD, non-zero exit and timeout are
+doubles in the tests, named as such, never a file under `fixtures/`; a
+recording replaces one. The doubles speak bale's spellings (since session
+4): a refusal under `--dry-run` is a `*-refused` outcome with exit 1, a
+bale error prints nothing on stdout and exits non-zero, and the one
+outcome no bale emits — used to prove twine names an outcome it does not
+know — is spelled `twine-test-not-a-bale-outcome` (`tests/helpers.py`
+`NOT_A_BALE_OUTCOME`).
 
 ## 12. `twine transitions [--table PATH] [--json]` — the transition table (D17)
 
@@ -681,8 +746,8 @@ Four axes, rendered in this order:
 
 | axis | keys | source |
 |---|---|---|
-| `telemetry-outcome` | bale 0.4.45's 13 telemetry outcomes | §6 `[[vocabulary]]` |
-| `closure-reason` | bale 0.4.45's 9 closure reasons (`null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
+| `telemetry-outcome` | bale 0.4.49's 13 telemetry outcomes (unchanged since 0.4.45) | §6 `[[vocabulary]]` |
+| `closure-reason` | bale 0.4.49's 9 closure reasons (unchanged since 0.4.45; `null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
 | `apply-outcome` | the 9 outcomes `bale apply --json` prints | §6 `[[vocabulary]]` |
 | `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `cap-reached`, `killed`, `cap-unchecked` (13; the last added by session 5b) | the table's `keys` |
 
@@ -1306,12 +1371,20 @@ performs no git operation and merges nothing (T12 is untouched).
 **ok** exactly when bale exits 0 and its stdout is one JSON object whose
 `outcome` is `"unlocked"`, whose `sid` is SID and whose `closure_reason` is
 `"aborted"`; its `telemetry` (the closure record's repo-relative path, or
-null) is reported. Otherwise not ok: bale's exit, its stderr (bale's refusal
-is `[bale] error: <msg>` on stderr with exit 1 and nothing on stdout, under
-`--json` too) and, when stdout was not that object, what it was instead.
-Exit and stdout alone tell a close from a refusal; the one stderr text twine
-reads is the HOLD refusal's `branch bale/<sid> exists`, to hand back bale's
-own remedy (§14.2). A closure that timed out may or may not have closed the
+null) is reported. Otherwise not ok: bale's exit, its stderr and what its
+stdout said instead. Since bale 0.4.47 a refusal under `--json` prints one
+JSON line too — `outcome` `"unlock-refused"`, a `reason` from the closed set
+`hold-branch`, `not-open`, `several-open`, `not-a-repo`, `integration-json`,
+bale's `message`, `open_sessions`, the close's keys null — beside `[bale]
+error: <message>` on stderr, exit 1 (recorded at 0.4.49: §14.7); twine
+reads that line as it reads any (it is the twin's `closure`, §14.6) and
+names, after bale's exit and stderr reason, each of `outcome`, `sid` and
+`closure_reason` that is not this close's. Exit and stdout tell a close
+from a refusal; the one stderr text twine reads is the HOLD refusal's
+`branch bale/<sid> exists`, to hand back bale's own remedy (§14.2) — the
+recorded HOLD refusal's stderr carries it, and its line's `reason` is
+`hold-branch`; keying the hand line on the code instead of the text is the
+next session's. A closure that timed out may or may not have closed the
 session; the reason says so, and `bale status` is how to tell.
 
 The closure is `close_aborted(run, executable, sid, cwd=, env=)`, shared by
@@ -1351,22 +1424,37 @@ to stderr.
 
 ### 14.7 What is recorded, and what stands in
 
-**No `bale unlock --json` output has been recorded**, for any outcome: unlock
-mutates the registry, so a read-only probe cannot record one. What twine
-relies on is read from bale 0.4.45's source by the probes
-`twine-unlock-contract` and `twine-unlock-code` (2026-10-04):
-`format_unlock_json`'s docstring owns the key contract — nine keys, in
-order: `outcome` (`"unlocked"` or `"no-op"`), `sid`, `log`,
-`closure_reason`, `session_dir_wiped`, `branch_preserved`, `telemetry`,
-`debris`, `sweep` — and `cmd_unlock`'s paths say a refusal exits 1 with an
-empty stdout. Every unlock answer in `tests/` is a **double built from that
-key contract, named as a double** (`tests/helpers.py` `unlock_json_double`,
-`unlock_refusal_double`, `UnlockDouble`, and `StubBale`'s `unlock_stdout`),
-and the consumption manifest's `unlock` surface says so (`unrecorded`, §6).
-Two recordings are queued — a `closed-read-only` close and an `aborted` close
-in a scratch repository; a recording, landed at
-`fixtures/bale-0.4.45/twine-src/unlock_sid_--reason-aborted_--json.json`,
-replaces the doubles and never joins them.
+**Six `bale unlock … --json` lines are recorded at bale 0.4.49** (session
+`2026-10-07-twine-pin-049-001`; `fixtures/README.md`, "bale 0.4.49"): the
+`aborted` close twine's own argv asks for
+(`fixtures/bale-0.4.49/scratch/unlock_sid_--reason-aborted_--json.json`,
+exit 0), the HOLD-branch refusal recorded just before it
+(`…/scratch/unlock_sid_--json+unlock-refused+hold-branch.json`, exit 1),
+the `closed-read-only` close of a read-only session and the no-op with
+nothing open (both in the scratch repository), and in `~/twine-src` the
+`not-open` and `integration-json` refusals. Their lines carry
+`format_unlock_json`'s twelve keys, in order: the nine of 0.4.45 —
+`outcome`, `sid`, `log`, `closure_reason`, `session_dir_wiped`,
+`branch_preserved`, `telemetry`, `debris`, `sweep` — and the three bale
+0.4.47 added for the refusal line, `reason`, `message`, `open_sessions`
+(null on a close). The docstring was first read from 0.4.45's source by
+the probes `twine-unlock-contract` and `twine-unlock-code` (2026-10-04);
+the recordings are the contract now. **The doubles are gone**: session 5b's
+`unlock_json_double`, `unlock_refusal_double`, `UnlockDouble` and the
+double stdout of `StubBale` are replaced by `tests/helpers.py`'s
+`unlock_recording(name)` and `RecordedUnlock`, the run-seam double that
+replays a recording for twine's argv, and `StubBale` replays a recording's
+file — a recording replaces the doubles and never joins them, as this
+section said it would. Two facts the tests name where they use them: the
+refusals were recorded under `unlock <sid> --json`, without `--reason
+aborted`, and are replayed for twine's argv on the assumption that bale
+refuses before the reason matters; and stderr, which no row records
+byte-exact, is derived for an `unlock-refused` line as `[bale] error: ` +
+its `message` + LF — the line the probes show first on each refusal's
+stderr — the only stderr any test replays from a fixture. The session the
+tests kill is the recorded close's own, `2026-10-07-sc-002`; the manifest's
+`unlock` surface points at the close and lists the five other recordings
+as `also_recorded` (§6).
 
 ### 14.8 One function, two faces
 

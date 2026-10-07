@@ -41,7 +41,7 @@ Arc 1 (the courier) session 1 landed twine's core:
   the pinned bale: a `bin/VERSION` other than the pin, or one that
   cannot be read, is refused before bale starts (D2).
 - `transitions` (session 4): the transition table (D17), as data in
-  `share/transitions.toml` — bale 0.4.45's 13 telemetry outcomes, 9
+  `share/transitions.toml` — bale 0.4.49's 13 telemetry outcomes, 9
   closure reasons and the 9 outcomes `bale apply --json` prints, plus
   twine's own stop set for the runtime, each with a move: what happens
   next and who does it (twine, the operator or the planner). No default
@@ -94,13 +94,15 @@ Arc 1 (the courier) session 1 landed twine's core:
   never reverts, merges or applies anything. Nothing records a running
   group yet (the runtime is Arc 2's), so today a kill requests the abort
   and closes the session.
-- `share/bale-consumption.toml` — the bale version pin (`0.4.45`) and
+- `share/bale-consumption.toml` — the bale version pin (`0.4.49`) and
   the consumption manifest: the schema hashes, every bale surface
   twine reads, and the three vocabularies the transition table keys on,
   as data.
 - `fixtures/` — recorded `bale … --json` outputs from the pinned
-  version, the crafter's emissions, and carried pastes of bale output,
-  byte-exact; the only bale the tests ever see.
+  version (twenty-three at 0.4.49, including every outcome of `bale
+  unlock --json` the kill-switch's tests replay), the crafter's
+  emissions, and carried pastes of bale output, byte-exact; the only
+  bale the tests ever see. Earlier versions' recordings stay as history.
 - `tests/` — the stdlib `unittest` suite.
 
 Stdlib only; python 3.11 or newer. The courier reads (`take`), runs a

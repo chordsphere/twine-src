@@ -6,7 +6,10 @@
 # catch-all key. Architect's requirement (D17), verbatim: "there shouldn't
 # be any surprises, and every path taken should have a defined response."
 #
-# Landed by session 2026-10-03-twine-transitions-004 against bale 0.4.45.
+# Landed by session 2026-10-03-twine-transitions-004 against bale 0.4.45;
+# moved to bale 0.4.49 by session 2026-10-07-twine-pin-049-001, which
+# re-read the three vocabularies (consumption manifest) and found every
+# axis unchanged — no row here gained or lost a key.
 # twine/transitions.py loads and checks it; `twine transitions [--json]`
 # renders it; tests/test_transitions.py fails by name on any key without a
 # row. The table reads no bale install: its three bale axes take their
@@ -39,7 +42,7 @@
 # is written (D4's mechanical diff, carried through to the moves).
 
 [table]
-written_against = "0.4.45"
+written_against = "0.4.49"
 
 # ---------------------------------------------------------------------------
 # Axes
@@ -207,7 +210,7 @@ description = "The planner splits the goal at a seam and packs the first piece, 
 grounds = "AGENT.md §11.2 and §11.5; D17's annotation (exhaustion is an outcome, not a background event)"
 
 # ---------------------------------------------------------------------------
-# Rows — telemetry-outcome (bale 0.4.45, 13)
+# Rows — telemetry-outcome (bale 0.4.49, 13; unchanged since 0.4.45)
 # ---------------------------------------------------------------------------
 
 [[row]]
@@ -289,7 +292,7 @@ move = "re-carry-exchange"
 means = "`bale relay` exited non-zero; no round was recorded"
 
 # ---------------------------------------------------------------------------
-# Rows — closure-reason (bale 0.4.45, 9; null is "not closed", not a key)
+# Rows — closure-reason (bale 0.4.49, 9, unchanged since 0.4.45; null is "not closed", not a key)
 # ---------------------------------------------------------------------------
 
 [[row]]
@@ -347,7 +350,7 @@ move = "release-to-planner"
 means = "the session was killed (the kill-switch's closure, D15)"
 
 # ---------------------------------------------------------------------------
-# Rows — apply-outcome (bale 0.4.45, 9)
+# Rows — apply-outcome (bale 0.4.49, 9; unchanged since 0.4.45)
 # ---------------------------------------------------------------------------
 
 [[row]]

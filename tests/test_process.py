@@ -20,7 +20,7 @@ from twine.cli import Context
 from twine.process import (DEFAULT_STDERR_CAP, RunError, RunResult,
                            run_process, runner_confines)
 
-from tests.helpers import FixturePlayer, RealGroup, dies_within
+from tests.helpers import PIN, UNRECORDED, FixturePlayer, RealGroup, dies_within
 
 # Every command below is bash, the one interpreter the seam's first caller
 # (carry probe) needs; none of them reaches outside its temp state. The
@@ -215,7 +215,7 @@ class SpawnHook(unittest.TestCase):
     def test_every_run_seam_double_accepts_the_hook(self):
         """The Runner protocol grew the keyword; the doubles take it (and
         never call it — a double spawns nothing, so it has no pid)."""
-        from tests.helpers import RecordingRunner, UnlockDouble
+        from tests.helpers import RecordedUnlock, RecordingRunner
 
         def never(pid: int) -> None:
             raise AssertionError("a double called the hook")
@@ -223,7 +223,7 @@ class SpawnHook(unittest.TestCase):
         recorder = RecordingRunner()
         recorder(["x"], on_spawn=never)
         self.assertIs(recorder.calls[0]["on_spawn"], never)
-        unlock = UnlockDouble()
+        unlock = RecordedUnlock()
         unlock(["/double/bin/bale", "unlock", "sid", "--reason", "aborted", "--json"],
                on_spawn=never)
         self.assertIs(unlock.calls[0]["on_spawn"], never)
@@ -301,18 +301,64 @@ class TheSeam(unittest.TestCase):
 
     def test_fixture_player_answers_a_recorded_bale_argv(self):
         """The double session 2b-ii builds on: `bale status --json` run in
-        the repo answers with the recorded fixture's bytes."""
+        the repo answers with the pinned version's recorded bytes."""
         player = FixturePlayer(REPO_ROOT)
         r = player(["bale", "status", "--json"], cwd=REPO_ROOT)
-        recorded = (REPO_ROOT / "fixtures/bale-0.4.45/twine-src/status_--json.json")
+        recorded = (REPO_ROOT / f"fixtures/bale-{PIN}/twine-src/status_--json.json")
         self.assertEqual((r.exit_code, r.stdout), (0, recorded.read_bytes()))
         r = player(["/somewhere/bin/bale", "--version"], cwd="/tmp")
-        self.assertEqual(r.stdout, (REPO_ROOT / "fixtures/bale-0.4.45/anywhere/"
+        self.assertEqual(r.stdout, (REPO_ROOT / f"fixtures/bale-{PIN}/anywhere/"
                                     "--version.txt").read_bytes())
         with self.assertRaises(AssertionError):
             player(["bale", "relay", "some-sid", "-"], cwd=REPO_ROOT)
         with self.assertRaises(AssertionError):
             player(["bash", "-c", "true"])
+
+    def test_fixture_player_selects_an_outcome_group_only_when_told(self):
+        """An argv recorded with more than one outcome (session
+        2026-10-07-twine-pin-049-001): the player refuses it until the test
+        names the group, names the candidates in its refusal, answers the
+        named recording with its row's exit, and finds a scratch recording
+        only for the directory the test names as the scratch repository."""
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = ["bale", "unlock", "any-sid", "--json"]
+            plain = FixturePlayer(REPO_ROOT, scratch_root=tmp)
+            with self.assertRaises(AssertionError) as caught:
+                plain(argv, cwd=tmp)
+            self.assertIn("unlock_sid_--json+unlock-refused+hold-branch.json",
+                          str(caught.exception))
+            self.assertIn("select=", str(caught.exception))
+            chosen = FixturePlayer(REPO_ROOT, scratch_root=tmp,
+                                   select={"unlock_sid_--json": "unlock-refused+hold-branch"})
+            r = chosen(argv, cwd=tmp)
+            self.assertEqual((r.exit_code, json.loads(r.stdout)["reason"]), (1, "hold-branch"))
+            # In the repo the same argv has one grouped recording, the
+            # not-open refusal — still a selection, never the player's pick.
+            with self.assertRaises(AssertionError):
+                chosen(argv, cwd=REPO_ROOT)
+            repo = FixturePlayer(REPO_ROOT, select={"unlock_sid_--json": "unlock-refused+not-open"})
+            self.assertEqual(json.loads(repo(argv, cwd=REPO_ROOT).stdout)["reason"], "not-open")
+            # A group named for an argv recorded once is an error, not a pick.
+            with self.assertRaises(AssertionError):
+                FixturePlayer(REPO_ROOT, select={"unlock_sid_--json": "unlocked"})(
+                    argv, cwd=REPO_ROOT)
+            # A plain name beside no group needs no selection: the aborted close.
+            close = plain(["bale", "unlock", "any-sid", "--reason", "aborted", "--json"], cwd=tmp)
+            self.assertEqual((close.exit_code, json.loads(close.stdout)["outcome"]),
+                             (0, "unlocked"))
+
+    def test_fixture_player_refuses_an_unrecorded_exit_without_a_named_assumption(self):
+        """The rule stays though no 0.4.49 row needs it: a row whose exit
+        is `unrecorded` is answered only with the code the test assumes."""
+        rel = f"fixtures/bale-{PIN}/twine-src/status_--json.json"
+        player = FixturePlayer(REPO_ROOT)
+        player.exits[rel] = UNRECORDED
+        with self.assertRaises(AssertionError) as caught:
+            player(["bale", "status", "--json"], cwd=REPO_ROOT)
+        self.assertIn("assumed_exits", str(caught.exception))
+        assuming = FixturePlayer(REPO_ROOT, assumed_exits={rel: 7})
+        assuming.exits[rel] = UNRECORDED
+        self.assertEqual(assuming(["bale", "status", "--json"], cwd=REPO_ROOT).exit_code, 7)
 
 
 if __name__ == "__main__":

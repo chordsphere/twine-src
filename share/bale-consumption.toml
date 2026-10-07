@@ -6,7 +6,11 @@
 #
 # Landed by session 2026-10-01-twine-core-002 against bale 0.4.45 as
 # installed on the architect's machine (probe twine-core-fixtures,
-# 2026-10-01). twine.bale.load_manifest parses it; tests/ walk it.
+# 2026-10-01). Moved to bale 0.4.49 by session 2026-10-07-twine-pin-049-001
+# (three probes on 2026-10-07 — twine-049-fixtures, twine-049-scratch,
+# twine-049-emissions — and the desk's reading of bale-src's context
+# tarball; fixtures/README.md, "bale 0.4.49"). twine.bale.load_manifest
+# parses it; tests/ walk it.
 #
 # Entry shape, [[surface]]:
 #   kind             "file" (a path under the install root twine reads),
@@ -18,10 +22,15 @@
 #   verb, flags      kind = verb: the verb and the flags twine passes
 #                    (flag names only; argv carries the exact invocation)
 #   argv             kind = verb: the exact argument vector after `bale`; a
-#                    per-run value is written `<role>` (`<sid>`, `<tarball>`)
-#                    and names its fixture by role (fixtures/README.md,
-#                    "Per-run values" — session 2026-10-03-twine-carry-bale-002)
-#   cwd              kind = verb: where it runs ("repo" = the packing repo)
+#                    per-run value is written `<role>` (`<sid>`, `<tarball>`,
+#                    `<file>`, `<bundle>`, `<goal>`) and names its fixture by
+#                    role (fixtures/README.md, "Per-run values" — session
+#                    2026-10-03-twine-carry-bale-002)
+#   cwd              kind = verb: where the recording ran, which is where the
+#                    fixture sits ("repo" = the packing repo, ~/twine-src;
+#                    "scratch" = the throwaway repository a probe recorded
+#                    in — a repo whose session it was, as twine's --cwd is;
+#                    "anywhere" = the output depends on no directory)
 #   stdout           what twine expects on stdout
 #   keys             the JSON keys twine reads from that output — [] where
 #                    twine reads none yet
@@ -29,7 +38,16 @@
 #   read_by          the twine verb(s) that read it (registered verb names;
 #                    `carry probe` reads the probe it runs and the
 #                    probe-output it verifies — session 2026-10-02-twine-carry-probe-002)
-#   fixture          the recorded output under fixtures/, when one exists
+#   fixture          the recorded output under fixtures/, when one exists —
+#                    named by the rule, its outcome group included when the
+#                    argv was recorded with more than one outcome
+#                    (fixtures/README.md, "Outcome groups")
+#   also_recorded    kind = verb, optional: further recordings of the verb —
+#                    another outcome of the same argv, or another argv of it
+#                    — each an inline table {argv, cwd, outcome, reason (when
+#                    the line has one), fixture}; the tests replay them where
+#                    twine's one argv would meet that outcome (session
+#                    2026-10-07-twine-pin-049-001)
 #   stand_in         kind = verb with no fixture: the recorded bytes the
 #                    tests replay in its place, and why they may
 #   doubles          the test doubles standing in for this surface's
@@ -43,6 +61,9 @@
 #                    `axis`) whose values the key twine reads from this
 #                    output takes — `apply`'s `outcome` is `apply-outcome`
 #                    (session 2026-10-03-twine-transitions-004)
+#   reasons          kind = verb, optional: a closed set one of the surface's
+#                    keys takes that is NOT a transition-table axis (the
+#                    unlock refusal's `reason`), with its home in `reasons_home`
 #   written_against  the bale version the entry was written against
 #
 #   kind = format carries, instead of path/verb/argv/cwd/stdout/fixture:
@@ -53,6 +74,11 @@
 #                    section and the bale source function(s), read by probe
 #   emitted_by       what prints it
 #   fixtures         the recorded or carried emissions under fixtures/
+#   fixtures_version the bale version that emitted those files: the pin for
+#                    a crafter emission (re-recorded at every pin), the
+#                    version that printed a carried paste, which stays under
+#                    that version's directory across a pin bump
+#                    (tests/helpers.py carried_relpath reads it here)
 #   keys             for a JSON-bodied format, the record keys twine reads
 #
 # A pin bump diffs the format entries too (D3 names the bundle format
@@ -60,7 +86,14 @@
 # is a changed surface even though no verb's --json moved.
 #
 # [[wanted]] names a surface a later session needs and the pinned bale
-# does not have — so the gap is data, not a sentence in a brief.
+# does not have — so the gap is data, not a sentence in a brief. Shape:
+#   verb, flags      the surface wanted
+#   needed_by        the twine session or verb that needs it, and why
+#   status           what the pinned bale does instead
+# No [[wanted]] entry remains at 0.4.49: the three the 0.4.45 manifest
+# carried (`open --json`, `relay --json`, a reason-coded `unlock --json`
+# refusal) landed in bale-src at twine's asking (0.4.47, 0.4.48) and are
+# [[surface]] entries below. The shape stays for the next gap.
 #
 # [[vocabulary]] (session 2026-10-03-twine-transitions-004) is a closed set
 # of spellings bale declares, recorded as data so a pin bump diffs them
@@ -79,12 +112,17 @@
 #   excluded         enum members that are not keys, each with why
 #   read_by          the twine verb(s) that read the values
 #   written_against  the bale version the values were read from
-#   read_at          the probe(s) that read them, never recalled
+#   read_at          the probe(s) or readings that read them, never recalled
 
 [bale]
-pin = "0.4.45"
+pin = "0.4.49"
 
-# sha256 of each schema file as installed (schemas/*.json, bale 0.4.45).
+# sha256 of each schema file as installed (schemas/*.json). Read at bale
+# 0.4.45 by probe twine-core-fixtures (2026-10-01); UNCHANGED at 0.4.49 —
+# the desk of sitting 2026-10-06-continue-twine-002 hashed 0.4.49's eight
+# schemas/*.json from bale-src's context tarball on 2026-10-07 and every
+# one equals the value below, so the values stand and the two schema-homed
+# vocabularies below stand with them.
 [bale.schemas]
 "bundle-manifest.schema.json" = "3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23"
 "changelog-record.schema.json" = "7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c"
@@ -101,7 +139,7 @@ path = "bin/VERSION"
 stdout = "n/a"
 keys = []
 read_by = ["bale check", "status"]
-written_against = "0.4.45"
+written_against = "0.4.49"
 note = "one line, the version string, trailing newline; twine strips and compares it to [bale] pin (D2)"
 
 [[surface]]
@@ -112,11 +150,11 @@ argv = ["status", "--json"]
 cwd = "repo"
 stdout = "exactly one JSON object line; '[bale] ' lines go to stderr; exit 0 on a successful read"
 keys = []
-key_owner = "format_status_json docstring in bin/bale_report.py (outcome, version, sid, repo, session, staging, outbox, applied, sessions, scopes, integration_lock, config)"
+key_owner = "format_status_json docstring in bin/bale_report.py (outcome, version, sid, repo, session, staging, outbox, applied, sessions, scopes, integration_lock, config, clipboard)"
 read_by = []
-fixture = "fixtures/bale-0.4.45/twine-src/status_--json.json"
-written_against = "0.4.45"
-note = "recorded for Arc 1 session 3, which reads it; twine reads no key from it yet"
+fixture = "fixtures/bale-0.4.49/twine-src/status_--json.json"
+written_against = "0.4.49"
+note = "recorded for Arc 1 session 3, which reads it; twine reads no key from it yet. The 0.4.49 line adds a `clipboard` object (command, source, key, shadowed, problem) to 0.4.45's keys"
 
 [[surface]]
 kind = "verb"
@@ -128,8 +166,8 @@ stdout = "exactly one JSON object line; '[bale] ' lines go to stderr; exit 0 on 
 keys = []
 key_owner = "format_stats_json docstring in bin/bale_report.py (outcome, epoch, coverage, filters, corpus, classes, closure_mix, churn, cross_checks, packers, doc_epochs, members)"
 read_by = []
-fixture = "fixtures/bale-0.4.45/twine-src/stats_--json.json"
-written_against = "0.4.45"
+fixture = "fixtures/bale-0.4.49/twine-src/stats_--json.json"
+written_against = "0.4.49"
 note = "recorded for the cost spine and the scheduler; twine reads no key from it yet"
 
 [[surface]]
@@ -142,9 +180,9 @@ stdout = "exactly one JSON object line (the session dossier); exit 0, found fals
 keys = []
 key_owner = "format_session_dossier_json docstring in bin/bale_report.py (outcome, session_id, found, record, attempts, lineage)"
 read_by = []
-fixture = "fixtures/bale-0.4.45/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json"
-written_against = "0.4.45"
-note = "recorded for Arc 1 session 3's in-flight record; twine reads no key from it yet"
+fixture = "fixtures/bale-0.4.49/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json"
+written_against = "0.4.49"
+note = "recorded for Arc 1 session 3's in-flight record; twine reads no key from it yet. The 0.4.49 recording is byte-identical to the 0.4.45 one"
 
 [[surface]]
 kind = "verb"
@@ -155,8 +193,8 @@ cwd = "anywhere"
 stdout = "one line, 'bale <version>'"
 keys = []
 read_by = []
-fixture = "fixtures/bale-0.4.45/anywhere/--version.txt"
-written_against = "0.4.45"
+fixture = "fixtures/bale-0.4.49/anywhere/--version.txt"
+written_against = "0.4.49"
 note = "not used by twine bale check, which reads bin/VERSION instead; recorded so a reviewer can see the two agree"
 
 # --- the verbs the carry hand-offs run (session 2026-10-03-twine-carry-bale-002) ---
@@ -166,15 +204,18 @@ kind = "verb"
 verb = "apply"
 flags = ["--dry-run", "--json"]
 argv = ["apply", "--dry-run", "--json", "<tarball>"]
-cwd = "repo"
-stdout = "exactly one JSON object line; outcome \"dry-run\" when the response would apply (nothing staged, branched or committed)"
+cwd = "scratch"
+stdout = "exactly one JSON object line; outcome \"dry-run\" when the response would apply (nothing staged, branched or committed); a *-refused outcome with exit 1, the line still on stdout, when the plan would refuse"
 keys = ["outcome"]
 vocabulary = "apply-outcome"
 read_by = ["carry response"]
-fixture = "fixtures/bale-0.4.45/twine-src/apply_--dry-run_--json_tarball.json"
-doubles = ["tests/test_carry_bale.py BaleDouble: each *-refused outcome with exit 1, a bale error (nothing on stdout, a non-zero exit), stdout that is not one JSON object, a timeout, and one outcome bale never emits, spelled as no bale outcome is (twine-test-not-a-bale-outcome)"]
-written_against = "0.4.45"
-note = "the only apply argv twine builds (T12: twine.bale.dry_run_argv; never without --dry-run, never an admission or override flag). The recorded line's keys are outcome, sid, log, verdict, merge, telemetry, drift, checkpoint, required_checks, base_drift, archive, sweep; twine reads outcome and carries the object whole. Under --dry-run bale documents three answers (format_apply_json's docstring): dry-run (exit 0), one of the three *-refused outcomes (exit 1), or an error path with nothing on stdout and a non-zero exit. That is documented, not recorded: the tarball argument and the exit status of the recorded line stay unrecorded (fixtures/README.md), no refusal or error output is recorded, and doubles stand in until a recording probe captures them"
+fixture = "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+dry-run.json"
+also_recorded = [
+  {argv = ["apply", "--dry-run", "--json", "<tarball>"], cwd = "scratch", outcome = "scope-drift-refused", fixture = "fixtures/bale-0.4.49/scratch/apply_--dry-run_--json_tarball+scope-drift-refused.json"},
+]
+doubles = ["tests/test_carry_bale.py BaleDouble: the two *-refused outcomes not recorded (required-check-refused, base-drift-refused) with exit 1, a bale error (nothing on stdout, a non-zero exit), stdout that is not one JSON object, a timeout, and one outcome bale never emits, spelled as no bale outcome is (twine-test-not-a-bale-outcome)"]
+written_against = "0.4.49"
+note = "the only apply argv twine builds (T12: twine.bale.dry_run_argv; never without --dry-run, never an admission or override flag). Recorded at 0.4.49 in the scratch repository with exit 0 (the 0.4.45 carried line had its exit unrecorded): the line's keys are outcome, sid, log, verdict, merge, telemetry, drift, checkpoint, required_checks, base_drift, archive, sweep; twine reads outcome and carries the object whole. The scope-drift refusal — the refusal the 2b-ii carry-forward owed — is recorded too (exit 1, `drift` naming the out-of-scope path, the session scope and the remedy line). The other two refusals and the error path stay documented (format_apply_json's docstring), not recorded; doubles stand in for them until a recording probe captures them"
 
 [[surface]]
 kind = "verb"
@@ -185,10 +226,61 @@ cwd = "repo"
 stdout = "the counterpart's paste block (an exchange block); '[bale] ' lines on stderr"
 keys = []
 read_by = ["carry exchange"]
-stand_in = "fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt"
+stand_in = "fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt"
 doubles = ["tests/helpers.py StubBale and tests/test_carry_bale.py BaleDouble: relay's stdout after an ingest, a non-zero exit, a timeout"]
-written_against = "0.4.45"
-note = "stdin is exactly the exchange block's own lines (twine.shapes.block_text); twine passes stdout through as text and reads no key from it. No relay output is recorded: the stand-in is the crafter's --emit-block rendering, which TARBALL.md 5.9.2 pins byte-identical to relay's rendering of the same record. A recording of relay_sid_stdin.txt (and its exit code) replaces the stand-in and the doubles"
+written_against = "0.4.49"
+note = "stdin is exactly the exchange block's own lines (twine.shapes.block_text); twine passes stdout through as text and reads no key from it. No flagless relay output is recorded: the stand-in is the crafter's --emit-block rendering, which TARBALL.md 5.9.2 pins byte-identical to relay's rendering of the same record. A recording of relay_sid_stdin.txt (and its exit code) replaces the stand-in and the doubles; `relay --json` (the next surface) is recorded, and carry exchange moves to it in the session that reads its line"
+
+[[surface]]
+kind = "verb"
+verb = "relay"
+flags = ["--json"]
+argv = ["relay", "<sid>", "<file>", "--json"]
+cwd = "scratch"
+stdout = "exactly one JSON object line: outcome \"relayed\" (exit 0) once the round is recorded, \"re-emitted\" (exit 0) when run without a file, \"relay-refused\" (exit 1, `cause` saying why) on an input that is not a record or a sid not open; the block itself rides the line's `block` key"
+keys = []
+key_owner = "format_relay_json docstring in bin/bale_report.py (outcome, sid, round, from, awaiting, kind, preserved, block, log, clipboard, cause, telemetry)"
+read_by = []
+fixture = "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relayed.json"
+also_recorded = [
+  {argv = ["relay", "<sid>", "--json"], cwd = "scratch", outcome = "re-emitted", fixture = "fixtures/bale-0.4.49/scratch/relay_sid_--json.json"},
+  {argv = ["relay", "<sid>", "<file>", "--json"], cwd = "scratch", outcome = "relay-refused", reason = "ingest", fixture = "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+ingest.json"},
+  {argv = ["relay", "<sid>", "<file>", "--json"], cwd = "scratch", outcome = "relay-refused", reason = "session-gate", fixture = "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+session-gate.json"},
+]
+written_against = "0.4.49"
+note = "wanted by Arc 1 session 2b-ii, which landed carry exchange without it, passing relay's stdout through as text; bale 0.4.48 added it. Recorded in the scratch repository: a clarification manifest relayed as round 1 from worker, the thread's latest round re-emitted (nothing recorded), and the two refusals (relay's refusal line carries a `cause` sentence, no reason code; the fixture names tag them `ingest` and `session-gate`). Read by nothing yet: `carry exchange` reading this line instead of the flagless relay's is the session after Arc 1 row 3 (brief §8)"
+
+[[surface]]
+kind = "verb"
+verb = "open"
+flags = ["--json"]
+argv = ["open", "<bundle>", "--json"]
+cwd = "scratch"
+stdout = "exactly one JSON object line: outcome \"opened\" (exit 0) with the minted sid, the request tarball, the session dir and the paste-ready `opener`; \"second-desk\" (exit 0) when the same bundle is already open and this chat joins it as a desk; \"rehearsed\" (exit 0) under --check, nothing written"
+keys = []
+key_owner = "format_open_json docstring in bin/bale_report.py (outcome, sid, tarball, log, session_dir, context_files, readme_path, readme_heading, readme_sha256, checkpoint_file_path, checkpoint_file_sha256, branch, applied_latest, sweep, include_group, opener, bundle, members, rehearsal, checkpoint_dry_run, desk)"
+read_by = []
+fixture = "fixtures/bale-0.4.49/scratch/open_bundle_--json+opened.json"
+also_recorded = [
+  {argv = ["open", "<bundle>", "--json"], cwd = "scratch", outcome = "second-desk", fixture = "fixtures/bale-0.4.49/scratch/open_bundle_--json+second-desk.json"},
+  {argv = ["open", "--check", "<bundle>", "--json"], cwd = "repo", outcome = "rehearsed", fixture = "fixtures/bale-0.4.49/twine-src/open_--check_bundle_--json.json"},
+]
+written_against = "0.4.49"
+note = "wanted by Arc 1 session 3 (offline courier — emit), absent in 0.4.45; bale 0.4.48 added it. Recorded: the scoped scratch session opened from a crafter bundle, the same bundle opened again as desk-2, and a throwaway bundle rehearsed with --check in ~/twine-src (nothing written). Read by nothing yet, the way --version reads nothing: Arc 1 row 3's verb is the reader"
+
+[[surface]]
+kind = "verb"
+verb = "pack"
+flags = ["--json"]
+argv = ["pack", "<goal>", "--slug", "ro", "--read-only", "--no-readme", "--json"]
+cwd = "scratch"
+stdout = "exactly one JSON object line: outcome \"packed\" (exit 0) with the minted sid, the request tarball, the session dir and `opener`, the paste-ready session opener (bale 0.4.48) — the read-only opener here, naming the planner-session kind"
+keys = []
+key_owner = "bale pack --json's report in bin/bale_report.py (outcome, sid, tarball, log, session_dir, context_files, readme_path, readme_heading, readme_sha256, checkpoint_file_path, checkpoint_file_sha256, branch, applied_latest, sweep, include_group, opener); the `opener` key is what Arc 1 row 3 will read"
+read_by = []
+fixture = "fixtures/bale-0.4.49/scratch/pack_goal_--slug-ro_--read-only_--no-readme_--json.json"
+written_against = "0.4.49"
+note = "recorded in the scratch repository: a read-only pack (--read-only --no-readme, the goal as the positional, --slug ro) — pack writes a session, so a read-only probe in ~/twine-src could not record one. Read by nothing yet; the opener key is the surface Arc 1 row 3 wants (the desk-side emit of a session's opening line)"
 
 # --- the verb the kill-switch runs (session 2026-10-04-twine-kill-switch-002) ---
 
@@ -197,17 +289,25 @@ kind = "verb"
 verb = "unlock"
 flags = ["--reason", "--json"]
 argv = ["unlock", "<sid>", "--reason", "aborted", "--json"]
-cwd = "repo"
-stdout = "exactly one JSON object line on a close (exit 0, outcome \"unlocked\"); a refusal is bale's fail(): exit 1, nothing on stdout, `[bale] error: <msg>` on stderr"
-keys = ["outcome", "sid", "closure_reason", "telemetry"]
-key_owner = "format_unlock_json docstring in bin/bale_report.py, lines 2920-2986 (outcome, sid, log, closure_reason, session_dir_wiped, branch_preserved, telemetry, debris, sweep)"
+cwd = "scratch"
+stdout = "exactly one JSON object line on a close (exit 0, outcome \"unlocked\", closure_reason the reason given) and, since bale 0.4.47, one on a refusal too: exit 1, outcome \"unlock-refused\" with a `reason` code and bale's `message`, beside `[bale] error: <message>` on stderr; a no-op with nothing open is outcome \"no-op\", exit 0"
+keys = ["outcome", "sid", "closure_reason", "telemetry", "reason", "message", "open_sessions"]
+key_owner = "format_unlock_json docstring in bin/bale_report.py (outcome, sid, log, closure_reason, session_dir_wiped, branch_preserved, telemetry, debris, sweep, reason, message, open_sessions)"
 vocabulary = "closure-reason"
+reasons = ["hold-branch", "not-open", "several-open", "not-a-repo", "integration-json"]
+reasons_home = "UNLOCK_REFUSAL_REASONS in bin/bale_report.py (bale 0.4.47): the closed set the refusal line's `reason` takes — recorded here on the surface, not as a [[vocabulary]] axis (the transition table keys on three bale axes and the stop set; an unlock-reason axis is a table design, the courier axis of transitions-004's Proposals)"
 read_by = ["kill"]
 read_at = ["twine-unlock-contract", "twine-unlock-code"]
-doubles = ["tests/helpers.py unlock_json_double (the close, built from format_unlock_json's key contract), unlock_refusal_double (fail()'s stderr line), UnlockDouble (the run-seam double) and StubBale's unlock_stdout: a close, a refusal with exit 1 and empty stdout, the HOLD-branch refusal, a no-op, another sid or reason, stdout that is not one JSON object, a timeout"]
-unrecorded = "no `bale unlock --json` output has been recorded for any outcome: unlock mutates the registry, so a read-only probe cannot record one. Two recordings are queued at sitting 2026-10-03-continue-twine-006 (the sitting's own closed-read-only close, and an aborted close in a scratch repository); either replaces the doubles, never joins them"
-written_against = "0.4.45"
-note = "the only unlock argv twine builds (twine.bale.unlock_argv; read by `twine kill` and the Arc 2 loop's closure): the sid always explicit (without one bale closes whichever single session is open), the reason always aborted (without one bale infers closed-read-only or abandoned), no other flag — never the one that clears the lock past a HOLD branch — and never a retry. Exit and stdout alone tell a close from a refusal (cmd_unlock, bin/bale lines 3234-3479): ok only on exit 0 with outcome unlocked, sid the session and closure_reason aborted. Beyond the keys, twine reads one stderr text: the HOLD refusal's prefix `branch bale/<sid> exists`, to hand the operator bale's own remedy, `bale revert <sid>` (twine never runs revert); every other refusal is surfaced verbatim. The vocabulary named is closure_reason's. A pin bump re-reads the key contract and that text by probe"
+fixture = "fixtures/bale-0.4.49/scratch/unlock_sid_--reason-aborted_--json.json"
+also_recorded = [
+  {argv = ["unlock", "<sid>", "--json"], cwd = "scratch", outcome = "unlock-refused", reason = "hold-branch", fixture = "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json"},
+  {argv = ["unlock", "<sid>", "--json"], cwd = "repo", outcome = "unlock-refused", reason = "not-open", fixture = "fixtures/bale-0.4.49/twine-src/unlock_sid_--json+unlock-refused+not-open.json"},
+  {argv = ["unlock", "--integration", "--json"], cwd = "repo", outcome = "unlock-refused", reason = "integration-json", fixture = "fixtures/bale-0.4.49/twine-src/unlock_--integration_--json.json"},
+  {argv = ["unlock", "<sid>", "--json"], cwd = "scratch", outcome = "unlocked", fixture = "fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlocked.json"},
+  {argv = ["unlock", "--json"], cwd = "scratch", outcome = "no-op", fixture = "fixtures/bale-0.4.49/scratch/unlock_--json.json"},
+]
+written_against = "0.4.49"
+note = "the only unlock argv twine builds (twine.bale.unlock_argv; read by `twine kill` and the Arc 2 loop's closure): the sid always explicit (without one bale closes whichever single session is open), the reason always aborted (without one bale infers closed-read-only or abandoned), no other flag — never the one that clears the lock past a HOLD branch — and never a retry. Recorded at 0.4.49: the `aborted` close of the scratch session 2026-10-07-sc-002 (the fixture), its HOLD-branch refusal just before (reason hold-branch, after a response had been staged to bale/<sid>), the not-open and integration-json refusals in ~/twine-src, the closed-read-only close of the read-only session and the no-op — the recordings that replace session 5b's doubles (contract §14.7). Exit and stdout tell a close from a refusal (ok only on exit 0 with outcome unlocked, sid the session and closure_reason aborted); on a refusal twine also reads the recorded line as it stands (outcome unlock-refused, closure_reason null), and still keys its one hand-line decision on the stderr prefix `branch bale/<sid> exists` (bale's own remedy, `bale revert <sid>`, which twine never runs) — the hold-branch recording's stderr carries that prefix, and keying on `reason` instead is the next session's. The vocabulary named is closure_reason's; the refusal's reason set is `reasons`"
 
 # --- text formats `twine take` reads (session 2026-10-02-twine-take-read-001) ---
 
@@ -217,11 +317,12 @@ format = "probe"
 locator = "a fenced code block (``` or longer) whose first 5 lines include the header `# PROBE <slug>: …`"
 home = "TARBALL.md §4.2; tools/craft_response.py PROBE_SCAFFOLD (--probe)"
 emitted_by = ["tools/craft_response.py --probe <slug>, filled by a worker"]
-fixtures = ["fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt"]
+fixtures = ["fixtures/bale-0.4.49/crafter/--probe-twine-take-fixture.txt"]
+fixtures_version = "0.4.49"
 keys = []
 read_by = ["carry probe", "take"]
-written_against = "0.4.45"
-note = "the crafter emits the bare script; a worker's turn carries it fenced, so tests wrap the fixture in a fence"
+written_against = "0.4.49"
+note = "the crafter emits the bare script; a worker's turn carries it fenced, so tests wrap the fixture in a fence. The 0.4.49 scaffold's tail pipes the block into `bale clipboard --block \"probe block\"` through a bale on PATH (two `[clipboard]` notices on stderr when none is); the tests' filled specimen ends before that tail unless a test keeps it and controls PATH"
 
 [[surface]]
 kind = "format"
@@ -230,10 +331,11 @@ locator = "`=== PROBE BEGIN <slug> ===` … `=== PROBE END <slug> ===`, trailer 
 home = "TARBALL.md §4.2; tools/craft_response.py PROBE_SCAFFOLD's emit_probe_block"
 emitted_by = ["a probe built on the crafter's scaffold, run by the courier"]
 fixtures = ["fixtures/bale-0.4.45/carried/probe-output_twine-take-specimens.txt"]
+fixtures_version = "0.4.45"
 keys = []
 read_by = ["carry probe", "take"]
-written_against = "0.4.45"
-note = "N counts the lines between BEGIN and the trailer (printf '%s\\n' \"$out\" | wc -l)"
+written_against = "0.4.49"
+note = "N counts the lines between BEGIN and the trailer (printf '%s\\n' \"$out\" | wc -l). The carried paste stays under bale-0.4.45/: bale 0.4.45's scaffold printed it, and emit_probe_block's block is unchanged at 0.4.49 (the three 2026-10-07 probes' paste-backs carry the same sentinels and trailer)"
 
 [[surface]]
 kind = "format"
@@ -241,11 +343,12 @@ format = "light"
 locator = "`=== LIGHT BEGIN <sid> ===` … `=== LIGHT END <sid> ===`"
 home = "TARBALL.md §5.10; tools/craft_response.py format_light_block (--light-block)"
 emitted_by = ["tools/craft_response.py --light-block <file|->", "a worker by hand, per TARBALL.md §5.10"]
-fixtures = ["fixtures/bale-0.4.45/crafter/--light-block-stdin.txt"]
+fixtures = ["fixtures/bale-0.4.49/crafter/--light-block-stdin.txt"]
+fixtures_version = "0.4.49"
 keys = []
 read_by = ["take"]
-written_against = "0.4.45"
-note = "no trailer by design; the four labels map onto question, context, default_assumption, why_blocked"
+written_against = "0.4.49"
+note = "no trailer by design; the four labels map onto question, context, default_assumption, why_blocked. The 0.4.49 emission is byte-identical to the 0.4.45 one"
 
 [[surface]]
 kind = "format"
@@ -253,11 +356,12 @@ format = "exchange"
 locator = "`BALE EXCHANGE BEGIN <sid>` … `BALE EXCHANGE END` (surrounding whitespace tolerated), trailer `# sha256 <hex>` as the last non-blank inner line"
 home = "TARBALL.md §5.9.2; bin/bale_relay.py parse_exchange_input, _exchange_body_bytes, reescaped_body_matches, format_exchange_block"
 emitted_by = ["bale relay <sid> <file|->", "tools/craft_response.py --emit-block <file|->"]
-fixtures = ["fixtures/bale-0.4.45/crafter/--emit-block-stdin.txt"]
+fixtures = ["fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt"]
+fixtures_version = "0.4.49"
 keys = ["round", "from"]
 read_by = ["carry exchange", "take"]
-written_against = "0.4.45"
-note = "body = json.dumps(record, indent=2) + LF, ASCII-escaped; a body whose re-serialization matches the trailer though its bytes do not is the unescaped-in-transit fault (bale 0.4.41)"
+written_against = "0.4.49"
+note = "body = json.dumps(record, indent=2) + LF, ASCII-escaped; a body whose re-serialization matches the trailer though its bytes do not is the unescaped-in-transit fault (bale 0.4.41). The 0.4.49 emission differs from 0.4.45's only in created_at (the emission instant) and so its trailer"
 
 [[surface]]
 kind = "format"
@@ -266,33 +370,23 @@ locator = "`=== RELAY BEGIN <sid> to <planner|worker> ===` … `=== RELAY END <s
 home = "TARBALL.md §7; bin/bale_report.py relay_sentinels, _inline_lines, format_apply_relay_planner, format_hold_relay_planner, format_hold_relay_worker"
 emitted_by = ["bale apply (a clean apply: to planner; a HOLD: to planner and to worker)"]
 fixtures = ["fixtures/bale-0.4.45/carried/relay_2026-10-01-twine-seed-effort-003_to-planner.txt"]
+fixtures_version = "0.4.45"
 keys = []
 read_by = ["take"]
-written_against = "0.4.45"
-note = "no trailer; _inline_lines indents an inlined line that starts '=== RELAY ' by two spaces, so a sentinel is a column-0 line"
-
-[[wanted]]
-verb = "open"
-flags = ["--json"]
-needed_by = "Arc 1 session 3 (offline courier — emit)"
-status = "absent in 0.4.45: `bale open [-h] [--verbose] [--no-sandbox] [--check | --dry-run] bundle`; a probable bale-src slip, carried by the sitting"
-
-[[wanted]]
-verb = "relay"
-flags = ["--json"]
-needed_by = "Arc 1 session 2b-ii (offline courier — act: carry exchange) landed without it, passing relay's stdout through as text; with --json, carry exchange could report the round relay recorded instead of only relaying it"
-status = "absent in 0.4.45: `bale relay [-h] sid [file]`; stdout is the counterpart's paste block, [bale] lines on stderr"
-
-[[wanted]]
-verb = "unlock"
-flags = ["--json"]
-needed_by = "`twine kill`'s `bale revert` hand line (Arc 1 session 2026-10-04-twine-kill-switch-002, the `aborted` closure): twine keys that one decision on the words of a stderr message, the HOLD refusal's prefix `branch bale/<sid> exists`; a reworded message would silently downgrade the hand line to the unlock line (fail-safe — bale would refuse again, naming the branch — but a code is the contract)"
-status = "absent in 0.4.45: on a refusal `bale unlock <sid> --reason aborted --json` exits 1 with nothing on stdout and `[bale] error: <msg>` on stderr, under --json too (cmd_unlock; cli-contract.md §14.5). Wanted: a refusal printed as a JSON line as well, with a reason code (for example `hold-branch`, `not-open`, `several-open`), as `bale apply --json` prints its *-refused outcomes. The change is bale-src's, carried as a slip by sitting 2026-10-05-continue-twine-002; twine's reading of the stderr text stays as 5b landed it until the pin carries the code"
+written_against = "0.4.49"
+note = "no trailer; _inline_lines indents an inlined line that starts '=== RELAY ' by two spaces, so a sentinel is a column-0 line. The carried paste stays under bale-0.4.45/: bale 0.4.45's apply printed it, and no 0.4.49 apply has been carried"
 
 # --- the vocabularies the transition table keys on (session 2026-10-03-twine-transitions-004) ---
 # Read by the probes twine-table-vocab and twine-apply-vocab (2026-10-03,
 # bale 0.4.45 at /home/chordsphere/bale; all eight schemas hashed to the
-# pins above), copied from their output, never recalled.
+# pins above), copied from their output, never recalled. Re-read at the pin
+# bump to 0.4.49 (session 2026-10-07-twine-pin-049-001) by the desk of
+# sitting 2026-10-06-continue-twine-002 from bale-src's context tarball
+# (context-bale-src.tar.gz, taken 2026-10-07 after the arc landed) — a
+# reading of the installed files' bytes, not a probe: the two schema homes
+# under the unchanged hashes above, format_apply_json's docstring in
+# bin/bale_report.py at its new line — and found unchanged on all three
+# axes, value for value, in bale's order.
 
 [[vocabulary]]
 axis = "telemetry-outcome"
@@ -302,9 +396,9 @@ pointer = "/properties/outcome"
 also_at = ["/properties/attempts/items/properties/outcome"]
 excluded = []
 read_by = ["transitions"]
-written_against = "0.4.45"
-read_at = ["twine-table-vocab"]
-note = "the outcome of each telemetry attempt, mirrored to the envelope. 'rejected' is written when apply exits non-zero through an error path (bin/bale_apply.py:3901-3905) and 'relay-refused' when bale relay does (bin/bale_relay.py:204-209); 'unlocked' is the registry-close outcome whatever command drove it, its closure_reason saying why"
+written_against = "0.4.49"
+read_at = ["twine-table-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49; the schema's hash unchanged since the probe) — not a probe"]
+note = "the outcome of each telemetry attempt, mirrored to the envelope. 'rejected' is written when apply exits non-zero through an error path (bin/bale_apply.py:3901-3905 at 0.4.45) and 'relay-refused' when bale relay does (bin/bale_relay.py:204-209 at 0.4.45); 'unlocked' is the registry-close outcome whatever command drove it, its closure_reason saying why"
 
 [[vocabulary]]
 axis = "closure-reason"
@@ -314,19 +408,19 @@ pointer = "/properties/attempts/items/properties/closure_reason"
 also_at = []
 excluded = ["null: the enum's tenth member, meaning the session is not closed; not a reason, so not a key"]
 read_by = ["kill", "transitions"]
-written_against = "0.4.45"
-read_at = ["twine-table-vocab"]
-note = "why a session closed, stamped on unlock and revert events; `bale unlock --help` lists the same nine as --reason choices, and an omitted reason infers 'closed-read-only' for an empty recorded scope, 'abandoned' otherwise. Two spell with underscores (no_response, malformed_response); bale's spelling is the key"
+written_against = "0.4.49"
+read_at = ["twine-table-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49; the schema's hash unchanged since the probe) — not a probe"]
+note = "why a session closed, stamped on unlock and revert events; `bale unlock --help` lists the same nine as --reason choices, and an omitted reason infers 'closed-read-only' for an empty recorded scope, 'abandoned' otherwise (the 0.4.49 recordings show both: the read-only session closed closed-read-only without a reason, the scoped one aborted with one). Two spell with underscores (no_response, malformed_response); bale's spelling is the key"
 
 [[vocabulary]]
 axis = "apply-outcome"
 values = ["applied", "held", "reverted", "bailout", "clarification", "dry-run", "scope-drift-refused", "required-check-refused", "base-drift-refused"]
 home = "bin/bale_report.py"
-home_sha256 = "7af2f7aca3082160dbf45849d91f28bac926c3d31ee7c1bc123f3fcba7e0759b"
-pointer = "format_apply_json docstring (line 2279), the `outcome` block"
+home_sha256 = "20871bc61408ef9a21a2d14789399463cf5ed9a92802b951f6a1438fe75b0c78"
+pointer = "format_apply_json docstring (line 3040), the `outcome` block"
 also_at = ["`bale apply --help`, the --json text"]
 excluded = []
 read_by = ["transitions"]
-written_against = "0.4.45"
-read_at = ["twine-apply-vocab"]
-note = "the outcome `bale apply --json` prints, one terminal reporting point each: exit 0 for applied, bailout, clarification and dry-run; exit 1 for held, reverted and the three *-refused (the *-refused also under --dry-run). Error paths print nothing on stdout and exit non-zero (telemetry 'rejected'). With pack's 'packed' bale calls these the whole outcome vocabulary; 'packed' is pack's, not apply's, and is not a key here"
+written_against = "0.4.49"
+read_at = ["twine-apply-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49: bin/bale_report.py at the sha256 above, `def format_apply_json` at line 3040, the same nine outcomes) — not a probe"]
+note = "the outcome `bale apply --json` prints, one terminal reporting point each: exit 0 for applied, bailout, clarification and dry-run; exit 1 for held, reverted and the three *-refused (the *-refused also under --dry-run — the scope-drift one recorded at 0.4.49). Error paths print nothing on stdout and exit non-zero (telemetry 'rejected'). With pack's 'packed' bale calls these the whole outcome vocabulary; 'packed' is pack's, not apply's, and is not a key here"

@@ -25,21 +25,32 @@ Since session 5a: the spend doubles — PRICES_DOUBLE (invented prices for
 invented model ids), usage_double (a twine usage record's tokens, never a
 provider's response) and SpendStateDouble (a temp state directory).
 
-Since session 5b: the unlock doubles. No `bale unlock --json` output has
-been recorded for any outcome (a read-only probe cannot record one: unlock
-mutates the registry), so every unlock answer a test sees is built here
-from the key contract `format_unlock_json`'s docstring owns (quoted in the
-session-5b brief §2.1) and named as a double: unlock_json_double (the one
-line), UnlockDouble (a run-seam double answering the unlock argv) and
-StubBale's `unlock_stdout`. A recording replaces them; it never joins them.
-And RealGroup: a real `setsid`-led process group for the kill to kill.
+Since session 5b: RealGroup, a real `setsid`-led process group for the
+kill to kill. (5b also built the unlock doubles — unlock_json_double,
+UnlockDouble, StubBale's double stdout — from format_unlock_json's
+docstring, because no `bale unlock --json` output had been recorded.)
 
 Since session 5c: the run-seam doubles accept the seam's `on_spawn` hook
-(and record it, never call it)."""
+(and record it, never call it).
+
+Since session 2026-10-07-twine-pin-049-001 (the pin at 0.4.49): the unlock
+doubles are gone, replaced by the recordings — six `bale unlock … --json`
+lines recorded at 0.4.49 (the `aborted` close, the HOLD-branch refusal,
+and four more outcomes; fixtures/README.md), read by `unlock_recording`
+and replayed by RecordedUnlock (the run-seam double that took UnlockDouble's
+place) and by StubBale. A recording replaces a double and never joins it
+(contract §14.7). Fixture names gained a third `<where>`, `scratch` (a
+throwaway repository), two roles (`bundle`, `goal`) and an outcome group
+(`+<outcome>[+<reason>]`) for an argv recorded with more than one
+outcome; FixturePlayer answers a grouped name only when the test selects
+the group. `carried_relpath` reads the version a carried paste belongs
+to from the manifest's format entry (`fixtures_version`), since a paste
+stays under the version that printed it."""
 
 from __future__ import annotations
 
 import io
+import json
 import os
 import re
 import shlex
@@ -53,16 +64,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from twine import REPO_ROOT
+from twine.bale import load_manifest
 from twine.cli import Context, main
 
 TWINE = REPO_ROOT / "bin" / "twine"
-PIN = "0.4.45"
+PIN = "0.4.49"
 
-# bale 0.4.45's three closed vocabularies, copied from the output of the
-# probes twine-table-vocab and twine-apply-vocab (2026-10-03, quoted in the
-# session-4 brief §2) — the oracle the consumption manifest's
+# bale's three closed vocabularies — the oracle the consumption manifest's
 # [[vocabulary]] entries and the transition table's bale axes are held to.
-# Never edited to match the manifest: a pin bump re-records them by probe.
+# Copied from the output of the probes twine-table-vocab and
+# twine-apply-vocab (2026-10-03, bale 0.4.45, quoted in the session-4 brief
+# §2); re-read at the pin bump to 0.4.49 by the desk of sitting
+# 2026-10-06-continue-twine-002 from bale-src's context tarball (the two
+# schema-homed axes under schema hashes unchanged since 0.4.45;
+# format_apply_json's docstring at bin/bale_report.py line 3040 with the
+# same nine outcomes) and found unchanged, value for value. Never edited to
+# match the manifest: a pin bump re-reads them and says where.
 BALE_VOCABULARIES: dict[str, list[str]] = {
     # schemas/telemetry-record.schema.json /properties/outcome (13)
     "telemetry-outcome": ["opened", "applied", "held", "reverted", "rejected",
@@ -153,17 +170,21 @@ class TempRoots:
 
 class Role(str):
     """A per-run argv value's role, standing in for the value in a fixture
-    name (`sid`, `stdin`, `tarball`). A Role is its own `_` group: it is
-    never joined to the flag before it, because it is not that flag's
-    value."""
+    name (`sid`, `stdin`, `file`, `tarball`, `bundle`, `goal`). A Role is
+    its own `_` group: it is never joined to the flag before it, because
+    it is not that flag's value."""
 
 
 def fixture_key(argv: list[str]) -> list[str]:
     """The argv after `bale`, normalized for naming a fixture: the values
     that differ per run are replaced by their roles (fixtures/README.md,
-    "Per-run values"). `relay <sid> -` keys as relay, sid, stdin (a file
-    argument as `file`); every positional after `apply` is the tarball.
-    Any other argv is its own key."""
+    "Per-run values"), one rule per verb. `relay <sid> …` keys as relay,
+    sid, then `stdin` for `-` and `file` for any other positional; every
+    positional after `apply` is the tarball; a positional right after
+    `unlock` is the sid (session 5b); every positional after `open` is the
+    bundle and the positional right after `pack` is the goal (session
+    2026-10-07-twine-pin-049-001) — a flag's value (`--slug ro`, `--sid
+    <sid>` on stats) stays. Any other argv is its own key."""
     argv = [str(a) for a in argv]
     if argv[:1] == ["relay"] and len(argv) >= 2:
         key: list[str] = ["relay", Role("sid")]
@@ -181,22 +202,35 @@ def fixture_key(argv: list[str]) -> list[str]:
     if argv[:1] == ["unlock"] and len(argv) >= 2 and not argv[1].startswith("-"):
         # `unlock <sid> --reason aborted --json` (session 5b): the sid is per run.
         return ["unlock", Role("sid"), *argv[2:]]
+    if argv[:1] == ["open"]:
+        # `open [--check] <bundle> --json`: the bundle file is per run.
+        return ["open"] + [t if t.startswith("-") else Role("bundle")
+                           for t in argv[1:]]
+    if argv[:1] == ["pack"] and len(argv) >= 2 and not argv[1].startswith("-"):
+        # `pack <goal> --slug ro …`: the goal is per run; the flags' values stay.
+        return ["pack", Role("goal"), *argv[2:]]
     return argv
 
 
-def fixture_relpath(argv: list[str], cwd: str) -> str:
-    """The fixtures/ path a recorded bale output lands at, from the argv
-    after `bale` and where it ran — fixtures/README.md's naming rule:
+# The directory a recording ran in, as a test names it to fixture_relpath
+# and FixturePlayer, and the `<where>` it lands under (fixtures/README.md).
+WHERE = {"repo": "twine-src", "scratch": "scratch"}
+WHERE_ANYWHERE = "anywhere"
+# The outcome group's separator in a fixture name: between the normalized
+# name and the extension, `+<outcome>` and, where that still collides,
+# `+<reason>` (fixtures/README.md, "Outcome groups").
+GROUP_SEP = "+"
 
-      fixtures/bale-<pin>/<where>/<verb>_<flag[-value…]>[_…].<ext>
 
-    `where` is `twine-src` for cwd "repo" and `anywhere` otherwise. The
-    argv is normalized first (fixture_key: a per-run value becomes its
-    Role); each flag is joined to the values that follow it with `-`, a
-    Role is a group of its own, the groups are joined with `_`; `.json`
-    when --json is among the flags, else `.txt`.
-    """
-    where = "twine-src" if cwd == "repo" else "anywhere"
+def fixture_where(cwd: str) -> str:
+    return WHERE.get(cwd, WHERE_ANYWHERE)
+
+
+def fixture_stem(argv: list[str]) -> tuple[str, str]:
+    """The normalized name and extension of the recording of `argv`: each
+    flag joined to the values that follow it with `-`, a Role a group of
+    its own, the groups joined with `_`; `.json` when --json is among the
+    flags, else `.txt`."""
     argv = list(argv)
     key = argv if any(isinstance(t, Role) for t in argv) else fixture_key(argv)
     groups: list[str] = []
@@ -205,8 +239,33 @@ def fixture_relpath(argv: list[str], cwd: str) -> str:
             groups.append(str(token))
         else:
             groups[-1] += "-" + token
-    ext = ".json" if "--json" in key else ".txt"
-    return f"fixtures/bale-{PIN}/{where}/{'_'.join(groups)}{ext}"
+    return "_".join(groups), (".json" if "--json" in key else ".txt")
+
+
+def fixture_relpath(argv: list[str], cwd: str, group: str | None = None) -> str:
+    """The fixtures/ path a recorded bale output lands at, from the argv
+    after `bale`, where it ran and (for an argv recorded with more than one
+    outcome) its outcome group — fixtures/README.md's naming rule:
+
+      fixtures/bale-<pin>/<where>/<verb>_<flag[-value…]>[_…][+<group>].<ext>
+
+    `where` is `twine-src` for cwd "repo", `scratch` for cwd "scratch"
+    (the throwaway repository a probe recorded in) and `anywhere`
+    otherwise. The argv is normalized first (fixture_key: a per-run value
+    becomes its Role; fixture_stem spells the groups). `group` is the
+    outcome group, `<outcome>` or `<outcome>+<reason>`, None for an argv
+    recorded once.
+    """
+    stem, ext = fixture_stem(argv)
+    tail = f"{GROUP_SEP}{group}" if group else ""
+    return f"fixtures/bale-{PIN}/{fixture_where(cwd)}/{stem}{tail}{ext}"
+
+
+def split_group(name: str) -> tuple[str, str | None]:
+    """A fixture file name without its extension, split into the
+    normalized name and its outcome group (None when plain)."""
+    stem, sep, group = name.partition(GROUP_SEP)
+    return stem, (group if sep else None)
 
 
 # A fixtures/README.md row for the stdout of a command: file, command, ran
@@ -247,12 +306,32 @@ def emission_relpath(tool: str, argv: list[str]) -> str:
     return f"fixtures/bale-{PIN}/{tool}/{'_'.join(groups)}.txt"
 
 
-def carried_relpath(kind: str, identity: str, to: str | None = None) -> str:
-    """fixtures/bale-<pin>/carried/<kind>_<identity>[_to-<addressee>].txt
+def fixtures_version(kind: str) -> str:
+    """The bale version that emitted a format's fixtures, as the
+    consumption manifest's format entry for `kind` names it
+    (`fixtures_version`): the pin for a crafter emission (re-recorded at
+    every pin), and the version that printed a carried paste, which stays
+    under that version's directory across a pin bump. Raises for a kind
+    with no entry or no version: a paste's home is never guessed."""
+    for s in load_manifest().surfaces:
+        if s.get("kind") == "format" and s.get("format") == kind:
+            version = s.get("fixtures_version")
+            if not isinstance(version, str) or not version.strip():
+                raise ValueError(f"format entry {kind!r} names no fixtures_version")
+            return version
+    raise ValueError(f"no format entry for {kind!r} in the consumption manifest")
+
+
+def carried_relpath(kind: str, identity: str, to: str | None = None,
+                    version: str | None = None) -> str:
+    """fixtures/bale-<version>/carried/<kind>_<identity>[_to-<addressee>].txt
     for a carried paste: the block kind, the slug or sid its sentinel
-    names, and for a relay block its addressee."""
+    names, and for a relay block its addressee. `version` is the bale that
+    printed the paste — by default the one the manifest's format entry for
+    `kind` names (fixtures_version), never the pin by assumption."""
     tail = f"_to-{to}" if to else ""
-    return f"fixtures/bale-{PIN}/carried/{kind}_{identity}{tail}.txt"
+    version = fixtures_version(kind) if version is None else version
+    return f"fixtures/bale-{version}/carried/{kind}_{identity}{tail}.txt"
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +346,15 @@ SCAFFOLD_WHAT = "TODO(worker) — what this asks, in one line."
 SCAFFOLD_WHY = "TODO(worker) — the gap this fills, in one line."
 SCAFFOLD_BODY_OPEN = "probe() {\n"
 SCAFFOLD_BODY_CLOSE = "\n}\n"
+# Where the 0.4.49 scaffold's clipboard tail begins: after the
+# `emit_probe_block` call, a comment block and the shell that pipes the
+# block into `bale clipboard --block "probe block"` when a `bale` is on
+# PATH (two `[clipboard]` notices on stderr when none is). The tail is a
+# fact about the installed crafter (contract §10.3); a test's probe must
+# never reach a bale (T8), so the filled specimen ends before it unless a
+# test keeps it on purpose and controls PATH.
+SCAFFOLD_TAIL_OPEN = "\n# Clipboard copy (TARBALL.md 4.3)"
+SCAFFOLD_TAIL_NOTICE = "[clipboard] "
 
 
 def scaffold() -> str:
@@ -276,10 +364,14 @@ def scaffold() -> str:
 
 def filled_probe(body: str = 'echo "--- section: shell ---"\necho "bash ok"',
                  what: str = "what bash reports about itself.",
-                 why: str = "a carry-probe test needs a filled scaffold.") -> str:
+                 why: str = "a carry-probe test needs a filled scaffold.",
+                 clipboard_tail: bool = False) -> str:
     """The scaffold with its two header placeholders replaced and the
     probe() body replaced by `body` (indented two spaces) — the filling
-    a worker does, done mechanically. Every TODO(worker) is gone."""
+    a worker does, done mechanically. Every TODO(worker) is gone. The
+    scaffold's clipboard tail (SCAFFOLD_TAIL_OPEN) is cut unless
+    `clipboard_tail` is True: it would hand the block to whatever `bale`
+    is on PATH, which no test's probe may reach."""
     text = scaffold()
     for placeholder in (SCAFFOLD_WHAT, SCAFFOLD_WHY):
         if text.count(placeholder) != 1:
@@ -291,6 +383,11 @@ def filled_probe(body: str = 'echo "--- section: shell ---"\necho "bash ok"',
     text = text[:start] + indented + text[end:]
     if "TODO(worker)" in text:
         raise AssertionError("filled probe still carries TODO(worker)")
+    if not clipboard_tail:
+        if text.count(SCAFFOLD_TAIL_OPEN) != 1:
+            raise AssertionError("scaffold drifted: the clipboard tail is not where "
+                                 "the 0.4.49 recording has it")
+        text = text[:text.index(SCAFFOLD_TAIL_OPEN)]   # ends at `emit_probe_block\n`
     return text
 
 
@@ -362,24 +459,74 @@ class RecordingRunner:
 
 class FixturePlayer:
     """A run-seam double that answers a `bale …` argv from its recorded
-    fixture: the path is fixture_relpath(argv after `bale`, where) — the
-    argv normalized, so a per-run sid or tarball path finds its one
-    recording — with `where` "repo" when cwd is `repo_root`.
+    fixture: the path is fixture_relpath(argv after `bale`, where, group)
+    — the argv normalized, so a per-run sid or tarball path finds its one
+    recording — with `where` "repo" when cwd is `repo_root`, "scratch"
+    when cwd is `scratch_root` (the directory a test names as the
+    throwaway repository the scratch recordings were made in), else
+    "anywhere".
+
+    An argv recorded with more than one outcome has no plain file, only
+    grouped ones (`+<outcome>[+<reason>]`, fixtures/README.md): the player
+    answers it only when `select` names the group for that normalized
+    name (e.g. {"apply_--dry-run_--json_tarball": "dry-run"}), and
+    otherwise refuses naming the candidates — which outcome a test
+    replays is visible where it is used, never the player's pick.
 
     The answer is the fixture's bytes on stdout, the exit code its
     fixtures/README.md row records, and empty stderr (no row records
-    stderr yet, and twine only surfaces it). A row whose exit is
+    stderr byte-exact, and twine only surfaces it). A row whose exit is
     `unrecorded` is refused unless the test names the code it assumes in
     `assumed_exits` (fixtures/ path -> code), so an assumption is always
-    visible where it is made. An argv with no fixture raises — a test
-    must never reach a live bale."""
+    visible where it is made (no 0.4.49 row lacks its exit; the rule
+    stays). An argv with no fixture raises — a test must never reach a
+    live bale."""
 
     def __init__(self, repo_root: Path,
-                 assumed_exits: dict[str, int] | None = None) -> None:
+                 assumed_exits: dict[str, int] | None = None,
+                 scratch_root: Path | None = None,
+                 select: dict[str, str] | None = None) -> None:
         self.repo_root = Path(repo_root).resolve()
+        self.scratch_root = None if scratch_root is None else Path(scratch_root).resolve()
         self.calls: list[list[str]] = []
         self.exits = recorded_exits()
         self.assumed_exits = dict(assumed_exits or {})
+        self.select = dict(select or {})
+
+    def where(self, cwd) -> str:
+        if cwd is not None:
+            resolved = Path(cwd).resolve()
+            if resolved == self.repo_root:
+                return "repo"
+            if self.scratch_root is not None and resolved == self.scratch_root:
+                return "scratch"
+        return "anywhere"
+
+    def relpath(self, argv: list[str], where: str) -> str:
+        """The fixture a bale argv (after `bale`) names in `where`: the
+        plain name when recorded once, else the selected group's."""
+        stem, ext = fixture_stem(argv)
+        plain = fixture_relpath(argv, where)
+        directory = (REPO_ROOT / plain).parent
+        grouped = sorted(p.name for p in directory.glob(f"{stem}{GROUP_SEP}*{ext}")
+                         ) if directory.is_dir() else []
+        if (REPO_ROOT / plain).is_file():
+            if grouped:
+                raise AssertionError(f"{plain} exists beside grouped recordings "
+                                     f"{grouped}: the naming rule allows one or the other")
+            return plain
+        if not grouped:
+            raise AssertionError(f"no recorded fixture for bale {argv} at {plain}")
+        group = self.select.get(stem)
+        if group is None:
+            raise AssertionError(
+                f"bale {argv} is recorded with more than one outcome in {directory.name}/ "
+                f"({', '.join(grouped)}); name the group in select={{{stem!r}: ...}}")
+        rel = fixture_relpath(argv, where, group)
+        if not (REPO_ROOT / rel).is_file():
+            raise AssertionError(f"no recorded fixture for bale {argv} with group "
+                                 f"{group!r} at {rel} (recorded: {', '.join(grouped)})")
+        return rel
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
                  stdout_cap=None, on_spawn=None):
@@ -388,12 +535,8 @@ class FixturePlayer:
         self.calls.append(argv)
         if not argv or Path(argv[0]).name != "bale":
             raise AssertionError(f"FixturePlayer answers bale argvs only: {argv}")
-        where = ("repo" if cwd is not None
-                 and Path(cwd).resolve() == self.repo_root else "anywhere")
-        rel = fixture_relpath(argv[1:], where)
+        rel = self.relpath(argv[1:], self.where(cwd))
         path = REPO_ROOT / rel
-        if not path.is_file():
-            raise AssertionError(f"no recorded fixture for {argv} at {rel}")
         code = self.exits.get(rel)
         if code is None:
             raise AssertionError(f"{rel} has no fixtures/README.md row")
@@ -411,11 +554,12 @@ class StubBale:
     """A double, not bale: a temp install root whose `bin/bale` is a
     bash script this class writes, and `bin/VERSION` at the pin. The
     script records its argv, cwd and (for `relay`) stdin under `record`,
-    then replays the bytes of `relay_stdout`, `apply_stdout` or (session
-    5b, a double built by unlock_json_double) `unlock_stdout` on stdout,
-    `stderr` on stderr, and exits `exit_code`. It lets the CLI run end to
-    end as a subprocess (`--bale-root`) with no bale anywhere; the bytes
-    it replays are a recorded fixture or a double the test names."""
+    then replays the bytes of `relay_stdout`, `apply_stdout` or
+    `unlock_stdout` (since the pin at 0.4.49, a recording's file —
+    unlock_recording(...).path) on stdout, `stderr` on stderr, and exits
+    `exit_code`. It lets the CLI run end to end as a subprocess
+    (`--bale-root`) with no bale anywhere; the bytes it replays are a
+    recorded fixture, or bytes the test names as not bale's."""
 
     def __init__(self, relay_stdout: Path | None = None,
                  apply_stdout: Path | None = None, exit_code: int = 0,
@@ -542,57 +686,107 @@ class SpendStateDouble:
 
 
 # ---------------------------------------------------------------------------
-# Unlock doubles (Arc 1 session 5b). No `bale unlock --json` output has been
-# recorded: every answer below is built from format_unlock_json's key
-# contract (bale 0.4.45, bin/bale_report.py, quoted verbatim in the
-# session-5b brief §2.1) and is a double, named as one. The two recordings
-# queued at sitting continue-twine-006 replace them.
+# The unlock recordings (session 2026-10-07-twine-pin-049-001, the pin at
+# 0.4.49). Six `bale unlock … --json` lines were recorded on 2026-10-07 —
+# four in a throwaway repository, two in ~/twine-src (fixtures/README.md,
+# "bale 0.4.49") — and they replace session 5b's doubles, which were built
+# from format_unlock_json's docstring because nothing had been recorded.
+# Every unlock answer a test sees now is one of these recordings' bytes, or
+# bytes a test names as not bale's at all (contract §14.7).
 # ---------------------------------------------------------------------------
 
-# format_unlock_json's nine keys, in the order its body builds them.
+# format_unlock_json's keys at 0.4.49, in the order the recorded lines carry
+# them: the nine of 0.4.45 and the three bale 0.4.47 added for the refusal
+# line (`reason`, `message`, `open_sessions`) — present on every outcome,
+# null where they do not apply.
 UNLOCK_KEYS = ("outcome", "sid", "log", "closure_reason", "session_dir_wiped",
-               "branch_preserved", "telemetry", "debris", "sweep")
+               "branch_preserved", "telemetry", "debris", "sweep", "reason",
+               "message", "open_sessions")
+UNLOCK_REFUSED = "unlock-refused"
+# The sids the recordings name: the scoped session the scratch probe closed
+# `aborted` (and whose HOLD refusal it recorded first), the read-only one it
+# closed without a reason, and the sid that was never open.
+UNLOCK_RECORDED_SID = "2026-10-07-sc-002"
+UNLOCK_RECORDED_READ_ONLY_SID = "2026-10-07-ro-001"
+UNLOCK_RECORDED_ABSENT_SID = "no-such-sid-twine-049"
+
+# Each recording by the name the tests call it: where it ran, the argv as
+# recorded (per-run values as their roles) and its outcome group.
+UNLOCK_RECORDINGS: dict[str, tuple[str, list[str], str | None]] = {
+    "aborted": ("scratch", ["unlock", Role("sid"), "--reason", "aborted", "--json"], None),
+    "hold-branch": ("scratch", ["unlock", Role("sid"), "--json"], "unlock-refused+hold-branch"),
+    "closed-read-only": ("scratch", ["unlock", Role("sid"), "--json"], "unlocked"),
+    "no-op": ("scratch", ["unlock", "--json"], None),
+    "not-open": ("repo", ["unlock", Role("sid"), "--json"], "unlock-refused+not-open"),
+    "integration-json": ("repo", ["unlock", "--integration", "--json"], None),
+}
 
 
-def unlock_json_double(sid: str, /, **overrides) -> bytes:
-    """A `bale unlock <sid> --reason aborted --json` stdout line, as a double:
-    the nine keys of the key contract in its order, `json.dumps` with
-    default separators, one line, LF — the close of a session (`outcome`
-    "unlocked", exit 0). `overrides` replaces values (a `no-op`, another
-    sid, another reason) to prove what twine refuses."""
-    import json as _json
-    obj = {"outcome": "unlocked", "sid": sid,
-           "log": f"/double/repo/.bale/logs/{sid}.log",
-           "closure_reason": "aborted", "session_dir_wiped": True,
-           "branch_preserved": False,
-           "telemetry": f"claude/telemetry/{sid}.json", "debris": None,
-           "sweep": None}
-    for key, value in overrides.items():
-        if key not in obj:
-            raise KeyError(f"{key!r} is not in format_unlock_json's key contract")
-        obj[key] = value
-    assert tuple(obj) == UNLOCK_KEYS
-    return (_json.dumps(obj) + "\n").encode("utf-8")
+@dataclass(frozen=True)
+class Recording:
+    """One recorded bale output as a test replays it: its fixtures/ path,
+    stdout (the file's bytes), the exit its README row records, stderr
+    (empty, or the one derivation below) and the line parsed."""
+
+    relpath: str
+    stdout: bytes
+    exit_code: int
+    stderr: bytes
+    line: dict
+
+    @property
+    def path(self) -> Path:
+        return REPO_ROOT / self.relpath
 
 
-def unlock_refusal_double(message: str) -> bytes:
-    """bale's fail() on stderr, as a double: `[bale] error: <msg>` (bin/bale
-    lines 517-543); stdout is empty and the exit is 1."""
-    return f"[bale] error: {message}\n".encode("utf-8")
+def unlock_recording(name: str) -> Recording:
+    """The 0.4.49 recording of `bale unlock` named `name` (a key of
+    UNLOCK_RECORDINGS). stderr is empty except for an `unlock-refused`
+    line, whose stderr is DERIVED from the recording: `[bale] error: ` +
+    the line's own `message` + LF — the probes show that very line as the
+    first of each refusal's stderr, with the message the JSON carries
+    (fixtures/README.md, "stderr, and the one derivation"); it is a
+    derivation, not a recorded byte string, and it is the only stderr any
+    test replays from a fixture."""
+    where, argv, group = UNLOCK_RECORDINGS[name]
+    rel = fixture_relpath(argv, where, group)
+    path = REPO_ROOT / rel
+    if not path.is_file():
+        raise AssertionError(f"unlock recording {name!r} missing at {rel}")
+    exits = recorded_exits()
+    if rel not in exits or exits[rel] == UNRECORDED:
+        raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
+    stdout = path.read_bytes()
+    line = json.loads(stdout)
+    stderr = b""
+    if line.get("outcome") == UNLOCK_REFUSED:
+        stderr = f"[bale] error: {line['message']}\n".encode("utf-8")
+    return Recording(rel, stdout, int(exits[rel]), stderr, line)
 
 
-class UnlockDouble:
-    """A run-seam double for the closure: records every call and answers it
-    with the given stdout, stderr and exit (default: the close of the sid
-    the argv names, exit 0). `timed_out` answers as the seam does for a call
-    it killed. Never bale: it answers only the one unlock argv shape and
-    fails the test on anything else."""
+class RecordedUnlock:
+    """A run-seam double for the closure that answers twine's one unlock
+    argv with a RECORDING's bytes: by default the `aborted` close
+    (unlock_recording("aborted") — the session it names is
+    UNLOCK_RECORDED_SID, so a test that wants the close to be ok kills that
+    sid), else the recording named by `recording`. Records every call.
 
-    def __init__(self, stdout: bytes | None = None, stderr: bytes = b"",
-                 exit_code: int | None = 0, timed_out: bool = False) -> None:
+    The refusals were recorded under `unlock <sid> --json`, without
+    `--reason aborted`; replaying one for twine's argv assumes bale refuses
+    before the reason matters — the assumption is this double's, named
+    here and in fixtures/README.md. `stdout` replaces the recording's
+    bytes with bytes that are NOT bale's (an empty stdout, a bare word) to
+    prove what twine refuses; `timed_out` answers as the seam does for a
+    call it killed. It answers only the unlock argv shape and fails the
+    test on anything else."""
+
+    def __init__(self, recording: str | Recording = "aborted", *,
+                 stdout: bytes | None = None, timed_out: bool = False) -> None:
         self.calls: list[dict] = []
-        self.stdout, self.stderr = stdout, stderr
-        self.exit_code, self.timed_out = exit_code, timed_out
+        self.recording = (unlock_recording(recording) if isinstance(recording, str)
+                          else recording)
+        self.stdout = stdout
+        self.timed_out = timed_out
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
                  stdout_cap=None, on_spawn=None):
@@ -602,14 +796,13 @@ class UnlockDouble:
                            "timeout": timeout, "env": env, "stdout_cap": stdout_cap,
                            "on_spawn": on_spawn})
         if Path(argv[0]).name != "bale" or argv[1:2] != ["unlock"]:
-            raise AssertionError(f"UnlockDouble answers the unlock argv only: {argv}")
-        stdout = (unlock_json_double(argv[2]) if self.stdout is None
-                  else self.stdout)
+            raise AssertionError(f"RecordedUnlock answers the unlock argv only: {argv}")
         if self.timed_out:
             return RunResult(argv=tuple(argv), exit_code=None, stdout=b"",
-                             stderr=self.stderr, timed_out=True)
-        return RunResult(argv=tuple(argv), exit_code=self.exit_code, stdout=stdout,
-                         stderr=self.stderr)
+                             stderr=self.recording.stderr, timed_out=True)
+        stdout = self.recording.stdout if self.stdout is None else self.stdout
+        return RunResult(argv=tuple(argv), exit_code=self.recording.exit_code,
+                         stdout=stdout, stderr=self.recording.stderr)
 
 
 class RealGroup:
