@@ -68,7 +68,7 @@ Sections:
   3. The running record               (~line 328)
   4. The process-level kill           (~line 719)
   5. The aborted closure              (~line 951)
-  6. The kill, end to end             (~line 1101)
+  6. The kill, end to end             (~line 1133)
 """
 
 from __future__ import annotations
@@ -954,13 +954,18 @@ def _await_members_gone(pgid: int, timeout: float, proc_root: Path) -> list[int]
 
 # bale 0.4.49's refusal when the session reached HOLD, as recorded
 # (fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json,
-# its `message`, also printed as `[bale] error: <message>` on stderr):
-# `branch bale/<sid> exists — this session reached HOLD. Use `bale revert
-# <sid>` …`. Twine reads only this prefix of bale's stderr, to hand the
-# operator bale's own remedy; every other refusal is surfaced verbatim. The
-# recorded line also carries the reason code `hold-branch` (bale 0.4.47);
-# keying on it instead of the text is the next session's.
-HOLD_BRANCH_REFUSAL = "branch bale/{sid} exists"
+# exit 1): under `--json` bale prints one line on stdout whose `outcome` is
+# `unlock-refused` and whose `reason` is the code `hold-branch`, one of the
+# closed set the unlock surface of share/bale-consumption.toml lists (bale
+# 0.4.47). The hand line keys on that code (session
+# 2026-10-07-twine-kill-reason-002): bale's own remedy, `bale revert <sid>`,
+# exactly when the line twine read says both; every other reason keeps the
+# unlock line. Twine reads no stderr text: bale's stderr is captured,
+# reported and passed through as evidence, never as a key. twine drives no
+# bale but the pin (Executable.drive_refusal), and the pin prints the line on
+# every refusal, so there is no text fallback.
+UNLOCK_REFUSED_OUTCOME = "unlock-refused"
+HOLD_BRANCH_REASON = "hold-branch"
 
 
 @dataclass
@@ -993,14 +998,21 @@ class Closure:
 
     @property
     def hold_branch(self) -> bool:
-        return HOLD_BRANCH_REFUSAL.format(sid=self.sid) in self.stderr
+        """True exactly when the unlock line twine read (`unlock`) says
+        `outcome` "unlock-refused" with `reason` "hold-branch": bale refused
+        because the session reached HOLD. False for any other line and for
+        no line, whatever bale wrote on stderr."""
+        return (self.unlock is not None
+                and self.unlock.get("outcome") == UNLOCK_REFUSED_OUTCOME
+                and self.unlock.get("reason") == HOLD_BRANCH_REASON)
 
     @property
     def operator_line(self) -> str | None:
         """The hand line when the closure did not land: bale's own remedy,
-        `bale revert <sid>`, when bale refused because the session reached
-        HOLD (revert touches git, so it is the operator's, never twine's);
-        otherwise the one unlock line. None when it landed."""
+        `bale revert <sid>`, when the line bale printed refused with the
+        reason code `hold-branch` (`hold_branch`; revert touches git, so it
+        is the operator's, never twine's); otherwise — any other reason, or
+        no line — the one unlock line. None when it landed."""
         if self.ok:
             return None
         return bale.revert_line(self.sid) if self.hold_branch else bale.unlock_line(self.sid)
@@ -1024,10 +1036,12 @@ def close_aborted(run: process.Runner, executable: bale.Executable, sid: str, *,
     has checked that no member of the session's process group is alive.
 
     Shared by `twine kill` and, when it observes an abort request, the Arc
-    2 loop. Never raises for anything bale does: a refusal (exit 1, nothing
-    on stdout, the reason on stderr), a timeout, or a line that is not the
-    close it asked for is a Closure whose failures name it. A bale that
-    cannot be started at all is a failure too (`ran` false)."""
+    2 loop. Never raises for anything bale does: a refusal (exit 1 and one
+    `unlock-refused` line on stdout whose `reason` code says why — the
+    failures name the code), a timeout, or a line that is not the close it
+    asked for is a Closure whose failures name it. bale's stderr is kept and
+    quoted as evidence, never read for a decision. A bale that cannot be
+    started at all is a failure too (`ran` false)."""
     closure = Closure(sid=sid)
     refusal = executable.drive_refusal
     if refusal is not None or executable.path is None:
@@ -1060,10 +1074,12 @@ def close_aborted(run: process.Runner, executable: bale.Executable, sid: str, *,
         closure.failures.append(f"bale's stdout passed {UNLOCK_STDOUT_CAP_BYTES} "
                                 "bytes and it was stopped")
     if not result.killed and result.exit_code != 0:
-        refusal = closure.stderr.strip().splitlines()
+        # Evidence only: the exit entry quotes stderr's last line as bale
+        # wrote it; the reason code, when there is one, is the line's.
+        said = closure.stderr.strip().splitlines()
         closure.failures.append(
             f"bale exited {result.exit_code}"
-            + (f": {refusal[-1]}" if refusal else " with nothing on stderr"))
+            + (f": {said[-1]}" if said else " with nothing on stderr"))
     if not result.killed:
         _read_unlock_line(closure)
     return closure
@@ -1071,9 +1087,15 @@ def close_aborted(run: process.Runner, executable: bale.Executable, sid: str, *,
 
 def _read_unlock_line(closure: Closure) -> None:
     """bale's stdout must be one JSON object saying this sid was unlocked
-    with closure reason `aborted`; whatever it said instead is named. On a
-    refusal stdout is empty (bale's fail()), which is said only when bale
-    exited 0 — a refusal's reason is already its exit and stderr."""
+    with closure reason `aborted`; whatever it said instead is named. A
+    refusal is such a line too (bale 0.4.47 on): its outcome
+    `unlock-refused` is named with the line's `reason` code beside it.
+
+    A stdout that is not one JSON object is named, save one case: an empty
+    stdout beside a non-zero exit, where the exit entry already says bale
+    failed and there is no line to read. The pin prints its line on every
+    refusal, so that is a bale that stopped before writing one — not the
+    refusal, which is read like any other line."""
     try:
         obj = json.loads(closure.stdout)
     except (ValueError, RecursionError):
@@ -1089,8 +1111,15 @@ def _read_unlock_line(closure: Closure) -> None:
     expected = (("outcome", UNLOCKED_OUTCOME), ("sid", closure.sid),
                 ("closure_reason", bale.UNLOCK_REASON))
     for key, want in expected:
-        if obj.get(key) != want:
-            closure.failures.append(f"bale reported {key} {obj.get(key)!r}, not {want!r}")
+        got = obj.get(key)
+        if got == want:
+            continue
+        if key == "outcome" and obj.get("reason") is not None:
+            # The code is named where the outcome is: a refusal's why.
+            closure.failures.append(f"bale reported outcome {got!r} "
+                                    f"(reason {obj['reason']!r}), not {want!r}")
+        else:
+            closure.failures.append(f"bale reported {key} {got!r}, not {want!r}")
 
 
 def _text(data: bytes) -> str:
@@ -1164,7 +1193,8 @@ class KillReport:
         is left to do. Members alive: the signal to every group not known
         to be gone, the runtime's first then record order — `kill -KILL --
         -<pgid> -<pgid> …`. The closure refused or not reached: bale's own
-        remedy for a HOLD branch, else the unlock line. None when no one
+        remedy when its line refused with the reason code `hold-branch`
+        (Closure.hold_branch), else the unlock line. None when no one
         line finishes it safely — a malformed running record names no
         group, and a close must wait until the runtime is found and stopped
         (the reason says so) — and when the kill was refused before anything
@@ -1194,9 +1224,10 @@ class KillReport:
         if self.closure is not None:
             out.extend(self.closure.failures)
             if self.closure.hold_branch:
-                out.append(f"bale refused because the session reached HOLD; its "
-                           f"remedy, `{bale.revert_line(self.sid)}`, touches git and "
-                           "is the operator's — twine never runs it")
+                out.append(f"bale refused because the session reached HOLD (reason "
+                           f"{HOLD_BRANCH_REASON!r}); its remedy, "
+                           f"`{bale.revert_line(self.sid)}`, touches git and is the "
+                           "operator's — twine never runs it")
         return out
 
     @property

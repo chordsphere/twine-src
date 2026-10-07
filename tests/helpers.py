@@ -45,7 +45,14 @@ throwaway repository), two roles (`bundle`, `goal`) and an outcome group
 outcome; FixturePlayer answers a grouped name only when the test selects
 the group. `carried_relpath` reads the version a carried paste belongs
 to from the manifest's format entry (`fixtures_version`), since a paste
-stays under the version that printed it."""
+stays under the version that printed it.
+
+Since session 2026-10-07-twine-kill-reason-002: no recording carries a
+stderr. twine's kill keys its hand line on the refusal line's `reason`
+code, not on stderr text, so `unlock_recording` answers stderr empty for
+every recording and derives none; a test that proves stderr passes through
+feeds bytes it names as not bale's (RecordedUnlock's and StubBale's
+`stderr=`)."""
 
 from __future__ import annotations
 
@@ -726,7 +733,8 @@ UNLOCK_RECORDINGS: dict[str, tuple[str, list[str], str | None]] = {
 class Recording:
     """One recorded bale output as a test replays it: its fixtures/ path,
     stdout (the file's bytes), the exit its README row records, stderr
-    (empty, or the one derivation below) and the line parsed."""
+    (empty: no row records stderr, and none is derived) and the line
+    parsed."""
 
     relpath: str
     stdout: bytes
@@ -741,13 +749,9 @@ class Recording:
 
 def unlock_recording(name: str) -> Recording:
     """The 0.4.49 recording of `bale unlock` named `name` (a key of
-    UNLOCK_RECORDINGS). stderr is empty except for an `unlock-refused`
-    line, whose stderr is DERIVED from the recording: `[bale] error: ` +
-    the line's own `message` + LF — the probes show that very line as the
-    first of each refusal's stderr, with the message the JSON carries
-    (fixtures/README.md, "stderr, and the one derivation"); it is a
-    derivation, not a recorded byte string, and it is the only stderr any
-    test replays from a fixture."""
+    UNLOCK_RECORDINGS). stderr is b"" for every recording, refusals
+    included: nothing was recorded byte-exact and nothing is derived, and
+    twine's kill reads the refusal by its line's `reason`, not by stderr."""
     where, argv, group = UNLOCK_RECORDINGS[name]
     rel = fixture_relpath(argv, where, group)
     path = REPO_ROOT / rel
@@ -758,10 +762,7 @@ def unlock_recording(name: str) -> Recording:
         raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
     stdout = path.read_bytes()
     line = json.loads(stdout)
-    stderr = b""
-    if line.get("outcome") == UNLOCK_REFUSED:
-        stderr = f"[bale] error: {line['message']}\n".encode("utf-8")
-    return Recording(rel, stdout, int(exits[rel]), stderr, line)
+    return Recording(rel, stdout, int(exits[rel]), b"", line)
 
 
 class RecordedUnlock:
@@ -776,16 +777,20 @@ class RecordedUnlock:
     before the reason matters — the assumption is this double's, named
     here and in fixtures/README.md. `stdout` replaces the recording's
     bytes with bytes that are NOT bale's (an empty stdout, a bare word) to
-    prove what twine refuses; `timed_out` answers as the seam does for a
-    call it killed. It answers only the unlock argv shape and fails the
-    test on anything else."""
+    prove what twine refuses; `stderr` likewise answers bytes that are NOT
+    bale's in place of the recording's empty stderr, to prove that stderr
+    passes through and decides nothing; `timed_out` answers as the seam
+    does for a call it killed. It answers only the unlock argv shape and
+    fails the test on anything else."""
 
     def __init__(self, recording: str | Recording = "aborted", *,
-                 stdout: bytes | None = None, timed_out: bool = False) -> None:
+                 stdout: bytes | None = None, stderr: bytes | None = None,
+                 timed_out: bool = False) -> None:
         self.calls: list[dict] = []
         self.recording = (unlock_recording(recording) if isinstance(recording, str)
                           else recording)
         self.stdout = stdout
+        self.stderr = stderr
         self.timed_out = timed_out
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
@@ -797,12 +802,13 @@ class RecordedUnlock:
                            "on_spawn": on_spawn})
         if Path(argv[0]).name != "bale" or argv[1:2] != ["unlock"]:
             raise AssertionError(f"RecordedUnlock answers the unlock argv only: {argv}")
+        stderr = self.recording.stderr if self.stderr is None else self.stderr
         if self.timed_out:
             return RunResult(argv=tuple(argv), exit_code=None, stdout=b"",
-                             stderr=self.recording.stderr, timed_out=True)
+                             stderr=stderr, timed_out=True)
         stdout = self.recording.stdout if self.stdout is None else self.stdout
         return RunResult(argv=tuple(argv), exit_code=self.recording.exit_code,
-                         stdout=stdout, stderr=self.recording.stderr)
+                         stdout=stdout, stderr=stderr)
 
 
 class RealGroup:

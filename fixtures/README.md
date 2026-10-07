@@ -82,9 +82,8 @@ always visible where it is used.
 **The exit column** is what the player answers as the exit code (stdout
 is the file; stderr is not recorded byte-exact for any row — the probes
 print its first lines only, and clip.exe mangled their non-ASCII — so the
-player answers it empty; the one derivation the tests make from a
-recording, the `[bale] error: <message>` line of an `unlock-refused`
-recording, is spelled out under bale 0.4.49 below). A row whose exit was
+player answers it empty, and no test replays a stderr from a recording or
+derives one; see "stderr" under bale 0.4.49 below). A row whose exit was
 not captured says `unrecorded`, never a guess, and the player refuses to
 answer for it unless the test names the code it assumes; every row of
 the 0.4.49 section has one.
@@ -274,16 +273,18 @@ refusal lines carry no `reason` code, only a `cause` sentence, so the
 two tags are this section's. `--version` ran in `~/twine-src` this
 time; its output depends on no directory, so it stays `anywhere/`.
 
-**stderr, and the one derivation.** No row records stderr byte-exact.
-The probes do print each recording's first stderr lines, and for every
-`unlock-refused` recording (rows 3, 4, 17) that line is `[bale] error:
-<message>` where `<message>` is, character for character, the recorded
-line's own `message` value (the em dash the paste mangled on stderr is
-intact in the JSON's `\u2014` escape). `tests/helpers.py`'s `unlock_recording`
-therefore answers an `unlock-refused` recording's stderr as `[bale]
-error: ` + its `message` + LF — derived from the recording, named as a
-derivation, and the only stderr any test replays from a fixture; for
-every other row stderr is empty. The 0.4.49 unlock recordings are what
+**stderr.** No row records stderr byte-exact, and no test replays one:
+`tests/helpers.py`'s `unlock_recording` answers stderr empty for every
+recording, refusals included, and derives nothing from a recording. (The
+probes print each recording's first stderr lines — for the
+`unlock-refused` rows 3, 4 and 17, bale's error text — but those lines are
+not recorded byte-exact; recording them is a later probe's.) `twine
+kill` reads a refusal by its line, not by stderr: the HOLD refusal (row
+17) is the line whose `outcome` is `unlock-refused` and whose `reason` is
+`hold-branch` (session `2026-10-07-twine-kill-reason-002` retired the
+stderr text match and, with it, the one derivation the tests made). A
+test that proves stderr passes through feeds bytes it names as not
+bale's. The 0.4.49 unlock recordings are what
 `tests/` replays for `twine kill`'s closure (contract §14.7): the
 `aborted` close (row 18) is twine's own argv; the refusals were recorded
 without `--reason aborted` (rows 3, 17: `unlock <sid> --json`) and the
