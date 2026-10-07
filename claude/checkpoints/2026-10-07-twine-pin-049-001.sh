@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# Blind checkpoint, v2 — twine-src session `twine-pin-049` (slug), authored by
-# the twine desk on 2026-10-07 from the brief, before the landing exists.
+# Blind checkpoint, v3 — twine-src session `twine-pin-049` (slug), authored by
+# the twine desk on 2026-10-07 from the brief, before the landing exists;
+# amended at the first HOLD (v2 → v3): the two probes below that read the
+# brief wrong — a *mention* of a double's name in a history comment is not a
+# definition, and brief §3.3/§3.5 keep the two carried pastes under
+# bale-0.4.45/ and allow 0.4.45 "as history in a sentence that says so" — now
+# detect what the brief binds: no definition of the doubles, and the pin as
+# dispatched (helpers' PIN, every written_against, no fixture path under the
+# old pin except the two carried format entries declared at 0.4.45). The other
+# eight probes are byte-identical to v2.
 # Outcome contracts only: the pin and schema hashes in the manifest, no
 # [[wanted]] left, the vocabulary's home re-pinned, every one of the twenty
 # verified recordings present byte-exact under fixtures/bale-0.4.49/ with a
 # README row, three crafter emissions present and rowed, the doubles gone,
-# the pin named nowhere as 0.4.45 under twine/ tests/ share/, bale check
+# the pin dispatched nowhere as 0.4.45 under twine/ tests/ share/, bale check
 # driving the pin, the seed and bin untouched, VERSION, the suite.
 #
 # Runs in the staging tree's root (cwd). Exit 0 / 1 / 2: passed / a probe
@@ -150,11 +158,28 @@ def det_emissions(crafter_files):
 
 
 def det_doubles_gone(helpers_text):
-    return [f"tests/helpers.py still defines {n}" for n in DOUBLE_NAMES if re.search(r"\b" + n + r"\b", helpers_text)]
+    """A definition (def/class at any indent) of a double's name; a name in a
+    comment or docstring is history and does not count."""
+    return [f"tests/helpers.py still defines {n}" for n in DOUBLE_NAMES
+            if re.search(r"^[ \t]*(def|class)[ \t]+" + n + r"\b", helpers_text, re.M)]
 
 
-def det_no_old_pin(hits):
-    return [f"0.4.45 still named in {p}" for p in hits]
+def det_no_old_pin(obs):
+    """obs: helpers_pin (the PIN assignment in tests/helpers.py, or None),
+    table_written_against ([table] in share/transitions.toml), and
+    old_pin_paths: every fixture path under fixtures/bale-0.4.45/ that a
+    manifest surface points at, each with its entry's kind and
+    fixtures_version. The brief (§3.3, §3.5) keeps exactly the carried
+    format pastes there, declared fixtures_version 0.4.45."""
+    f = []
+    if obs.get("helpers_pin") != PIN:
+        f.append(f"tests/helpers.py PIN is {obs.get('helpers_pin')!r}, not {PIN!r}")
+    if obs.get("table_written_against") != PIN:
+        f.append(f"share/transitions.toml [table] written_against is {obs.get('table_written_against')!r}, not {PIN!r}")
+    for path, kind, fv in obs.get("old_pin_paths") or []:
+        if not (kind == "format" and fv == "0.4.45" and "/carried/" in path):
+            f.append(f"{path} is dispatched from a {kind} entry at fixtures_version {fv!r}")
+    return f
 
 
 def det_bale_check(ok_json, other_json):
@@ -191,8 +216,11 @@ control("manifest", det_manifest({"bale": {"pin": "0.4.45", "schemas": SCHEMAS},
 control("recordings", det_recordings({}))
 control("readme rows", det_readme_rows("nothing", {"a" * 64: ("x", 1)}))
 control("emissions", det_emissions([]))
-control("doubles", det_doubles_gone("def unlock_json_double(sid):"))
-control("old pin", det_no_old_pin(["tests/helpers.py"]))
+control("doubles", det_doubles_gone("# history: unlock_json_double\nclass UnlockDouble:\n    pass\n"))
+control("old pin (helpers)", det_no_old_pin({"helpers_pin": "0.4.45", "table_written_against": PIN, "old_pin_paths": []}))
+control("old pin (table)", det_no_old_pin({"helpers_pin": PIN, "table_written_against": "0.4.45", "old_pin_paths": []}))
+control("old pin (verb fixture)", det_no_old_pin({"helpers_pin": PIN, "table_written_against": PIN,
+                                                 "old_pin_paths": [("fixtures/bale-0.4.45/twine-src/x.json", "verb", None)]}))
 control("bale check", det_bale_check({"ok": False}, {"ok": True}))
 control("untouched", det_untouched("0" * 64, False, False))
 control("version", det_version(b"0.7.1\n"))
@@ -217,12 +245,17 @@ probe("three-crafter-emissions-at-0.4.49",
       det_emissions([p.name for p in (fx / "crafter").iterdir()] if (fx / "crafter").is_dir() else []))
 probe("unlock-doubles-gone", det_doubles_gone((TREE / "tests/helpers.py").read_text(encoding="utf-8")))
 
-hits = []
-for sub in ("twine", "tests", "share"):
-    for p in sorted((TREE / sub).rglob("*")):
-        if p.is_file() and p.suffix in (".py", ".toml") and "0.4.45" in p.read_text(encoding="utf-8", errors="replace"):
-            hits.append(str(p.relative_to(TREE)))
-probe("no-0.4.45-under-twine-tests-share", det_no_old_pin(hits))
+helpers_pin = re.search(r'^PIN\s*=\s*"([^"]*)"', (TREE / "tests/helpers.py").read_text(encoding="utf-8"), re.M)
+table = tomllib.loads((TREE / "share/transitions.toml").read_text(encoding="utf-8")).get("table") or {}
+old_pin_paths = []
+for s in manifest.get("surface") or []:
+    paths = [s.get("fixture")] + list(s.get("fixtures") or []) + [a.get("fixture") for a in s.get("also_recorded") or []]
+    for path in paths:
+        if path and "bale-0.4.45/" in path:
+            old_pin_paths.append((path, s.get("kind"), s.get("fixtures_version")))
+probe("no-0.4.45-dispatched-under-twine-tests-share",
+      det_no_old_pin({"helpers_pin": helpers_pin.group(1) if helpers_pin else None,
+                      "table_written_against": table.get("written_against"), "old_pin_paths": old_pin_paths}))
 
 
 def bale_check(version):
