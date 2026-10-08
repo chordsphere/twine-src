@@ -24,8 +24,11 @@
 > line keyed on the refusal line's `reason` code: §6's and §14.7's stderr
 > lines, §14.2's HOLD row and §14.5) and by
 > `2026-10-07-twine-carry-bundle-003` (§15, and the lines naming `carry
-> bundle`, `open` or the in-flight record in §2, §6 and §8); a later
-> session that changes a line changes it here in the same response.
+> bundle`, `open` or the in-flight record in §2, §6 and §8) and by
+> `2026-10-08-twine-status-inflight-004` (§4's in-flight rows and the
+> prose after them, and the lines of §15.4 and §15.7 naming who reads the
+> record); a later session that changes a line changes it here in the same
+> response.
 
 ## 1. The entrypoint
 
@@ -110,7 +113,9 @@ session 3's):
 | `state_dir_source` | `"--state-dir"`, `"TWINE_STATE_DIR"`, `"XDG_STATE_HOME"` or `"HOME"`; `null` when none resolves |
 | `state_dir_reason` | `null` when one resolves; otherwise the refusal text (`spend.SpendError`'s message) — a null `state_dir` is never silent |
 | `state_dir_exists` | whether it exists and is a directory; `null` when none resolves |
-| `state_present` | `null` when none resolves; otherwise an object with four booleans — `spend_jsonl`, `prices_toml`, `abort`, `running` — whether `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`, `<state-dir>/abort/` and `<state-dir>/running/` exist (the two files as files, the two directories as directories); all false when the directory itself does not exist |
+| `state_present` | `null` when none resolves; otherwise an object with five booleans, in this order — `spend_jsonl`, `prices_toml`, `abort`, `running`, `inflight` — whether `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`, `<state-dir>/abort/`, `<state-dir>/running/` and `<state-dir>/inflight/` exist (the two files as files, the three directories as directories: a file named `inflight` reads false); all false when the directory itself does not exist |
+| `inflight_sids` | the sids whose `<state-dir>/inflight/<sid>.json` reads as an in-flight record (`twine.inflight.read_inflight` accepts it, §15.7), sorted; `[]` when `inflight/` is absent, not a directory, or holds no record; `null` when no state directory resolves (session `twine-status-inflight`) |
+| `inflight_faults` | one string per entry in `inflight/` that is not a record, in name order, each naming the entry by its basename and saying why (below); `[]` when every entry reads (or there is none, or no `inflight/`); `null` when no state directory resolves |
 | `ok_reason` | why `ok` is what it is |
 
 `ok` is true when twine itself is intact — the manifest parses and its
@@ -129,6 +134,44 @@ the directory**. Human mode says so in one line each — `state dir: <path>
 (from <source>)`, with `(does not exist)` when it does not, then `state
 present: …` naming what is there and what is missing; or `state dir:
 none resolves — <reason>`.
+
+**The in-flight records** (session `twine-status-inflight`) are the files
+`carry bundle` keeps at `<state-dir>/inflight/<sid>.json` (§15.4). `status`
+**reads them and never writes them** — no record, no directory, no lock and
+no temp file is created, and `inflight/` is listed and each record read
+without taking `carry bundle`'s `flock` (a record is replaced atomically, so
+a reader sees the old record or the new, never half). `inflight_sids` lists
+every record that reads; every other entry in `inflight/` is named in
+`inflight_faults` — a silent skip is a bug — as one of:
+
+- a name that is not `<sid>.json` for a sid twine accepts
+  (`twine.kill.is_sid`): `<name> is not an in-flight record: its name is not
+  <sid>.json`, or `… '<stem>' is not a session id twine accepts`; twine's
+  own temp file from an atomic write (`.twine-<pid>-<ns>.tmp`) is named as
+  that — `… it is the temp file of a record write still in progress, or of
+  one that did not finish`;
+- a `<sid>.json` that `read_inflight` refuses: its words, the full path cut
+  to the basename (`<sid>.json is not an in-flight record: its sid is …,
+  not …`, `<sid>.json is not a JSON object: …`, `<sid>.json cannot be read:
+  …`). The reader is not loosened for `status`: a file that is almost a
+  record is a fault, named;
+- a `<sid>.json` listed but gone when read (a dangling link, or removed in
+  between): `<name> cannot be read: it was listed but no file is there
+  now …`;
+- an `inflight/` that cannot be listed (no read permission): `inflight`
+  stays true, `inflight_sids` `[]`, and one fault, `inflight/ cannot be
+  listed: <reason>` — never a traceback, and never an empty listing that
+  would read as "no records".
+
+A name that is not printable text — a newline in it, or bytes that are not
+UTF-8 — is shown as its Python `repr`, so it can break neither a human line
+nor the twin's encoding. Whatever `inflight/` holds, `status` stays `ok`
+and exit 0: like a missing state directory, junk there is a fact about the
+machine, not a fault in twine. Human mode names `inflight/` on the `state
+present:` line with the other four, then one `in-flight record: <sid>` line
+per record and one `in-flight fault: <fault>` line per fault (neither when
+there are none); the unresolved and does-not-exist renderings keep their one
+line each. The reading is `twine.inflight.list_inflight` (§15.7).
 
 ## 5. `twine bale check [--json] [--bale-root DIR]` (D2)
 
@@ -1709,10 +1752,11 @@ these keys, in this order:
 - The record is a **cache** in N4's sense: every value in it is bale's
   (from the line it printed) or the invocation's (`cwd`, `recorded_at`).
   Deleting it loses nothing bale does not know. **Nothing in Arc 1 removes
-  it** (Arc 2's loop knows when a session closes), and nothing in Arc 1
-  reads it but `carry bundle` itself — `twine status` reading the records is
-  a later session's. A test pins that the record is the only file the verb
-  writes, and where.
+  it** (Arc 2's loop knows when a session closes). Two verbs read it:
+  `carry bundle` itself, and `twine status` (§4, session
+  `twine-status-inflight`), which lists the records and names what in
+  `inflight/` is not one, writing nothing. A test pins that the record is
+  the only file `carry bundle` writes, and where.
 
 ### 15.5 Output
 
@@ -1783,8 +1827,8 @@ replaces the double.
 
 ### 15.7 One function, two faces
 
-The verb is thin over `twine/inflight.py`, which the Arc 2 loop and a later
-`twine status` can call:
+The verb is thin over `twine/inflight.py`, which the Arc 2 loop can call
+and `twine status` does (§4, through `list_inflight`):
 
 ```
 INFLIGHT_SUBDIR = "inflight"
@@ -1792,6 +1836,7 @@ RECORD_KEYS = ("sid", "cwd", "tarball", "opens")
 OPEN_KEYS = ("outcome", "desk", "bundle_sha256", "opener_sha256", "recorded_at")
 inflight_path(state_dir: Path, sid: str) -> Path                  # raises ValueError
 read_inflight(state_dir: Path, sid: str) -> dict | None           # raises InflightRecordError
+list_inflight(state_dir: Path) -> InflightListing                 # never raises for what is there
 record_open(state_dir: Path, sid: str, *, outcome, cwd, tarball, desk,
             bundle_sha256, opener, clock=utc_now) -> Recorded     # raises InflightError
 ```
@@ -1808,7 +1853,13 @@ record) and `fresh` (the sentence a fresh `second-desk` record puts in
 `record_error`). `InflightError` carries `found`, the record read before
 the write failed, so the verb can still name its tarball. The read and the
 replace run under the one `flock`, so two desks recording at once lose
-neither entry.
+neither entry. `list_inflight` (session `twine-status-inflight`) reads
+without that lock and writes nothing: an `InflightListing` of `sids` (those
+whose records `read_inflight` accepts, sorted) and `faults` (one sentence per
+other entry in `inflight/`, by name — §4 lists the kinds); an absent
+`inflight/` is two empty tuples. Its tests sit with `read_inflight`'s in
+`tests/test_carry_bundle.py`; its rendering in `status` is
+`tests/test_status.py`'s `InflightRecords`.
 
 The tests (`tests/test_carry_bundle.py`) replay the three recordings
 through the fixture player — `opened` and `second-desk` with the test's

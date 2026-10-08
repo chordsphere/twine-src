@@ -2,9 +2,12 @@
 
 These are twine's own facts — what verbs exist, whether twine itself is
 intact, whether the bale install matches the pin, and (session 5c) where
-twine's state directory resolves and what of it exists. No bale repo
-state is read here (that is Arc 1 session 3's), and nothing here writes:
-`status` never creates the state directory it reports.
+twine's state directory resolves and what of it exists — since session
+`twine-status-inflight` (0.11.0) including the in-flight records `carry
+bundle` keeps there, read through `twine.inflight.list_inflight`. No bale
+repo state is read here (that is Arc 1 session 3's), and nothing here
+writes: `status` never creates the state directory it reports, nor
+anything in it.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from typing import Any
 from twine import CONSUMPTION_MANIFEST, FIXTURES_DIR, REPO_ROOT, __version__, spend
 from twine.bale import ManifestError, check, load_manifest, resolve_root
 from twine.cli import Context
+from twine.inflight import INFLIGHT_SUBDIR, list_inflight
 from twine.kill import ABORT_SUBDIR, RUNNING_SUBDIR
 from twine.registry import Argument, Command, Result, load_registry
 
@@ -64,18 +68,23 @@ def state_dir_facts(flag: str | None, env: dict[str, str]) -> dict[str, Any]:
     spend.resolve_state_dir resolves them (§13.2), `state_dir_reason` the
     refusal text when none resolves (a null `state_dir` is never silent),
     `state_dir_exists`, and `state_present` — whether `spend.jsonl` and
-    `prices.toml` exist as files and `abort/` and `running/` as directories,
-    all false when the directory itself does not. Nothing is created: an
-    operator whose `twine kill` was refused for a missing directory learns
-    here which one twine resolves, and makes it (or names the runtime's)
-    themselves. A state directory that does not resolve or exist is a fact
-    about the machine, not a fault in twine."""
+    `prices.toml` exist as files and `abort/`, `running/` and `inflight/` as
+    directories, all false when the directory itself does not. Then the
+    in-flight records (session `twine-status-inflight`): `inflight_sids`,
+    the sids whose records read, sorted, and `inflight_faults`, one sentence
+    per entry in `inflight/` that is not a record, naming it — both `[]`
+    when there is no `inflight/`, both null when no directory resolves.
+    Nothing is created: an operator whose `twine kill` was refused for a
+    missing directory learns here which one twine resolves, and makes it
+    (or names the runtime's) themselves. A state directory that does not
+    resolve or exist, or an `inflight/` holding junk, is a fact about the
+    machine, not a fault in twine."""
     try:
         where = spend.resolve_state_dir(flag, env)
     except spend.SpendError as exc:
         return {"state_dir": None, "state_dir_source": None,
                 "state_dir_reason": exc.message, "state_dir_exists": None,
-                "state_present": None}
+                "state_present": None, "inflight_sids": None, "inflight_faults": None}
     # os.path's tests never raise: a path that cannot be stat'd (a parent
     # without search permission, say) reads as absent, which is a fact
     # about the machine too, not an internal error.
@@ -83,29 +92,38 @@ def state_dir_facts(flag: str | None, env: dict[str, str]) -> dict[str, Any]:
     present = {"spend_jsonl": os.path.isfile(where.stream),
                "prices_toml": os.path.isfile(where.prices),
                "abort": os.path.isdir(where.path / ABORT_SUBDIR),
-               "running": os.path.isdir(where.path / RUNNING_SUBDIR)}
+               "running": os.path.isdir(where.path / RUNNING_SUBDIR),
+               "inflight": os.path.isdir(where.path / INFLIGHT_SUBDIR)}
     if not exists:
         present = {key: False for key in present}
+    # Listed only when the directory is there to list; list_inflight reads
+    # an absent `inflight/` as no records and no faults all the same.
+    listing = list_inflight(where.path) if present["inflight"] else None
     return {"state_dir": str(where.path), "state_dir_source": where.source,
             "state_dir_reason": None, "state_dir_exists": exists,
-            "state_present": present}
+            "state_present": present,
+            "inflight_sids": list(listing.sids) if listing is not None else [],
+            "inflight_faults": list(listing.faults) if listing is not None else []}
 
 
 def state_dir_lines(facts: dict[str, Any]) -> list[str]:
     """The human rendering of state_dir_facts: one line for the directory,
-    one for what is in it."""
+    one for what is in it, then one per in-flight record (its sid) and one
+    per entry in `inflight/` that is not a record (its fault)."""
     if facts["state_dir"] is None:
         return [f"state dir:            none resolves — {facts['state_dir_reason']}"]
     head = f"state dir:            {facts['state_dir']}  (from {facts['state_dir_source']})"
     if not facts["state_dir_exists"]:
         return [head + "  (does not exist)"]
     names = {"spend_jsonl": "spend.jsonl", "prices_toml": "prices.toml",
-             "abort": "abort/", "running": "running/"}
+             "abort": "abort/", "running": "running/", "inflight": "inflight/"}
     there = [names[k] for k, yes in facts["state_present"].items() if yes]
     missing = [names[k] for k, yes in facts["state_present"].items() if not yes]
     return [head,
             "state present:        " + (", ".join(there) if there else "nothing of twine's")
-            + (f"  (missing: {', '.join(missing)})" if missing and there else "")]
+            + (f"  (missing: {', '.join(missing)})" if missing and there else ""),
+            *(f"in-flight record:     {sid}" for sid in facts["inflight_sids"]),
+            *(f"in-flight fault:      {fault}" for fault in facts["inflight_faults"])]
 
 
 def cmd_status(ctx: Context, args: argparse.Namespace) -> Result:
@@ -171,8 +189,11 @@ COMMANDS = (
                     "inside, and so do the state directory twine resolves "
                     "(--state-dir, else $TWINE_STATE_DIR, else XDG, else "
                     "$HOME; null, with the reason, when none does), whether "
-                    "it exists, and whether spend.jsonl, prices.toml, abort/ "
-                    "and running/ are in it. Nothing is created."),
+                    "it exists, whether spend.jsonl, prices.toml, abort/, "
+                    "running/ and inflight/ are in it, the sids whose "
+                    "in-flight records read, and every file in inflight/ "
+                    "that is not a record, named. Nothing is created or "
+                    "written."),
     Command(
         name="bale check",
         summary="compare the installed bale's bin/VERSION to the pin in "
