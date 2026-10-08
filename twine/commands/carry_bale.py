@@ -7,10 +7,15 @@ block (twine/commands/carry.py's `choose_block`: never a guess), refuses
 a block whose integrity does not hold — twine never relays a block it
 cannot vouch for, and never repairs one — and hands the block's own
 lines (`shapes.block_text`: BEGIN through END, LF, one trailing newline;
-nothing else from the input) to `bale relay <sid> -` on stdin, in the
-repo the block's session lives in. ok exactly when bale exits 0; on ok,
-human stdout is exactly bale's stdout — the block the courier carries
-next.
+nothing else from the input) to `bale relay <sid> - --json` on stdin, in
+the repo the block's session lives in, and reads the one JSON line bale
+answers with (since session 2026-10-08-twine-carry-exchange-json-001,
+which retired the flagless `bale relay <sid> -` and its pass-through). ok
+exactly when bale exits 0 and the line's `outcome` is "relayed", its
+`sid` the block's and its `block` a non-empty string; on ok, human stdout
+is exactly that `block` — the block the courier carries next, byte for
+byte what the flagless relay printed. On a refusal the reason quotes
+bale's `cause` whole: twine names it and never dispatches on its wording.
 
 `twine carry response TARBALL [--cwd DIR] [--bale-root DIR] [--json]`
 runs `bale apply --dry-run --json` on the tarball, named by its absolute
@@ -33,11 +38,11 @@ pin (D2; twine.bale.Executable.drive_refusal). The contract is
 claude/context/cli-contract.md §11.
 
 Sections:
-  1. Limits and the bale call        (~line 50)
-  2. carry exchange                  (~line 135)
-  3. carry response                  (~line 250)
-  4. Shared helpers                  (~line 375)
-  5. The registry entries            (~line 415)
+  1. Limits and the bale call        (~line 60)
+  2. carry exchange                  (~line 150)
+  3. carry response                  (~line 350)
+  4. Shared helpers                  (~line 475)
+  5. The registry entries            (~line 520)
 """
 
 from __future__ import annotations
@@ -59,12 +64,12 @@ from twine.registry import Argument, Command, Result
 # ---------------------------------------------------------------------------
 
 # How long a bale verb may take. Neither verb is long-running — relay
-# records a round and prints a block; a dry run stages nothing — so a
+# records a round and prints one line; a dry run stages nothing — so a
 # call past this is stuck (waiting on something), and is killed and
 # reported, never waited on forever.
 BALE_TIMEOUT_SECONDS = 300.0
-# bale's stdout is a paste block or one JSON line: kilobytes. Past this
-# the call is stopped and is not ok.
+# bale's stdout is one JSON line (relay's carries a paste block):
+# kilobytes. Past this the call is stopped and is not ok.
 BALE_STDOUT_CAP_BYTES = 4 * 1024 * 1024
 
 
@@ -147,10 +152,21 @@ def decode(ctx: Context, data: bytes, stream: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# The `outcome` values of `bale relay --json`'s line (format_relay_json,
+# bale 0.4.48; all three recorded at 0.4.49). Only RELAYED is ok. A
+# re-emission is what bale prints when given no input — it recorded
+# nothing — and twine always passes the block, so seeing one is named,
+# never accepted. Any other value is named as one twine does not know.
+RELAYED_OUTCOME = "relayed"
+RE_EMITTED_OUTCOME = "re-emitted"
+RELAY_REFUSED_OUTCOME = "relay-refused"
+
+
 @dataclass
 class ExchangeOutcome:
     """Everything `carry exchange` learned; rendered once as the JSON twin
-    and once as human lines."""
+    and once as human lines. `relay` is bale's `relay --json` line parsed,
+    when its stdout was one JSON object."""
 
     source: str
     input: dict[str, Any] = field(default_factory=dict)
@@ -159,12 +175,26 @@ class ExchangeOutcome:
     refusals: list[str] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
     call: BaleCall = field(default_factory=BaleCall)
+    relay: dict[str, Any] | None = None
     cwd: str | None = None
     bale: dict[str, Any] | None = None
 
     @property
     def sid(self) -> str | None:
         return None if self.block is None else self.block.fields.get("sid")
+
+    @property
+    def outcome(self) -> Any:
+        """The line's `outcome`, as bale spelled it; None without a line."""
+        return None if self.relay is None else self.relay.get("outcome")
+
+    @property
+    def relayed_block(self) -> str | None:
+        """The block bale handed back — on ok only, so a caller can never
+        print a block from a line twine did not accept."""
+        if not self.ok or self.relay is None:
+            return None
+        return self.relay["block"]
 
     @property
     def ok(self) -> bool:
@@ -177,8 +207,11 @@ class ExchangeOutcome:
 
     def payload(self) -> dict[str, Any]:
         """The JSON twin beside `command` and `ok` (cli-contract.md §11.2).
-        `sid`, `block`, `ran`, `exit_code`, `stdout`, `stderr`, `reason`
-        and `refusals` are fixed names the shell and the oracle read."""
+        `sid`, `block`, `ran`, `exit_code`, `stdout`, `stderr`, `reason`,
+        `refusals`, `relay` and `outcome` are fixed names the shell and the
+        oracle read; `relay` and `outcome` (since session
+        2026-10-08-twine-carry-exchange-json-001) are present on every
+        path, null when there is no line."""
         call = self.call.report()
         return {
             "sid": self.sid,
@@ -189,6 +222,8 @@ class ExchangeOutcome:
             "stderr": call.pop("stderr"),
             "reason": self.reason,
             "refusals": self.refusals,
+            "relay": self.relay,
+            "outcome": self.outcome,
             "integrity": None if self.block is None else self.block.integrity,
             **call,
             "cwd": self.cwd,
@@ -198,8 +233,9 @@ class ExchangeOutcome:
 
 
 def cmd_carry_exchange(ctx: Context, args: argparse.Namespace) -> Result:
-    """Read, choose, vouch, then relay. Every refusal is collected before
-    bale is called, and nothing reaches bale unless there is none."""
+    """Read, choose, vouch, relay, then read bale's line. Every refusal is
+    collected before bale is called, and nothing reaches bale unless there
+    is none."""
     outcome = ExchangeOutcome(source=args.file)
     outcome.cwd = resolve_cwd(args.cwd, outcome.refusals)
     read = read_turn(ctx, outcome)
@@ -220,8 +256,17 @@ def cmd_carry_exchange(ctx: Context, args: argparse.Namespace) -> Result:
         outcome.call = call_bale(ctx, bale.relay_argv(executable.path, outcome.sid),
                                  outcome.cwd or ".", carried,
                                  outcome.refusals, outcome.failures)
+        if outcome.call.ran:
+            read_relay_line(outcome)
     for problem in outcome.refusals + outcome.failures:
         ctx.info(problem)
+    if outcome.ok:
+        # Only the keys the consumption manifest lists are read here
+        # (outcome, sid, block, cause); the rest of the line is carried
+        # whole in the twin's `relay`, never interpreted.
+        ctx.info(f"bale relayed the exchange block of {outcome.sid} "
+                 f"(outcome {RELAYED_OUTCOME!r}); stdout is the block to "
+                 "carry next")
     return Result(outcome.ok, outcome.payload(), exchange_lines(outcome))
 
 
@@ -245,14 +290,61 @@ def check_vouchable(outcome: ExchangeOutcome) -> None:
             "as an argument")
 
 
+def read_relay_line(outcome: ExchangeOutcome) -> None:
+    """bale's stdout must be one JSON object (`relay --json` prints exactly
+    one line on every path, refusals included) whose `outcome` is
+    "relayed", whose `sid` is the block's and whose `block` is a non-empty
+    string. Each thing that differs is named in its own failure, so the
+    reason says all of it at once. A refusal's `cause` is quoted whole —
+    it is bale's only account of why — and never dispatched on: bale
+    documents its wording as the stderr text, free to change."""
+    stdout = outcome.call.stdout
+    try:
+        obj = json.loads(stdout)
+    except ValueError:
+        obj = None
+    if not isinstance(obj, dict):
+        shown = stdout.strip()
+        outcome.failures.append(
+            "bale's stdout was not one JSON object"
+            + (f" (it began {shown[:60]!r})" if shown else " (it was empty)"))
+        return
+    outcome.relay = obj
+    got = obj.get("outcome")
+    if got == RELAY_REFUSED_OUTCOME:
+        cause = obj.get("cause")
+        outcome.failures.append(
+            f"bale refused the relay (outcome {RELAY_REFUSED_OUTCOME!r}): "
+            + (f'"{cause}"' if isinstance(cause, str) and cause
+               else "its line names no cause"))
+    elif got == RE_EMITTED_OUTCOME:
+        outcome.failures.append(
+            f"bale reported outcome {RE_EMITTED_OUTCOME!r}: it recorded nothing "
+            "(a re-emission answers a relay given no input; twine always passes "
+            "the block)")
+    elif got != RELAYED_OUTCOME:
+        outcome.failures.append(f"bale reported outcome {got!r}, which twine "
+                                f"does not know (not {RELAYED_OUTCOME!r})")
+    if obj.get("sid") != outcome.sid:
+        outcome.failures.append(f"bale's line names sid {obj.get('sid')!r}, not "
+                                f"the block's {outcome.sid!r}")
+    block = obj.get("block")
+    if not isinstance(block, str):
+        outcome.failures.append(f"bale's line carries no block (block is "
+                                f"{'null' if block is None else type(block).__name__})")
+    elif not block:
+        outcome.failures.append("bale's line carries an empty block")
+
+
 def exchange_lines(outcome: ExchangeOutcome) -> list[str]:
-    """stdout without --json: on ok exactly bale's stdout (the block the
-    courier carries next); otherwise one line naming why."""
+    """stdout without --json: on ok exactly the line's `block` (the block
+    the courier carries next, byte for byte what the flagless relay
+    printed); otherwise one line naming why, never the block."""
     if not outcome.ok:
         state = "NOT OK" if outcome.call.ran else "refused"
         return [f"carry exchange {label_of(outcome.source)}: {state} — "
                 f"{outcome.reason}"]
-    return passthrough_lines(outcome.call.stdout)
+    return passthrough_lines(outcome.relayed_block or "")
 
 
 # ---------------------------------------------------------------------------
@@ -442,7 +534,7 @@ COMMANDS = (
     Command(
         name="carry exchange",
         summary="hand an exchange block from a pasted turn to `bale relay "
-                "<sid> -`; print the block bale hands back",
+                "<sid> - --json`; print the block bale hands back",
         handler=cmd_carry_exchange,
         arguments=(
             Argument(("file",), {
@@ -460,9 +552,12 @@ COMMANDS = (
         description="Find the exchange block in FILE (read as `twine take` "
                     "reads it), refuse it unless its sha256 trailer holds, and "
                     "hand exactly its own lines — BEGIN through END — to "
-                    "`bale relay <sid> -` on stdin, in --cwd. ok when bale "
-                    "exits 0; stdout is then exactly bale's stdout, the block "
-                    "to carry next. bale's stderr goes to stderr."),
+                    "`bale relay <sid> - --json` on stdin, in --cwd, and read "
+                    "the one JSON line bale prints. ok when bale exits 0 and "
+                    "the line says \"relayed\" for the block's sid and carries "
+                    "a block; stdout is then exactly that block, the one to "
+                    "carry next. On a refusal the reason quotes bale's cause. "
+                    "bale's stderr goes to stderr."),
     Command(
         name="carry response",
         summary="dry-run a response tarball with `bale apply --dry-run --json` "

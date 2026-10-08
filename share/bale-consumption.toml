@@ -49,7 +49,10 @@
 #                    twine's one argv would meet that outcome (session
 #                    2026-10-07-twine-pin-049-001)
 #   stand_in         kind = verb with no fixture: the recorded bytes the
-#                    tests replay in its place, and why they may
+#                    tests replay in its place, and why they may (none
+#                    since session 2026-10-08-twine-carry-exchange-json-001
+#                    retired the flagless relay surface and its stand-in;
+#                    the shape stays for the next such gap)
 #   doubles          the test doubles standing in for this surface's
 #                    unrecorded outputs; a later recording replaces them
 #   unrecorded       kind = verb with neither a fixture nor a stand_in: why
@@ -220,35 +223,22 @@ note = "the only apply argv twine builds (T12: twine.bale.dry_run_argv; never wi
 [[surface]]
 kind = "verb"
 verb = "relay"
-flags = []
-argv = ["relay", "<sid>", "-"]
-cwd = "repo"
-stdout = "the counterpart's paste block (an exchange block); '[bale] ' lines on stderr"
-keys = []
-read_by = ["carry exchange"]
-stand_in = "fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt"
-doubles = ["tests/helpers.py StubBale and tests/test_carry_bale.py BaleDouble: relay's stdout after an ingest, a non-zero exit, a timeout"]
-written_against = "0.4.49"
-note = "stdin is exactly the exchange block's own lines (twine.shapes.block_text); twine passes stdout through as text and reads no key from it. No flagless relay output is recorded: the stand-in is the crafter's --emit-block rendering, which TARBALL.md 5.9.2 pins byte-identical to relay's rendering of the same record. A recording of relay_sid_stdin.txt (and its exit code) replaces the stand-in and the doubles; `relay --json` (the next surface) is recorded, and carry exchange moves to it in the session that reads its line"
-
-[[surface]]
-kind = "verb"
-verb = "relay"
 flags = ["--json"]
 argv = ["relay", "<sid>", "<file>", "--json"]
 cwd = "scratch"
-stdout = "exactly one JSON object line: outcome \"relayed\" (exit 0) once the round is recorded, \"re-emitted\" (exit 0) when run without a file, \"relay-refused\" (exit 1, `cause` saying why) on an input that is not a record or a sid not open; the block itself rides the line's `block` key"
-keys = []
+stdout = "exactly one JSON object line on every path, refusals included: outcome \"relayed\" (exit 0) once the round is recorded, the counterpart's paste block in `block`; \"re-emitted\" (exit 0) when run without an input; \"relay-refused\" (exit 1, `cause` saying why, `block` null) on an input that is not a record or a sid not open; '[bale] ' lines on stderr"
+keys = ["outcome", "sid", "block", "cause"]
 key_owner = "format_relay_json docstring in bin/bale_report.py (outcome, sid, round, from, awaiting, kind, preserved, block, log, clipboard, cause, telemetry)"
-read_by = []
+read_by = ["carry exchange"]
 fixture = "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relayed.json"
 also_recorded = [
   {argv = ["relay", "<sid>", "--json"], cwd = "scratch", outcome = "re-emitted", fixture = "fixtures/bale-0.4.49/scratch/relay_sid_--json.json"},
   {argv = ["relay", "<sid>", "<file>", "--json"], cwd = "scratch", outcome = "relay-refused", reason = "ingest", fixture = "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+ingest.json"},
   {argv = ["relay", "<sid>", "<file>", "--json"], cwd = "scratch", outcome = "relay-refused", reason = "session-gate", fixture = "fixtures/bale-0.4.49/scratch/relay_sid_file_--json+relay-refused+session-gate.json"},
 ]
+doubles = ["tests/helpers.py RecordedRelay with bytes or an exit named as not bale's: a timeout, a capped stdout, a stdout that is not one JSON object, an exit-1 empty stdout, and edited lines (another sid, a null, empty or non-string block, an outcome bale never emits, a relayed line beside exit 1)"]
 written_against = "0.4.49"
-note = "wanted by Arc 1 session 2b-ii, which landed carry exchange without it, passing relay's stdout through as text; bale 0.4.48 added it. Recorded in the scratch repository: a clarification manifest relayed as round 1 from worker, the thread's latest round re-emitted (nothing recorded), and the two refusals (relay's refusal line carries a `cause` sentence, no reason code; the fixture names tag them `ingest` and `session-gate`). Read by nothing yet: `carry exchange` reading this line instead of the flagless relay's is the session after Arc 1 row 3 (brief §8)"
+note = "wanted by Arc 1 session 2b-ii, which landed carry exchange without it, passing the flagless relay's stdout through as text; bale 0.4.48 added it. Read since session 2026-10-08-twine-carry-exchange-json-001 by `carry exchange`, whose argv is `relay <sid> - --json` (twine.bale.relay_argv; the only relay argv twine builds), stdin exactly the exchange block's own lines (twine.shapes.block_text). ok exactly when bale exits 0 and the line's outcome is relayed, its sid the block's and its block a non-empty string; human stdout is then that block. twine reads outcome, sid, block and cause — the cause only to quote it whole in a refusal's reason, never to dispatch on (bale: its wording is the stderr text and may change) — and carries the line whole in the twin's `relay`. The flagless `relay <sid> -` surface, its stand-in (the crafter's --emit-block emission, which stays the exchange format's fixture) and its doubles are retired. Recorded in the scratch repository with a file argument (the re-emission with none): a clarification manifest relayed as round 1 from worker, the round re-emitted, and the two refusals (relay's refusal line carries a `cause` sentence, no reason code; the fixture names tag them `ingest` and `session-gate`). twine's argv, `relay_sid_stdin_--json.json` by the naming rule, is not recorded: the tests replay the file recordings for it (tests/helpers.py RecordedRelay) on the named assumption that bale 0.4.49 reads `-` as it reads a file — bin/bale_relay.py `_read_relay_input` reads stdin for `-` and the file otherwise, and nothing downstream of it differs. A recording of `relay <sid> - --json` replaces the assumption"
 
 [[surface]]
 kind = "verb"
@@ -355,7 +345,7 @@ kind = "format"
 format = "exchange"
 locator = "`BALE EXCHANGE BEGIN <sid>` … `BALE EXCHANGE END` (surrounding whitespace tolerated), trailer `# sha256 <hex>` as the last non-blank inner line"
 home = "TARBALL.md §5.9.2; bin/bale_relay.py parse_exchange_input, _exchange_body_bytes, reescaped_body_matches, format_exchange_block"
-emitted_by = ["bale relay <sid> <file|->", "tools/craft_response.py --emit-block <file|->"]
+emitted_by = ["bale relay <sid> <file|-> (on stdout; under --json, as the line's `block`)", "tools/craft_response.py --emit-block <file|->"]
 fixtures = ["fixtures/bale-0.4.49/crafter/--emit-block-stdin.txt"]
 fixtures_version = "0.4.49"
 keys = ["round", "from"]

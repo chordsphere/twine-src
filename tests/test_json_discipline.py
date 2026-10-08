@@ -18,8 +18,8 @@ from twine import REPO_ROOT
 
 from tests.helpers import (DOUBLE_MODEL, UNLOCK_RECORDED_SID, SpendStateDouble, StubBale,
                            TempRoots, emission_relpath, fenced_probe, filled_probe,
-                           fixture_relpath, open_recording, run_cli, run_inprocess,
-                           unlock_recording)
+                           fixture_relpath, open_recording, relay_recording, relayed_block,
+                           run_cli, run_inprocess, unlock_recording)
 
 # The session the recorded `aborted` close names: kill's closure is ok
 # only for it, so it is the sid the happy-path kill closes.
@@ -45,9 +45,14 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.probe_turn = Path(self._turns.name) / "turn.txt"
         self.probe_turn.write_text(fenced_probe(filled_probe()), encoding="utf-8")
         # The two bale hand-offs run a stub bale (a double, never bale):
-        # relay replays the crafter's exchange emission, apply the recorded
-        # dry-run line (0.4.49, recorded in the scratch repository).
-        self.exchange = REPO_ROOT / emission_relpath("crafter", ["--emit-block", "-"])
+        # relay replays the recorded `relay --json` line (relayed, 0.4.49,
+        # the scratch repository; since session
+        # 2026-10-08-twine-carry-exchange-json-001 — before it, the crafter's
+        # exchange emission stood in for the flagless relay's stdout), and
+        # carry exchange carries that line's own block, so the line answers
+        # for the block's sid; apply replays the recorded dry-run line.
+        self.exchange = Path(self._turns.name) / "exchange-turn.txt"
+        self.exchange.write_text(relayed_block(), encoding="utf-8")
         self.dry_run = REPO_ROOT / fixture_relpath(
             ["apply", "--dry-run", "--json", "/any/response.tar.gz"], "scratch", "dry-run")
         # kill's closure: the stub answers unlock with the recorded `aborted`
@@ -60,7 +65,8 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         # the stub never reads.
         self.bundle = Path(self._turns.name) / "json-discipline.bale-bundle"
         self.bundle.write_bytes(b"a bundle the stub never reads\n")
-        self.stub = StubBale(relay_stdout=self.exchange, apply_stdout=self.dry_run,
+        self.stub = StubBale(relay_stdout=relay_recording("relayed").path,
+                             apply_stdout=self.dry_run,
                              unlock_stdout=self.unlock_line,
                              open_stdout=open_recording("rehearsed").path)
         # The spend verbs read a temp state directory holding one usage
@@ -79,7 +85,7 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         on a recorded light block (an intact block: ok true, exit 0), carry
         probe on a turn carrying one filled probe, shown and not run (ok
         true, exit 0; nothing executes without --run); carry exchange on the
-        crafter's exchange block and carry response on an existing file,
+        relayed recording's own block and carry response on an existing file,
         each against the stub bale (ok true, exit 0); transitions on the
         real table (ok true, exit 0; it reads no bale); spend totals and
         spend check against a temp state directory double (ok true, exit 0;
