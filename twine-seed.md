@@ -437,6 +437,17 @@ courier — `carry exchange` and `carry response` refuse a bale whose
 carry-bale-002's provisional report-only reading ended when the
 transition table keyed on the pinned version's whole vocabulary.]
 
+[2026-10-07-twine-pin-049-001: the first deliberate bump — the pin
+moved from 0.4.45 to 0.4.49 (`VERSION` 0.8.0), the replay suite
+re-recorded against the installed bale by three probes on 2026-10-07
+(twenty-three fixtures, a throwaway repository for the verbs that
+write), the three `[[wanted]]` surfaces bale-src landed at twine's
+asking (`open --json`, `relay --json`, the reason-coded unlock refusal)
+retired into the consumption manifest, the vocabularies re-read and
+unchanged, the unlock doubles replaced by recordings. No verb changed;
+`twine kill` still reads the HOLD refusal by its stderr prefix until
+`twine-kill-reason` keys it on the recorded `reason` code.]
+
 **D3 — Narrowest consumption surface.** Rung 1 consumes the
 minimum bale surface that works: exit codes, the
 one-stdout-JSON-line discipline, an allowlisted key set, the
@@ -697,6 +708,16 @@ never comes back. The loop calls it itself after `run` returns with
 `group_survivors` empty; an entry whose run returned survivors stays for
 the kill (contract §14.4). `twine kill` is unchanged and does not signal
 a cleared group.]
+
+[2026-10-07-twine-kill-reason-002: landed — `twine kill`'s hand line
+keys on the recorded refusal's reason code, not on bale's stderr: `bale
+revert <sid>` exactly when the unlock line twine read says `outcome`
+`unlock-refused` and `reason` `hold-branch`, the unlock line for any
+other reason or none, and the failures name the code. Twine reads no
+stderr text (it is still reported and passed through), the tests replay
+no stderr derived from a recording, and `VERSION` is 0.8.1. The
+`[[wanted]]` reason-coded refusal session 5c asked bale-src for is now
+what the kill decides on.]
 
 **D16 — Effort is envelope × policy.** The effort slider sets the
 budget envelope; ledger-driven policy allocates within it, per
@@ -1122,6 +1143,30 @@ on row 3.]
 runs return. Arc 2's loop composes
 `on_spawn=lambda pid: register_group(state_dir, sid, pid)` with
 `clear_group(state_dir, sid, pid)` after a survivor-free return.]
+
+[2026-10-07-twine-pin-049-001: the first deliberate bump — the pin
+moved from 0.4.45 to 0.4.49 (`VERSION` 0.8.0), the replay suite
+re-recorded against the installed bale by three probes on 2026-10-07
+(twenty-three fixtures, a throwaway repository for the verbs that
+write), the three `[[wanted]]` surfaces bale-src landed at twine's
+asking (`open --json`, `relay --json`, the reason-coded unlock refusal)
+retired into the consumption manifest, the vocabularies re-read and
+unchanged, the unlock doubles replaced by recordings. No verb changed;
+`twine kill` still reads the HOLD refusal by its stderr prefix until
+`twine-kill-reason` keys it on the recorded `reason` code.]
+
+[2026-10-07-twine-carry-bundle-003: row 3 landed — `twine carry bundle`
+runs `bale open <bundle> --json` itself (an open merges nothing; `--check`
+rehearses with `bale open --check <bundle> --json`), once, never retried,
+and prints exactly bale's opener; stderr names the request tarball. The
+in-flight record is `<state-dir>/inflight/<sid>.json` — `sid`, `cwd`,
+`tarball`, and one `opens` entry per desk — written on `opened` or
+`second-desk` only, and it is where a second desk finds the tarball bale
+0.4.49's `second-desk` line leaves null. It is a cache of bale's open line
+and the invocation, not of `bale status --json` as the 2026-10-01
+annotation above sketched it; dispatch facts (adapter, sandbox home,
+transcript) are Arc 2's to add. Nothing removes it yet. `VERSION` 0.9.0.
+With rows 0–5 landed, Arc 1 is complete.]
 
 ### 5.2 Arc 2 — the runtime
 
