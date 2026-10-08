@@ -20,6 +20,10 @@ argv twine can build is twine.bale.dry_run_argv's, and no admission or
 override flag exists anywhere in twine. ok exactly when bale exits 0 and
 its stdout is one JSON object whose `outcome` is `"dry-run"`.
 
+`call_bale`, `resolve_cwd`, `locate` and `passthrough_lines` are shared
+with `twine carry bundle` (twine/commands/carry_bundle.py, Arc 1 session
+3), which passes `call_bale` its own, longer timeout.
+
 Both run bale through `ctx.run`, the seam (twine/process.py), never a
 subprocess of their own, and find bale exactly as `bale check` does
 (twine.bale.locate_executable): the tests pin TWINE_BALE_ROOT, so a bale
@@ -87,15 +91,18 @@ class BaleCall:
 
 
 def call_bale(ctx: Context, argv: list[str], cwd: str, stdin: bytes | None,
-              refusals: list[str], failures: list[str]) -> BaleCall:
+              refusals: list[str], failures: list[str], *,
+              timeout: float = BALE_TIMEOUT_SECONDS) -> BaleCall:
     """Run `argv` through ctx.run and record what came back. A bale that
     cannot be started is a refusal (nothing ran); a run that was killed
     or exited non-zero is a failure naming why. bale's stderr is always
-    surfaced on twine's stderr, whatever the outcome."""
+    surfaced on twine's stderr, whatever the outcome. `timeout` is
+    BALE_TIMEOUT_SECONDS unless a verb's bale call is long by design
+    (`carry bundle`'s open runs a checkpoint dry-run: session 3)."""
     call = BaleCall(argv=list(argv))
     ctx.info(f"running bale {' '.join(argv[1:])} in {cwd} (executable {argv[0]})")
     try:
-        result = ctx.run(argv, cwd=cwd, stdin=stdin, timeout=BALE_TIMEOUT_SECONDS,
+        result = ctx.run(argv, cwd=cwd, stdin=stdin, timeout=timeout,
                          env=dict(ctx.env), stdout_cap=BALE_STDOUT_CAP_BYTES)
     except RunError as exc:
         refusals.append(f"bale could not be started ({argv[0]}): "
@@ -110,7 +117,7 @@ def call_bale(ctx: Context, argv: list[str], cwd: str, stdin: bytes | None,
     call.capped = result.stdout_capped
     call.duration_seconds = result.duration_seconds
     if result.timed_out:
-        failures.append(f"bale did not finish within {BALE_TIMEOUT_SECONDS:g}s "
+        failures.append(f"bale did not finish within {timeout:g}s "
                         "and was killed")
     if result.stdout_capped:
         failures.append(f"bale's stdout passed {BALE_STDOUT_CAP_BYTES} bytes and "

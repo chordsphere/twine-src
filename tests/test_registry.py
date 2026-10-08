@@ -38,10 +38,11 @@ class RegistryParity(unittest.TestCase):
             self.assertEqual(row["cli_only"], not row["json"])
 
     def test_this_sessions_verbs_are_registered(self):
+        """Since Arc 1 session 3 the set holds `carry bundle` too."""
         self.assertEqual(set(load_registry()),
                          {"commands", "status", "bale check", "take", "carry probe",
-                          "carry exchange", "carry response", "transitions",
-                          "spend totals", "spend check", "kill"})
+                          "carry exchange", "carry response", "carry bundle",
+                          "transitions", "spend totals", "spend check", "kill"})
 
     def test_verb_names_are_space_joined_paths(self):
         for name, cmd in load_registry().items():
@@ -77,14 +78,17 @@ class RegistryDiscovery(unittest.TestCase):
 
     def test_discovers_carry_module_as_a_group(self):
         """`carry` is a verb family: its verbs share the group prefix, and
-        the parser renders `carry` as a group whose leaves come from two
-        modules — `probe` (carry.py) and, since session 2b-ii, `exchange`
-        and `response` (carry_bale.py)."""
+        the parser renders `carry` as a group whose leaves come from three
+        modules — `probe` (carry.py), since session 2b-ii `exchange` and
+        `response` (carry_bale.py), and since Arc 1 session 3 `bundle`
+        (carry_bundle.py)."""
         modules = discover_modules()
         self.assertIn("twine.commands.carry", modules)
         self.assertIn("twine.commands.carry_bale", modules)
+        self.assertIn("twine.commands.carry_bundle", modules)
         carry = [n for n in load_registry() if n.split(" ")[0] == "carry"]
-        self.assertEqual(carry, ["carry exchange", "carry probe", "carry response"])
+        self.assertEqual(carry, ["carry bundle", "carry exchange", "carry probe",
+                                 "carry response"])
 
     def test_registry_is_sorted_by_name(self):
         names = list(load_registry())

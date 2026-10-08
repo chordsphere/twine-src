@@ -1,6 +1,7 @@
 """twine's verb modules — a verb family per module, or split across
 modules when that keeps sessions file-disjoint (`carry probe` in
-carry.py; `carry exchange` and `carry response` in carry_bale.py).
+carry.py; `carry exchange` and `carry response` in carry_bale.py; `carry
+bundle` in carry_bundle.py, which reuses carry_bale.py's bale call).
 
 Each module here exposes a `COMMANDS` tuple of twine.registry.Command
 and nothing else the registry needs; twine.registry.load_registry()

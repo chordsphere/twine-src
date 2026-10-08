@@ -22,8 +22,10 @@
 > groups, §10.3's scaffold tail, §11.4 and §14.7 on what is recorded, and
 > §14.5's refusal line) and by `2026-10-07-twine-kill-reason-002` (the hand
 > line keyed on the refusal line's `reason` code: §6's and §14.7's stderr
-> lines, §14.2's HOLD row and §14.5); a later session that changes a line
-> changes it here in the same response.
+> lines, §14.2's HOLD row and §14.5) and by
+> `2026-10-07-twine-carry-bundle-003` (§15, and the lines naming `carry
+> bundle`, `open` or the in-flight record in §2, §6 and §8); a later
+> session that changes a line changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -57,7 +59,8 @@
   `command` key carries the same string.
 - Verbs today: `commands`, `status`, `bale check`, `take`, the
   `carry` group — `carry probe` (`twine/commands/carry.py`), `carry
-  exchange` and `carry response` (`twine/commands/carry_bale.py`) —
+  exchange` and `carry response` (`twine/commands/carry_bale.py`), `carry
+  bundle` (`twine/commands/carry_bundle.py`, §15) —
   `transitions` (`twine/commands/transitions.py`, §12), the `spend`
   group — `spend totals` and `spend check` (`twine/commands/spend.py`,
   §13) — and `kill` (`twine/commands/kill.py`, §14). One group's verbs
@@ -193,8 +196,10 @@ and diffs them as data (D4). The verbs twine runs today: `bale apply
 text, no key) and `bale unlock <sid> --reason aborted --json` (read by
 `kill`: the keys `outcome`, `sid`, `closure_reason` and `telemetry`,
 and since 0.4.49 the refusal line's `reason`, `message` and
-`open_sessions`; §14); `bale open --json`, `bale relay --json` and
-`bale pack --json` are recorded surfaces read by nothing yet. The
+`open_sessions`; §14) and `bale open <bundle> --json` / `bale open
+--check <bundle> --json` (read by `carry bundle`: the keys `outcome`,
+`sid`, `tarball`, `opener`, `desk` and `bundle`; §15); `bale relay --json`
+and `bale pack --json` are recorded surfaces read by nothing yet. The
 file's header comment spells the entry shapes;
 `tests/test_consumption_manifest.py` walks them. `twine.bale.load_manifest`
 refuses a `[[vocabulary]]` entry without an axis or a home, a second
@@ -260,7 +265,7 @@ python3 -B -m unittest discover -s tests -t .
 
 from the repository root — no network, no bale install, no third-party
 module, and no bale reached whatever is on `PATH`: a verb that runs bale
-(§11) runs it through the seam, and the tests hand the seam the fixture
+(§11, §15) runs it through the seam, and the tests hand the seam the fixture
 player, a double (`BaleDouble`), or a stub `bin/bale` they write into a
 temp root (`tests/helpers.py` `StubBale`, passed as `--bale-root`). `bash` is required: `carry probe`'s tests run real probe scripts,
 each derived from the crafter's recorded scaffold by filling its
@@ -271,10 +276,11 @@ pinned to a temp directory so a bale on `PATH` cannot leak into a
 verdict. The probe the tests run ends before the recorded scaffold's
 clipboard tail (§10.3), which would hand the block to a `bale` on PATH;
 the one test that keeps the tail builds the PATH it runs under. The
-spend verbs (§13) and `kill` (§14) read and write only temp state
-directories the tests build, never the real default (§13.9, §14.8); no
-test runs a real `bale unlock` — the kill's tests replay the recorded
-lines (§14.7).
+spend verbs (§13), `kill` (§14) and `carry bundle` (§15) read and write
+only temp state directories the tests build, never the real default
+(§13.9, §14.8, §15.7); no test runs a real `bale unlock` or `bale open` —
+the kill's tests replay the recorded unlock lines (§14.7), and `carry
+bundle`'s the recorded open lines (§15.6).
 
 ## 9. `twine take FILE [--json]` — the courier's read
 
@@ -1520,3 +1526,238 @@ seeing exactly the one unlock argv. Every state directory is a temporary
 one; the in-process runs carry an empty environment, so a verb without
 `--state-dir` refuses rather than touch the real default; tests that wait
 on a kill poll rather than check once.
+
+## 15. `twine carry bundle BUNDLE [--check] [--cwd DIR] [--bale-root DIR] [--state-dir DIR] [--json]`
+
+Arc 1 session 3, row 3 of `twine-seed.md` §5.1, "offline courier — emit"
+(`2026-10-07-twine-carry-bundle-003`): the courier carries a planner's
+bundle into bale with `bale open --json` and hands back what opens the
+worker's chat — bale's `opener` and the request tarball — and keeps the
+session's **in-flight record**, twine's one piece of state besides spend.
+The verb is `twine/commands/carry_bundle.py`; the record is
+`twine/inflight.py`.
+
+### 15.1 Who runs `bale open`
+
+twine does (brief ruling 1). In Arc 1 the operator runs twine's verbs and
+twine runs bale. `carry response` only rehearses and hands back a line
+because `bale apply` merges and T12 bars twine from merging; **`bale open`
+merges nothing** — it packs a session, and an unwanted one is closed with
+`bale unlock` — so a plain `carry bundle` opens, and `--check` rehearses.
+
+### 15.2 Refused before calling bale
+
+Every reason named at once, in `refusals` and `reason`; `ok` false, `ran`
+false, exit 1, **bale not started**, nothing written:
+
+- `BUNDLE` is empty, or — when it names no existing file — begins with `-`,
+  so bale could read it as a flag (argparse lets the operator reach such a
+  name only after `--`; twine refuses it anyway). An existing file whose
+  name begins with `-` is fine: it is passed by its absolute path;
+- `--cwd` is not a directory, or, without `--cwd`, the current directory no
+  longer exists;
+- no bale is found or startable, or its `bin/VERSION` is not the pin
+  (§11.1, unchanged);
+- **without `--check` only:** no state directory resolves (§13.2's rules
+  and refusals, `no-state-dir` and `bad-argument`, as `twine spend` and
+  `twine kill` resolve it), or the one that resolves exists and is not a
+  directory, or cannot be looked at (a parent that is a file, no search
+  permission — `twine kill`'s `state_dir_fault`, each a named refusal). **An
+  open that could not be recorded is refused before it happens.** A state
+  directory that does not exist yet is not refused: the record's writer
+  creates it (0700), as spend's writer does. `--check` needs no state
+  directory and never reads or writes one; `--state-dir` under `--check`
+  is ignored, and stderr says so.
+
+### 15.3 The call
+
+- `BUNDLE` naming an existing file — relative to twine's current
+  directory, `~` expanded — is passed as its absolute path; otherwise it is
+  passed **exactly as given**, for bale to resolve by its own rules (the
+  current directory, then `apply.search_paths`, so the bare file name the
+  crafter prints works from the Downloads directory). A name twine cannot
+  stat — too long, or under a directory it cannot search — is passed as
+  given too, never a traceback.
+- The argv is exactly `<bale> open <bundle> --json`, or with `--check`
+  exactly `<bale> open --check <bundle> --json` — the two recorded argvs
+  (§15.6). **This is the only `open` argv twine builds**
+  (`twine.bale.open_argv`; a test asserts no other code builds one): never
+  `--dry-run`, `--verbose` or `--no-sandbox`, never another flag.
+- It runs through the seam (§10.6) in `--cwd` (default: the current
+  directory), stdin `/dev/null`, twine's environment, a 4 MiB stdout cap
+  and a **1800-second timeout** — an open runs the bundle's checkpoint
+  dry-run, which may run a whole suite, so §11.1's 300 seconds is too short
+  (`carry_bale.call_bale` takes the verb's timeout). **Never retried**: a
+  call that timed out or was capped may or may not have opened a session;
+  the reason says so, and `bale status` is how to tell. bale's stderr
+  always reaches twine's stderr and the twin's `stderr`.
+
+### 15.4 ok, and the in-flight record
+
+**ok** exactly when bale exits 0 and its stdout is one JSON object whose
+`outcome` is `"opened"` or `"second-desk"` (without `--check`) or
+`"rehearsed"` (with it), and, for the first two, whose `sid` is a string
+twine accepts as a sid (`twine.kill.is_sid`, §14.1's rule) and whose
+`opener` is a non-empty string. Otherwise not ok, exit 1, the reason
+naming what bale said instead — its exit (`bale exited N`), the outcome it
+gave and the one the mode wanted (`bale reported outcome 'rehearsed'; an
+open wants 'opened' or 'second-desk'`, `…; --check wants 'rehearsed'`), a
+missing sid or opener (`bale's opened line has no sid twine accepts`, `…
+has no opener`), a stdout that is not one JSON object, or a line carrying
+text that is not UTF-8 (a lone-surrogate escape, as a path with non-UTF-8
+bytes prints: twine can neither print nor record it as bale's, so `open`
+shows `?` in its place, `stdout` keeps the raw line, and the reason says
+the session may be open) — bale's stderr surfaced; no traceback;
+**nothing recorded**. A line that came with a
+non-zero exit is still parsed and reported (`open`, `outcome`), never
+trusted.
+
+**The in-flight record**, on ok with `opened` or `second-desk` only:
+`<state-dir>/inflight/<sid>.json`, the directory 0700 (when twine creates
+it; an existing `inflight/` keeps the mode it has), the file 0600,
+written by atomic replace (a temp file, fsynced, renamed over the record,
+the directory fsynced) under an exclusive `flock` on `<state-dir>/inflight/`
+— `twine/kill.py`'s `_write_replacing` and `_locked`, imported. Exactly
+these keys, in this order:
+
+```
+{"sid": <sid>, "cwd": <the absolute directory bale ran in>,
+ "tarball": <bale's tarball from the opened line, or null>,
+ "opens": [{"outcome": "opened" | "second-desk",
+            "desk": <bale's desk: null | "desk-2" | …>,
+            "bundle_sha256": <bale's bundle.sha256>,
+            "opener_sha256": <sha256 of the opener's UTF-8 bytes>,
+            "recorded_at": <UTC, ISO 8601, Z>}]}
+```
+
+- `opened` writes a record holding that one open, **replacing** any record
+  of the same sid. Replacing is not an error: `record_error` stays null, and
+  stderr says an earlier record was replaced.
+- `second-desk` **appends** its entry to the record of that sid, keeping
+  its `tarball` and `cwd` (the first open's). With no record, or one that
+  cannot be read as this shape (§15.7), it writes a **fresh** record —
+  `tarball` null, this invocation's `cwd`, only this entry — and
+  `record_error` says which (`no in-flight record of <sid> to append …`, or
+  the faults of the record it replaced), with a warning on stderr; the verb
+  stays ok.
+- **The tarball a second desk needs:** bale 0.4.49's `second-desk` line has
+  `tarball` null. On `second-desk` the twin's `tarball` is bale's when bale
+  gives one, else the record's; `tarball_source` says which — `"bale"`,
+  `"record"`, or null when neither has one. On `opened` it is bale's,
+  `tarball_source` `"bale"` (null when bale gave none).
+- **A record that cannot be written after a successful open does not make
+  the verb not ok**: the session is open in bale, and a failure that
+  invited a retry would open another desk. `record` is null, `record_error`
+  names why, a warning goes to stderr, exit 0.
+- The record is a **cache** in N4's sense: every value in it is bale's
+  (from the line it printed) or the invocation's (`cwd`, `recorded_at`).
+  Deleting it loses nothing bale does not know. **Nothing in Arc 1 removes
+  it** (Arc 2's loop knows when a session closes), and nothing in Arc 1
+  reads it but `carry bundle` itself — `twine status` reading the records is
+  a later session's. A test pins that the record is the only file the verb
+  writes, and where.
+
+### 15.5 Output
+
+- **Human mode, ok, `opened` or `second-desk`:** stdout is **exactly
+  bale's `opener`** — its bytes, a final LF supplied if it lacked one — what
+  the operator pastes into the new chat. Diagnostics on stderr name the
+  sid, the desk (`the first desk`, or bale's `desk-2`, …), the request
+  tarball to attach (and where it came from) or that none is known, and the
+  record's path or `record_error`.
+- **Human mode, ok, `rehearsed`:** one stdout line, `carry bundle BUNDLE:
+  rehearsed — bale would open it (nothing written)`.
+- **Human mode, not ok:** one stdout line, `carry bundle BUNDLE: refused —
+  …` (bale not started) or `carry bundle BUNDLE: NOT OK — …`. `BUNDLE` in
+  the human lines is the argument as the operator gave it.
+
+The JSON twin, `command` `"carry bundle"`. Fixed names, present on every
+path:
+
+| key | value |
+|---|---|
+| `bundle` | the argument as passed to bale; null when refused before that |
+| `check` | whether `--check` was given |
+| `ran` | whether bale was started |
+| `exit_code` | bale's exit; null when it did not run or was killed |
+| `open` | bale's stdout parsed, when it is one JSON object; else null |
+| `outcome` | `open`'s `outcome`, or null |
+| `sid` | `open`'s `sid`, or null |
+| `desk` | `open`'s `desk`, or null |
+| `tarball` | §15.4's, or null (null on every not-ok path and on a rehearsal) |
+| `tarball_source` | `"bale"`, `"record"` or null |
+| `opener` | `open`'s `opener`, or null |
+| `record` | the record's path when written; else null |
+| `record_error` | why it was not written or was replaced fresh; else null |
+| `stderr` | bale's stderr as text |
+| `reason` | every refusal and failure, `; `-joined; null when ok |
+| `refusals` | the reasons bale was not called, in order |
+
+And beside them: `stdout` (bale's, as text), `argv` (the argv handed to
+the seam; null when none was), `stderr_truncated`, `timed_out`, `capped`,
+`duration_seconds`, `cwd`, `state_dir`, `state_dir_source` (both null under
+`--check`, and when none resolves), `bale` (§11.1). Every path — refused,
+not ok, opened, second-desk, rehearsed, a record that failed — carries
+exactly this key set.
+
+### 15.6 What is recorded, and what stands in
+
+Three `bale open … --json` lines are recorded at bale 0.4.49
+(`fixtures/README.md`, "bale 0.4.49"), each with exit 0 and
+`format_open_json`'s 21 keys: `open <bundle> --json` in the scratch
+repository as `opened` (`fixtures/bale-0.4.49/scratch/open_bundle_--json+opened.json`,
+sid `2026-10-07-sc-002`, `desk` null, a tarball) and, the same bundle
+opened again, as `second-desk` (`…+second-desk.json`, `desk` `"desk-2"`,
+`tarball` null, the desk-2 opener), and `open --check <bundle> --json` in
+`~/twine-src` as `rehearsed`
+(`fixtures/bale-0.4.49/twine-src/open_--check_bundle_--json.json`, `sid`
+and `opener` null, `rehearsal` `"check"`). twine's argv is exactly these,
+so the fixture player answers them with the recordings, the test selecting
+`opened` or `second-desk` for the grouped name (§7); `tests/helpers.py`'s
+`open_recording(name)` reads them and `StubBale(open_stdout=…)` replays one
+as a subprocess. **No open refusal is recorded**: bale's contract (BALE.md
+§6.7, 0.4.49) is exit 1 through `fail()`, nothing on stdout, the reason on
+stderr, and the tests stand in for it with a double named as such
+(`OpenDouble` in `tests/test_carry_bundle.py`), as they do for a timeout,
+a capped stdout, a line with an outcome no bale emits (`NOT_A_BALE_OUTCOME`)
+and a recorded line with its `sid` or `opener` taken out. A recording of a
+refusal (bale-src's reason-coded open refusals are a proposal on its board)
+replaces the double.
+
+### 15.7 One function, two faces
+
+The verb is thin over `twine/inflight.py`, which the Arc 2 loop and a later
+`twine status` can call:
+
+```
+INFLIGHT_SUBDIR = "inflight"
+RECORD_KEYS = ("sid", "cwd", "tarball", "opens")
+OPEN_KEYS = ("outcome", "desk", "bundle_sha256", "opener_sha256", "recorded_at")
+inflight_path(state_dir: Path, sid: str) -> Path                  # raises ValueError
+read_inflight(state_dir: Path, sid: str) -> dict | None           # raises InflightRecordError
+record_open(state_dir: Path, sid: str, *, outcome, cwd, tarball, desk,
+            bundle_sha256, opener, clock=utc_now) -> Recorded     # raises InflightError
+```
+
+`read_inflight` requires exactly the record's four keys and each entry's
+five — a key missing or extra, a `sid` not the file's, a `cwd` that is not
+absolute, a `tarball` neither a string nor null, `opens` not a non-empty
+array, an entry whose `outcome` is not `opened` or `second-desk`, whose
+`desk` or `bundle_sha256` is neither a string nor null, or whose
+`opener_sha256` or `recorded_at` is not a non-empty string is a fault, each
+named. `Recorded` carries the path, the record written, the well-formed
+record found before (or null), `replaced` (an `opened` over an earlier
+record) and `fresh` (the sentence a fresh `second-desk` record puts in
+`record_error`). `InflightError` carries `found`, the record read before
+the write failed, so the verb can still name its tarball. The read and the
+replace run under the one `flock`, so two desks recording at once lose
+neither entry.
+
+The tests (`tests/test_carry_bundle.py`) replay the three recordings
+through the fixture player — `opened` and `second-desk` with the test's
+directory as the scratch repository, `rehearsed` with `--cwd` the
+repository root — and run the verb end to end as a subprocess against
+`StubBale` replaying `opened` into a temporary state directory. Every state
+directory is a temporary one; the in-process runs carry an environment
+with no state variables, so a verb without `--state-dir` refuses rather
+than touch the real default.
