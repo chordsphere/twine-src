@@ -26,6 +26,13 @@ inferred reason, never the flag that clears the lock past a HOLD branch
 (that state is `bale revert`'s, the operator's). No other `unlock` argv
 exists in twine.
 
+Since Arc 1 session 3 (`twine carry bundle`, 2026-10-07-twine-carry-bundle-003)
+one more argv is built here, `open_argv`: exactly `bale open <bundle>
+--json`, or with `--check` exactly `bale open --check <bundle> --json` — the
+two argvs the consumption manifest's open surface records. Never
+`--dry-run`, `--verbose`, `--no-sandbox` or another flag; no other `open`
+argv exists in twine.
+
 Sections:
   1. Install-root resolution     (~line 50)
   2. The installed version       (~line 105)
@@ -409,6 +416,21 @@ def unlock_line(sid: str) -> str:
     """The line an operator runs to close a killed session by hand, in the
     repo whose session it is — the same argv without `--json`."""
     return f"bale unlock {shlex.quote(sid)} --reason {UNLOCK_REASON}"
+
+
+def open_argv(executable: Path, bundle: str, *, check: bool = False) -> list[str]:
+    """`bale open <bundle> --json`, or with `check` `bale open --check
+    <bundle> --json` — the one `open` argv twine builds (Arc 1 session 3),
+    exactly as the consumption manifest's open surface records it. Nothing
+    else is ever added: an open runs the bundle's checkpoint dry-run and
+    packs a session, and twine asks for nothing beyond the JSON line.
+    `bundle` is an existing file's absolute path or the operator's name for
+    bale to resolve; it never begins with `-`, so bale cannot read it as a
+    flag. Raises ValueError for an empty bundle or one that does."""
+    if not bundle or bundle.startswith("-"):
+        raise ValueError(f"bundle {bundle!r} is not safe to pass to bale "
+                         "(empty, or it would read as a flag)")
+    return [str(executable), "open", *(["--check"] if check else []), bundle, "--json"]
 
 
 def revert_line(sid: str) -> str:

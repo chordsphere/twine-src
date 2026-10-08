@@ -52,7 +52,13 @@ stderr. twine's kill keys its hand line on the refusal line's `reason`
 code, not on stderr text, so `unlock_recording` answers stderr empty for
 every recording and derives none; a test that proves stderr passes through
 feeds bytes it names as not bale's (RecordedUnlock's and StubBale's
-`stderr=`)."""
+`stderr=`).
+
+Since Arc 1 session 3 (`twine carry bundle`): StubBale also replays an
+`open` recording (`open_stdout=`), and `open_recording(name)` reads the
+three recorded `bale open … --json` lines (OPEN_RECORDINGS) — opened and
+second-desk in the scratch repository, rehearsed under --check in
+~/twine-src — as `unlock_recording` reads the unlock lines."""
 
 from __future__ import annotations
 
@@ -561,16 +567,18 @@ class StubBale:
     """A double, not bale: a temp install root whose `bin/bale` is a
     bash script this class writes, and `bin/VERSION` at the pin. The
     script records its argv, cwd and (for `relay`) stdin under `record`,
-    then replays the bytes of `relay_stdout`, `apply_stdout` or
+    then replays the bytes of `relay_stdout`, `apply_stdout`,
     `unlock_stdout` (since the pin at 0.4.49, a recording's file —
-    unlock_recording(...).path) on stdout, `stderr` on stderr, and exits
+    unlock_recording(...).path) or `open_stdout` (since Arc 1 session 3, an
+    `open` recording's file) on stdout, `stderr` on stderr, and exits
     `exit_code`. It lets the CLI run end to end as a subprocess
     (`--bale-root`) with no bale anywhere; the bytes it replays are a
     recorded fixture, or bytes the test names as not bale's."""
 
     def __init__(self, relay_stdout: Path | None = None,
                  apply_stdout: Path | None = None, exit_code: int = 0,
-                 stderr: str = "", unlock_stdout: Path | None = None) -> None:
+                 stderr: str = "", unlock_stdout: Path | None = None,
+                 open_stdout: Path | None = None) -> None:
         self._dir = tempfile.TemporaryDirectory(prefix="twine-stub-bale-")
         base = Path(self._dir.name)
         self.root = base / "root"
@@ -580,7 +588,7 @@ class StubBale:
         (self.root / "bin" / "VERSION").write_text(PIN + "\n", encoding="utf-8")
         q = shlex.quote
         replay = {"relay": relay_stdout, "apply": apply_stdout,
-                  "unlock": unlock_stdout}
+                  "unlock": unlock_stdout, "open": open_stdout}
         # bash by absolute path: a verb run in-process may hand the child an
         # empty environment, and the shebang must not depend on PATH.
         bash = shutil.which("bash") or "/bin/bash"
@@ -838,3 +846,48 @@ class RealGroup:
         self.proc.stdout.close()
         self.proc.wait(timeout=10)
 
+
+
+# ---------------------------------------------------------------------------
+# The open recordings (bale 0.4.49; read since Arc 1 session 3, `twine carry
+# bundle`). Three `bale open … --json` lines were recorded on 2026-10-07: the
+# scoped scratch session opened from a crafter bundle (`opened`), the same
+# bundle opened again as desk-2 (`second-desk`), and a throwaway bundle
+# rehearsed with --check in ~/twine-src (`rehearsed`; fixtures/README.md,
+# "bale 0.4.49"). No open refusal is recorded: bale prints nothing on stdout
+# and exits 1 through fail(), and the tests stand in for one with a double
+# named as such.
+# ---------------------------------------------------------------------------
+
+# format_open_json's 21 keys at 0.4.49, in the order the recorded lines carry
+# them (the brief of session 2026-10-07-twine-carry-bundle-003, §1).
+OPEN_KEYS = ("outcome", "sid", "tarball", "log", "session_dir", "context_files",
+             "readme_path", "readme_heading", "readme_sha256", "checkpoint_file_path",
+             "checkpoint_file_sha256", "branch", "applied_latest", "sweep",
+             "include_group", "opener", "bundle", "members", "rehearsal",
+             "checkpoint_dry_run", "desk")
+OPEN_RECORDED_SID = "2026-10-07-sc-002"
+# The normalized name both open-without---check recordings share, and the
+# group a test selects to replay one of them through FixturePlayer.
+OPEN_KEY = "open_bundle_--json"
+OPEN_RECORDINGS: dict[str, tuple[str, list[str], str | None]] = {
+    "opened": ("scratch", ["open", Role("bundle"), "--json"], "opened"),
+    "second-desk": ("scratch", ["open", Role("bundle"), "--json"], "second-desk"),
+    "rehearsed": ("repo", ["open", "--check", Role("bundle"), "--json"], None),
+}
+
+
+def open_recording(name: str) -> Recording:
+    """The 0.4.49 recording of `bale open` named `name` (a key of
+    OPEN_RECORDINGS), with the exit its fixtures/README.md row records and
+    an empty stderr (none was recorded; none is derived)."""
+    where, argv, group = OPEN_RECORDINGS[name]
+    rel = fixture_relpath(argv, where, group)
+    path = REPO_ROOT / rel
+    if not path.is_file():
+        raise AssertionError(f"open recording {name!r} missing at {rel}")
+    exits = recorded_exits()
+    if rel not in exits or exits[rel] == UNRECORDED:
+        raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
+    stdout = path.read_bytes()
+    return Recording(rel, stdout, int(exits[rel]), b"", json.loads(stdout))

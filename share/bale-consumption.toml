@@ -257,16 +257,16 @@ flags = ["--json"]
 argv = ["open", "<bundle>", "--json"]
 cwd = "scratch"
 stdout = "exactly one JSON object line: outcome \"opened\" (exit 0) with the minted sid, the request tarball, the session dir and the paste-ready `opener`; \"second-desk\" (exit 0) when the same bundle is already open and this chat joins it as a desk; \"rehearsed\" (exit 0) under --check, nothing written"
-keys = []
+keys = ["outcome", "sid", "tarball", "opener", "desk", "bundle"]
 key_owner = "format_open_json docstring in bin/bale_report.py (outcome, sid, tarball, log, session_dir, context_files, readme_path, readme_heading, readme_sha256, checkpoint_file_path, checkpoint_file_sha256, branch, applied_latest, sweep, include_group, opener, bundle, members, rehearsal, checkpoint_dry_run, desk)"
-read_by = []
+read_by = ["carry bundle"]
 fixture = "fixtures/bale-0.4.49/scratch/open_bundle_--json+opened.json"
 also_recorded = [
   {argv = ["open", "<bundle>", "--json"], cwd = "scratch", outcome = "second-desk", fixture = "fixtures/bale-0.4.49/scratch/open_bundle_--json+second-desk.json"},
   {argv = ["open", "--check", "<bundle>", "--json"], cwd = "repo", outcome = "rehearsed", fixture = "fixtures/bale-0.4.49/twine-src/open_--check_bundle_--json.json"},
 ]
 written_against = "0.4.49"
-note = "wanted by Arc 1 session 3 (offline courier — emit), absent in 0.4.45; bale 0.4.48 added it. Recorded: the scoped scratch session opened from a crafter bundle, the same bundle opened again as desk-2, and a throwaway bundle rehearsed with --check in ~/twine-src (nothing written). Read by nothing yet, the way --version reads nothing: Arc 1 row 3's verb is the reader"
+note = "wanted by Arc 1 session 3 (offline courier — emit), absent in 0.4.45; bale 0.4.48 added it. Recorded: the scoped scratch session opened from a crafter bundle, the same bundle opened again as desk-2, and a throwaway bundle rehearsed with --check in ~/twine-src (nothing written). Read since session 2026-10-07-twine-carry-bundle-003 by `twine carry bundle`, which runs exactly this argv (or, with --check, the --check row's) and reads outcome, sid, tarball, opener, desk and bundle (its sha256) — the opener it prints, the rest into the in-flight record. An open refusal is not recorded (bale exits 1 through fail(), nothing on stdout): the tests stand in for one with a double named as such"
 
 [[surface]]
 kind = "verb"

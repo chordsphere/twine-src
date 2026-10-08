@@ -11,9 +11,10 @@ from twine import CONSUMPTION_MANIFEST, REPO_ROOT, shapes
 from twine.bale import ManifestError, load_manifest
 from twine.registry import load_registry
 
-from tests.helpers import (BALE_VOCABULARIES, GROUP_SEP, PIN, UNLOCK_KEYS, UNLOCK_RECORDINGS,
-                           Role, TempRoots, carried_relpath, emission_relpath, fixture_key,
-                           fixture_relpath, split_group, unlock_recording)
+from tests.helpers import (BALE_VOCABULARIES, GROUP_SEP, OPEN_KEYS, OPEN_RECORDINGS, PIN,
+                           UNLOCK_KEYS, UNLOCK_RECORDINGS, Role, TempRoots, carried_relpath,
+                           emission_relpath, fixture_key, fixture_relpath, open_recording,
+                           split_group, unlock_recording)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHEMA_FILES = {
@@ -375,13 +376,23 @@ class SurfacesAreWalkable(unittest.TestCase):
         header = CONSUMPTION_MANIFEST.read_text(encoding="utf-8").split("[bale]", 1)[0]
         self.assertIn("[[wanted]]", header)
 
-    def test_open_json_is_a_surface_read_by_nothing_yet(self):
-        """Arc 1 session 3's wanted verb, recorded: opened, second-desk and,
-        with --check, rehearsed — read by [] until row 3's verb exists, the
-        way --version reads nothing."""
+    def test_open_json_is_read_by_carry_bundle(self):
+        """Arc 1 session 3's wanted verb, recorded at 0.4.49 — opened,
+        second-desk and, with --check, rehearsed — and read since session
+        2026-10-07-twine-carry-bundle-003 by `twine carry bundle`, which
+        reads exactly the keys the entry names (outcome, sid, tarball,
+        opener, desk, bundle), each one of format_open_json's 21. Rewritten
+        from test_open_json_is_a_surface_read_by_nothing_yet, which pinned
+        read_by and keys empty until row 3's verb existed."""
         open_ = self.by_verb_and_flags()[("open", ("--json",))]
         self.assertEqual((open_["argv"], open_["keys"], open_["read_by"]),
-                         (["open", "<bundle>", "--json"], [], []))
+                         (["open", "<bundle>", "--json"],
+                          ["outcome", "sid", "tarball", "opener", "desk", "bundle"],
+                          ["carry bundle"]))
+        self.assertTrue(set(open_["keys"]) <= set(OPEN_KEYS))
+        for name in OPEN_RECORDINGS:
+            self.assertEqual(tuple(open_recording(name).line), OPEN_KEYS, name)
+        self.assertIn("carry bundle", open_["note"])
         self.assertIn("format_open_json", open_["key_owner"])
         self.assertIn("opener", open_["key_owner"])
         self.assertEqual([(r["argv"], r["cwd"], r["outcome"]) for r in open_["also_recorded"]],

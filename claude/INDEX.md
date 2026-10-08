@@ -45,8 +45,8 @@ project's inventory.
   spells the shape and `twine transitions` checks it is total.
 
 - `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`,
-  `<state-dir>/abort/<sid>.json` and `<state-dir>/running/<sid>.json` — not
-  in this repository: twine's state directory (`--state-dir`, else
+  `<state-dir>/abort/<sid>.json`, `<state-dir>/running/<sid>.json` and
+  `<state-dir>/inflight/<sid>.json` — not in this repository: twine's state directory (`--state-dir`, else
   `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`).
   The spend stream is twine's durable usage record (D15, N4): append-only,
   one JSON line per model call, tokens by class and a nullable
@@ -64,9 +64,16 @@ project's inventory.
   they return with nothing left alive (`clear_group`), and `twine kill`
   reads, signals every group of, re-reads once and clears; both are
   `context/cli-contract.md` §14, and `twine status` reports which state
-  directory twine resolves and what of it exists (§4). Pull when a session
+  directory twine resolves and what of it exists (§4). The in-flight record
+  (Arc 1 session 3) is the session `twine carry bundle` opened: a cache of
+  exactly four keys (`sid`, `cwd`, `tarball`, and `opens` — one entry per
+  desk, `outcome`, `desk`, `bundle_sha256`, `opener_sha256`, `recorded_at`),
+  written on an `opened` or `second-desk` only, never removed in Arc 1, and
+  where a second desk finds the request tarball bale's `second-desk` line
+  does not name; `context/cli-contract.md` §15.4. Pull when a session
   reads or writes spend, prices a model, maps a provider's usage onto the
-  record (Arc 2), or starts, stops or kills a session's runtime.
+  record (Arc 2), starts, stops or kills a session's runtime, or opens,
+  tracks or closes a session twine carried in.
 
 ## Explainers
 - `context/cli-contract.md` — the `twine` CLI's interface outcomes:
@@ -88,10 +95,13 @@ project's inventory.
   the running record with its `groups` and the process-level kill of every
   one of them, the pin gating the closure alone, the one `unlock` argv and
   the `aborted` closure, the recorded unlock lines the tests replay since
-  the pin at 0.4.49), the manifest and fixture shapes (per-run fixture
+  the pin at 0.4.49), §15, `carry bundle` (the courier opens a bundle with
+  the one `open` argv, never retried; the opener on stdout; the in-flight
+  record and the tarball a second desk needs; the three recorded open
+  lines the tests replay), the manifest and fixture shapes (per-run fixture
   names, by role; outcome groups), how the tests run. Default inclusion for any session
   that adds a verb, runs a subprocess, routes a courier's block, or
-  touches spend or the kill-switch.
+  touches spend, the kill-switch or the in-flight record.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter

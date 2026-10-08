@@ -18,7 +18,8 @@ from twine import REPO_ROOT
 
 from tests.helpers import (DOUBLE_MODEL, UNLOCK_RECORDED_SID, SpendStateDouble, StubBale,
                            TempRoots, emission_relpath, fenced_probe, filled_probe,
-                           fixture_relpath, run_cli, run_inprocess, unlock_recording)
+                           fixture_relpath, open_recording, run_cli, run_inprocess,
+                           unlock_recording)
 
 # The session the recorded `aborted` close names: kill's closure is ok
 # only for it, so it is the sid the happy-path kill closes.
@@ -54,8 +55,14 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.unlock_line = unlock_recording("aborted").path
         self.kill_repo = Path(self._turns.name) / "repo"
         self.kill_repo.mkdir()
+        # carry bundle (Arc 1 session 3): the stub answers open with the
+        # recorded --check rehearsal (bale 0.4.49), and the bundle is a file
+        # the stub never reads.
+        self.bundle = Path(self._turns.name) / "json-discipline.bale-bundle"
+        self.bundle.write_bytes(b"a bundle the stub never reads\n")
         self.stub = StubBale(relay_stdout=self.exchange, apply_stdout=self.dry_run,
-                             unlock_stdout=self.unlock_line)
+                             unlock_stdout=self.unlock_line,
+                             open_stdout=open_recording("rehearsed").path)
         # The spend verbs read a temp state directory holding one usage
         # record and the price table — doubles both — never the default.
         self.spend_state = SpendStateDouble()
@@ -78,7 +85,10 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         spend check against a temp state directory double (ok true, exit 0;
         the check admits a call well under its cap); kill on a temp state
         directory with no running record, closed by the stub (ok true, exit
-        0; requesting the abort again is idempotent)."""
+        0; requesting the abort again is idempotent); carry bundle with
+        --check on an existing file, the stub replaying the recorded
+        rehearsal (ok true, exit 0; nothing written, no state directory
+        needed)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
@@ -91,6 +101,8 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
             argv += [str(self.exchange), "--bale-root", str(self.stub.root)]
         if name == "carry response":
             argv += [str(self.dry_run), "--bale-root", str(self.stub.root)]
+        if name == "carry bundle":
+            argv += [str(self.bundle), "--check", "--bale-root", str(self.stub.root)]
         if name == "kill":
             argv += [KILL_SID, "--state-dir", str(self.spend_state.path), "--cwd",
                      str(self.kill_repo), "--bale-root", str(self.stub.root)]

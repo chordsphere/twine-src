@@ -40,6 +40,20 @@ Arc 1 (the courier) session 1 landed twine's core:
   never applies anything itself: the merge stays yours. Both drive only
   the pinned bale: a `bin/VERSION` other than the pin, or one that
   cannot be read, is refused before bale starts (D2).
+- `carry bundle` (session 3, the last courier row): carries a planner's
+  bundle into bale. It runs `bale open <bundle> --json` itself — an open
+  merges nothing, and an unwanted session is closed with `bale unlock` —
+  once, never retried, and prints exactly bale's `opener`, the text you
+  paste into the new chat; stderr names the request tarball to attach.
+  `--check` rehearses with `bale open --check` and writes nothing. Each
+  open is recorded in twine's state directory as
+  `inflight/<sid>.json` — the sid, where bale ran, the request tarball,
+  and one entry per desk — so a second desk on the same session (bale's
+  `second-desk`, whose line names no tarball) is handed the first open's
+  tarball. The record is a cache of what bale printed; nothing removes it
+  yet. Without `--check` an open is refused unless a state directory
+  resolves (an open that could not be recorded is refused before it
+  happens); same pin gate as the other carry verbs.
 - `transitions` (session 4): the transition table (D17), as data in
   `share/transitions.toml` — bale 0.4.49's 13 telemetry outcomes, 9
   closure reasons and the 9 outcomes `bale apply --json` prints, plus
@@ -100,20 +114,22 @@ Arc 1 (the courier) session 1 landed twine's core:
   as data.
 - `fixtures/` — recorded `bale … --json` outputs from the pinned
   version (twenty-three at 0.4.49, including every outcome of `bale
-  unlock --json` the kill-switch's tests replay), the crafter's
+  unlock --json` the kill-switch's tests replay and the three `bale open
+  --json` lines `carry bundle`'s tests replay), the crafter's
   emissions, and carried pastes of bale output, byte-exact; the only
   bale the tests ever see. Earlier versions' recordings stay as history.
 - `tests/` — the stdlib `unittest` suite.
 
 Stdlib only; python 3.11 or newer. The courier reads (`take`), runs a
 probe with consent (`carry probe`), relays an exchange block (`carry
-exchange`) and dry-runs a response (`carry response`), and its
+exchange`), dry-runs a response (`carry response`) and opens a bundle
+(`carry bundle`), and its
 transition table names a move for every outcome bale reports and every
 way a runtime turn will stop. The cost spine records spend, totals it and
 checks the hard cap before a call, and the kill-switch can stop a session
 from outside and close it `aborted`; nothing makes a call yet. twine does
-not yet emit requests (Arc 1 session 3) or dispatch on the table, and there
-is no model adapter or sandbox (Arc 2).
+not yet dispatch on the table, and there is no model adapter or sandbox
+(Arc 2).
 
 ## Running it
 
@@ -128,6 +144,8 @@ python3 -I -S bin/twine carry probe turn.txt               # show the probe; run
 python3 -I -S bin/twine carry probe turn.txt --run > paste.txt   # run it; stdout is the paste-back
 python3 -I -S bin/twine carry exchange turn.txt > next.txt       # relay the block; stdout is bale's reply block
 python3 -I -S bin/twine carry response response-<sid>.tar.gz     # dry-run it; stdout is the `bale apply` line
+python3 -I -S bin/twine carry bundle <stem>.bale-bundle > opener.txt   # open it; stdout is the opener to paste
+python3 -I -S bin/twine carry bundle <stem>.bale-bundle --check  # rehearse; nothing written
 python3 -I -S bin/twine transitions [--json]                     # the transition table; ok when it is total
 python3 -I -S bin/twine spend totals [--sid SID] [--json]        # spend per session, at your prices
 python3 -I -S bin/twine spend check --sid SID --cap USD --model M --input N --max-output N   # admit or refuse one call
@@ -137,11 +155,11 @@ python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill it
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to
 run and how a reviewer checks the stdlib-only claim; plain
 `bin/twine …` works too. `bale check`, `carry exchange`, `carry
-response` and `kill` find the install from `--bale-root`, else `$TWINE_BALE_ROOT`,
-else `bale` on `PATH`; the two carry verbs and `kill` run bale in the
-current directory (or `--cwd`), which should be the repo whose session
-they carry or kill; `kill` writes its abort request in the state
-directory below. The spend verbs read twine's state directory and never write
+response`, `carry bundle` and `kill` find the install from `--bale-root`, else `$TWINE_BALE_ROOT`,
+else `bale` on `PATH`; the three carry verbs that run bale and `kill` run
+it in the current directory (or `--cwd`), which should be the repo whose
+session they carry, open or kill; `kill` writes its abort request, and
+`carry bundle` its in-flight record, in the state directory below. The spend verbs read twine's state directory and never write
 it; the price file is yours to write there (or name with `--prices`):
 one `[model."<id>"]` table per model with `input`, `output`, `cache_read`
 and `cache_write` in US dollars per million tokens. The
