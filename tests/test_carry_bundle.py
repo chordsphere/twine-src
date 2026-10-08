@@ -894,6 +894,52 @@ class TheRecordModule(Case):
         self.assertEqual(self.read_record(), rec.record)
         self.assertTrue(self.record_file().read_bytes().endswith(b"}\n"))
 
+    # list_inflight (session twine-status-inflight): what `twine status`
+    # reads the records through. Its rendering in `status` is
+    # tests/test_status.py's InflightRecords.
+
+    def test_list_inflight_with_no_inflight_directory_is_empty_and_creates_nothing(self):
+        self.assertEqual(inflight.list_inflight(self.state), inflight.InflightListing((), ()))
+        self.assertFalse(self.state.exists())
+        self.state.mkdir()
+        (self.state / "inflight").write_text("a file, not the directory")
+        self.assertEqual(inflight.list_inflight(self.state), inflight.InflightListing((), ()))
+
+    def test_list_inflight_reads_every_record_and_sorts_by_sid(self):
+        for sid in ("b", "a-b", "a", SID):
+            inflight.record_open(self.state, sid, outcome="opened", cwd="/r", tarball=None,
+                                 desk=None, bundle_sha256=None, opener="o")
+        listing = inflight.list_inflight(self.state)
+        self.assertEqual(listing.sids, tuple(sorted(("b", "a-b", "a", SID))))
+        self.assertLess(listing.sids.index("a"), listing.sids.index("a-b"))
+        self.assertEqual(listing.faults, ())
+
+    def test_list_inflight_names_each_entry_that_is_not_a_record_by_its_basename(self):
+        inflight.record_open(self.state, SID, outcome="opened", cwd="/r", tarball=None,
+                             desk=None, bundle_sha256=None, opener="o")
+        bad = self.good()
+        bad["opens"][0]["outcome"] = "rehearsed"
+        self.write_raw(bad)                            # SID's record, now malformed
+        (self.state / "inflight" / "README").write_text("notes")
+        (self.state / "inflight" / "-x.json").write_text("{}")
+        listing = inflight.list_inflight(self.state)
+        self.assertEqual(listing.sids, ())
+        self.assertEqual(listing.faults, (
+            "-x.json is not an in-flight record: '-x' is not a session id twine accepts",
+            f"{SID}.json is not an in-flight record: opens[0].outcome 'rehearsed' is not "
+            "'opened' or 'second-desk'",
+            "README is not an in-flight record: its name is not <sid>.json"))
+        for fault in listing.faults:
+            self.assertNotIn(str(self.state), fault)
+
+    def test_list_inflight_faults_are_read_inflights_own_words(self):
+        self.write_raw({})
+        with self.assertRaises(inflight.InflightRecordError) as caught:
+            inflight.read_inflight(self.state, SID)
+        words = str(caught.exception)
+        self.assertEqual(inflight.list_inflight(self.state).faults,
+                         (f"{SID}.json" + words[len(str(self.record_file())):],))
+
 
 # ---------------------------------------------------------------------------
 # 11. Guards: one open argv; the record is never removed

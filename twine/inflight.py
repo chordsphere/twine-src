@@ -34,13 +34,17 @@ request tarball a second desk needs (brief ruling 3).
 It is a **cache** in N4's sense: every value in it is bale's (from the line
 bale printed) or the invocation's (`cwd`, `recorded_at`). Deleting it loses
 nothing bale does not know. Nothing in Arc 1 removes it (Arc 2's loop knows
-when a session closes), and nothing in Arc 1 reads it but the verb that
-writes it (`twine status` reading it is a later session's).
+when a session closes). Two things read it: the verb that writes it, and
+`twine status` (session `2026-10-08-twine-status-inflight-004`), through
+`list_inflight` — which lists `inflight/` and reads every record there
+without writing, locking or creating anything, and names each entry there
+that is not a record rather than dropping it.
 
 Sections:
-  1. Names and errors       (~line 60)
-  2. Reading a record       (~line 110)
-  3. Recording an open      (~line 200)
+  1. Names and errors       (~line 65)
+  2. Reading a record       (~line 120)
+  3. Listing the records    (~line 210)
+  4. Recording an open      (~line 320)
 """
 
 from __future__ import annotations
@@ -49,6 +53,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -203,7 +208,116 @@ def _short(value: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 3. Recording an open
+# 3. Listing the records
+# ---------------------------------------------------------------------------
+
+# The temp file twine/kill.py's _write_replacing writes beside a record before
+# renaming it over the record (_temp_name: `.twine-<pid>-<monotonic ns>.tmp`).
+# One seen in `inflight/` is a write in progress or one that did not finish;
+# it is still not a record, so it is still named — this only says which.
+_TEMP_NAME = re.compile(r"\.twine-\d+-\d+\.tmp")
+
+
+@dataclass(frozen=True)
+class InflightListing:
+    """What list_inflight found in `<state-dir>/inflight/`.
+
+    sids    the sids whose `<sid>.json` read_inflight accepts, sorted
+    faults  one sentence per entry there that is not a record, in name
+            order, each naming the entry by its basename and saying why —
+            read_inflight's own words for a `<sid>.json` it refuses
+    """
+
+    sids: tuple[str, ...] = ()
+    faults: tuple[str, ...] = ()
+
+
+def list_inflight(state_dir: Path) -> InflightListing:
+    """Every in-flight record in `<state-dir>/inflight/`, read, and every
+    entry there that is not one, named. Reading only: nothing is created,
+    written or locked (a record is replaced atomically, so a reader sees the
+    old record or the new one, never half of either), and nothing here
+    raises for what the directory holds.
+
+    - `inflight/` absent, or not a directory: no sids, no faults.
+    - `inflight/` that cannot be listed (no read permission, say): no sids
+      and one fault naming `inflight/` — never a traceback, and never an
+      empty listing that would read as "no records".
+    - an entry whose name is not `<sid>.json` for a sid twine accepts
+      (twine.kill.is_sid): a fault saying so.
+    - a `<sid>.json` read_inflight refuses: a fault in read_inflight's
+      words, the full path cut to the basename.
+    - a `<sid>.json` listed but gone when read (a dangling link, or removed
+      in between): a fault saying so — a silent skip is a bug.
+    """
+    directory = inflight_dir(state_dir)
+    # os.path.isdir never raises: a path that cannot be stat'd reads as
+    # absent, as `twine status` reads the state directory itself.
+    if not os.path.isdir(directory):
+        return InflightListing()
+    try:
+        names = sorted(os.listdir(directory))
+    except OSError as exc:
+        fault = f"{INFLIGHT_SUBDIR}/ cannot be listed: {exc.strerror or exc}"
+        log.warning("%s: %s", directory, fault)
+        return InflightListing((), (fault,))
+    sids: list[str] = []
+    faults: list[str] = []
+    for name in names:
+        sid, fault = _read_entry(state_dir, name)
+        if sid is not None:
+            sids.append(sid)
+        else:
+            faults.append(fault)
+            log.warning("%s: %s", directory, fault)
+    log.debug("%s: %d record(s), %d fault(s)", directory, len(sids), len(faults))
+    # Sorted by sid, not by file name: `a.json` sorts after `a-b.json`, `a`
+    # before `a-b`.
+    return InflightListing(tuple(sorted(sids)), tuple(faults))
+
+
+def _read_entry(state_dir: Path, name: str) -> tuple[str | None, str]:
+    """(sid, "") when `name` is a record that reads, else (None, the fault)."""
+    shown = _shown(name)
+    if not name.endswith(RECORD_SUFFIX):
+        if _TEMP_NAME.fullmatch(name):
+            return None, (f"{shown} is not an in-flight record: it is the temp file of a "
+                          "record write still in progress, or of one that did not finish")
+        return None, (f"{shown} is not an in-flight record: its name is not "
+                      f"<sid>{RECORD_SUFFIX}")
+    sid = name[:-len(RECORD_SUFFIX)]
+    if not is_sid(sid):
+        return None, (f"{shown} is not an in-flight record: {_shown(sid, quote=True)} "
+                      "is not a session id twine accepts")
+    path = inflight_path(state_dir, sid)
+    try:
+        record = read_inflight(state_dir, sid)
+    except InflightRecordError as exc:
+        message = str(exc)
+        # read_inflight's sentences open with the record's full path; the
+        # listing names the file by its basename.
+        if message.startswith(f"{path} "):
+            return None, shown + message[len(str(path)):]
+        return None, f"{shown}: {message}"
+    if record is None:
+        return None, (f"{shown} cannot be read: it was listed but no file is there now "
+                      "(a dangling link, or removed while it was read)")
+    return sid, ""
+
+
+def _shown(name: str, *, quote: bool = False) -> str:
+    """`name` fit to print on any line: as it is when it is printable text
+    (and `quote` is not asked), else its repr — so a name holding a newline,
+    or bytes that are not UTF-8 (os.listdir hands those back as lone
+    surrogates), can break neither a human line nor the JSON twin's
+    encoding."""
+    if name.isprintable() and not quote:
+        return name
+    return repr(name)
+
+
+# ---------------------------------------------------------------------------
+# 4. Recording an open
 # ---------------------------------------------------------------------------
 
 

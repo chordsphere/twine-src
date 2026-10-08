@@ -21,8 +21,10 @@ Arc 1 (the courier) session 1 landed twine's core:
   twin that emits exactly one JSON object line on stdout.
 - Verbs: `commands` (list the registry), `status` (twine's own facts —
   since session 5c also where its state directory resolves, whether it
-  exists, and whether `spend.jsonl`, `prices.toml`, `abort/` and
-  `running/` are in it; it never creates the directory),
+  exists, and whether `spend.jsonl`, `prices.toml`, `abort/`, `running/`
+  and `inflight/` are in it, and since 0.11.0 the sids whose in-flight
+  records read there and every file in `inflight/` that is not one,
+  named; it never creates the directory, and writes nothing),
   `bale check` (the installed bale's `bin/VERSION` against the pin),
   and `take` (session 2a): read a pasted turn, find each bale shape in
   it — probe, probe output, light block, exchange block, relay block —
