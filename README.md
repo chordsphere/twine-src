@@ -33,8 +33,9 @@ Arc 1 (the courier) session 1 landed twine's core:
   256 KiB output cap) and print the verified paste-back.
 - `carry exchange` and `carry response` (session 2b-ii): the bale
   hand-offs. `carry exchange` hands the exchange block in a pasted turn
-  — only an intact one, exactly its own lines — to `bale relay <sid> -`
-  and prints the block bale hands back. `carry response` runs
+  — only an intact one, exactly its own lines — to `bale relay <sid> -
+  --json`, reads the one line bale answers with, and prints the block it
+  hands back (on a refusal, the reason quotes bale's cause). `carry response` runs
   `bale apply --dry-run --json` on a response tarball and, on a clean dry
   run, prints the one `bale apply <path>` line for you to run. twine
   never applies anything itself: the merge stays yours. Both drive only
@@ -142,7 +143,7 @@ python3 -I -S bin/twine bale check --json [--bale-root DIR]
 python3 -I -S bin/twine take turn.txt --json     # or `take -` to read stdin
 python3 -I -S bin/twine carry probe turn.txt               # show the probe; runs nothing
 python3 -I -S bin/twine carry probe turn.txt --run > paste.txt   # run it; stdout is the paste-back
-python3 -I -S bin/twine carry exchange turn.txt > next.txt       # relay the block; stdout is bale's reply block
+python3 -I -S bin/twine carry exchange turn.txt > next.txt       # relay the block (bale relay <sid> - --json); stdout is bale's reply block
 python3 -I -S bin/twine carry response response-<sid>.tar.gz     # dry-run it; stdout is the `bale apply` line
 python3 -I -S bin/twine carry bundle <stem>.bale-bundle > opener.txt   # open it; stdout is the opener to paste
 python3 -I -S bin/twine carry bundle <stem>.bale-bundle --check  # rehearse; nothing written

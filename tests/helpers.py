@@ -58,7 +58,16 @@ Since Arc 1 session 3 (`twine carry bundle`): StubBale also replays an
 `open` recording (`open_stdout=`), and `open_recording(name)` reads the
 three recorded `bale open … --json` lines (OPEN_RECORDINGS) — opened and
 second-desk in the scratch repository, rehearsed under --check in
-~/twine-src — as `unlock_recording` reads the unlock lines."""
+~/twine-src — as `unlock_recording` reads the unlock lines.
+
+Since session 2026-10-08-twine-carry-exchange-json-001 (`carry exchange`
+reads `bale relay --json`'s line): `relay_recording(name)` reads the four
+recorded `bale relay … --json` lines (RELAY_RECORDINGS) and RecordedRelay
+replays one for twine's argv, `relay <sid> - --json`, on the named
+assumption that bale reads `-` exactly as it reads the file the recordings
+were made with. StubBale's `relay_stdout` is a recording's file now; the
+crafter's `--emit-block` emission no longer stands in for relay's stdout
+(it stays the `exchange` format's fixture, which `take` reads)."""
 
 from __future__ import annotations
 
@@ -567,7 +576,9 @@ class StubBale:
     """A double, not bale: a temp install root whose `bin/bale` is a
     bash script this class writes, and `bin/VERSION` at the pin. The
     script records its argv, cwd and (for `relay`) stdin under `record`,
-    then replays the bytes of `relay_stdout`, `apply_stdout`,
+    then replays the bytes of `relay_stdout` (since session
+    2026-10-08-twine-carry-exchange-json-001, a `relay --json` recording's
+    file — relay_recording(...).path), `apply_stdout`,
     `unlock_stdout` (since the pin at 0.4.49, a recording's file —
     unlock_recording(...).path) or `open_stdout` (since Arc 1 session 3, an
     `open` recording's file) on stdout, `stderr` on stderr, and exits
@@ -891,3 +902,145 @@ def open_recording(name: str) -> Recording:
         raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
     stdout = path.read_bytes()
     return Recording(rel, stdout, int(exits[rel]), b"", json.loads(stdout))
+
+
+# ---------------------------------------------------------------------------
+# The relay recordings (bale 0.4.49; read since session
+# 2026-10-08-twine-carry-exchange-json-001, when `carry exchange` moved onto
+# `bale relay --json`). Four `bale relay … --json` lines were recorded on
+# 2026-10-07 in the scratch repository (fixtures/README.md, "bale 0.4.49"):
+# a clarification manifest relayed as round 1 (`relayed`), the round
+# re-emitted with no input (`re-emitted`), and two refusals — an input that
+# was neither a paste block nor JSON (`ingest`) and a sid not open
+# (`session-gate`). They replace the flagless relay's stand-in (the
+# crafter's --emit-block emission) and the BaleDouble relay answers.
+# ---------------------------------------------------------------------------
+
+# format_relay_json's twelve keys at 0.4.49, in the order every recorded
+# line carries them (the brief of session
+# 2026-10-08-twine-carry-exchange-json-001, §1: BALE.md §5.8 and the
+# function's docstring in bin/bale_report.py).
+RELAY_KEYS = ("outcome", "sid", "round", "from", "awaiting", "kind", "preserved",
+              "block", "log", "clipboard", "cause", "telemetry")
+# The sid the relayed, re-emitted and ingest-refused lines name (the scoped
+# scratch session), and the one the session-gate refusal names (never open).
+RELAY_RECORDED_SID = "2026-10-07-sc-002"
+RELAY_RECORDED_ABSENT_SID = "no-such-sid-twine-049"
+# The normalized name the three file-argument recordings share, and the
+# group a test selects to replay one through FixturePlayer.
+RELAY_FILE_KEY = "relay_sid_file_--json"
+RELAY_RECORDINGS: dict[str, tuple[str, list[str], str | None]] = {
+    "relayed": ("scratch", ["relay", Role("sid"), Role("file"), "--json"], "relayed"),
+    "re-emitted": ("scratch", ["relay", Role("sid"), "--json"], None),
+    "ingest": ("scratch", ["relay", Role("sid"), Role("file"), "--json"],
+               "relay-refused+ingest"),
+    "session-gate": ("scratch", ["relay", Role("sid"), Role("file"), "--json"],
+                     "relay-refused+session-gate"),
+}
+
+
+def relay_recording(name: str) -> Recording:
+    """The 0.4.49 recording of `bale relay … --json` named `name` (a key of
+    RELAY_RECORDINGS), with the exit its fixtures/README.md row records and
+    an empty stderr (none was recorded; none is derived)."""
+    where, argv, group = RELAY_RECORDINGS[name]
+    rel = fixture_relpath(argv, where, group)
+    path = REPO_ROOT / rel
+    if not path.is_file():
+        raise AssertionError(f"relay recording {name!r} missing at {rel}")
+    exits = recorded_exits()
+    if rel not in exits or exits[rel] == UNRECORDED:
+        raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
+    stdout = path.read_bytes()
+    return Recording(rel, stdout, int(exits[rel]), b"", json.loads(stdout))
+
+
+def relayed_block() -> str:
+    """The relayed recording's own `block`: the exchange block of
+    RELAY_RECORDED_SID that bale handed back (21 lines, LF, one trailing
+    newline). It is intact — `take` reads one exchange block whose sha256
+    trailer holds — so the tests carry it as twine's input, and the
+    recording they replay answers for the sid the block names."""
+    return relay_recording("relayed").line["block"]
+
+
+def block_for_sid(sid: str, block: str | None = None) -> str:
+    """`block` (default: relayed_block()) with its BEGIN sentinel naming
+    `sid` instead. The sha256 trailer covers the body only, never the
+    sentinel, so the block stays intact; a test uses it to carry a block
+    whose sid is the one a recording names (the session-gate refusal's)."""
+    block = relayed_block() if block is None else block
+    begin = block.split("\n", 1)[0]
+    if not begin.startswith("BALE EXCHANGE BEGIN "):
+        raise AssertionError(f"not an exchange block: {begin!r}")
+    return f"BALE EXCHANGE BEGIN {sid}\n" + block.split("\n", 1)[1]
+
+
+class RecordedRelay:
+    """A run-seam double for `carry exchange` that answers twine's one relay
+    argv, `bale relay <sid> - --json`, with a RECORDING's bytes and exit:
+    by default the `relayed` line (relay_recording("relayed")), else the
+    recording named by `recording`. Records every call.
+
+    The assumption, named here, in fixtures/README.md and in the consumption
+    manifest: the recordings were made with a file argument (`relay <sid>
+    <file> --json`; the re-emission with none), and they are replayed for
+    twine's `-`. In bale 0.4.49, bin/bale_relay.py `_read_relay_input` reads
+    stdin for `-` and the file otherwise, and nothing downstream of it
+    differs — so a recording answers twine's argv as it answered the file.
+    The `ingest` refusal was bale's answer to an input that was neither a
+    paste block nor JSON; replayed for a block twine vouched for, it stands
+    for any refusal of what bale ingested. The `re-emitted` line answered
+    `relay <sid> --json` with no input at all — an argv twine never builds —
+    so replaying it for twine's proves only that twine never accepts a
+    re-emission, not that bale would send one. A recording of `relay <sid>
+    - --json` replaces the assumption.
+
+    Each recording answers for its own sid: a call whose sid is not the one
+    the recording's line names fails the test, since bale's `sid` is the
+    argument as given and the replay would claim what bale never said —
+    unless `stdout` replaces the recording's bytes. `stdout`, `exit_code`
+    and `stderr` answer bytes that are NOT bale's (an edited line, a
+    `relayed` line beside exit 1, an empty stdout) to prove what twine
+    refuses; `timed_out` and `capped` answer as the seam does for a call it
+    killed. It answers only the relay argv shape and fails the test on
+    anything else."""
+
+    def __init__(self, recording: str | Recording = "relayed", *,
+                 stdout: bytes | None = None, exit_code: int | None = None,
+                 stderr: bytes | None = None, timed_out: bool = False,
+                 capped: bool = False) -> None:
+        self.calls: list[dict] = []
+        self.recording = (relay_recording(recording) if isinstance(recording, str)
+                          else recording)
+        self.stdout = stdout
+        self.exit_code = exit_code
+        self.stderr = stderr
+        self.timed_out = timed_out
+        self.capped = capped
+
+    def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
+                 stdout_cap=None, on_spawn=None):
+        from twine.process import RunResult
+        argv = [str(a) for a in argv]
+        self.calls.append({"argv": argv, "cwd": cwd, "stdin": stdin,
+                           "timeout": timeout, "env": env, "stdout_cap": stdout_cap,
+                           "on_spawn": on_spawn})
+        if (len(argv) != 5 or Path(argv[0]).name != "bale" or argv[1] != "relay"
+                or argv[3:] != ["-", "--json"]):
+            raise AssertionError(f"RecordedRelay answers `relay <sid> - --json` only: "
+                                 f"{argv}")
+        if self.stdout is None and argv[2] != self.recording.line["sid"]:
+            raise AssertionError(
+                f"{self.recording.relpath} answers for sid "
+                f"{self.recording.line['sid']!r}, not {argv[2]!r}: carry a block "
+                "naming that sid, or name the stdout as not bale's")
+        stderr = self.recording.stderr if self.stderr is None else self.stderr
+        if self.timed_out or self.capped:
+            return RunResult(argv=tuple(argv), exit_code=None,
+                             stdout=b"" if self.stdout is None else self.stdout,
+                             stderr=stderr, timed_out=self.timed_out,
+                             stdout_capped=self.capped)
+        stdout = self.recording.stdout if self.stdout is None else self.stdout
+        code = self.recording.exit_code if self.exit_code is None else self.exit_code
+        return RunResult(argv=tuple(argv), exit_code=code, stdout=stdout, stderr=stderr)

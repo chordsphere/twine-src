@@ -12,9 +12,10 @@ from twine.bale import ManifestError, load_manifest
 from twine.registry import load_registry
 
 from tests.helpers import (BALE_VOCABULARIES, GROUP_SEP, OPEN_KEYS, OPEN_RECORDINGS, PIN,
-                           UNLOCK_KEYS, UNLOCK_RECORDINGS, Role, TempRoots, carried_relpath,
-                           emission_relpath, fixture_key, fixture_relpath, open_recording,
-                           split_group, unlock_recording)
+                           RELAY_KEYS, RELAY_RECORDINGS, UNLOCK_KEYS, UNLOCK_RECORDINGS, Role,
+                           TempRoots, carried_relpath, emission_relpath, fixture_key,
+                           fixture_relpath, open_recording, relay_recording, split_group,
+                           unlock_recording)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHEMA_FILES = {
@@ -207,13 +208,17 @@ class SurfacesAreWalkable(unittest.TestCase):
         self.assertEqual(split_group("unlock_--json"), ("unlock_--json", None))
 
     def test_the_carry_hand_offs_bale_surfaces(self):
-        """Session 2b-ii: carry response reads `outcome` from the dry run;
-        carry exchange reads relay's stdout as text (no key), with the
-        crafter's exchange emission standing in for it. At 0.4.49 the dry
-        run is recorded with its exit in the scratch repository, and the
-        scope-drift refusal beside it."""
+        """Session 2b-ii: carry response reads `outcome` from the dry run.
+        Since session 2026-10-08-twine-carry-exchange-json-001 carry exchange
+        reads `relay --json`'s line (`outcome`, `sid`, `block`, `cause`), and
+        the flagless relay surface — its stand-in, the crafter's exchange
+        emission, and its doubles — is gone: no verb surface has a stand-in.
+        At 0.4.49 the dry run is recorded with its exit in the scratch
+        repository, and the scope-drift refusal beside it. Rewritten from
+        the 2b-ii version, which read the flagless surface (argv `relay
+        <sid> -`, keys [], the crafter's emission as its stand-in)."""
         by = self.by_verb_and_flags()
-        apply, relay = by[("apply", ("--dry-run", "--json"))], by[("relay", ())]
+        apply, relay = by[("apply", ("--dry-run", "--json"))], by[("relay", ("--json",))]
         self.assertEqual((apply["argv"], apply["keys"], apply["read_by"], apply["cwd"]),
                          (["apply", "--dry-run", "--json", "<tarball>"], ["outcome"],
                           ["carry response"], "scratch"))
@@ -221,10 +226,17 @@ class SurfacesAreWalkable(unittest.TestCase):
         self.assertEqual([(r["outcome"], r["fixture"]) for r in apply["also_recorded"]],
                          [("scope-drift-refused",
                            fixture_relpath(apply["argv"], "scratch", "scope-drift-refused"))])
-        self.assertEqual((relay["argv"], relay["keys"], relay["read_by"]),
-                         (["relay", "<sid>", "-"], [], ["carry exchange"]))
-        self.assertEqual(relay["stand_in"],
-                         emission_relpath("crafter", ["--emit-block", "-"]))
+        self.assertEqual((relay["keys"], relay["read_by"]),
+                         (["outcome", "sid", "block", "cause"], ["carry exchange"]))
+        self.assertEqual([s["flags"] for s in self.verbs() if s["verb"] == "relay"],
+                         [["--json"]], "the flagless relay surface is retired")
+        self.assertEqual([s for s in self.verbs() if "stand_in" in s], [])
+        exchange = next(s for s in self.manifest.surfaces
+                        if s["kind"] == "format" and s["format"] == shapes.EXCHANGE)
+        self.assertEqual(exchange["fixtures"],
+                         [emission_relpath("crafter", ["--emit-block", "-"])],
+                         "the crafter's emission stays the exchange format's fixture")
+        self.assertEqual(exchange["read_by"], ["carry exchange", "take"])
 
     def test_the_kill_switchs_unlock_surface(self):
         """Session 5b: `twine kill` runs exactly `bale unlock <sid> --reason
@@ -297,20 +309,41 @@ class SurfacesAreWalkable(unittest.TestCase):
             for name in s["read_by"]:
                 self.assertIn(name, verbs, s.get("verb") or s.get("path") or s.get("format"))
 
-    def test_relay_json_is_a_surface_now(self):
-        """Session 2b-ii wanted `bale relay --json`; bale 0.4.48 added it and
-        the pin bump recorded it: a verb surface, read by nothing yet, the
-        flagless relay surface staying beside it for carry exchange."""
+    def test_relay_json_is_read_by_carry_exchange(self):
+        """Session 2b-ii wanted `bale relay --json`; bale 0.4.48 added it,
+        the pin bump recorded it, and since session
+        2026-10-08-twine-carry-exchange-json-001 `carry exchange` reads it:
+        `read_by` names the verb, `keys` the four it reads — each one of
+        format_relay_json's twelve, which every recorded line carries in
+        order — and the note names twine's argv, that the recordings were
+        made with a file, and the assumption the tests replay them on
+        (`_read_relay_input`). Rewritten from
+        test_relay_json_is_a_surface_now, which pinned read_by and keys empty
+        and the flagless surface beside it."""
         by = self.by_verb_and_flags()
         relay = by[("relay", ("--json",))]
         self.assertEqual((relay["argv"], relay["keys"], relay["read_by"], relay["cwd"]),
-                         (["relay", "<sid>", "<file>", "--json"], [], [], "scratch"))
+                         (["relay", "<sid>", "<file>", "--json"],
+                          ["outcome", "sid", "block", "cause"], ["carry exchange"],
+                          "scratch"))
+        self.assertTrue(set(relay["keys"]) <= set(RELAY_KEYS))
         self.assertIn("format_relay_json", relay["key_owner"])
+        for key in RELAY_KEYS:
+            self.assertIn(key, relay["key_owner"])
         self.assertEqual([(r["outcome"], r.get("reason")) for r in relay["also_recorded"]],
                          [("re-emitted", None), ("relay-refused", "ingest"),
                           ("relay-refused", "session-gate")])
-        self.assertIn(("relay", ()), by, "the flagless surface stays")
-        self.assertIn("2b-ii", relay["note"])
+        self.assertEqual(relay["fixture"], relay_recording("relayed").relpath)
+        self.assertEqual(sorted([relay["fixture"]] + [r["fixture"] for r in
+                                                      relay["also_recorded"]]),
+                         sorted(relay_recording(n).relpath for n in RELAY_RECORDINGS))
+        for name in RELAY_RECORDINGS:
+            with self.subTest(recording=name):
+                self.assertEqual(tuple(relay_recording(name).line), RELAY_KEYS)
+        self.assertNotIn(("relay", ()), by, "the flagless surface is retired")
+        for needle in ("2b-ii", "carry exchange", "relay <sid> - --json",
+                       "_read_relay_input", "with a file", "relay_sid_stdin_--json.json"):
+            self.assertIn(needle, relay["note"])
 
     def test_every_format_fixture_exists_follows_naming_and_parses_as_its_kind(self):
         """Each fixture parses, with take's parser, as one intact block of

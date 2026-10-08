@@ -4,11 +4,14 @@ Twine never imports bale. What it reads from an install is files bale
 leaves on disk and the stdout of bale's non-interactive verbs: the file
 `<root>/bin/VERSION`, compared to the pin in the consumption manifest
 (`share/bale-consumption.toml`), and — since Arc 1 session 2b-ii — the
-stdout of the two verbs the `carry` hand-offs run, `bale relay <sid> -`
-and `bale apply --dry-run --json <tarball>`. Section 5 is the only place
-a bale argv is built, so T12 ("twine never merges at rung 1") has one
-home: `apply` is only ever built with `--dry-run --json`, and no other
-flag reaches it.
+stdout of the two verbs the `carry` hand-offs run, `bale relay <sid> -
+--json` (since session 2026-10-08-twine-carry-exchange-json-001; the
+flagless `bale relay <sid> -` before it) and `bale apply --dry-run --json
+<tarball>`. Section 5 is the only place a bale argv is built, so T12
+("twine never merges at rung 1") has one home: `apply` is only ever built
+with `--dry-run --json`, and no other flag reaches it. Likewise `relay`
+is only ever built as `relay <sid> - --json`: the block on stdin, one
+JSON line back.
 
 Since Arc 1 session 4 the manifest also records the three closed
 vocabularies bale declares — telemetry outcomes, closure reasons, and
@@ -282,6 +285,12 @@ EXECUTABLE_RELPATH = Path("bin") / "bale"
 # reported as one JSON line. No admission, override or interaction flag
 # exists anywhere in twine; the merge stays the operator's.
 DRY_RUN_FLAGS = ("--dry-run", "--json")
+# The input argument and the one flag `bale relay` receives from twine
+# (session 2026-10-08-twine-carry-exchange-json-001): `-`, the block on
+# stdin, and `--json`, so bale answers with exactly one line on every path,
+# refusals included (format_relay_json, bale 0.4.48). Nothing else is added.
+RELAY_INPUT = "-"
+RELAY_FLAGS = ("--json",)
 # The one closure reason twine ever passes to `bale unlock` (session 5b): a
 # kill's. bale 0.4.35 added it to CLOSURE_REASONS; the closure-reason
 # vocabulary in share/bale-consumption.toml records it.
@@ -371,11 +380,14 @@ def locate_executable(explicit: str | None, env: Mapping[str, str],
 
 
 def relay_argv(executable: Path, sid: str) -> list[str]:
-    """`bale relay <sid> -`: the block arrives on stdin. Raises ValueError
-    for a sid that could read as a flag or carries whitespace."""
+    """`bale relay <sid> - --json` — the one `relay` argv twine builds
+    (session 2026-10-08-twine-carry-exchange-json-001, which retired the
+    flagless `relay <sid> -`). The block arrives on stdin; bale answers with
+    one JSON line whose `block` is what the flagless form printed. Raises
+    ValueError for a sid that could read as a flag or carries whitespace."""
     if not SID_ARGUMENT.fullmatch(sid):
         raise ValueError(f"session id {sid!r} is not safe to pass to bale")
-    return [str(executable), "relay", sid, "-"]
+    return [str(executable), "relay", sid, RELAY_INPUT, *RELAY_FLAGS]
 
 
 def dry_run_argv(executable: Path, tarball: str) -> list[str]:

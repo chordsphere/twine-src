@@ -51,11 +51,24 @@ per verb:
 
 | verb | argv after `bale` | normalized | name |
 |---|---|---|---|
-| `relay` | `relay <sid> -` | `relay`, role `sid`, role `stdin` (a file argument: role `file`) | `relay_sid_stdin.txt` |
+| `relay` | `relay <sid> - --json` | `relay`, role `sid`, role `stdin` (a file argument: role `file`) | `relay_sid_stdin_--json.json` — not recorded (below) |
 | `apply` | `apply --dry-run --json <tarball>` | every positional after `apply` is role `tarball` | `apply_--dry-run_--json_tarball.json` |
 | `unlock` | `unlock <sid> --reason aborted --json` | a positional right after `unlock` is role `sid` (session 5b) | `unlock_sid_--reason-aborted_--json.json` |
 | `open` | `open [--check] <bundle> --json` | every positional after `open` is role `bundle` (session `2026-10-07-twine-pin-049-001`) | `open_bundle_--json.json`, `open_--check_bundle_--json.json` |
 | `pack` | `pack <goal> --slug ro … --json` | the positional right after `pack` is role `goal`; a flag's value (`--slug ro`) stays (same session) | `pack_goal_--slug-ro_--read-only_--no-readme_--json.json` |
+
+The `relay` row is twine's own argv since session
+`2026-10-08-twine-carry-exchange-json-001` (the flagless `relay <sid> -`,
+which would have named `relay_sid_stdin.txt`, is retired, and was never
+recorded). `relay_sid_stdin_--json.json` is not recorded either: the
+0.4.49 probe recorded `relay` with a file argument
+(`relay_sid_file_--json…`, and the re-emission with none). The tests
+replay those recordings for twine's argv (`tests/helpers.py` `RecordedRelay`) on a
+named assumption: bale 0.4.49's `bin/bale_relay.py` `_read_relay_input`
+reads stdin for `-` and the file otherwise, and nothing downstream of it
+differs — the way `RecordedUnlock` replays the refusals recorded without
+`--reason` (below). A recording of `relay <sid> - --json` replaces the
+assumption.
 
 A value that selects *what* bale reports — `stats --sid <sid>`'s
 dossier, `--slug ro` — is not per-run and stays in the name. The fixture
@@ -289,7 +302,12 @@ bale's. The 0.4.49 unlock recordings are what
 `aborted` close (row 18) is twine's own argv; the refusals were recorded
 without `--reason aborted` (rows 3, 17: `unlock <sid> --json`) and the
 tests replay them for twine's argv on the stated assumption that bale
-refuses before the reason matters.
+refuses before the reason matters. Likewise the four relay recordings
+(rows 11–14) are what `tests/` replays for `twine carry exchange` (contract
+§11.4, since session `2026-10-08-twine-carry-exchange-json-001`): made with
+a file argument, replayed for twine's `relay <sid> - --json` on the stated
+assumption that bale reads `-` as it reads the file (`RecordedRelay`; the
+naming rule's `relay` row above).
 
 The 0.4.45 section above and every file under `bale-0.4.45/` stay as
 recorded history; the tests read the pinned version's directory
