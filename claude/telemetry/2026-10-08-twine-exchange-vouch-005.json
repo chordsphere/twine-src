@@ -1,0 +1,211 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-08-twine-exchange-vouch-005",
+  "created_at": "2026-10-08T14:09:43+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-08T14:09:43+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "share/bale-consumption.toml",
+        "tests/test_carry_bale.py",
+        "tests/test_json_discipline.py",
+        "twine/commands/carry_bale.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-08-twine-exchange-vouch-005.log",
+      "bundle": {
+        "stem": "2026-10-08-twine-exchange-vouch",
+        "brief_sha256": "b4b866696cb1e58b2d65716511fcc1181e61eb77d7e748f7f41bb7590058bbd8",
+        "checkpoint_sha256": "2534f68624017740e4b8b9ca0a85500888796178d77fcc03f458a7c682a2fe29",
+        "manifest_sha256": "59be826f377e360f7e56a62a41d4c86ae7a5140cf97815f02fd4ac39b04d78bf"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-08T14:09:43+00:00"
+      }
+    },
+    {
+      "at": "2026-10-08T14:25:44+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-08-twine-exchange-vouch-005.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "unittest suite (OK, >= 568 tests)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite (OK, >= 568 tests)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (python ast, toml)",
+          "unittest suite (OK, >= 568 tests)",
+          "e2e: recorded relayed line \u2014 exit 0, stdout cmp-equal to its block, argv relay <sid> - --json, stdin the block",
+          "e2e: block body edited \u2014 exit 1, one NOT OK line naming mismatch, no BALE EXCHANGE on stdout, no traceback",
+          "e2e: block body edited, --json \u2014 not ok, outcome relayed, relay the line, reason names mismatch",
+          "untouched set by sha256",
+          "twine-seed.md untouched (not in this response's changes[])",
+          "VERSION cmp-equal to 0.12.0",
+          "no __pycache__ in the tree"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "share/bale-consumption.toml",
+        "tests/test_carry_bale.py",
+        "tests/test_json_discipline.py",
+        "twine/commands/carry_bale.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "share/bale-consumption.toml",
+        "tests/test_carry_bale.py",
+        "twine/commands/carry_bale.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.51",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "c32a8dc8bbc01634a9a5bfcff2bc6240b835f3ff6c71144f2e5d651600a04112",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-08-twine-exchange-vouch-005.sh",
+              "sha256": "2534f68624017740e4b8b9ca0a85500888796178d77fcc03f458a7c682a2fe29"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-08T14:09:43+00:00",
+            "base_files": {
+              "README.md": "e9f976354288f0b8e18ce81d51ddcdf0002cc738aa9cd7746316e0ef3685840b",
+              "VERSION": "795d6bc79574d2aec03ad9cfec404bb95083c9dd210e6521e0d4199772d28d44",
+              "claude/INDEX.md": "f84ab243c1b10b4065b1883aa1b674f8f3e189d073dd71f9306ea6c62347a060",
+              "claude/context/cli-contract.md": "9cb23fc9d1feb31c98a511a858522e752ec70306b927d847f3c7213368704001",
+              "share/bale-consumption.toml": "360f42f4d0de665b707397a5fc50b722adb4d495bcd5af9b58f91c2b3fa8b759",
+              "tests/test_carry_bale.py": "a2ed192dd70bbb53f5b9c7c944352edba93f88ce362c2142b0b07f13f1d24331",
+              "tests/test_json_discipline.py": "d71a559351ea7a73b107b745c2145d94dbe5cf8c56a9bc4fd029ad8ba66e3bff",
+              "twine/commands/carry_bale.py": "385a7b96dfca3b5aacbec732d6a59d827a657587f4a33295aba74f2aec2793df"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "the tree is 0.11.0 because twine-status-inflight landed first (VERSION read 0.11.0, suite 556), so the bump is to 0.12.0",
+            "bale's relayed block is LF and bale's own; CRLF in a returned block is tolerated because the brief says to normalize as take does"
+          ],
+          "judgment_calls": [
+            "exactness: the string must be the one block's own lines, and a missing final newline is the only tolerated difference, so the unmoved test_a_block_without_a_final_newline_gains_one stays ok",
+            "the vouch lives in carry_bale.py beside read_relay_line, not in shapes.py; 'exactly one block of this sid' is the courier's rule, not the parser's",
+            "the vouch runs on any non-empty string block, whatever the outcome, so every difference is named at once",
+            "with more than one block the failure names each block and stops there; with exactly one it checks exactness, kind, integrity and sid independently",
+            "share/bale-consumption.toml's relay `doubles` string is left as it is, because the brief says nothing else in the file moves; 'edited lines' still covers the new doubles"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [
+            "twine-seed.md"
+          ],
+          "compaction_occurred": {
+            "occurred": false
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md (META through \u00a711.2)",
+            "README.md",
+            "TARBALL.md \u00a71, \u00a72, \u00a75.1\u2013\u00a75.4, \u00a77, \u00a710.1",
+            "claude/responses/2026-10-08-twine-carry-exchange-json-001/notes.md",
+            "claude/INDEX.md",
+            "claude/context/cli-contract.md \u00a79, \u00a711"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-08-twine-exchange-vouch-005.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-08-twine-exchange-vouch-005.sh",
+          "sha256": "2534f68624017740e4b8b9ca0a85500888796178d77fcc03f458a7c682a2fe29"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-08T14:25:44+00:00",
+  "outcome": "applied"
+}
