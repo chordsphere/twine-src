@@ -37,7 +37,8 @@ Arc 1 (the courier) session 1 landed twine's core:
   hand-offs. `carry exchange` hands the exchange block in a pasted turn
   — only an intact one, exactly its own lines — to `bale relay <sid> -
   --json`, reads the one line bale answers with, and prints the block it
-  hands back (on a refusal, the reason quotes bale's cause). `carry response` runs
+  hands back, an intact one: a block it cannot vouch for is never printed
+  (on a refusal, the reason quotes bale's cause). `carry response` runs
   `bale apply --dry-run --json` on a response tarball and, on a clean dry
   run, prints the one `bale apply <path>` line for you to run. twine
   never applies anything itself: the merge stays yours. Both drive only

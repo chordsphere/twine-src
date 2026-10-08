@@ -28,7 +28,10 @@ What is recorded, and what stands in for what is not:
     `exchange` format's fixture and still feeds the vouching tests here,
     where nothing reaches bale).
   - what no recording covers — a timeout, a capped stdout, a non-JSON
-    stdout, an exit-1 empty stdout, an edited relay line; the other two
+    stdout, an exit-1 empty stdout, an edited relay line, a returned
+    `block` twine cannot vouch for (section 3's ExchangeVouchesForBalesBlock,
+    since session 2026-10-08-twine-exchange-vouch-005: the recorded block
+    is intact); the other two
     dry-run `*-refused` outcomes, every HOLD, non-zero exit or timeout of
     the dry run: doubles, each built in this file (RecordedRelay's
     `stdout=`/`exit_code=`/`timed_out=`/`capped=`, BaleDouble) and named
@@ -57,6 +60,7 @@ Sections:
 from __future__ import annotations
 
 import ast
+import hashlib
 import io
 import json
 import os
@@ -66,9 +70,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from twine import REPO_ROOT, bale
+from twine import REPO_ROOT, bale, shapes
 from twine.cli import Context, main
-from twine.commands.carry_bale import BALE_STDOUT_CAP_BYTES, BALE_TIMEOUT_SECONDS
+from twine.commands.carry_bale import (BALE_STDOUT_CAP_BYTES, BALE_TIMEOUT_SECONDS,
+                                       VOUCH_FAILURE, ExchangeOutcome,
+                                       vouch_for_relayed_block)
 from twine.process import RunResult
 
 from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, PIN, RELAY_FILE_KEY,
@@ -740,6 +746,192 @@ class ExchangeRelays(TempCase):
         self.assertTrue(relayed_block().endswith("\n"))
 
 
+def trailer_digest(block: str) -> str:
+    """The hex digest on `block`'s `# sha256 <hex>` trailer line."""
+    found = [ln.split()[-1] for ln in block.split("\n") if ln.startswith("# sha256 ")]
+    if len(found) != 1:
+        raise AssertionError(f"not one trailer in {block[:60]!r}")
+    return found[0]
+
+
+def hand_built_exchange(sid: str, body: str | None) -> str:
+    """NOT bale's: an exchange block built here, its header one comment
+    line, its body `body` (None: no body at all) and its trailer the sha256
+    of exactly that body — so the only fault left is what the body is."""
+    lines = [f"BALE EXCHANGE BEGIN {sid}", "# [twine test] a hand-built block, not bale's"]
+    if body is not None:
+        lines.append(body.rstrip("\n"))
+    digest = hashlib.sha256((body or "").encode("utf-8")).hexdigest()
+    return "\n".join([*lines, f"# sha256 {digest}", "BALE EXCHANGE END"]) + "\n"
+
+
+class ExchangeVouchesForBalesBlock(TempCase):
+    """Since session 2026-10-08-twine-exchange-vouch-005 the block bale
+    hands back is held to what twine asks of the block it carries in
+    (cli-contract.md §11.2): exactly one block — its own lines, nothing
+    around them — of kind `exchange`, intact by `take`'s rule (§9.2), of
+    the carried block's session. Every block below is NOT bale's: the
+    relayed recording's line with its `block` replaced (relay_line_double),
+    answered by RecordedRelay with exit 0 — bale's line otherwise intact,
+    so the vouch is the only thing that fails. The line was read and
+    understood, so `outcome` stays `relayed` and `relay` is the line; the
+    block is never printed."""
+
+    def assert_not_vouched(self, block, *needles: str, line: bytes | None = None,
+                           exit_code: int = 0) -> dict:
+        """Not ok, exit 1, bale ran once, no refusal; `reason` holds every
+        needle; the twin carries bale's line whole (`stdout`, `relay`) with
+        `outcome` `relayed`. Human mode is one `NOT OK` line that is never
+        the block: neither its trailer's digest, its body nor its END
+        reaches stdout. (assert_relay_not_ok's `# sha256 ` heuristic does not
+        fit here: take's own wording for a fault, which the reason quotes,
+        names the `# sha256 <hex>` trailer.)"""
+        line = relay_line_double(block=block) if line is None else line
+        runner = RecordedRelay(stdout=line, exit_code=exit_code)
+        path = self.exchange_turn()
+        run, obj = self.exchange(str(path), runner=runner)
+        self.assertEqual((run.code, obj["ok"], obj["ran"], obj["refusals"]),
+                         (1, False, True, []), obj["reason"])
+        self.assertEqual(len(runner.calls), 1)
+        self.assertIn(VOUCH_FAILURE, obj["reason"])
+        for needle in needles:
+            self.assertIn(needle, obj["reason"])
+        self.assertEqual((obj["stdout"], obj["relay"], obj["outcome"]),
+                         (line.decode("utf-8"), json.loads(line), "relayed"))
+        self.assertTrue(EXCHANGE_FIXED <= set(obj), EXCHANGE_FIXED - set(obj))
+        human = self.exchange_human(str(path), runner=runner)
+        self.assertEqual(human.code, 1)
+        self.assertEqual(len(human.stdout.splitlines()), 1, human.stdout)
+        self.assertTrue(human.stdout.startswith(f"carry exchange {path}: NOT OK — "),
+                        human.stdout)
+        self.assertIn(VOUCH_FAILURE, human.stdout)
+        for never in (trailer_digest(relayed_block()), '"record_version"',
+                      "BALE EXCHANGE END"):
+            self.assertNotIn(never, human.stdout, "the block reached stdout")
+        return obj
+
+    def test_a_block_edited_after_its_trailer_is_mismatch(self):
+        """The relayed block with its body edited (round 1 → 2) after the
+        trailer was written: take's `mismatch`, and that is the whole
+        reason — bale's line is otherwise as recorded."""
+        edited = relayed_block().replace('"round": 1', '"round": 2', 1)
+        self.assertNotEqual(edited, relayed_block())
+        obj = self.assert_not_vouched(edited, "fails integrity (mismatch)",
+                                      "never prints a block it cannot vouch for",
+                                      "never repairs one")
+        self.assertEqual(obj["reason"].count(VOUCH_FAILURE), 1, obj["reason"])
+        self.assertTrue(obj["reason"].startswith(VOUCH_FAILURE), obj["reason"])
+        self.assertNotIn("bale exited", obj["reason"])
+        self.assertTrue(obj["integrity"]["ok"], "`integrity` stays the carried block's")
+
+    def test_a_block_cut_short_is_no_trailer_or_unclosed(self):
+        """The trailer line gone (`no-trailer`), and the block cut before
+        its END (`unclosed`)."""
+        lines = relayed_block().split("\n")
+        without_trailer = "\n".join(ln for ln in lines if not ln.startswith("# sha256 "))
+        cut = relayed_block().replace("BALE EXCHANGE END\n", "", 1)
+        self.assertNotEqual(cut, relayed_block())
+        for block, fault in ((without_trailer, "no-trailer"), (cut, "unclosed")):
+            with self.subTest(fault=fault):
+                obj = self.assert_not_vouched(block, f"fails integrity ({fault})")
+                self.assertEqual(obj["reason"].count(VOUCH_FAILURE), 1, obj["reason"])
+
+    def test_every_integrity_fault_is_named_in_takes_words(self):
+        """The faults §9.2 names that the relayed block cannot show by
+        editing alone: a carrier unescaping the crafter block's \\u2014
+        (its sentinel naming the carried sid), a BEGIN with no sid, a header
+        and no body, a body that matches its trailer but is not a JSON
+        object (hand-built, NOT bale's)."""
+        unescaped = block_for_sid(RELAY_RECORDED_SID,
+                                  exchange_text().replace("\\u2014", "—", 1))
+        no_sid = relayed_block().replace(f"BALE EXCHANGE BEGIN {RELAY_RECORDED_SID}",
+                                         "BALE EXCHANGE BEGIN", 1)
+        cases = {"unescaped-in-transit": unescaped, "no-sid": no_sid,
+                 "no-body": hand_built_exchange(RELAY_RECORDED_SID, None),
+                 "body-not-json": hand_built_exchange(RELAY_RECORDED_SID, "[1, 2]\n")}
+        for fault, block in cases.items():
+            with self.subTest(fault=fault):
+                obj = self.assert_not_vouched(block, f"fails integrity ({fault})")
+                self.assertEqual(obj["reason"].count(VOUCH_FAILURE), 1, obj["reason"])
+
+    def test_two_intact_blocks_in_one_string(self):
+        """Two intact blocks concatenated: not exactly one, both named."""
+        obj = self.assert_not_vouched(
+            relayed_block() + relayed_block(), "holds 2 blocks, not exactly one",
+            f"[1] exchange {RELAY_RECORDED_SID}", f"[2] exchange {RELAY_RECORDED_SID}")
+        self.assertEqual(obj["reason"].count(VOUCH_FAILURE), 1, obj["reason"])
+
+    def test_text_around_the_one_block_is_not_vouched_for(self):
+        """Decision 1 (exactness): bale prints the block alone, so prose
+        before or after the one intact block, or a blank line around it,
+        is a failure naming where the block sits — twine hands on exactly a
+        block's own lines. (A missing final newline is the one difference
+        tolerated: test_a_block_without_a_final_newline_gains_one.)"""
+        cases = {"prose around": f"Carry this:\n{relayed_block()}Thanks.\n",
+                 "a blank line before": "\n" + relayed_block(),
+                 "a blank line after": relayed_block() + "\n"}
+        spans = {"prose around": "lines 2–22 of 23", "a blank line before":
+                 "lines 2–22 of 22", "a blank line after": "lines 1–21 of 22"}
+        for name, block in cases.items():
+            with self.subTest(case=name):
+                obj = self.assert_not_vouched(block, "text around its one block",
+                                              spans[name], "exactly a block's own lines")
+                self.assertEqual(obj["reason"].count(VOUCH_FAILURE), 1, obj["reason"])
+
+    def test_a_string_with_no_block_at_all(self):
+        self.assert_not_vouched("[twine test] not bale's: no block here\n",
+                                "holds no block at all")
+
+    def test_a_light_block_in_place_of_the_exchange_block(self):
+        """The crafter's light block, whole: one block, its own lines, but
+        not an exchange block."""
+        light = LIGHT.read_text(encoding="utf-8")
+        obj = self.assert_not_vouched(light, "is a light block", "not an exchange block")
+        self.assertEqual(obj["reason"].count(VOUCH_FAILURE), 1, obj["reason"])
+
+    def test_an_intact_block_of_another_session(self):
+        """block_for_sid: intact (the trailer hashes the body only), but its
+        sentinel names another session — not the courier's next hop. The
+        line's own `sid` is the carried block's, so only the vouch fails."""
+        other = "2026-10-08-twine-other-009"
+        obj = self.assert_not_vouched(
+            block_for_sid(other), f"exchange block of session {other!r}",
+            f"not of the carried block's {RELAY_RECORDED_SID!r}")
+        self.assertNotIn("fails integrity", obj["reason"])
+        self.assertNotIn("names sid", obj["reason"], "the line's sid is the block's")
+
+    def test_every_difference_is_named_at_once(self):
+        """The vouch is appended to the line's failures, never instead of
+        them: a line naming another sid, carrying an edited block, beside
+        exit 1."""
+        other = "2026-10-08-twine-other-009"
+        edited = relayed_block().replace('"round": 1', '"round": 2', 1)
+        obj = self.assert_not_vouched(
+            None, "bale exited 1", f"names sid {other!r}", "(mismatch)",
+            line=relay_line_double(sid=other, block=edited), exit_code=1)
+        self.assertLess(obj["reason"].index("bale exited 1"),
+                        obj["reason"].index(VOUCH_FAILURE), "appended, not first")
+
+    def test_a_crlf_block_is_read_as_take_reads_it_and_printed_as_bale_sent_it(self):
+        """NOT bale's (bale's block is LF): the intact block with CRLF line
+        endings. take normalizes CRLF before matching (§9.1), so twine can
+        vouch for it; human stdout is still the line's `block`, byte for
+        byte — twine never rewrites what it hands on."""
+        crlf = relayed_block().replace("\n", "\r\n")
+        runner = RecordedRelay(stdout=relay_line_double(block=crlf))
+        run = self.exchange_human(str(self.exchange_turn()), runner=runner)
+        self.assertEqual((run.code, run.stdout), (0, crlf), run.stdout[:200])
+
+    def test_the_recorded_block_is_vouched_for(self):
+        """The relayed recording's own block passes the vouch as it stands:
+        the function adds no failure for it (the existing ok tests,
+        unmoved, prove the verb end to end)."""
+        outcome = ExchangeOutcome(source="x")
+        outcome.block = shapes.find_blocks(relayed_block()).blocks[0]
+        vouch_for_relayed_block(outcome, RELAYED.line["block"])
+        self.assertEqual(outcome.failures, [])
+
+
 # ---------------------------------------------------------------------------
 # 4. carry response: the tarball and the dry run
 # ---------------------------------------------------------------------------
@@ -1035,6 +1227,33 @@ class EndToEnd(TempCase):
         human = run_cli("carry", "exchange", str(self.exchange_turn()),
                         bale_root=stub.root)
         self.assertEqual((human.code, len(human.stdout.splitlines())), (1, 1))
+        self.assertNotIn("Traceback", run.stderr + human.stderr)
+
+    def test_a_block_twine_cannot_vouch_for_through_the_real_seam(self):
+        """The stub replays a line that is NOT bale's: the relayed
+        recording's line, exit 0, its `block` edited after the trailer
+        (round 1 → 2). Not ok, exit 1, the reason naming `mismatch`; the
+        twin carries the line and `outcome` `relayed`; human stdout is one
+        `NOT OK` line, never the block; no traceback."""
+        edited = relayed_block().replace('"round": 1', '"round": 2', 1)
+        line = self.write(relay_line_double(block=edited), "edited-relay-line.json")
+        stub = StubBale(relay_stdout=line)
+        self.addCleanup(stub.cleanup)
+        run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
+                      bale_root=stub.root)
+        obj = one_line(self, run.stdout, "carry exchange")
+        self.assertEqual((run.code, obj["ok"], obj["exit_code"], obj["outcome"]),
+                         (1, False, 0, "relayed"))
+        self.assertEqual(obj["relay"], json.loads(line.read_bytes()))
+        self.assertIn("(mismatch)", obj["reason"])
+        self.assertEqual(stub.argv(), ["relay", RELAY_RECORDED_SID, "-", "--json"])
+        human = run_cli("carry", "exchange", str(self.exchange_turn()),
+                        bale_root=stub.root)
+        self.assertEqual((human.code, len(human.stdout.splitlines())), (1, 1))
+        self.assertIn("NOT OK", human.stdout)
+        self.assertIn("(mismatch)", human.stdout)
+        self.assertNotIn("BALE EXCHANGE", human.stdout)
+        self.assertNotIn(trailer_digest(edited), human.stdout)
         self.assertNotIn("Traceback", run.stderr + human.stderr)
 
     def test_carry_response_through_the_real_seam(self):
