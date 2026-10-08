@@ -694,7 +694,19 @@ reaches twine's stderr, and the JSON `stderr`.
   argument as given.
 - **ok** exactly when bale exits 0 and its stdout is one JSON object
   whose `outcome` is `"relayed"`, whose `sid` is the block's sid, and
-  whose `block` is a non-empty string. Otherwise not ok, exit 1, the
+  whose `block` is a non-empty string that twine can **vouch for** —
+  the block bale hands back is the one the courier carries next, so it is
+  held to what twine asked of the block it carried in (since session
+  `2026-10-08-twine-exchange-vouch-005`). Read as `take` reads text
+  (CRLF→LF first, §9.1, then §9.2's scanner), the string must be
+  **exactly one block** — its own lines, BEGIN through END, nothing
+  before or after them; a missing final newline is the one difference
+  tolerated, since human mode supplies it — of kind `exchange`, whose
+  integrity holds (the trailer matches and the body is a JSON object:
+  §9.2's rule, `integrity.ok` in §9.3's terms) and whose sentinel sid is
+  the carried block's (bale's answer is the counterpart-facing block of
+  the same session; a block of another session is not the courier's
+  next hop). Otherwise not ok, exit 1, the
   reason naming each thing that differs, at once: bale's exit status (or
   that it timed out or was capped); on `relay-refused`, bale's `cause`,
   quoted whole — the only account of why; twine names it and never
@@ -703,13 +715,26 @@ reaches twine's stderr, and the JSON `stderr`.
   having recorded nothing (twine always passes the block, so it should
   never see one), any other value named as one twine does not know; a
   `sid` that is not the block's; a `block` that is null, not a string, or
-  empty; a stdout that is not one JSON object (empty, or not JSON). bale's
+  empty; a stdout that is not one JSON object (empty, or not JSON); and,
+  appended after those, each way the block fails the vouch, every one
+  opening `twine cannot vouch for the block bale handed back:` — no block
+  at all; more than one (each named by number, kind and sid); text around
+  the one block (where it sits, by line); a block of another kind; a
+  failed integrity, named by `take`'s fault (`mismatch`,
+  `unescaped-in-transit`, `unclosed`, `no-sid`, `no-body`, `no-trailer`,
+  `body-not-json`) with `take`'s account of it; an exchange block of
+  another session. A block that fails the vouch is never repaired. The
+  line was still read and understood: `outcome` stays `relayed` and
+  `relay` carries the line whole; what failed is the vouch. bale's
   stderr surfaced; no traceback.
 - **Human mode**: on ok, stdout is exactly the line's `block` — the
   block the courier carries next, byte for byte what the flagless relay
   printed, so `twine carry exchange turn.txt > next.txt` is unchanged (a
   final newline is supplied if the block lacked one); otherwise one line,
   `carry exchange FILE: refused — …` or `… NOT OK — …`, never the block.
+  A block twine could not vouch for is never printed, on any path: the
+  twin's `stdout` is bale's JSON line as on every path, and human stdout
+  is the one `NOT OK` line.
 
 The JSON twin, `command` `"carry exchange"`. Fixed names:
 
@@ -818,7 +843,16 @@ which stays the `exchange` format's fixture, `take` reading it) and the
 `BaleDouble` relay answers. What no relay recording covers — a timeout, a
 capped stdout, a stdout that is not one JSON object, an exit-1 empty
 stdout, an edited line — is a double named as such (`RecordedRelay` with
-bytes or an exit named as not bale's). For the dry run, the other two
+bytes or an exit named as not bale's). So is every block twine cannot vouch
+for (since session `2026-10-08-twine-exchange-vouch-005`; the recorded
+`relayed` block is intact, so no recording shows one): the relayed line
+with its `block` replaced — edited after its trailer, its trailer or END
+cut, the crafter's block unescaped in transit, a BEGIN with no sid, two
+blocks in one string, prose or a blank line around the block, no block,
+the crafter's light block, the block naming another sid — and blocks
+`tests/test_carry_bale.py` builds by hand for `no-body` and
+`body-not-json`, each named as not bale's; one is replayed end to end
+through `StubBale`. For the dry run, the other two
 `*-refused` outcomes, every HOLD, non-zero exit and timeout are doubles
 in the tests, named as such, never a file under `fixtures/`; a
 recording replaces one. The doubles speak bale's spellings (since session

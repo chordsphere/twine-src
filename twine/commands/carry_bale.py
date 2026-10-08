@@ -12,10 +12,13 @@ the repo the block's session lives in, and reads the one JSON line bale
 answers with (since session 2026-10-08-twine-carry-exchange-json-001,
 which retired the flagless `bale relay <sid> -` and its pass-through). ok
 exactly when bale exits 0 and the line's `outcome` is "relayed", its
-`sid` the block's and its `block` a non-empty string; on ok, human stdout
-is exactly that `block` — the block the courier carries next, byte for
-byte what the flagless relay printed. On a refusal the reason quotes
-bale's `cause` whole: twine names it and never dispatches on its wording.
+`sid` the block's and its `block` exactly one intact exchange block of
+the same session (since session 2026-10-08-twine-exchange-vouch-005:
+twine vouches for the block it hands on as for the block it carried in);
+on ok, human stdout is exactly that `block` — the block the courier
+carries next, byte for byte what the flagless relay printed. On a refusal
+the reason quotes bale's `cause` whole: twine names it and never
+dispatches on its wording.
 
 `twine carry response TARBALL [--cwd DIR] [--bale-root DIR] [--json]`
 runs `bale apply --dry-run --json` on the tarball, named by its absolute
@@ -39,10 +42,10 @@ claude/context/cli-contract.md §11.
 
 Sections:
   1. Limits and the bale call        (~line 60)
-  2. carry exchange                  (~line 150)
-  3. carry response                  (~line 350)
-  4. Shared helpers                  (~line 475)
-  5. The registry entries            (~line 520)
+  2. carry exchange                  (~line 155)
+  3. carry response                  (~line 420)
+  4. Shared helpers                  (~line 545)
+  5. The registry entries            (~line 590)
 """
 
 from __future__ import annotations
@@ -265,8 +268,8 @@ def cmd_carry_exchange(ctx: Context, args: argparse.Namespace) -> Result:
         # (outcome, sid, block, cause); the rest of the line is carried
         # whole in the twin's `relay`, never interpreted.
         ctx.info(f"bale relayed the exchange block of {outcome.sid} "
-                 f"(outcome {RELAYED_OUTCOME!r}); stdout is the block to "
-                 "carry next")
+                 f"(outcome {RELAYED_OUTCOME!r}) and handed back an intact one; "
+                 "stdout is the block to carry next")
     return Result(outcome.ok, outcome.payload(), exchange_lines(outcome))
 
 
@@ -294,8 +297,10 @@ def read_relay_line(outcome: ExchangeOutcome) -> None:
     """bale's stdout must be one JSON object (`relay --json` prints exactly
     one line on every path, refusals included) whose `outcome` is
     "relayed", whose `sid` is the block's and whose `block` is a non-empty
-    string. Each thing that differs is named in its own failure, so the
-    reason says all of it at once. A refusal's `cause` is quoted whole —
+    string that twine can vouch for (vouch_for_relayed_block: exactly one
+    intact exchange block of the carried block's session). Each thing that
+    differs is named in its own failure, so the reason says all of it at
+    once. A refusal's `cause` is quoted whole —
     it is bale's only account of why — and never dispatched on: bale
     documents its wording as the stderr text, free to change."""
     stdout = outcome.call.stdout
@@ -334,6 +339,69 @@ def read_relay_line(outcome: ExchangeOutcome) -> None:
                                 f"{'null' if block is None else type(block).__name__})")
     elif not block:
         outcome.failures.append("bale's line carries an empty block")
+    else:
+        vouch_for_relayed_block(outcome, block)
+
+
+# The words every vouch failure opens with, so a reader of the reason sees
+# at once that bale's line was read and understood and the block it handed
+# back is what twine refused to hand on.
+VOUCH_FAILURE = "twine cannot vouch for the block bale handed back"
+
+
+def vouch_for_relayed_block(outcome: ExchangeOutcome, text: str) -> None:
+    """The block bale hands back is the one the courier carries next, so it
+    is held to what `take` asks of any exchange block (cli-contract.md §9.2,
+    §9.3) and to what `carry exchange` asked of the block it carried in:
+    `text`, CRLF turned to LF as `take` normalizes (§9.1), must be exactly
+    one block — its own lines and nothing around them, though a missing
+    final newline is supplied (§11.2's human mode always did) — of kind
+    `exchange`, whose integrity holds and whose sentinel sid is the carried
+    block's. Each thing that differs is its own failure, beside the line's;
+    nothing is ever repaired, and `relayed_block` (ok-only) means a block
+    that failed here is never printed. Since session
+    2026-10-08-twine-exchange-vouch-005."""
+    normalized = text.replace("\r\n", "\n")
+    blocks = shapes.find_blocks(normalized).blocks
+    if not blocks:
+        outcome.failures.append(
+            f"{VOUCH_FAILURE}: it holds no block at all (`take` finds none in it)")
+        return
+    if len(blocks) > 1:
+        listed = ", ".join(f"[{n}] {describe_block(b)}" for n, b in enumerate(blocks, 1))
+        outcome.failures.append(
+            f"{VOUCH_FAILURE}: it holds {len(blocks)} blocks, not exactly one ({listed})")
+        return
+    found = blocks[0]
+    whole = normalized if normalized.endswith("\n") else normalized + "\n"
+    if shapes.block_text(normalized, found) != whole:
+        outcome.failures.append(
+            f"{VOUCH_FAILURE}: it carries text around its one block (the block is "
+            f"lines {found.start_line}–{found.end_line} of "
+            f"{len(shapes.split_lines(normalized))}); twine hands on exactly a "
+            "block's own lines")
+    if found.kind != shapes.EXCHANGE:
+        outcome.failures.append(
+            f"{VOUCH_FAILURE}: it is a {found.kind} block "
+            f"({describe_block(found)}), not an exchange block")
+        return
+    if not found.ok:
+        fault = found.integrity.get("fault", "malformed")
+        outcome.failures.append(
+            f"{VOUCH_FAILURE}: it fails integrity ({fault}): {found.error} — twine "
+            "never prints a block it cannot vouch for, and never repairs one")
+    sid = found.fields.get("sid")
+    if sid is not None and sid != outcome.sid:
+        outcome.failures.append(
+            f"{VOUCH_FAILURE}: it is an exchange block of session {sid!r}, not of the "
+            f"carried block's {outcome.sid!r}")
+
+
+def describe_block(block: shapes.Block) -> str:
+    """A block's kind and identity, as a reason names it: `exchange
+    2026-10-07-sc-002`, `light <sid>`, `probe <slug>`."""
+    identity = block.fields.get("sid") or block.fields.get("slug")
+    return f"{block.kind} {identity}" if identity else block.kind
 
 
 def exchange_lines(outcome: ExchangeOutcome) -> list[str]:
@@ -555,8 +623,9 @@ COMMANDS = (
                     "`bale relay <sid> - --json` on stdin, in --cwd, and read "
                     "the one JSON line bale prints. ok when bale exits 0 and "
                     "the line says \"relayed\" for the block's sid and carries "
-                    "a block; stdout is then exactly that block, the one to "
-                    "carry next. On a refusal the reason quotes bale's cause. "
+                    "exactly one intact exchange block of that session; stdout "
+                    "is then exactly that block, the one to carry next — a "
+                    "block twine cannot vouch for is never printed. On a refusal the reason quotes bale's cause. "
                     "bale's stderr goes to stderr."),
     Command(
         name="carry response",
