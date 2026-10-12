@@ -273,6 +273,10 @@ accepted from session 0's Proposals, and the fake-transport seam was
 deferred to Arc 2 and to session 5, where the first API-shaped call
 exists to fake.]
 
+[2026-10-12-twine-pin-floor-002: the fixtures directory is named by the
+floor — `fixtures/bale-<floor>/`, the version the recordings were made
+at.]
+
 **T9 — Stack lean.** Proposed: Python 3.10+, stdlib for the core
 (courier, registry, transition table, cost spine); the `anthropic`
 SDK as an optional extra used only inside the Anthropic adapter,
@@ -447,6 +451,44 @@ retired into the consumption manifest, the vocabularies re-read and
 unchanged, the unlock doubles replaced by recordings. No verb changed;
 `twine kill` still reads the HOLD refusal by its stderr prefix until
 `twine-kill-reason` keys it on the recorded `reason` code.]
+
+[2026-10-12-twine-pin-051-001: the second deliberate bump — the pin
+moved from 0.4.49 to 0.4.51 (`VERSION` 0.13.0), twenty-four recordings
+made by one probe on 2026-10-08 (`twine-051-record`, stdout and stderr,
+each stream's bytes carried as a gzip+base64 copy) and landed by
+`bin/twine-land-recordings` from its paste-back, which lands beside them
+as their source; every recording's stderr is a `.stderr` sibling and its
+README row carries it; the probe itself landed as the recorder,
+`bin/twine-record-fixtures`; `bale relay <sid> - --json` is recorded
+under twine's own argv, retiring the stdin assumption the 0.4.49 file
+recordings rested on; the schemas re-hashed by the probe and the
+vocabularies re-read, all unchanged; no verb changed. This is the last
+exact pin: D2 becomes a floor plus the consumption manifest's
+key-and-schema contract in `twine-pin-floor`.]
+
+[2026-10-12-twine-pin-floor-002: amended — D2 is a floor. The ruling of
+the sitting `2026-10-08-open-arc2-003`, its light block answered "as
+assumed" on 2026-10-08:
+
+> [1] question:     Relax D2 from an exact pin to a floor plus the manifest's key-and-schema contract?
+>     while doing:  deciding what the pin-051 brief and a twine-pin-floor session carry
+>     would assume: yes — floor >= 0.4.51, schemas by hash, keys per surface on the first line read
+>     why blocked:  D2 and T8 are seed rulings; the gate's meaning is yours to change
+
+The gate is now a floor plus schema hashes plus the per-surface key
+check: twine drives any bale whose `bin/VERSION` is at or above the
+floor — `[bale] floor` in the consumption manifest, `0.4.51`, the
+version the recordings were made at, raised only by a recording
+session — and whose installed `schemas/` hash as `[bale.schemas]` pins
+them; it refuses one below the floor, one whose version cannot be read
+or parsed, and one whose schemas differ or are missing; and every verb
+that reads a bale `--json` line checks, on that line, that each key the
+manifest lists for its surface is present (an extra key is free). The
+exact pin and the "bump the pin" upgrade retire: an install that moves
+without touching a listed key or a pinned schema needs nothing, and one
+that does needs a recording session. 0.4.52 was the first install
+admitted without a recording (probe `twine-052-delta`, 2026-10-12).
+`VERSION` 0.14.0.]
 
 **D3 — Narrowest consumption surface.** Rung 1 consumes the
 minimum bale surface that works: exit codes, the
@@ -1167,6 +1209,50 @@ and the invocation, not of `bale status --json` as the 2026-10-01
 annotation above sketched it; dispatch facts (adapter, sandbox home,
 transcript) are Arc 2's to add. Nothing removes it yet. `VERSION` 0.9.0.
 With rows 0–5 landed, Arc 1 is complete.]
+
+[2026-10-08-twine-carry-exchange-json-001: `twine carry exchange` reads
+`bale relay <sid> - --json`'s one line instead of passing the flagless
+relay's stdout through — ok exactly when bale exits 0 and the line says
+`relayed` for the block's sid with a non-empty `block`, which is then
+human stdout, byte for byte what the flagless relay printed; a refusal's
+reason quotes bale's `cause` whole and never dispatches on it. The JSON
+twin gains `relay` and `outcome`, and its `stdout` is now the line. The
+flagless relay surface, its stand-in (the crafter's `--emit-block`
+emission, still the `exchange` format's fixture) and the `BaleDouble`
+relay answers are retired: the tests replay the four 0.4.49
+`relay --json` recordings, made with a file, for twine's `-` on a named
+assumption (bale's `_read_relay_input`) that a recording of
+`relay <sid> - --json` replaces. `VERSION` 0.10.0.]
+
+[2026-10-08-twine-status-inflight-004: `twine status` reads the in-flight
+records — `state_present` gains a fifth member, `inflight` (after
+`running`), and two keys ride beside it: `inflight_sids`, the sids whose
+`<state-dir>/inflight/<sid>.json` `read_inflight` accepts, sorted, and
+`inflight_faults`, one sentence per other entry in `inflight/`, naming it
+(both null when no state directory resolves). The reading is
+`twine.inflight.list_inflight`; it writes, creates and locks nothing, and
+`status` stays ok / exit 0 whatever `inflight/` holds. Nothing removes a
+record yet. `VERSION` 0.11.0.]
+
+[2026-10-08-twine-exchange-vouch-005: `twine carry exchange` vouches
+for the block bale hands back as it vouched for the block it carried
+in — the line's `block`, read as `take` reads text (CRLF→LF, then the
+§9.2 scanner), must be exactly one block (its own lines and nothing
+around them; a missing final newline, which human mode supplies, is
+tolerated) of kind `exchange`, intact by `take`'s rule, and naming the
+carried block's sid, or the verb is NOT OK, exit 1, each failure
+appended in `take`'s fault words or the session's own, `outcome` still
+`relayed` and the line still whole in `relay`; a block twine cannot
+vouch for is never printed and never repaired. Nothing before the line
+is read moved: the refusals, the one relay argv, stdin, timeout, cap
+and the pin gate. The new doubles are relayed lines whose `block` is
+named as not bale's (the recorded block is intact). `VERSION` 0.12.0.]
+
+[2026-10-12-twine-pin-051-001: the pin at bale 0.4.51 (`VERSION`
+0.13.0) — twenty-four recordings with their stderr, landed from one
+paste-back by the new lander, the recorder landed beside it, the relay
+stdin assumption retired, no verb changed; the last exact pin before
+`twine-pin-floor`.]
 
 ### 5.2 Arc 2 — the runtime
 
