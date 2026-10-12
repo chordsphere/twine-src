@@ -1,0 +1,285 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-12-twine-bundle-051-004",
+  "created_at": "2026-10-12T17:42:53+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-12T17:42:53+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "share/bale-consumption.toml",
+        "tests/helpers.py",
+        "tests/test_carry_bundle.py",
+        "tests/test_consumption_manifest.py",
+        "twine/__init__.py",
+        "twine/commands/carry_bundle.py",
+        "twine/inflight.py",
+        "twine/kill.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-12-twine-bundle-051-004.log",
+      "bundle": {
+        "stem": "2026-10-12-twine-bundle-051",
+        "brief_sha256": "befdbf3b17b6df2a93958864045f1c494c0551ef1317bacb7a3beb3845e08d3d",
+        "checkpoint_sha256": "2312bbcfb00d8c880d756c93f7ced41bb0d87672b9ab05e78dbaff06052aa36b",
+        "manifest_sha256": "4bdcdca4260da6a1954204aa187c2f99ac7ae0c7973908b5e52aa45267900df1"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-12T17:42:53+00:00"
+      }
+    },
+    {
+      "at": "2026-10-12T18:11:44+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-12-twine-bundle-051-004.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "unittest suite (python3 -I -B, >= 658 tests, OK)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "e2e: bin/twine carry bundle replaying the recorded open-refused line": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "e2e: bin/twine carry bundle replaying the recorded second-desk line into an empty state dir": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "session assertions (comments refreshed, open keys eight, module map)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "untouched files (fixtures by sha256; bin/twine, share/transitions.toml, carry_bale.py, core.py, bale.py, twine-seed.md)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is exactly 0.15.0 (cmp)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "no __pycache__": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite (python3 -I -B, >= 658 tests, OK)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "e2e: bin/twine carry bundle replaying the recorded open-refused line": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "e2e: bin/twine carry bundle replaying the recorded second-desk line into an empty state dir": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "session assertions (comments refreshed, open keys eight, module map)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "untouched files (fixtures by sha256; bin/twine, share/transitions.toml, carry_bale.py, core.py, bale.py, twine-seed.md)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is exactly 0.15.0 (cmp)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "no __pycache__": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (py, toml)",
+          "unittest suite (python3 -I -B, >= 658 tests, OK)",
+          "e2e: bin/twine carry bundle replaying the recorded open-refused line",
+          "e2e: bin/twine carry bundle replaying the recorded second-desk line into an empty state dir",
+          "session assertions (comments refreshed, open keys eight, module map)",
+          "untouched files (fixtures by sha256; bin/twine, share/transitions.toml, carry_bale.py, core.py, bale.py, twine-seed.md)",
+          "VERSION is exactly 0.15.0 (cmp)",
+          "no __pycache__"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "share/bale-consumption.toml",
+        "tests/helpers.py",
+        "tests/test_carry_bundle.py",
+        "tests/test_consumption_manifest.py",
+        "twine/__init__.py",
+        "twine/commands/carry_bundle.py",
+        "twine/inflight.py",
+        "twine/kill.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "share/bale-consumption.toml",
+        "tests/helpers.py",
+        "tests/test_carry_bundle.py",
+        "tests/test_consumption_manifest.py",
+        "twine/__init__.py",
+        "twine/commands/carry_bundle.py",
+        "twine/inflight.py",
+        "twine/kill.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "f41c405455a0f1eda48c48c6bf47a5bcd3cb08213ece2a1270c4799f479c65e7",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-12-twine-bundle-051-004.sh",
+              "sha256": "2312bbcfb00d8c880d756c93f7ced41bb0d87672b9ab05e78dbaff06052aa36b"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-12T17:42:53+00:00",
+            "base_files": {
+              "README.md": "72bb6677130bb81398286bb9a2cdf577ed6bd8fc5bbb62cf57695d347c262856",
+              "VERSION": "065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589",
+              "claude/INDEX.md": "d1151b7739d97e1849ed1bf61be53bbb9ab40591ed5490e93e1b73df1b1736c6",
+              "claude/context/cli-contract.md": "296a56c8b7450d88e357327ea2cd12badeee88f46be9f862572fc5aa13aafd16",
+              "share/bale-consumption.toml": "a7e3cfc1b91137de894623623dc4342aa8383bbd7ce95e2773b7a4e219489c54",
+              "tests/helpers.py": "d44d079477e6b518fb964e3ca5cc79605fbec1a20b991e3d40a8e9f1a8888c0e",
+              "tests/test_carry_bundle.py": "437fc89f367bab14f33cfb77f84d5644cded97bb845673967a6524787d92a8ed",
+              "tests/test_consumption_manifest.py": "ffb9a8856ed478458199324a3386c08a02e3e092a091970278db3a374e054df0",
+              "twine/__init__.py": "58e8dbf38a789bcd3a454cc80185fc8b75580d6b4914300a1ab18cf1c5045509",
+              "twine/commands/carry_bundle.py": "7e356b41d0dc959b1fa7a07b17222ea6fa49b9f2b7781fdb262345f3970cee3c",
+              "twine/inflight.py": "04dd50939ab6d1903153ec5cb3dee672d6889729d5e04c7cff401a9c5091732f",
+              "twine/kill.py": "c5e3620f4a25b4f76cf0d7d8f07f374461e5f4058e5e7d94c71c00d71f78ac32"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "The suite count the brief's validation compares against ('\u2265 the count you were given') is the base tree's 639, which I measured; validation.sh asserts \u2265 658, the count this response ships.",
+            "twine-seed.md's bytes were not in the request, so validation.sh checks it through git (when the staged tree is a work tree) and the staged manifest's paths, not by sha256."
+          ],
+          "judgment_calls": [
+            "Brief \u00a74.1: the refusal reads `bale refused the open (outcome 'open-refused', reason '<code>'): \"<cause>\"`, after `bale exited 1`; it replaces the outcome-mismatch failure for open-refused rather than standing beside it, with and without --check.",
+            "Brief \u00a74.2: tarball_source gains no third value; on append-keeps-own the twin's tarball is bale's (\"bale\") and stderr names both tarballs when they differ.",
+            "A missing, null, empty or non-string code reads `no reason code` and such a cause `its line names no cause`; neither is dispatched on, and the code is not checked against a list (the manifest records no OPEN_REFUSAL_REASONS).",
+            "claude/INDEX.md is left untouched: no sentence in it became false.",
+            "The section line pointers in kill.py and carry_bundle.py were already stale before this session; I refreshed them with the files I was editing."
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [
+            "twine-seed.md"
+          ],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md META through \u00a711.2",
+            "README.md (the brief)",
+            "TARBALL.md sections 1, 2, 5, 7, 3.1, 10.1",
+            "claude/context/cli-contract.md \u00a715 and the \u00a76 surface paragraph",
+            "share/bale-consumption.toml (relay and open surfaces)",
+            "twine/inflight.py",
+            "twine/commands/carry_bundle.py",
+            "tests/test_carry_bundle.py",
+            "claude/responses/2026-10-07-twine-carry-bundle-003/notes.md (grep only)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-12-twine-bundle-051-004.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-12-twine-bundle-051-004.sh",
+          "sha256": "2312bbcfb00d8c880d756c93f7ced41bb0d87672b9ab05e78dbaff06052aa36b"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-12T18:11:44+00:00",
+  "outcome": "applied"
+}
