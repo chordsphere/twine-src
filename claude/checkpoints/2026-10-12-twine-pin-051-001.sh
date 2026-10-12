@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Blind checkpoint — session twine-pin-051 (v1), authored at the desk of
+# Blind checkpoint — session twine-pin-051 (v2: the assumption probe amended
+# to the assumption's own sentence; every other probe byte-identical to v1), authored at the desk of
 # sitting 2026-10-08-open-arc2-003 from the request and the paste-back of
 # probe twine-051-record (2026-10-08T13:35Z, bale 0.4.51) alone.
 #
@@ -402,8 +403,11 @@ def manifest_facts(m):
       "vocabularies unchanged": [len(v["values"]) for v in sorted(m["vocabulary"], key=lambda v: v["axis"])] == [9, 9, 13],
     }
     return checks
+LIVE_ASSUMPTION = "A recording of `relay <sid> - --json` replaces the assumption"
 def no_assumption_in(texts):
-    return all("_read_relay_input" not in t for t in texts)
+    # the sentence every one of the four places carried while the assumption was live,
+    # whitespace-folded (v2: v1 matched the bare identifier, which history mentions keep)
+    return all(LIVE_ASSUMPTION not in re.sub(r"\s+", " ", t) for t in texts)
 def run_twine(*argv, env=None):
     base = {"PATH": os.environ.get("PATH", ""), "LC_ALL": "C.UTF-8", "TMPDIR": str(WORK)}
     if env: base.update(env)
@@ -440,7 +444,7 @@ for name, ok in manifest_facts(m).items():
     probe(f"consumption manifest: {name}", ok)
 
 # --- probes: the assumption retired in its four places ---
-probe("the _read_relay_input assumption appears in none of its four places",
+probe("the live assumption sentence (a recording of relay <sid> - --json replaces the assumption) is gone from its four places",
       no_assumption_in([(TREE / p).read_text(encoding="utf-8") for p in FOUR_PLACES]))
 
 # --- probes: the verbs ---
@@ -466,7 +470,8 @@ if row_matches(readme_rows(good_row.replace(f"`{eh0}`", "`" + "f" * 64 + "`")), 
 if row_matches(readme_rows(good_row.replace(f"| {en0} |", f"| {en0 + 1} |")), p0, e0, n0, h0, en0, eh0): broken("row_matches accepts wrong stderr bytes")
 if readme_rows(f"| `{p0[9:]}` | `x` | `y` | {e0} | {n0} | `{h0}` |\n"): broken("the row pattern accepts a six-column row")
 if exact_file_set(expected | {"extra"}, expected) or exact_file_set(expected - {CARRIED}, expected): broken("exact_file_set accepts an extra or a missing file")
-if not no_assumption_in(["clean text"]) or no_assumption_in(["clean", "x _read_relay_input y"]): broken("no_assumption_in is wrong")
+if not no_assumption_in(["clean text", "history: the assumption named _read_relay_input was retired"]): broken("no_assumption_in refuses history")
+if no_assumption_in(["clean", "x A recording of `relay <sid>\n- --json` replaces the\nassumption y"]): broken("no_assumption_in misses the live sentence across line breaks")
 class Fake:
     def __init__(self, rc, out): self.returncode, self.stdout = rc, out
 if not check_ok(Fake(0, b'{"ok": true}'), True) or check_ok(Fake(0, b'{"ok": true}'), False) or check_ok(Fake(1, b'{"ok": true}'), True) or check_ok(Fake(0, b""), True): broken("check_ok is wrong")
