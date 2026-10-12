@@ -15,7 +15,8 @@ the rule names recordings, it builds no argv, and it is not twine's code.
 Pure and stdlib-only: no import of twine, no file read except where a
 function says so, so the lander can import it under `python3 -I -S -B`
 without loading the CLI. Every path function takes the version
-explicitly; tests/helpers.py's wrappers pass PIN.
+explicitly; tests/helpers.py's wrappers pass FLOOR (PIN until session
+2026-10-12-twine-pin-floor-002).
 """
 
 from __future__ import annotations
@@ -37,6 +38,14 @@ EMISSION_TOOLS = {"crafter": "tools/craft_response.py"}
 # A recording's stderr lands beside its stdout file: the same name with
 # this extension in place of `.json`/`.txt` (since bale 0.4.51).
 STDERR_EXT = ".stderr"
+# The installed schemas the gate hashes (share/bale-consumption.toml
+# [bale.schemas]) land byte-exact under the floor's directory, in this
+# subdirectory, named as installed (since session
+# 2026-10-12-twine-pin-floor-002). They are not recordings — no argv printed
+# them, the recorder does not derive them, and they have no stderr sibling —
+# so the lander leaves this subdirectory alone and fixtures/README.md lists
+# them in a table of their own (SCHEMA_ROW).
+SCHEMAS_WHERE = "schemas"
 
 
 class Role(str):
@@ -278,6 +287,32 @@ def parse_rows(text: str) -> dict[str, Row]:
                         int(m["bytes"]), m["sha"],
                         int(m["sbytes"]) if m["sbytes"] is not None else None,
                         m["ssha"])
+    return rows
+
+
+# A schema fixture's row (fixtures/README.md, the floor's schemas table):
+# file, bytes, sha256 — three columns, which RECORDING_ROW (a backticked
+# command in its second) and CARRIED_ROW never match.
+SCHEMA_ROW = re.compile(
+    r"^\| `(?P<file>bale-[^`/]+/schemas/[^`/]+)` \| (?P<bytes>\d+) "
+    r"\| `(?P<sha>[0-9a-f]{64})` \|$", re.M)
+
+
+def schemas_relpath_at(version: str) -> str:
+    """fixtures/bale-<version>/schemas — where the schema files the gate
+    hashes land for the version the floor names."""
+    return f"fixtures/bale-{version}/{SCHEMAS_WHERE}"
+
+
+def parse_schema_rows(text: str) -> dict[str, tuple[int, str]]:
+    """Every schema row of fixtures/README.md, keyed by its fixtures/ path:
+    (bytes, sha256). Raises ValueError for a file listed twice."""
+    rows: dict[str, tuple[int, str]] = {}
+    for m in SCHEMA_ROW.finditer(text):
+        key = f"fixtures/{m['file']}"
+        if key in rows:
+            raise ValueError(f"{m['file']} has two schema rows")
+        rows[key] = (int(m["bytes"]), m["sha"])
     return rows
 
 

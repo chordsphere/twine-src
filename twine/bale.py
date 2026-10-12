@@ -2,8 +2,10 @@
 
 Twine never imports bale. What it reads from an install is files bale
 leaves on disk and the stdout of bale's non-interactive verbs: the file
-`<root>/bin/VERSION`, compared to the pin in the consumption manifest
-(`share/bale-consumption.toml`), and — since Arc 1 session 2b-ii — the
+`<root>/bin/VERSION`, compared to the floor in the consumption manifest
+(`share/bale-consumption.toml`), the files under `<root>/schemas/`, hashed
+against the manifest's `[bale.schemas]` (since session
+2026-10-12-twine-pin-floor-002), and — since Arc 1 session 2b-ii — the
 stdout of the two verbs the `carry` hand-offs run, `bale relay <sid> -
 --json` (since session 2026-10-08-twine-carry-exchange-json-001; the
 flagless `bale relay <sid> -` before it) and `bale apply --dry-run --json
@@ -16,10 +18,19 @@ JSON line back.
 Since Arc 1 session 4 the manifest also records the three closed
 vocabularies bale declares — telemetry outcomes, closure reasons, and
 the outcomes `bale apply --json` prints — as `[[vocabulary]]` data the
-transition table keys on (twine/transitions.py), and the pin gates
-(D2): a carry verb drives only a bale whose `bin/VERSION` is the pin,
-because the table's bale axes are that version's spellings and no
-other's (`Executable.drive_refusal`).
+transition table keys on (twine/transitions.py), and the gate (D2) keeps
+them true: a carry verb drives only a bale the gate admits
+(`Executable.drive_refusal`). Until session 2026-10-12-twine-pin-floor-002
+the gate was an exact pin; since then it is a floor plus the manifest's
+contract (D2 as amended on 2026-10-08): `bin/VERSION` at or above the
+floor — the version the recordings were made at, raised only by a
+recording session — and every schema `[bale.schemas]` names installed
+with that sha256, which holds the two schema-homed vocabularies fixed.
+The third half of the contract is on the line: every verb that reads a
+bale `--json` line checks that each key the manifest lists for that
+surface is present (`missing_keys_failure`, section 6); bale's own rule
+is that existing keys are never renamed or removed, and an extra key is
+free.
 
 Since Arc 1 session 5b, `twine kill` closes a killed session with one more
 argv built here, `unlock_argv`: `bale unlock <sid> --reason aborted
@@ -37,15 +48,17 @@ two argvs the consumption manifest's open surface records. Never
 argv exists in twine.
 
 Sections:
-  1. Install-root resolution     (~line 50)
-  2. The installed version       (~line 105)
-  3. The consumption manifest    (~line 125)
-  4. The pin check               (~line 210)
-  5. Running bale: the executable, the pin gate, the argvs  (~line 260)
+  1. Install-root resolution     (~line 80)
+  2. The installed version       (~line 135)
+  3. The consumption manifest    (~line 175)
+  4. The gate: the floor and the schemas  (~line 280)
+  5. Running bale: the executable, the gate, the argvs  (~line 435)
+  6. The contract on the line: the listed keys  (~line 635)
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -62,6 +75,7 @@ log = logging.getLogger("twine.bale")
 
 ENV_ROOT = "TWINE_BALE_ROOT"
 VERSION_RELPATH = Path("bin") / "VERSION"
+SCHEMAS_RELPATH = Path("schemas")
 
 # ---------------------------------------------------------------------------
 # 1. Install-root resolution
@@ -140,6 +154,25 @@ def read_installed_version(root: Path) -> tuple[str | None, str]:
     return version, f"{path} reads {version}"
 
 
+# A bale version as twine compares it: three dotted non-negative integers,
+# nothing before or after (bin/VERSION's shape at every version twine has
+# read). Compared as a tuple, so 0.4.100 is above 0.4.51 — never as a string.
+VERSION_SHAPE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+
+
+def parse_version(text: str | None) -> tuple[int, int, int] | None:
+    """`text` as a (major, minor, patch) tuple, or None when it is not
+    exactly three dotted integers (a leading zero, a suffix such as
+    `-rc1`, or whitespace inside all count as not)."""
+    if text is None:
+        return None
+    match = VERSION_SHAPE.fullmatch(text)
+    if match is None:
+        return None
+    major, minor, patch = (int(part) for part in match.groups())
+    return major, minor, patch
+
+
 # ---------------------------------------------------------------------------
 # 3. The consumption manifest
 # ---------------------------------------------------------------------------
@@ -149,15 +182,22 @@ class ManifestError(Exception):
     """share/bale-consumption.toml is missing, unparseable, or malformed."""
 
 
+# A file name [bale.schemas] may name: one path component under schemas/,
+# so the gate never hashes a file outside the install's schemas directory.
+SCHEMA_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
 @dataclass(frozen=True)
 class Manifest:
-    """The parsed consumption manifest (D4): the pin, the installed
-    schema hashes, the surfaces twine reads, and the vocabularies bale
+    """The parsed consumption manifest (D4): the floor (D2 as amended:
+    the lowest bale twine drives, the version the recordings were made
+    at), the installed schema hashes the gate's second half holds an
+    install to, the surfaces twine reads, and the vocabularies bale
     declares (keyed by the transition-table axis they are the keys of),
     as data a test can walk. `data` is the whole TOML document."""
 
     path: Path
-    pin: str
+    floor: str
     schemas: dict[str, str]
     surfaces: list[dict[str, Any]]
     data: dict[str, Any]
@@ -178,20 +218,31 @@ def load_manifest(path: Path = CONSUMPTION_MANIFEST) -> Manifest:
     bale = data.get("bale")
     if not isinstance(bale, dict):
         raise ManifestError(f"{path}: no [bale] table")
-    pin = bale.get("pin")
-    if not isinstance(pin, str) or not pin.strip():
-        raise ManifestError(f"{path}: [bale] pin must be a non-empty string")
+    if "pin" in bale:
+        # The exact pin retired at session 2026-10-12-twine-pin-floor-002; a
+        # manifest still carrying it is one twine no longer reads, never one
+        # it guesses about.
+        raise ManifestError(f"{path}: [bale] carries `pin`, which retired when D2 "
+                            "became a floor; the key is `floor`")
+    floor = bale.get("floor")
+    if not isinstance(floor, str) or parse_version(floor.strip()) is None:
+        raise ManifestError(f"{path}: [bale] floor must be a version string of three "
+                            f"dotted integers (got {floor!r})")
     schemas = bale.get("schemas")
-    if not isinstance(schemas, dict) or not all(
+    if not isinstance(schemas, dict) or not schemas or not all(
             isinstance(k, str) and isinstance(v, str) for k, v in schemas.items()):
         raise ManifestError(f"{path}: [bale.schemas] must map file names to sha256 strings")
+    unsafe = sorted(k for k in schemas if not SCHEMA_NAME.fullmatch(k))
+    if unsafe:
+        raise ManifestError(f"{path}: [bale.schemas] names {unsafe}, which are not plain "
+                            "file names under schemas/")
     surfaces = data.get("surface", [])
     if not isinstance(surfaces, list) or not all(isinstance(s, dict) for s in surfaces):
         raise ManifestError(f"{path}: [[surface]] must be an array of tables")
     vocabularies = load_vocabularies(path, data.get("vocabulary", []))
-    log.debug("manifest %s: pin %s, %d schemas, %d surfaces, %d vocabularies",
-              path, pin, len(schemas), len(surfaces), len(vocabularies))
-    return Manifest(path, pin.strip(), dict(schemas), list(surfaces), data,
+    log.debug("manifest %s: floor %s, %d schemas, %d surfaces, %d vocabularies",
+              path, floor, len(schemas), len(surfaces), len(vocabularies))
+    return Manifest(path, floor.strip(), dict(schemas), list(surfaces), data,
                     vocabularies)
 
 
@@ -225,59 +276,169 @@ def load_vocabularies(path: Path, entries: Any) -> dict[str, dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# 4. The pin check
+# 4. The gate: the floor and the schemas
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class CheckResult:
-    """`twine bale check`'s facts: the pin, what is installed (None when
-    unreadable), where, and whether they agree."""
+class SchemaVerdict:
+    """The gate's second half: every file `[bale.schemas]` names, looked
+    for under `<root>/schemas/` and hashed. `checked` names every file that
+    was there and hashed (matching or not), `mismatched` those whose
+    sha256 differs from the manifest's, `missing` those not there as a
+    file — each list sorted. `present` is whether `schemas/` itself is a
+    directory; when it is not, every pinned file is missing and the reason
+    says so once. `dir` is the directory looked in."""
 
-    pin: str
+    dir: Path
+    present: bool
+    checked: tuple[str, ...]
+    mismatched: tuple[str, ...]
+    missing: tuple[str, ...]
+
+    @property
+    def ok(self) -> bool:
+        return self.present and not self.mismatched and not self.missing
+
+    def problems(self) -> list[str]:
+        """One sentence per failing fact, for the check's reason."""
+        if not self.present:
+            return [f"no schemas/ directory at {self.dir}"]
+        found = []
+        if self.missing:
+            found.append("schemas missing from schemas/: " + ", ".join(self.missing))
+        if self.mismatched:
+            found.append("schemas that do not hash as the manifest pins them: "
+                         + ", ".join(self.mismatched))
+        return found
+
+    def as_json(self) -> dict[str, Any]:
+        return {"dir": str(self.dir), "present": self.present, "ok": self.ok,
+                "checked": list(self.checked), "mismatched": list(self.mismatched),
+                "missing": list(self.missing)}
+
+    def summary(self, pinned: int) -> str:
+        """The human line's verdict."""
+        if self.ok:
+            return f"all {pinned} hash as the manifest pins them"
+        return "NOT OK — " + "; ".join(self.problems())
+
+
+def check_schemas(manifest: Manifest, root: Path) -> SchemaVerdict:
+    """Hash every file the manifest pins under `<root>/schemas/`. Never
+    raises: a file that cannot be read is reported missing (with a log line
+    saying why), never skipped."""
+    where = root / SCHEMAS_RELPATH
+    names = sorted(manifest.schemas)
+    if not where.is_dir():
+        log.info("no schemas directory at %s", where)
+        return SchemaVerdict(where, False, (), (), tuple(names))
+    checked: list[str] = []
+    mismatched: list[str] = []
+    missing: list[str] = []
+    for name in names:
+        path = where / name
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            log.info("schema %s not readable as a file: %s", path, exc.strerror or exc)
+            missing.append(name)
+            continue
+        checked.append(name)
+        digest = hashlib.sha256(data).hexdigest()
+        if digest != manifest.schemas[name]:
+            log.info("schema %s hashes %s, the manifest pins %s", path, digest,
+                     manifest.schemas[name])
+            mismatched.append(name)
+    return SchemaVerdict(where, True, tuple(checked), tuple(mismatched), tuple(missing))
+
+
+@dataclass(frozen=True)
+class CheckResult:
+    """`twine bale check`'s facts: the floor, what is installed (None when
+    unreadable), where, the schema verdict (None when no install was
+    found), and whether the gate admits the install."""
+
+    floor: str
     installed: str | None
     root: Path | None
     source: str | None
+    schemas: SchemaVerdict | None
     ok: bool
     reason: str
+    pinned: int = 0
+
+    @property
+    def floor_admits(self) -> bool | None:
+        """Whether `installed` is at or above the floor, compared as a tuple;
+        None when it cannot be read or parsed."""
+        installed = parse_version(self.installed)
+        floor = parse_version(self.floor)
+        if installed is None or floor is None:
+            return None
+        return installed >= floor
 
     def as_json(self) -> dict[str, Any]:
-        return {"pin": self.pin, "installed": self.installed,
+        return {"floor": self.floor, "installed": self.installed,
                 "root": None if self.root is None else str(self.root),
-                "source": self.source, "ok": self.ok, "reason": self.reason}
+                "source": self.source,
+                "schemas": None if self.schemas is None else self.schemas.as_json(),
+                "ok": self.ok, "reason": self.reason}
 
     def as_lines(self) -> list[str]:
         where = "no install found" if self.root is None else str(self.root)
-        return [f"pin:       {self.pin}",
+        schemas = ("(not checked: no install)" if self.schemas is None
+                   else self.schemas.summary(self.pinned))
+        return [f"floor:     {self.floor} (twine drives this bale or any above it)",
                 f"installed: {self.installed if self.installed else '(unreadable)'}",
                 f"root:      {where}" + (f"  (from {self.source})" if self.source else ""),
+                f"schemas:   {schemas}",
                 f"check:     {'ok' if self.ok else 'FAIL'} — {self.reason}"]
 
 
 def check(manifest: Manifest, root: Root) -> CheckResult:
-    """Compare the installed bin/VERSION to the manifest's pin (D2).
+    """The gate (D2 as amended on 2026-10-08): ok exactly when an install
+    was found, its `bin/VERSION` reads and parses as three dotted integers
+    at or above the manifest's floor (compared as a tuple), and every file
+    `[bale.schemas]` names exists under `<root>/schemas/` with that sha256.
 
-    ok only when an install was found, its VERSION read, and the two
-    strings are equal. Every other outcome is reported, with the reason,
-    and never raises — a wrong or absent install is a check result, not
-    an internal error.
+    Every failing fact is named at once in the reason — a version below
+    the floor and a mismatched schema are two sentences, not the first of
+    them — and nothing raises: a wrong or absent install is a check result,
+    not an internal error.
     """
+    pinned = len(manifest.schemas)
     if root.path is None:
-        return CheckResult(manifest.pin, None, None, None, False,
-                           f"no bale install found ({root.detail})")
+        return CheckResult(manifest.floor, None, None, None, None, False,
+                           f"no bale install found ({root.detail})", pinned)
+    problems: list[str] = []
     installed, detail = read_installed_version(root.path)
     if installed is None:
-        return CheckResult(manifest.pin, None, root.path, root.source, False,
-                           detail)
-    if installed != manifest.pin:
-        return CheckResult(manifest.pin, installed, root.path, root.source, False,
-                           f"installed {installed} differs from pin {manifest.pin}")
-    return CheckResult(manifest.pin, installed, root.path, root.source, True,
-                       f"installed {installed} matches the pin")
+        problems.append(detail)
+    else:
+        parsed, floor = parse_version(installed), parse_version(manifest.floor)
+        if parsed is None:
+            problems.append(f"{root.path / VERSION_RELPATH} reads {installed!r}, which is "
+                            "not a version of three dotted integers")
+        elif floor is None:
+            # load_manifest refuses such a floor; a Manifest built by hand
+            # can still carry one, and it admits nothing.
+            problems.append(f"the floor {manifest.floor!r} is not a version of three "
+                            "dotted integers, so no install compares at or above it")
+        elif parsed < floor:
+            problems.append(f"installed {installed} is below the floor {manifest.floor}")
+    schemas = check_schemas(manifest, root.path)
+    problems.extend(schemas.problems())
+    if problems:
+        return CheckResult(manifest.floor, installed, root.path, root.source, schemas,
+                           False, "; ".join(problems), pinned)
+    return CheckResult(manifest.floor, installed, root.path, root.source, schemas, True,
+                       f"installed {installed} is at or above the floor {manifest.floor}, "
+                       f"and all {pinned} schemas hash as the manifest pins them", pinned)
 
 
 # ---------------------------------------------------------------------------
-# 5. Running bale: the executable, the pin gate, the argvs
+# 5. Running bale: the executable, the gate, the argvs
 # ---------------------------------------------------------------------------
 
 EXECUTABLE_RELPATH = Path("bin") / "bale"
@@ -306,77 +467,100 @@ SID_ARGUMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 class Executable:
     """The bale executable a carry verb would run, and what is known of
     it: where its root came from (the same three rules as `bale check`),
-    the installed `bin/VERSION`, and the pin. `path` is None when no
-    root resolved. Since Arc 1 session 4 the version gates (D2): a carry
-    verb refuses to start a bale whose `bin/VERSION` is not the pin, or
-    cannot be read (`drive_refusal`)."""
+    the installed `bin/VERSION`, the floor, and the gate's verdict on the
+    install (`verdict`, `bale check`'s own CheckResult; None when no root
+    resolved or the manifest is unusable). `path` is None when no root
+    resolved. A carry verb refuses to start a bale the gate does not admit
+    (`drive_refusal`). `manifest` is kept so a verb that reads bale's line
+    can check the keys its surface lists (section 6)."""
 
     root: Root
     path: Path | None
     installed: str | None
-    pin: str | None
+    floor: str | None
     detail: str
+    verdict: CheckResult | None = None
+    manifest: Manifest | None = None
 
     @property
-    def pin_matches(self) -> bool | None:
-        if self.installed is None or self.pin is None:
+    def floor_admits(self) -> bool | None:
+        """Whether `installed` is at or above the floor (a tuple comparison);
+        None when either is unknown or does not parse."""
+        if self.verdict is None:
             return None
-        return self.installed == self.pin
+        return self.verdict.floor_admits
+
+    @property
+    def schemas_match(self) -> bool | None:
+        """Whether every pinned schema is installed with its sha256; None
+        when the gate never looked (no root, or no manifest)."""
+        if self.verdict is None or self.verdict.schemas is None:
+            return None
+        return self.verdict.schemas.ok
 
     @property
     def drive_refusal(self) -> str | None:
         """Why twine will not drive this bale, or None when it will (D2).
 
-        Twine drives only the pinned bale. Since Arc 1 session 4 the
-        transition table keys on the pinned version's whole outcome and
-        closure vocabularies, so a bale of another version — or one whose
-        version cannot be read — may answer in spellings the table has no
-        move for: the surprise D17 rules out. A pin bump is the deliberate
-        event that re-reads the vocabularies (D4), never an ambient one."""
+        Twine drives a bale the gate admits — exactly one `twine bale check`
+        reports ok — and refuses every other before starting it. The
+        transition table keys on bale's outcome and closure vocabularies; the
+        floor is the version they were read at, the schema hashes hold the
+        two schema-homed ones fixed above it, and the key check on each line
+        catches a listed key gone missing. A bale the gate does not admit may
+        answer in spellings the table has no move for: the surprise D17 rules
+        out. Raising the floor is the deliberate event — a recording session
+        — never an ambient one."""
         if self.path is None:
             return self.detail
-        if self.pin is None:
-            return ("the pin is unknown (share/bale-consumption.toml is "
-                    "unusable), so no bale's vocabulary is known to the "
-                    "transition table — twine drives only the pinned bale (D2)")
-        if self.installed is None:
-            return (f"bale at {self.root.path}: {self.detail}; twine drives only "
-                    f"the pinned bale {self.pin} (D2) and cannot tell this one's "
-                    "version")
-        if self.installed != self.pin:
-            return (f"bale at {self.root.path} is {self.installed}, not the pin "
-                    f"{self.pin}; twine drives only the pinned bale (D2), whose "
-                    "outcome vocabularies its transition table keys on — install "
-                    f"{self.pin}, or bump the pin in a session that re-reads them")
+        if self.floor is None or self.verdict is None:
+            return ("the floor is unknown (share/bale-consumption.toml is "
+                    "unusable), so twine cannot tell whether any bale keeps the "
+                    "vocabularies its transition table keys on — it drives only a "
+                    "bale at or above the floor whose schemas hash as the manifest "
+                    "pins them (D2)")
+        if not self.verdict.ok:
+            return (f"bale at {self.root.path} is not one twine drives: "
+                    f"{self.verdict.reason}; twine drives only a bale at or above the "
+                    f"floor {self.floor} whose schemas hash as the manifest pins them "
+                    "(D2), since its transition table keys on the vocabularies that "
+                    "keeps — install such a bale, or raise the floor in a recording "
+                    "session")
         return None
 
     def as_json(self) -> dict[str, Any]:
         return {"executable": None if self.path is None else str(self.path),
                 "root": None if self.root.path is None else str(self.root.path),
                 "source": self.root.source, "installed": self.installed,
-                "pin": self.pin, "pin_matches": self.pin_matches}
+                "floor": self.floor, "floor_admits": self.floor_admits,
+                "schemas_match": self.schemas_match}
 
 
 def locate_executable(explicit: str | None, env: Mapping[str, str],
                       which: Callable[[str], str | None]) -> Executable:
     """`<root>/bin/bale`, the root resolved exactly as `bale check` does
-    (`--bale-root`, TWINE_BALE_ROOT, then PATH). The tests pin
-    TWINE_BALE_ROOT, so a bale on the operator's PATH is never what a
-    test runs (cli-contract.md §8). Whether the file exists is learned by
-    starting it: a root with no `bin/bale` is a RunError at the seam."""
+    (`--bale-root`, TWINE_BALE_ROOT, then PATH), with the gate's verdict
+    computed by `check` itself, so a carry verb and `bale check` can never
+    disagree about an install. The tests pin TWINE_BALE_ROOT, so a bale on
+    the operator's PATH is never what a test runs (cli-contract.md §8).
+    Whether the file exists is learned by starting it: a root with no
+    `bin/bale` is a RunError at the seam."""
     root = resolve_root(explicit, env, which)
-    pin: str | None = None
+    manifest: Manifest | None = None
     try:
-        pin = load_manifest().pin
+        manifest = load_manifest()
     except ManifestError as exc:
-        log.warning("pin unknown: %s", exc)
+        log.warning("floor unknown: %s", exc)
+    floor = None if manifest is None else manifest.floor
     if root.path is None:
-        return Executable(root, None, None, pin,
-                          f"no bale install found ({root.detail})")
+        return Executable(root, None, None, floor,
+                          f"no bale install found ({root.detail})", None, manifest)
     installed, detail = read_installed_version(root.path)
+    verdict = None if manifest is None else check(manifest, root)
     path = root.path / EXECUTABLE_RELPATH
-    log.info("bale executable: %s (%s; %s)", path, root.detail, detail)
-    return Executable(root, path, installed, pin, detail)
+    log.info("bale executable: %s (%s; %s; gate %s)", path, root.detail, detail,
+             "unknown" if verdict is None else ("admits" if verdict.ok else "refuses"))
+    return Executable(root, path, installed, floor, detail, verdict, manifest)
 
 
 def relay_argv(executable: Path, sid: str) -> list[str]:
@@ -450,3 +634,64 @@ def revert_line(sid: str) -> str:
     `bale/<sid>` branch and clears the lock together. It touches git, so it
     is always the operator's; twine never runs it."""
     return f"bale revert {shlex.quote(sid)}"
+
+
+# ---------------------------------------------------------------------------
+# 6. The contract on the line: the listed keys
+# ---------------------------------------------------------------------------
+
+
+def surface_keys(manifest: Manifest, reader: str) -> tuple[list[str], str, str]:
+    """The keys the consumption manifest lists for the one bale verb surface
+    the twine verb `reader` reads (`kind = "verb"`, `reader` in its
+    `read_by`: `carry exchange` reads relay, `carry response` apply, `carry
+    bundle` open, `kill` unlock), the bale verb itself, and the surface named
+    as a reason names it: `the relay surface (bale relay <sid> - --json)`.
+    Keyed on the reader rather than the bale verb, so no bale verb's name is
+    spelled here beyond the argv builders above. Raises ManifestError when
+    the manifest records no such surface, or more than one: which keys a
+    line owes is never guessed."""
+    found = [s for s in manifest.surfaces
+             if s.get("kind") == "verb" and reader in (s.get("read_by") or [])]
+    if len(found) != 1:
+        raise ManifestError(f"{manifest.path}: {len(found)} bale verb surfaces read by "
+                            f"`twine {reader}`, not one")
+    entry = found[0]
+    keys = entry.get("keys", [])
+    if not isinstance(keys, list) or not all(isinstance(k, str) and k for k in keys):
+        raise ManifestError(f"{manifest.path}: the keys of the surface `twine {reader}` "
+                            "reads are not a list of key names")
+    verb = str(entry.get("verb"))
+    argv = entry.get("argv")
+    shown = (" (bale " + " ".join(argv) + ")") if isinstance(argv, list) else ""
+    return list(keys), verb, f"the {verb} surface{shown}"
+
+
+def missing_keys_failure(manifest: Manifest | None, reader: str,
+                         line: Mapping[str, Any]) -> str | None:
+    """The contract check on the line (D2 as amended): None when `line`, the
+    one JSON object bale printed for the twine verb `reader`, has every key
+    the manifest lists for the surface `reader` reads; otherwise the
+    failure, naming each absent key and the surface. Presence is all it
+    asks — a key whose value is null is present (bale prints every key on
+    every outcome, null where it does not apply), and a key the manifest
+    does not list is free. The four readers (`carry exchange` on relay,
+    `carry response` on apply, `carry bundle` on open, `kill` on unlock)
+    call it on the line they read and append its failure beside whatever
+    else the line fails. A manifest that cannot say which keys the line
+    owes makes the line not ok too, named."""
+    if manifest is None:
+        return (f"the keys bale's line owes `twine {reader}` are unknown "
+                "(share/bale-consumption.toml is unusable)")
+    try:
+        keys, verb, surface = surface_keys(manifest, reader)
+    except ManifestError as exc:
+        return f"the keys bale's line owes `twine {reader}` are unknown: {exc}"
+    missing = [key for key in keys if key not in line]
+    if not missing:
+        return None
+    named = ", ".join(repr(key) for key in missing)
+    plural = "keys" if len(missing) > 1 else "key"
+    return (f"bale's {verb} line lacks the {plural} {named}, which the consumption "
+            f"manifest lists for {surface}; existing keys are never removed, so "
+            "this bale is not the contract twine reads")

@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/telemetry-record.schema.json",
+  "title": "bale per-session telemetry record",
+  "description": "Shape of claude/telemetry/<sid>.json — the durable per-session record bale writes at session OPEN and appends to at every close event. Since v0.4.21 the record is CREATED at session open: pack (both request-building paths, via persist_pack_session in bin/bale_pack.py) writes an 'opened' attempt carrying the open-time provenance stamp — work_class and packer, verbatim from the request manifest — so every exit path, including sessions that close without an apply (unlock, closed-read-only, previously the blind spot), closes onto a record that already carries the pair. Close-time writes append to the open-time record (write_telemetry_record's update semantics), never clobber; record_version stays 1 (additive: the 'opened' outcome, the 'handoff' command value, and the optional attempts[].provenance field). Pre-v0.4.21 close events remain: every apply-close event (v0.3.9) and, since v0.3.16, every `bale unlock` close, so every registry close is a recorded event — and, since v0.3.18, every clean `bale rollback` / `bale rollback --undo`: post-close history events that append to the sid's existing record rather than opening a closure. One file per sid; each apply-close event appends an entry to attempts[] rather than duplicating the file, so a HOLD followed by a retry accumulates both. INTENTIONALLY LOOSE, matching diagnostics.schema.json: additionalProperties is true at the top level and inside attempts[] entries so future fields can be added without breaking earlier aggregation across sessions (the records are read longitudinally). record_version is the versioned evolution hook: bump it when a change is not purely additive; consumers filter or branch on it. v0.4.6 lands three additive extensions, record_version stays 1: the attempts[].cost block (mechanical stream, all-null until the harness era), the no_response / malformed_response closure reasons, and the optional claim_basis field on claim-bearing rows (enum predicted | observed — enforced record-wide by validate_telemetry_record in bin/bale_validate.py, the per-record library entry point added alongside). One non-writer completes the enumeration (documented v0.4.24; behavior since v0.4.21): retry's mid-session registry re-open is NOT a session open and appends no 'opened' attempt — bale retry re-persists session state through persist_pack_session (bin/bale_pack.py) with open_telemetry=False, because the record already carries its one 'opened' attempt from the session's real open, and a second one appended mid-session would contradict this schema's own 'opened' contract (no close or apply event has landed yet) and double-count opens in attempt-level aggregation.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "record_version",
+    "session_id",
+    "created_at",
+    "updated_at",
+    "outcome",
+    "attempts"
+  ],
+  "properties": {
+    "record_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Version of the record shape. 1 is the launch shape. Additive fields do not bump it; shape-breaking changes do."
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The session this record describes. Matches the filename stem and the response manifest's responds_to."
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ISO 8601 UTC timestamp of the first attempt written. Preserved across updates."
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ISO 8601 UTC timestamp of the most recent attempt written."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["opened", "applied", "held", "reverted", "rejected", "bailout", "scope-drift-refused", "required-check-refused", "base-drift-refused", "unlocked", "rolled-back", "re-applied", "relay-refused"],
+      "description": "The latest attempt's outcome, mirrored to the envelope so aggregation can filter without descending into attempts[]. 'applied' = merged; 'held' = HOLD awaiting inspection (a later attempt supersedes it); 'reverted' = backed out (walkthrough revert or `bale revert`); 'rejected' = the apply exited through a pre-flight or pipeline error path (detail in the session log); 'bailout' = response_kind=bailout, session consumed; 'scope-drift-refused' = the own-scope drift gate refused the response's changes[] at apply pre-flight (v0.3.10, additive enum value) — the session stays open, so a later attempt supersedes it the way a HOLD's does; 'required-check-refused' = the required-check superset gate refused at apply pre-flight because validation_will_run omits name(s) the project's [validation] required set demands (additive enum value — record_version stays 1, the scope-drift-refused precedent) — the session stays open, same supersession posture; 'base-drift-refused' = the base-drift gate refused at apply pre-flight because a changes[] path covered by the request's pack-time provenance.base_files stamp no longer hashes to its stamped sha256 at the target branch's tip — the base moved between pack and apply, and the whole-file overlay would revert the intervening edits (v0.4.23, additive enum value — record_version stays 1, the scope-drift-refused precedent) — the session stays open, same supersession posture, and a repack restamps against the current base by construction; 'unlocked' = the session was closed by `bale unlock` with no git side effects (v0.3.16, additive enum value) — the attempt's closure_reason carries why; 'rolled-back' = an applied (merged) session was undone by `bale rollback` via history-preserving `git revert` (v0.3.18, additive enum value); 're-applied' = a prior rollback was reversed by `bale rollback --undo` (v0.3.18, additive enum value) — both are post-close history events appended to the sid's existing record, stamped only on the clean-success paths that write the reverted/<sid> / re-applied/<sid> tags. 'opened' = the session was opened by a request-building command and no close or apply event has landed yet (v0.4.21, additive enum value — record_version stays 1, the scope-drift-refused precedent): the record holds only the open-time stamp, and readers treat the session as in-flight — never a closure category. 'relay-refused' = `bale relay` refused the exchange input it was handed (v0.4.41, additive enum value — record_version stays 1, the scope-drift-refused precedent): a paste block whose integrity trailer disagrees with its body, an input that is neither a block nor JSON, or a record the relay's schema, sequencing, or resolvability gates refused — nothing was preserved, the attempt's cause names the refusal, and the session stays open and suspended, so readers treat it as in-flight like the other refusals and a later attempt supersedes it. A successful relay writes no attempt."
+    },
+    "attempts": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per apply-close event against this sid, in order. HOLD-then-retry appends rather than duplicates; the full attempt history is the point — a HOLD attempt's claim/verdict disagreement is calibration data even after a later attempt merges.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["at", "outcome", "command"],
+        "properties": {
+          "at": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ISO 8601 UTC timestamp of this apply-close event."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["opened", "applied", "held", "reverted", "rejected", "bailout", "scope-drift-refused", "required-check-refused", "base-drift-refused", "unlocked", "rolled-back", "re-applied", "relay-refused"],
+            "description": "This attempt's outcome, same vocabulary as the envelope field."
+          },
+          "command": {
+            "type": "string",
+            "enum": ["apply", "retry", "revert", "unlock", "pack", "rollback", "handoff", "relay", "open"],
+            "description": "Which bale command produced the event. Walkthrough reverts inside apply/retry report that command; `bale revert <sid>` reports 'revert'; `bale unlock` reports 'unlock' (v0.3.16, additive enum value); `bale pack --supersedes` reports 'pack' on the parent's superseded-by-split closure (v0.3.17, additive enum value) — the record honestly names the command that produced the event, with outcome 'unlocked' (the registry-close outcome, whatever command drove it); `bale rollback` reports 'rollback' on its clean-success paths (v0.3.18, additive enum value), with outcome 'rolled-back' or 're-applied'. The open-time stamp (v0.4.21) names the request-building command that opened the session on its 'opened' attempt: pack reports 'pack'; 'handoff' (additive enum value) is what handoff-side opens report — reserved from v0.4.21 and wired at v0.4.44, when cmd_handoff began passing its own name through persist_pack_session's command parameter (handoff opens recorded before v0.4.44 stamp 'pack', a known, bounded inaccuracy in older records). `bale relay` reports 'relay' (v0.4.41, additive enum value) on the 'relay-refused' attempt it writes when it refuses an exchange input; a relay that records its round writes no attempt, so 'relay' appears only beside that outcome. `bale open` reports 'open' (v0.4.44, additive enum value) on the second-desk 'opened' attempt it writes when a bundle whose session is still open is opened again (see desk): no pack runs on that path, so the record names the command that did; a first open, which replays pack, still stamps 'pack'."
+          },
+          "closure_reason": {
+            "type": ["string", "null"],
+            "enum": ["abandoned", "superseded-by-split", "reframed-after-clarification", "master-closeout", "crash-debris", "closed-read-only", "no_response", "malformed_response", "aborted", null],
+            "description": "Why the session closed, stamped on unlock and revert events (v0.3.16, additive nullable field; absent on pre-v0.3.16 attempts). Two harness-anticipating values land in v0.4.6 (additive enum values — record_version stays 1, the scope-drift-refused precedent): 'no_response' = a request went out and nothing came back — the worker-silence case, closed on timeout; 'malformed_response' = a response arrived that could not be applied as a response — distinct from a well-formed response that HOLDs. Both are CLI-accepted from v0.4.6 (`bale unlock --reason` / `bale revert --reason`) and expected to stay empty until a harness produces the events (PLANNER.md section 16's worker-refresh doctrine); the respawn mechanics they anticipate are future harness-era design, not this vocabulary's. A third lands in v0.4.35 on the same additive terms (record_version stays 1): 'aborted' = a harness or operator kill-switch deliberately closed the session before a response arrived — distinct from 'abandoned', which unlock infers when no reason is given, and from 'no_response', which reads worker silence closed on timeout; CLI-accepted the same way. This enum is deliberately CLOSED (no unknown values validate) — the one strict spot in an intentionally loose record, because the closure mix aggregation buckets on these strings; validate_telemetry_record (bin/bale_validate.py, v0.4.6) additionally enforces the vocabulary record-wide, so a closure_reason key riding at any other depth gets the same verdict (known reason or null passes; an invented value rejects wherever it appears). Unlock stamps it always: the operator's --reason when given; else 'closed-read-only' when the recorded scope is exactly [] (the v0.3.15 read-only session shape — an explicit --reason beats the inference, since a read-only session can itself be superseded or abandoned-in-fact); else 'abandoned'. The no-sid crash-debris sweep stamps 'crash-debris'. Revert stamps --reason when given and null otherwise — outcome 'reverted' already names the event, and a null reason is honest rather than a guessed one. `bale pack --supersedes` stamps 'superseded-by-split' with command 'pack' on the parent's close (v0.3.17). The read-only sweep stamps 'closed-read-only' with command 'pack' (v0.3.21): a `bale pack --read-only` that finds an open []-scope session offers to close it at an accept-default prompt (piped stdin declines without a prompt), so the value is both unlock's inferred reason and a pack-stamped one. Null on apply/retry attempts: those are apply-close events, not closures. Null on rollback attempts too (v0.3.18): rollback closes no session — the outcome names the event, matching revert's null-when-no---reason posture."
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["work_class", "packer"],
+            "description": "The open-time provenance stamp (v0.4.21 — additive; record_version stays 1). PRESENT on 'opened' attempts written post-epoch and ABSENT everywhere else — key presence is epoch membership, the reconciliation_parsed disambiguation doctrine applied again: absence means the session opened pre-epoch (or the request carried no usable provenance block — hand-rolled requests skip the stamp with a logged line), never that the class was empty. Values are stamped VERBATIM from the request manifest's provenance block — no normalization at stamp time, and history is never rewritten: records written before v0.4.42 carry model_identity in whatever free-text spelling the session used, and stay that way; from v0.4.42 the response schema pins the `<vendor>:<model>` format at the source (response-manifest.schema.json model_identity), so new records arrive consolidated without a canonical map being applied here. This stamp is what closes the unlocked-session blind spot: session-class resolution can read it for sessions that never carried a feedback echo. Write-only per the established deferral — the `bale stats` read side (per-class and per-packer drill-downs over the stamp) lands when data accrues. Since v0.4.40 the block also carries the optional packed_at (below) — the pack instant beside the pair, as the manifest's provenance block holds them; work_class and packer stay the only required keys.",
+            "properties": {
+              "work_class": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The pack-time work class, verbatim from provenance.work_class (--work-class, or the wizard/read-only inference). The known vocabulary is the request-manifest enum (code | doc | contract-doc | meta | mixed); this field stays loose by the record's design — aggregation buckets unexpected values as their own honest rows rather than rejecting them."
+              },
+              "packer": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The pack-time packer identity, verbatim from provenance.packer (--packer > [identity].packer > the literal 'unconfigured')."
+              },
+              "packed_at": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The pack instant (v0.4.40 — additive and optional; record_version stays 1), stamped VERBATIM from the request manifest's provenance.packed_at (UTC ISO-8601, seconds) — the same clock instant the sid's date is read from. Absent on opened attempts written before v0.4.40, and on any whose manifest carried no usable packed_at (logged at the stamp). Named consumer, per the telemetry rule that every new field names its query at birth: the close desk's reconstruction of a sitting, which reads attempts[].provenance.packed_at on a master's 'opened' attempt to date that master's pack — in place of reasoning back from the record's created_at, whose lag behind the pack instant is not fixed (observed 1–2 seconds, sometimes 0). A read-only master produces no response feedback echo, so this stamp is its only record-side home. Telemetry-only: the registry-side .bale/sessions/<sid>/provenance.json stays exactly work_class and packer. No `bale stats` read side yet."
+              }
+            }
+          },
+          "tarball": {
+            "type": ["string", "null"],
+            "description": "Basename of the response tarball this attempt processed, or null when no tarball was in play (the `bale revert` path)."
+          },
+          "validation": {
+            "type": ["object", "null"],
+            "additionalProperties": true,
+            "description": "What validation.sh found on this attempt, or null when it did not run (rejected before staging, bailout, `bale revert`).",
+            "required": ["state", "exit_code", "claims", "claim_verdict", "reconciliation_parsed"],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": ["PASS", "HOLD"],
+                "description": "PASS when validation.sh exited 0, HOLD otherwise."
+              },
+              "exit_code": {
+                "type": "integer",
+                "description": "validation.sh's exit code (TARBALL.md section 7.5: 0 pass, 1 check failed, 2 script errored)."
+              },
+              "claims": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": ["string", "object"],
+                  "additionalProperties": true,
+                  "properties": {
+                    "claim_basis": {
+                      "type": "string",
+                      "enum": ["predicted", "observed"],
+                      "description": "See claim_verdict's claim_basis — same field, same closed enum, on the prediction side's annotated form."
+                    }
+                  }
+                },
+                "description": "The manifest's claims map verbatim — the prediction side of the TARBALL.md section 5.3 split. Values are the bare claim string ('pass', 'fail', 'untested', 'unknown'), or — from v0.4.6 — an annotated object form a claim-bearing row may take, admitting the optional claim_basis field (enum exactly predicted | observed; see claim_verdict's claim_basis for the semantics). Optional everywhere, no backfill: every legacy bare-string value keeps validating, and validate_telemetry_record (bin/bale_validate.py) additionally rejects any claim_basis value outside the enum wherever in the record it appears."
+              },
+              "claim_verdict": {
+                "type": "object",
+                "description": "Per-check agreement parsed from validation.sh's section 7.3 reconciliation block — the promotion of what previously lived only in the transient .bale/logs/ session log. Keys are check names; values carry the claim, the verdict, and the agreement tag as the block reported them.",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": ["claim", "verdict", "agreement"],
+                  "properties": {
+                    "claim": { "type": "string" },
+                    "verdict": { "type": "string" },
+                    "agreement": {
+                      "type": "string",
+                      "description": "The bracketed tag from the reconciliation line, normalized to lowercase without brackets: 'agree', 'disagree', or 'n/a'."
+                    },
+                    "claim_basis": {
+                      "type": "string",
+                      "enum": ["predicted", "observed"],
+                      "description": "SELF-REPORTED STREAM (v0.4.6 — the closure of a standing calibration watch, under the ratified claim-basis precedent): did the worker predict this claim's outcome from structural grounds, or observe it from a real run before shipping. Optional on every claim-bearing row, everywhere it appears; no backfill (absent on every record written before v0.4.6, deliberately); no read side yet. When present the enum is CLOSED — predicted and observed are the whole vocabulary, the second of exactly two strict spots in this loose record, because the ledger's predicted-vs-observed calibration split is only meaningful over a fixed vocabulary. validate_telemetry_record (bin/bale_validate.py) enforces the enum record-wide, on any row of any claim-bearing surface, so an invented basis rejects wherever it rides."
+                    }
+                  }
+                }
+              },
+              "validation_will_run": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "The response manifest's validation_will_run, verbatim (v0.4.34 — additive, record_version stays 1): the declared list of what validation.sh runs, the side claims must be a subset of (TARBALL.md section 5.3). Key-presence semantics: present when the manifest carried the key ([] included — an empty declaration is a recorded value), absent when it did not and on every earlier record, where readers keep the computable proxy bale stats shipped before the field existed."
+              },
+              "reconciliation_parsed": {
+                "type": "boolean",
+                "description": "True when a section 7.3 'claims vs verdict:' block was found and parsed from validation.sh's output. False means claim_verdict is empty because the block was absent or unrecognizable — validation.sh authors the block per convention, not contract, so a parse miss is recorded rather than silently skipped."
+              }
+            }
+          },
+          "checkpoint": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The blind checkpoint's result on this attempt. Key-presence semantics — the reconciliation_parsed / clarification disambiguation doctrine applied a third time: the key is PRESENT on every validated attempt written post-epoch and ABSENT otherwise (pre-epoch records, and attempts where validation.sh did not run), so aggregation never conflates 'no checkpoint configured' with 'pre-epoch no data'. {\"configured\": false} is the known-zero form. Blind outcomes never merge into validation.claim_verdict: the checkpoint has no claims by construction, and a merged row would fabricate a prediction that was never made.",
+            "required": ["configured"],
+            "properties": {
+              "configured": {
+                "type": "boolean",
+                "description": "True when the merged config's [validation] base named a checkpoint and it executed on this attempt; false is the known-zero form — validation ran with no checkpoint pinned."
+              },
+              "state": {
+                "type": "string",
+                "enum": ["PASS", "HOLD"],
+                "description": "The checkpoint script's OWN state: PASS on exit 0, HOLD otherwise. The attempt's overall validation.state requires both scripts' exit 0 for PASS; this field carries the per-source attribution."
+              },
+              "exit_code": {
+                "type": "integer",
+                "description": "The checkpoint's exit code (TARBALL.md section 7.5: 0 pass, 1 check failed, 2 the script itself errored — surfaced as 'the planner's checkpoint itself errored', since the remedy differs from a worker failure)."
+              },
+              "script": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["path", "sha256"],
+                "description": "Identity of the EXECUTED bytes: the repo-relative configured path and the sha256 of the base-tree blob (git show <base_sha>:<path>) that actually ran — never the staged overlay's copy. This hash is what makes the provenance verification auditable after the fact.",
+                "properties": {
+                  "path": { "type": "string" },
+                  "sha256": { "type": "string" }
+                }
+              },
+              "failed_probes": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "The failed probe labels (v0.4.34 — additive; record_version stays 1): the label text of every [FAIL] verdict line the executed checkpoint wrote — the line with leading whitespace and the [FAIL] prefix stripped — in log order (stdout, then stderr, as the banded log section holds them), [] when none failed. Key-presence semantics: present on every executed-checkpoint object written from v0.4.34, ABSENT on the {\"configured\": false} known-zero form (no checkpoint ran) and on every earlier record, which reads as not-recorded, never as none-failed. The field the blindness watch splits fixture-defect HOLDs from worker misunderstanding with; the HOLD card renders the same list. Write-only at v0.4.34: no bale stats read side yet."
+              },
+              "stamp_matched": {
+                "type": ["boolean", "null"],
+                "description": "The checkpoint provenance verification's result (v0.3.28): true when the executed base-tree bytes matched the request manifest's pack-time provenance.checkpoint stamp; false when a divergence was admitted by --accept-checkpoint-change (the current base-tree version ran); null when the request carried no provenance.checkpoint key (hand-rolled requests, and requests packed pre-0.3.28)."
+              }
+            }
+          },
+          "corrects": {
+            "type": ["string", "null"],
+            "description": "The response manifest's corrects pointer, verbatim (v0.4.34 — additive, record_version stays 1): the session id of the response this one re-attempts, or null. Key-presence semantics: present — null included — when the manifest carried the key, absent when it did not, on attempts with no response manifest (unlock, revert, rollback), and on every earlier record. bale stats' lineage read already reads this field tolerantly at attempt depth."
+          },
+          "scope_kind": {
+            "type": "string",
+            "enum": ["write-forecast"],
+            "description": "The write-forecast epoch key (v0.4.2, ADR-0015 — the reconciliation_parsed disambiguation doctrine applied a fourth time). PRESENT on every attempt written post-epoch and ABSENT before: key presence is epoch membership, so aggregation never averages pre-separation drift rates (scope = the conflated include set; drift structurally near zero) against forecast-era ones (scope = the write forecast; drift expected nonzero by design — judgment past the ask). Stamped unconditionally by build_telemetry_attempt on every command's attempts, so no per-call-site branching can desync the epoch. The one value today names the one post-epoch meaning; record_version stays 1 (additive), and `bale stats` computes its forecast rows over attempts carrying this key only."
+          },
+          "scope": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "The session's recorded scope, raw. Post-separation (ADR-0015 — attempts carrying scope_kind) this is the session's WRITE FORECAST: what the session forecast landing, which the drift the aggregation computes from scope vs change_paths grades as judgment past the ask. Pre-separation attempts (no scope_kind key) recorded the conflated resolved include set — the 'includes shipped' side of the includes-vs-changes comparison — and open sessions packed pre-separation read as over-forecasts. Empty when no scope was recorded (pre-ADR-0007 sessions), for the read-only session shape (the empty forecast), and on rollback attempts when the session directory (and its scope.json) is long gone at rollback time (v0.3.18): [] records 'not recoverable' honestly, never a fabricated whole-tree scope."
+          },
+          "overridden_paths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Out-of-scope changes[] paths a per-invocation `bale apply --allow-out-of-scope` admitted past the own-scope drift gate on this attempt (v0.3.10, additive field). Bale-computed, always a list: empty means no override was in play (including every pre-v0.3.10 attempt, where the key is absent). On a scope-drift-refused attempt it carries what a PARTIAL override admitted while other drift still refused; the refused paths are recoverable from scope vs change_paths, both recorded raw. Since v0.4.27 a path here may also have been admitted at the TTY y/N rather than by a typed flag; overridden_path_sources beside it names which, per path."
+          },
+          "overridden_path_sources": {
+            "type": "object",
+            "additionalProperties": { "type": "string", "enum": ["flag", "prompt"] },
+            "description": "Per-path admission source for every path in overridden_paths (v0.4.27, additive field): 'flag' when a typed per-invocation --allow-out-of-scope admitted the path, 'prompt' when the operator answered y at the own-forecast drift refusal's per-path prompt on a TTY. Bale-computed and stamped unconditionally by build_telemetry_attempt on every post-v0.4.27 attempt of every command — the overridden_paths posture: always a map, empty when nothing was admitted, keyed by exactly the paths overridden_paths lists when something was. Closed vocabulary: this enum is its one home, bin/bale_report's SCOPE_ADMISSION_SOURCES mirrors it for the writer, and validate_telemetry_record (bin/bale_validate.py) enforces it record-wide at any depth (every value under any overridden_path_sources key, wherever it appears). Absent on pre-v0.4.27 records, which keep validating and read as pre-epoch unknown — nothing retroactive.",
+            "$comment": "Loud-every-run contract (v0.4.27): a 'prompt' value here always has a FORCE-class line in the session log naming the path and the prompt as its source, the same line a typed flag gets."
+          },
+          "required_check_overrides": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Required check NAMES a per-invocation `--allow-missing-required-check` admitted past the required-check superset gate on this attempt (additive field) — the overridden_paths mirror, with the gate's own unit: check names, not paths. Bale-computed, always a list: empty means no override was in play (including every attempt written before the field landed, where the key is absent). On a required-check-refused attempt it carries what a PARTIAL override admitted while other missing names still refused."
+          },
+          "base_drift_overrides": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "changes[] PATHS a per-invocation `--accept-base-drift` admitted past the base-drift gate on this attempt (v0.4.23, additive field) — the overridden_paths mirror, with the gate's own unit: per-file paths, the ratified granularity. An admitted path means the operator deliberately landed the response's bytes over a base that moved since pack, superseding the intervening edits to exactly that path. Bale-computed, always a list: empty means no override was in play (including every attempt written before the field landed, where the key is absent). On a base-drift-refused attempt it carries what a PARTIAL override admitted while other drifted paths still refused; the refused paths and their stamped-vs-current hashes are recoverable from the refusal's session-log lines and report block."
+          },
+          "sandbox_escaped": {
+            "type": "boolean",
+            "description": "True when this attempt's response scripts (apply.sh, the blind checkpoint, validation.sh) executed UNCONFINED under a per-invocation --no-sandbox (v0.4.5 — ADR-0016 position 2's loud escape, promoted from the session log's FORCE line to a durable stamp). Bale-computed and stamped unconditionally by build_telemetry_attempt on every post-v0.4.5 attempt of every command — key presence is epoch membership (the overridden_paths posture: uniform shape, absent only on pre-v0.4.5 records), and false is the known-negative form, including attempts where no script ran at all (unlock, pack, rollback, rejected-before-staging — nothing executed, so nothing escaped). The escape's use frequency is itself the telemetry signal ADR-0016 flagged worth watching. Not in required: pre-v0.4.5 records keep validating."
+          },
+          "network_grant_exercised": {
+            "type": "boolean",
+            "description": "True when at least one confined script execution on this attempt ran with the project's network grant active — bale.toml [sandbox] network (project layer only), which makes bale pass network=True so the sandbox omits its --net leg while filesystem confinement and the environment scrub stay intact (v0.4.5 — ADR-0016 position 3: planner-granted, per-project, contract-only, recorded whenever exercised). Bale-computed and stamped unconditionally like sandbox_escaped above — key presence is epoch membership, false is the known-negative form. An escaped (--no-sandbox) attempt records false here even when the grant is configured: nothing confined ran, so no grant was exercised (unconfined scripts have network regardless). Write-only per the ratified deferral — the bale stats read side lands when data accrues. Not in required: pre-v0.4.5 records keep validating."
+          },
+          "sandbox_confined": {
+            "type": "boolean",
+            "description": "True when every response-script execution this attempt performed (apply.sh, the blind checkpoint, validation.sh) ran inside the namespace sandbox — or when no script ran at all, the known-negative form (v0.4.26 — sandbox-off by config). False exactly when the scripts ran UNCONFINED, whichever of the two escapes did it; sandbox_off_source beside it names which. Bale-computed and stamped unconditionally by build_telemetry_attempt on every post-v0.4.26 attempt of every command — the sandbox_escaped posture: uniform shape, key presence is epoch membership, absent only on pre-v0.4.26 records. sandbox_escaped keeps its exact pre-v0.4.26 meaning (the per-invocation --no-sandbox flag, and only the flag), so this field is the posture and that one is the flag fact; both together read every state. Not in required: pre-v0.4.26 records keep validating.",
+            "$comment": "Loud-every-run contract (v0.4.26): a false here always has a FORCE-class line in the session log naming the same source."
+          },
+          "sandbox_off_source": {
+            "type": ["string", "null"],
+            "enum": ["config", "flag", "prompt", null],
+            "description": "Why this attempt's response scripts ran unconfined, when sandbox_confined is false (v0.4.26): 'config' when bale.toml's project-layer [sandbox] enabled = false disabled confinement — recorded as 'config' even when --no-sandbox was also typed, since the run would have been unconfined regardless and sandbox_escaped already carries the flag fact — 'flag' when only the per-invocation --no-sandbox did, and (v0.4.27) 'prompt' when the operator admitted the unconfined run at the sandbox-unavailable y/N on a TTY (sandbox_escaped stays false: that field is the flag fact only). Null is the confined reading and the known-negative form. Stamped unconditionally beside sandbox_confined (key always present post-v0.4.26; null on confined and no-script attempts). Closed vocabulary: this enum is its one home, bin/bale_report's SANDBOX_OFF_SOURCES mirrors it for the writer, and validate_telemetry_record (bin/bale_validate.py) enforces it record-wide at any depth, null-tolerant like closure_reason. Not in required: pre-v0.4.26 records keep validating."
+          },
+          "cost": {
+            "type": ["object", "null"],
+            "additionalProperties": true,
+            "description": "What this attempt's worker session spent (v0.4.6; PLANNER.md section 17's cost-governance doctrine). MECHANICAL STREAM ONLY: the harness writes these, humans never do — spend is never a worker self-estimate. Stamped unconditionally by build_telemetry_attempt on every post-v0.4.6 attempt of every command as the all-null block — key presence is epoch membership (the sandbox_escaped posture: uniform shape, absent only on pre-v0.4.6 records), and all-null is the expected steady state until the harness era populates real values. The epoch boundary is the point: records born from v0.4.6 forward carry the shape, so no second backfill era, and cost records cover every session exit — the apply-only corpus lesson applied in advance. Every field nullable; the block itself admits null for symmetry with the other nullable promoted surfaces. Not in required: pre-v0.4.6 records keep validating. Write-only per the ratified deferral — the `bale stats` read side lands when data accrues.",
+            "properties": {
+              "tokens_in": {
+                "type": ["integer", "null"],
+                "description": "Input tokens the worker session consumed, or null when unmeasured (every pre-harness session)."
+              },
+              "tokens_out": {
+                "type": ["integer", "null"],
+                "description": "Output tokens the worker session produced, or null when unmeasured."
+              },
+              "usd": {
+                "type": ["number", "null"],
+                "description": "Dollar cost of the worker session, or null when unmeasured."
+              },
+              "model_tier": {
+                "type": ["string", "null"],
+                "description": "The model tier the spawn ran on (PLANNER.md section 17: tier is an effort-policy allocation), or null when unrecorded."
+              }
+            }
+          },
+          "change_paths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Every changes[].path in the response manifest — the other side of the includes-vs-changes comparison. Aggregation computes the intersection or drift; the record stores both sides raw."
+          },
+          "feedback": {
+            "type": ["object", "null"],
+            "description": "The response manifest's feedback block, verbatim (response-manifest.schema.json, v0.3.8). Null when the manifest carried none (pre-v0.3.8 responses) or when the manifest was unavailable (some rejected paths)."
+          },
+          "diagnostics": {
+            "type": ["object", "null"],
+            "description": "The bailout's diagnostics.json content, verbatim (v0.3.23 — additive; record_version stays 1). Present on bailout attempts only: apply's bailout close already holds the parsed, schema-validated diagnostics in hand and embeds them symmetrically with feedback, promoting the transient .bale/sessions/<sid>/ copy's key facts to the tracked substrate stats reads. Absent on every other attempt and on all pre-v0.3.23 bailout attempts — key absence means the record predates the embed, never that diagnostics were empty."
+          },
+          "clarification": {
+            "type": "object",
+            "required": ["rounds", "records"],
+            "additionalProperties": true,
+            "description": "Bale-computed summary of .bale/clarifications/<sid>/ stamped at close time (v0.3.23 — additive; record_version stays 1). Present on every post-epoch CLOSING attempt — outcomes applied, reverted, bailout, unlocked, whatever command drove the close — and on no other: held, scope-drift-refused, rejected, and rollback attempts are not closures. The always-stamp rule is the point: key presence with rounds: 0 means KNOWN ZERO (bale looked and found no clarification records on this checkout), while key absence means pre-epoch unknown — the reconciliation_parsed disambiguation doctrine applied to a new field, so aggregation never conflates 'no clarifications' with 'no data'. A clarification response itself still writes no record (it suspends, not closes); the stamp is how the rounds reach the ledger when the session eventually closes.",
+            "properties": {
+              "rounds": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Number of preserved clarification records — len(records). Since v0.4.18 this is the exchange thread's length: every preserved record on either side (worker rounds and planner answers alike), not only worker rounds."
+              },
+              "records": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": ["n", "at", "blocking_questions"],
+                  "properties": {
+                    "n": { "type": "integer", "description": "The round number from the record's NNN filename." },
+                    "at": { "type": ["string", "null"], "description": "The record's own preserved_at stamp when present (v0.3.27 — stamped by apply at preservation time, since mtime survives normal use but not every copy/restore path), else the record file's mtime as ISO 8601 UTC (the fallback for pre-v0.3.27 records, which carry no stamp of their own — deliberately not backfilled). Null when neither is available." },
+                    "blocking_questions": { "type": ["integer", "null"], "description": "len(questions) from the preserved manifest; null when the record would not parse — presence still counts as a round (the file is the suspension fact), only the count degrades." },
+                    "from": { "type": ["string", "null"], "enum": ["worker", "planner", null], "description": "Additive (v0.4.18, the exchange thread — ADR-0017; record_version stays 1): the side that wrote the record. A preserved clarification manifest reads as 'worker'; an exchange record carries its own `from`. Null when the record would not parse or names neither side. Absent on pre-v0.4.18 stamps." },
+                    "answers": { "type": ["integer", "null"], "description": "Additive (v0.4.18): len(answers) from the record, or null when the record carries no answers[] (every pre-thread manifest) or would not parse — null, not zero, so aggregation tells 'asked only' from 'answered nothing'. Absent on pre-v0.4.18 stamps." }
+                  }
+                }
+              }
+            }
+          },
+          "cause": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why this attempt was refused (v0.4.41 — additive and optional; record_version stays 1): the refusal's first line as the operator saw it after `[bale] error:`, or the short code `exit <n>` when the exit carried no message. Written on 'rejected' attempts (the apply/retry refusal path: record_rejected_attempt in bin/bale_apply.py reads the cause fail() in bin/bale attaches to the exit it raises) and on 'relay-refused' attempts (bin/bale_relay.py); absent on every other outcome and on 'rejected' attempts written before v0.4.41 (not backfilled — their detail stays in the session log). Named consumer, per the telemetry rule that every new field names its query at birth: the close desk's reconstruction, which reads it to say which gate refused a tarball or a paste block — admission, validation, trailer — without the session log, in place of leaving a rejected attempt as two readings. No `bale stats` read side yet."
+          },
+          "bundle": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["stem", "brief_sha256"],
+            "description": "The crafter bundle this session was opened from (v0.4.41 — additive and optional; record_version stays 1). Written only on the 'opened' attempt of a session `bale open` created: open hands the bundle's identity to the pack it replays in-process (the open_bundle namespace attribute, the pre_answered channel's posture — no CLI flag spells it), and pack's open-time persist stamps it beside provenance. Absent on a session packed by hand, and on every opened attempt written before v0.4.41. Keys: stem, brief_sha256, checkpoint_sha256, manifest_sha256 (below; bundle_identity in bin/bale_open.py builds the object). Named consumer, per the telemetry rule that every new field names its query at birth: the close desk's reconstruction, which reads it to say which revision of a bundle an open ran when two revisions, or a stray copy, sat side by side — the gap packed_at and swept_by closed for the pack instant and the sweeper. No `bale stats` read side yet.",
+            "properties": {
+              "stem": { "type": "string", "minLength": 1, "description": "The bundle's stem: its file name with the archive suffix removed (the same stem `bale open` names the bundle by in its report)." },
+              "brief_sha256": { "type": ["string", "null"], "description": "The sha256 of the bundle's brief member — the bundle manifest's published member hash, which `bale open` verified against the member's LF-normalized bytes before replaying. null when the bundle carries no brief (a --no-readme pack replayed)." },
+              "checkpoint_sha256": { "type": ["string", "null"], "description": "The sha256 of the bundle's checkpoint member, the bundle manifest's published member hash; null when the bundle ships no checkpoint." },
+              "manifest_sha256": { "type": "string", "minLength": 1, "description": "The sha256 of the bundle's own manifest member (bundle.json, LF-normalized) as `bale open` read it — pins the exact bundle revision even when two revisions share a brief. The literal 'unreadable' when that re-read failed after the bundle had verified (logged loudly; the open is never refused over the stamp)." }
+            }
+          },
+          "desk": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The desk this 'opened' attempt records (v0.4.44 — additive and optional; record_version stays 1). Written only by `bale open`, on a second or later open of a bundle whose session is still open and has recorded no event past its opens: instead of minting a new sid, open appends another 'opened' attempt (command 'open') to the SAME record, carrying the bundle identity beside this key, and re-emits the session opener with the desk-qualified name `<sid>@<desk>` so the second chat can name itself. Value scheme: 'desk-N', N counting the record's 'opened' attempts including this one — the second open is 'desk-2'; the first open carries no key and reads as desk-1. Absent on every first open and on every attempt written before v0.4.44. Named consumer, per the telemetry rule that every new field names its query at birth: the close desk's reconstruction of which desk a light block (or any desk-side artifact) came from when one sid ran at two planner desks — the specimen a one-'opened'-attempt record could not tell apart. No `bale stats` read side yet."
+          },
+          "swept_by": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The sweeping pack's session id, stamped onto a closed-read-only closure attempt (v0.4.40 — additive; record_version stays 1). The read-only sweep closes open []-scope sessions before the sweeping pack's sid is minted, so the closure is written without it; once the sid exists the same pack enriches each swept session's latest closed-read-only attempt in place (stamp_swept_by in bin/bale_report.py), superseded_by's single-writer pattern, and with [apply] sweep on commits the rewrite as its own `[bale sweep <swept>] swept_by <pack-sid>` event so the record is left clean. Present only on that closure attempt; absent on pre-v0.4.40 closed-read-only attempts (not backfilled), on a stamp that failed (logged loudly, never fatal), and when the sweeping pack aborted between the sweep and the sid mint. The supersession close needs no counterpart: its attempt already carries the closing pack's sid as superseded_by."
+          },
+          "superseded_by": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The child session id, stamped by `bale pack --supersedes` onto the parent's superseded-by-split closure attempt once the child sid is minted (v0.3.23 — additive; record_version stays 1). Single-writer: the same pack invocation that wrote the closure enriches it, so no cross-session write timing and no apply-side append. Present only on that closure attempt; absent everywhere else, including the one pre-v0.3.23 split record, which is deliberately not backfilled (its edge survives in git history). An aborted supersession pack's idempotent re-run re-stamps the same attempt in place — the completing pack's child sid wins."
+          },
+          "log": {
+            "type": ["string", "null"],
+            "description": "Repo-relative path to the session log where full validation output and rejection detail live."
+          }
+        }
+      }
+    }
+  }
+}

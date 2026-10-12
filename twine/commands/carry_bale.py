@@ -36,8 +36,13 @@ Both run bale through `ctx.run`, the seam (twine/process.py), never a
 subprocess of their own, and find bale exactly as `bale check` does
 (twine.bale.locate_executable): the tests pin TWINE_BALE_ROOT, so a bale
 on the operator's PATH is never what a test reaches. Since Arc 1 session
-4 both refuse, before starting it, a bale whose `bin/VERSION` is not the
-pin (D2; twine.bale.Executable.drive_refusal). The contract is
+4 both refuse, before starting it, a bale the gate does not admit (D2;
+twine.bale.Executable.drive_refusal) — since session
+2026-10-12-twine-pin-floor-002 one below the floor, or whose installed
+schemas do not hash as the manifest pins them, where it was an exact pin
+before. Since that session both also check, on the line they read, every
+key the consumption manifest lists for its surface
+(twine.bale.missing_keys_failure). The contract is
 claude/context/cli-contract.md §11.
 
 Sections:
@@ -65,6 +70,13 @@ from twine.registry import Argument, Command, Result
 # ---------------------------------------------------------------------------
 # 1. Limits and the bale call
 # ---------------------------------------------------------------------------
+
+# The two verbs' registered names, which are also how the consumption
+# manifest's `read_by` names them: bale.missing_keys_failure finds the surface
+# whose keys a line owes by the reader (since session
+# 2026-10-12-twine-pin-floor-002).
+READER_EXCHANGE = "carry exchange"
+READER_RESPONSE = "carry response"
 
 # How long a bale verb may take. Neither verb is long-running — relay
 # records a round and prints one line; a dry run stages nothing — so a
@@ -260,7 +272,7 @@ def cmd_carry_exchange(ctx: Context, args: argparse.Namespace) -> Result:
                                  outcome.cwd or ".", carried,
                                  outcome.refusals, outcome.failures)
         if outcome.call.ran:
-            read_relay_line(outcome)
+            read_relay_line(outcome, executable.manifest)
     for problem in outcome.refusals + outcome.failures:
         ctx.info(problem)
     if outcome.ok:
@@ -293,16 +305,19 @@ def check_vouchable(outcome: ExchangeOutcome) -> None:
             "as an argument")
 
 
-def read_relay_line(outcome: ExchangeOutcome) -> None:
+def read_relay_line(outcome: ExchangeOutcome,
+                    manifest: bale.Manifest | None) -> None:
     """bale's stdout must be one JSON object (`relay --json` prints exactly
-    one line on every path, refusals included) whose `outcome` is
-    "relayed", whose `sid` is the block's and whose `block` is a non-empty
-    string that twine can vouch for (vouch_for_relayed_block: exactly one
-    intact exchange block of the carried block's session). Each thing that
-    differs is named in its own failure, so the reason says all of it at
-    once. A refusal's `cause` is quoted whole —
-    it is bale's only account of why — and never dispatched on: bale
-    documents its wording as the stderr text, free to change."""
+    one line on every path, refusals included) carrying every key the
+    manifest lists for the relay surface (bale.missing_keys_failure, since
+    session 2026-10-12-twine-pin-floor-002), whose `outcome` is "relayed",
+    whose `sid` is the block's and whose `block` is a non-empty string that
+    twine can vouch for (vouch_for_relayed_block: exactly one intact
+    exchange block of the carried block's session). Each thing that differs
+    is named in its own failure, so the reason says all of it at once. A
+    refusal's `cause` is quoted whole — it is bale's only account of why —
+    and never dispatched on: bale documents its wording as the stderr text,
+    free to change."""
     stdout = outcome.call.stdout
     try:
         obj = json.loads(stdout)
@@ -315,6 +330,9 @@ def read_relay_line(outcome: ExchangeOutcome) -> None:
             + (f" (it began {shown[:60]!r})" if shown else " (it was empty)"))
         return
     outcome.relay = obj
+    lacking = bale.missing_keys_failure(manifest, READER_EXCHANGE, obj)
+    if lacking is not None:
+        outcome.failures.append(lacking)
     got = obj.get("outcome")
     if got == RELAY_REFUSED_OUTCOME:
         cause = obj.get("cause")
@@ -490,7 +508,7 @@ def cmd_carry_response(ctx: Context, args: argparse.Namespace) -> Result:
                                  outcome.cwd or ".", None,
                                  outcome.refusals, outcome.failures)
         if outcome.call.ran:
-            read_verdict(outcome)
+            read_verdict(outcome, executable.manifest)
     for problem in outcome.refusals + outcome.failures:
         ctx.info(problem)
     if outcome.ok:
@@ -514,9 +532,12 @@ def resolve_tarball(outcome: ResponseOutcome) -> None:
         outcome.tarball = path
 
 
-def read_verdict(outcome: ResponseOutcome) -> None:
-    """bale's stdout must be one JSON object whose `outcome` is
-    "dry-run". Whatever it said instead is named in the reason."""
+def read_verdict(outcome: ResponseOutcome, manifest: bale.Manifest | None) -> None:
+    """bale's stdout must be one JSON object carrying every key the
+    manifest lists for the apply surface (bale.missing_keys_failure, since
+    session 2026-10-12-twine-pin-floor-002) and whose `outcome` is
+    "dry-run". Whatever it said instead is named in the reason, each fault
+    beside the others."""
     try:
         obj = json.loads(outcome.call.stdout)
     except ValueError:
@@ -528,6 +549,9 @@ def read_verdict(outcome: ResponseOutcome) -> None:
             + (f" (it began {shown[:60]!r})" if shown else " (it was empty)"))
         return
     outcome.dry_run = obj
+    lacking = bale.missing_keys_failure(manifest, READER_RESPONSE, obj)
+    if lacking is not None:
+        outcome.failures.append(lacking)
     if obj.get("outcome") != DRY_RUN_OUTCOME:
         outcome.failures.append(f"bale reported outcome {obj.get('outcome')!r}, "
                                 f"not {DRY_RUN_OUTCOME!r}")
@@ -568,9 +592,11 @@ def resolve_cwd(name: str | None, refusals: list[str]) -> str:
 def locate(ctx: Context, args: argparse.Namespace,
            refusals: list[str]) -> bale.Executable:
     """The bale to run, found as `bale check` finds it. None found is a
-    refusal; so, since Arc 1 session 4, is a bale whose `bin/VERSION` is
-    not the pin or cannot be read (D2: `bale.Executable.drive_refusal` —
-    the transition table keys on the pinned version's vocabularies)."""
+    refusal; so, since Arc 1 session 4, is a bale the gate does not admit
+    (D2: `bale.Executable.drive_refusal` — since session
+    2026-10-12-twine-pin-floor-002 exactly the install `twine bale check`
+    reports not ok: below the floor, a VERSION that cannot be read or
+    parsed, or schemas that do not hash as the manifest pins them)."""
     executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which)
     refusal = executable.drive_refusal
     if refusal is not None:
@@ -600,7 +626,7 @@ BALE_ROOT_ARGUMENT = Argument(("--bale-root",), {
 
 COMMANDS = (
     Command(
-        name="carry exchange",
+        name=READER_EXCHANGE,
         summary="hand an exchange block from a pasted turn to `bale relay "
                 "<sid> - --json`; print the block bale hands back",
         handler=cmd_carry_exchange,
@@ -628,7 +654,7 @@ COMMANDS = (
                     "block twine cannot vouch for is never printed. On a refusal the reason quotes bale's cause. "
                     "bale's stderr goes to stderr."),
     Command(
-        name="carry response",
+        name=READER_RESPONSE,
         summary="dry-run a response tarball with `bale apply --dry-run --json` "
                 "and print the `bale apply` line that applies it — never applies",
         handler=cmd_carry_response,

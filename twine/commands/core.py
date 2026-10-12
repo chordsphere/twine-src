@@ -1,7 +1,9 @@
 """The core verbs: `commands`, `status`, and `bale check`.
 
 These are twine's own facts — what verbs exist, whether twine itself is
-intact, whether the bale install matches the pin, and (session 5c) where
+intact, whether the gate admits the bale install (since session
+2026-10-12-twine-pin-floor-002 a floor plus schema hashes, D2 as amended;
+an exact pin before), and (session 5c) where
 twine's state directory resolves and what of it exists — since session
 `twine-status-inflight` (0.11.0) including the in-flight records `carry
 bundle` keeps there, read through `twine.inflight.list_inflight`. No bale
@@ -53,9 +55,12 @@ def _state_dir_argument() -> Argument:
 
 
 def cmd_bale_check(ctx: Context, args: argparse.Namespace) -> Result:
-    """Compare the installed bin/VERSION to the consumption manifest's
-    pin (D2). A missing install, an unreadable VERSION, or a different
-    version is a not-ok result (exit 1), never a traceback."""
+    """The gate (D2 as amended): the installed bin/VERSION at or above the
+    consumption manifest's floor, and every schema `[bale.schemas]` names
+    installed with that sha256. A missing install, an unreadable or
+    unparsable VERSION, a version below the floor, or a missing or
+    mismatched schema is a not-ok result (exit 1) naming every failing fact
+    at once, never a traceback."""
     manifest = load_manifest(CONSUMPTION_MANIFEST)
     root = resolve_root(args.bale_root, ctx.env, ctx.which)
     result = check(manifest, root)
@@ -130,7 +135,7 @@ def cmd_status(ctx: Context, args: argparse.Namespace) -> Result:
     """Twine's own facts: version, python, the bale check, where the
     consumption manifest and fixtures live, and where its state directory
     resolves and what of it exists. ok is about twine itself — the
-    manifest parses and its pin resolves — regardless of whether a bale
+    manifest parses and its floor resolves — regardless of whether a bale
     install is present or a state directory resolves or exists; the bale
     result and the state facts ride inside."""
     payload: dict = {
@@ -154,15 +159,15 @@ def cmd_status(ctx: Context, args: argparse.Namespace) -> Result:
         manifest = load_manifest(CONSUMPTION_MANIFEST)
     except ManifestError as exc:
         payload.update({"ok_reason": f"consumption manifest unusable: {exc}",
-                        "pin": None, "bale": None})
+                        "floor": None, "bale": None})
         lines.append(f"manifest:             UNUSABLE — {exc}")
         return Result(False, payload, lines)
-    payload["pin"] = manifest.pin
+    payload["floor"] = manifest.floor
     root = resolve_root(getattr(args, "bale_root", None), ctx.env, ctx.which)
     result = check(manifest, root)
     payload["bale"] = result.as_json()
-    payload["ok_reason"] = "manifest parses and the pin resolves"
-    lines.append(f"pin:                  {manifest.pin}")
+    payload["ok_reason"] = "manifest parses and the floor resolves"
+    lines.append(f"floor:                {manifest.floor}")
     lines.append("bale check:           " + ("ok" if result.ok else "not ok")
                  + f" — {result.reason}")
     return Result(True, payload, lines)
@@ -178,13 +183,13 @@ COMMANDS = (
                     "listed with cli_only true, never omitted."),
     Command(
         name="status",
-        summary="twine's own facts: version, python, the bale pin check, "
+        summary="twine's own facts: version, python, the bale check, "
                 "where its manifest, fixtures and state directory live",
         handler=cmd_status,
         arguments=(_bale_root_argument(), _state_dir_argument()),
         description="Report twine's own state. ok is true when twine "
                     "itself is intact (its consumption manifest parses "
-                    "and its pin resolves), whether or not a bale "
+                    "and its floor resolves), whether or not a bale "
                     "install is present; the bale check result rides "
                     "inside, and so do the state directory twine resolves "
                     "(--state-dir, else $TWINE_STATE_DIR, else XDG, else "
@@ -196,13 +201,18 @@ COMMANDS = (
                     "written."),
     Command(
         name="bale check",
-        summary="compare the installed bale's bin/VERSION to the pin in "
-                "share/bale-consumption.toml",
+        summary="check the installed bale against the floor and schema "
+                "hashes in share/bale-consumption.toml",
         handler=cmd_bale_check,
         arguments=(_bale_root_argument(),),
         description="Resolve the bale install root (--bale-root, else "
                     "$TWINE_BALE_ROOT, else `command -v bale`), read "
-                    "<root>/bin/VERSION, and compare it to the pin. "
-                    "Exit 0 when they match; 1 when they differ, the "
-                    "file is unreadable, or no install was found."),
+                    "<root>/bin/VERSION and compare it, as three dotted "
+                    "integers, to the floor; hash every file the manifest's "
+                    "[bale.schemas] names under <root>/schemas/. Exit 0 when "
+                    "the version is at or above the floor and every schema "
+                    "hashes as pinned; 1 otherwise — below the floor, an "
+                    "unreadable or unparsable VERSION, no schemas/, a missing "
+                    "or mismatched schema, or no install found — each failing "
+                    "fact named."),
 )

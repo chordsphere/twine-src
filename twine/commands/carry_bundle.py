@@ -30,10 +30,18 @@ is null and `record_error` says why.
 Refused before bale starts, every reason named at once: BUNDLE empty, or —
 when it names no existing file — beginning with `-`; `--cwd` not a
 directory (or the current directory gone); no bale found or startable, or
-not the pin (D2); and, without `--check` only, no state directory resolving
+one the gate does not admit (D2: below the floor, or schemas that do not
+hash as pinned — the floor since session 2026-10-12-twine-pin-floor-002);
+and, without `--check` only, no state directory resolving
 (as `twine spend` and `twine kill` resolve it) or one that exists and is not
 a directory — an open that could not be recorded is refused before it
 happens. `--check` needs no state directory and never reads or writes one.
+
+Since session 2026-10-12-twine-pin-floor-002 the line must also carry every
+key the consumption manifest lists for the open surface
+(twine.bale.missing_keys_failure); a line lacking one is not ok, its reason
+naming the key and the surface — and, after an open, saying the session may
+be open, since no record is written for a line twine did not accept.
 
 The contract is claude/context/cli-contract.md §15.
 
@@ -70,6 +78,10 @@ log = logging.getLogger("twine.carry_bundle")
 # 1. Limits and names
 # ---------------------------------------------------------------------------
 
+# The verb's registered name, which is also how the consumption manifest's
+# open surface names its reader (`read_by`): bale.missing_keys_failure finds
+# the keys the line owes by it (session 2026-10-12-twine-pin-floor-002).
+READER = "carry bundle"
 # An open runs the bundle's checkpoint dry-run, which may run a whole suite:
 # 300 seconds (the other bale calls' limit) is too short (brief §2.3).
 BUNDLE_TIMEOUT_SECONDS = 1800.0
@@ -200,7 +212,7 @@ def cmd_carry_bundle(ctx: Context, args: argparse.Namespace) -> Result:
                 f"be open: `bale status` in {outcome.cwd} says which — twine never "
                 "retries an open")
         if outcome.call.ran:
-            read_line(outcome)
+            read_line(outcome, executable.manifest)
         if outcome.opened:
             record(ctx, outcome)
     for problem in outcome.refusals + outcome.failures:
@@ -279,12 +291,17 @@ def resolve_state(outcome: BundleOutcome, flag: str | None, env) -> None:
 # ---------------------------------------------------------------------------
 
 
-def read_line(outcome: BundleOutcome) -> None:
-    """bale's stdout must be one JSON object whose `outcome` is the mode's —
+def read_line(outcome: BundleOutcome, manifest: bale.Manifest | None) -> None:
+    """bale's stdout must be one JSON object carrying every key the manifest
+    lists for the open surface (bale.missing_keys_failure, since session
+    2026-10-12-twine-pin-floor-002) whose `outcome` is the mode's —
     `opened` or `second-desk` without --check, `rehearsed` with it — and,
     when it opened, whose `sid` twine accepts and whose `opener` is a
     non-empty string. Whatever it said instead is named; a non-zero exit is
-    already a failure (call_bale), and the line is still read and reported."""
+    already a failure (call_bale), and the line is still read and reported.
+    A line lacking a listed key after an open says the session may be open
+    (it is not recorded: the verb is not ok), as the other unaccepted-open
+    failures do."""
     try:
         obj = json.loads(outcome.call.stdout)
     except (ValueError, RecursionError):
@@ -311,6 +328,13 @@ def read_line(outcome: BundleOutcome) -> None:
             f"{outcome.cwd} says which — twine never retries an open")
         return
     outcome.open = obj
+    lacking = bale.missing_keys_failure(manifest, READER, obj)
+    if lacking is not None:
+        if not outcome.check and obj.get("outcome") in inflight.RECORDED_OUTCOMES:
+            lacking += (f"; the session may be open: `bale status` in {outcome.cwd} "
+                        "says which — twine never retries an open, and records none "
+                        "from a line it did not accept")
+        outcome.failures.append(lacking)
     wanted = (REHEARSED,) if outcome.check else inflight.RECORDED_OUTCOMES
     if obj.get("outcome") not in wanted:
         mode = "--check wants" if outcome.check else "an open wants"
@@ -422,7 +446,7 @@ def lines(outcome: BundleOutcome) -> list[str]:
 
 COMMANDS = (
     Command(
-        name="carry bundle",
+        name=READER,
         summary="open a planner's bundle with `bale open --json`; print the opener "
                 "to paste, name the request tarball, and record the open",
         handler=cmd_carry_bundle,
@@ -446,7 +470,7 @@ COMMANDS = (
                         "/twine. Not read under --check"}),
         ),
         description="Run `bale open BUNDLE --json` (with --check, `bale open --check "
-                    "BUNDLE --json`) once, in --cwd, with the pinned bale. ok when "
+                    "BUNDLE --json`) once, in --cwd, with a bale the gate admits. ok when "
                     "bale exits 0 and prints one JSON object whose outcome is "
                     "\"opened\" or \"second-desk\" (\"rehearsed\" under --check) with "
                     "a sid and an opener. On an open, stdout is exactly bale's opener "

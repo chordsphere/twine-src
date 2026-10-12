@@ -1,9 +1,12 @@
-"""fixtures/: every recorded output of the pinned version parses, is one
+"""fixtures/: every recorded output of the floor's version parses, is one
 line, is named by the rule, has its stderr sibling and is listed in
 fixtures/README.md with both streams' hashes; every carried paste —
 the ones a format entry points at, and a version's recordings' source
 (under the version that printed each) — differs from what arrived only by
-CRLF."""
+CRLF. Since session 2026-10-12-twine-pin-floor-002 the floor names the
+directory (the pin did before), and the eight installed schemas the gate
+hashes sit under it in schemas/, byte-exact: listed in their own README
+table, hashed as the manifest pins them, and no recording."""
 
 from __future__ import annotations
 
@@ -15,16 +18,17 @@ from collections import defaultdict
 from twine import FIXTURES_DIR
 from twine.bale import load_manifest
 
-from tests.fixture_rule import (CARRIED_ROW, RECORDING_ROW, STDERR_EXT, Row, echoed_argv,
-                                format_row, parse_rows, stderr_relpath)
-from tests.helpers import (GROUP_SEP, PIN, UNLOCK_RECORDED_SID, UNRECORDED, fixture_key,
+from tests.fixture_rule import (CARRIED_ROW, RECORDING_ROW, SCHEMA_ROW, SCHEMAS_WHERE,
+                                STDERR_EXT, Row, echoed_argv, format_row, parse_rows,
+                                parse_schema_rows, schemas_relpath_at, stderr_relpath)
+from tests.helpers import (GROUP_SEP, FLOOR, UNLOCK_RECORDED_SID, UNRECORDED, fixture_key,
                            fixture_stem, recorded_exits, recorded_rows, split_group)
 
 README = FIXTURES_DIR / "README.md"
 # The command each table's rows name, by fixture directory.
 COMMAND_PREFIX = {"twine-src": "bale ", "anywhere": "bale ", "scratch": "bale ",
                   "crafter": "craft_response.py "}
-PINNED = f"bale-{PIN}"
+PINNED = f"bale-{FLOOR}"
 # The 0.4.51 dry run (fixtures/README.md, "bale 0.4.51"): recorded in the
 # scratch repository for its scoped session, with its exit and its stderr.
 DRY_RUN = f"{PINNED}/scratch/apply_--dry-run_--json_tarball+dry-run.json"
@@ -35,11 +39,19 @@ SOURCE_PASTE = f"{PINNED}/carried/probe-output_twine-051-record.txt"
 
 
 def recorded_files() -> list:
-    """Every recording file of the pinned version — stdout files and their
-    `.stderr` siblings — that is, everything under bale-<pin>/ but the
-    carried paste-back the recordings were landed from."""
+    """Every recording file of the floor's version — stdout files and their
+    `.stderr` siblings — that is, everything under bale-<floor>/ but the
+    carried paste-back the recordings were landed from and the installed
+    schemas (schemas/, since session 2026-10-12-twine-pin-floor-002), which
+    are not recordings."""
     return sorted(p for p in (FIXTURES_DIR / PINNED).rglob("*")
-                  if p.is_file() and p.parent.name != "carried")
+                  if p.is_file() and p.parent.name not in ("carried", SCHEMAS_WHERE))
+
+
+def schema_files() -> list:
+    """Everything under bale-<floor>/schemas/."""
+    return sorted(p for p in (FIXTURES_DIR / PINNED / SCHEMAS_WHERE).rglob("*")
+                  if p.is_file())
 
 
 def stdout_files() -> list:
@@ -86,7 +98,7 @@ class FixturesParse(unittest.TestCase):
 
     def test_status_fixture_names_the_pinned_version(self):
         obj = json.loads((FIXTURES_DIR / f"{PINNED}/twine-src/status_--json.json").read_bytes())
-        self.assertEqual(obj["version"], PIN)
+        self.assertEqual(obj["version"], FLOOR)
 
     def test_dry_run_fixture_is_the_recorded_line(self):
         """The 0.4.51 dry run, recorded by probe twine-051-record in the
@@ -107,7 +119,7 @@ class FixturesParse(unittest.TestCase):
 
     def test_version_fixture_is_bale_pin(self):
         text = (FIXTURES_DIR / f"{PINNED}/anywhere/--version.txt").read_text(encoding="utf-8")
-        self.assertEqual(text, f"bale {PIN}\n")
+        self.assertEqual(text, f"bale {FLOOR}\n")
 
     def test_the_pinned_directory_holds_the_twenty_four(self):
         """The pin bump landed twenty-four recordings — twenty-one bale argvs
@@ -366,6 +378,82 @@ class ReadmeListsEveryFixture(unittest.TestCase):
         received = data.replace(b"\n", b"\r\n")
         self.assertEqual((len(received), hashlib.sha256(received).hexdigest()),
                          (135428, "b1bb27d1d54b40dc75a086c36c719742e6170b647c93de94d5a86b2662063e01"))
+
+
+# The eight schema files as brief twine-pin-floor §2 lists them, with their
+# sizes from the tarball that carried them (bale-0.4.51-schemas.tar.gz,
+# 117,394 bytes of JSON): the oracle the fixtures, their README rows and the
+# manifest's [bale.schemas] are all held to — written from the brief, never
+# from the files.
+SCHEMAS = {
+    "bundle-manifest.schema.json":
+        (6915, "3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23"),
+    "changelog-record.schema.json":
+        (5077, "7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c"),
+    "diagnostics.schema.json":
+        (2992, "bfeef3cc0a6b91b47b1c1c9084ca47349b23a6661b10c848da3b4ef28b413521"),
+    "escalation-record.schema.json":
+        (5547, "16729aae82e20425f91b9fb343de6a74d00fa417ce3cd718767413deee550c41"),
+    "exchange-record.schema.json":
+        (6457, "c9c291899103c4a73768ef930697722b89c5c3ef8f5b388c78c36741316cddc8"),
+    "request-manifest.schema.json":
+        (15000, "70a0c2bd3b6b0d4cf17bc97010c2b7d58931527b7b3100aa984ca3576c075e3d"),
+    "response-manifest.schema.json":
+        (26227, "02d2b6413d078e031641c99e09a9fea909555bdfcb9b2a8a110dbdce63f5817e"),
+    "telemetry-record.schema.json":
+        (49179, "b79d7bf75c10f5799484f906954461e7379ef6d4a870bb7df8c08ce050b38825"),
+}
+
+
+class SchemaFixtures(unittest.TestCase):
+    """The installed schemas the gate's second half hashes (session
+    2026-10-12-twine-pin-floor-002): eight files under the floor's
+    directory, byte-exact, each listed in fixtures/README.md's schemas
+    table and hashed as the manifest pins it."""
+
+    def setUp(self):
+        self.text = README.read_text(encoding="utf-8")
+
+    def test_the_eight_files_are_the_briefs_bytes(self):
+        """Exactly the eight, nothing else in schemas/, each the size and
+        sha256 the brief gives — 117,394 bytes in all."""
+        files = {p.name: p.read_bytes() for p in schema_files()}
+        self.assertEqual(sorted(files), sorted(SCHEMAS))
+        for name, data in files.items():
+            with self.subTest(schema=name):
+                self.assertEqual((len(data), hashlib.sha256(data).hexdigest()), SCHEMAS[name])
+                self.assertIsInstance(json.loads(data), dict, "each is a JSON object")
+        self.assertEqual(sum(len(d) for d in files.values()), 117394)
+        self.assertEqual(f"fixtures/{PINNED}/{SCHEMAS_WHERE}", schemas_relpath_at(FLOOR))
+
+    def test_the_manifest_pins_exactly_these_hashes(self):
+        """[bale.schemas] names the same eight with the same sha256 — the
+        gate hashes an install against the manifest, and the fixtures are
+        what the stub roots install, so the three agree."""
+        pinned = load_manifest().schemas
+        self.assertEqual(pinned, {name: sha for name, (_, sha) in SCHEMAS.items()})
+
+    def test_each_has_its_row_and_no_row_stands_without_its_file(self):
+        """The schemas table lists every file once, by its bytes and sha256;
+        a schema row is never read as a recording row (no command, exit or
+        stderr), and no recording row names a schema."""
+        rows = parse_schema_rows(self.text)
+        want = {f"fixtures/{PINNED}/{SCHEMAS_WHERE}/{name}": cells
+                for name, cells in SCHEMAS.items()}
+        self.assertEqual(rows, want)
+        self.assertEqual(len(SCHEMA_ROW.findall(self.text)), 8)
+        self.assertFalse([f for f in recorded_rows() if f"/{SCHEMAS_WHERE}/" in f])
+        self.assertIn("| file | bytes | sha256 |", self.text)
+
+    def test_the_readme_names_the_floor_and_the_provenance(self):
+        """The rule's opening names the floor; the schemas section names the
+        tarball they came in by its sha256, and the probe that hashed the
+        operator's 0.4.52 install."""
+        self.assertIn("**at or above the floor**", self.text)
+        self.assertIn("b6e6217244fdb81e0e5cab71230f1db9ead6fc632d1414494832779499e614e1",
+                      self.text)
+        self.assertIn("twine-052-delta", self.text)
+        self.assertIn("re-recorded when the crafter's sha256 moves", self.text)
 
 
 if __name__ == "__main__":

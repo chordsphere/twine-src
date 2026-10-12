@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/response-manifest.schema.json",
+  "title": "bale response manifest",
+  "description": "Shape of response-NNN/manifest.json per TARBALL.md sections 5.2, 5.6.2, and 5.9.2. Field semantics live in TARBALL.md; this schema constrains only the universal envelope. Cross-field invariants (sha256 file match, path-safety, claims subset of validation_will_run, stripped-non-empty reasons, bailout-shape and clarification-shape rules) stay in bale's Python validators.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "responds_to",
+    "corrects",
+    "summary",
+    "changes",
+    "deferred",
+    "validation_will_run",
+    "claims"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "YYYY-MM-DD-<slug>-NNN per TARBALL.md section 1. For a normal response this equals responds_to; for a bailout it equals responds_to too, since the bailout is the answer to the same request; and for a clarification as well, since a clarification suspends rather than consumes its session (TARBALL.md section 5.9) and carries the same sid the eventual normal response will."
+    },
+    "responds_to": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Session ID of the request this response answers. Bale verifies it matches the locked session."
+    },
+    "corrects": {
+      "type": ["string", "null"],
+      "description": "Session ID of a prior response this re-attempts, or null."
+    },
+    "response_kind": {
+      "type": "string",
+      "enum": ["normal", "bailout", "clarification"],
+      "description": "Optional, defaults to 'normal' if absent so v0.0.5-shaped manifests pass through. 'bailout' triggers TARBALL.md section 5.6's distinct shape; 'clarification' triggers section 5.9's (both enforced in Python)."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One paragraph: what this response delivers."
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "action", "reason", "size_bytes", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Repo-relative path. Path-safety (no traversal, no .git/.bale, no .baleignore match) is enforced in Python."
+          },
+          "action": {
+            "type": "string",
+            "enum": ["created", "modified", "deleted"]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Non-empty. The stripped-non-empty rule is enforced in Python; this schema only catches the empty-string case."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": ["string", "null"],
+            "description": "Required string for created/modified; required null for deleted. The conditional rule is enforced in Python — this schema admits either."
+          }
+        }
+      }
+    },
+    "deferred": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["what", "why"],
+        "properties": {
+          "what": { "type": "string", "minLength": 1 },
+          "why":  { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "validation_will_run": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Declarative list of what validation.sh is configured to do. Strings are freeform — they're labels the user reads, not commands bale invokes."
+    },
+    "claims": {
+      "type": "object",
+      "description": "The worker's predictions for each project-level check. Keys are freeform check names (must be a subset of validation_will_run; enforced in Python). A value is the bare claim string ('pass', 'fail', 'untested', 'unknown'), or — from v0.4.7, the manifest carrier for the record-side shape — the annotated object form {\"value\": ..., \"claim_basis\": ...}, declaring at ship time whether the claim was predicted from structural grounds or observed from a real run; apply's verbatim promotion into the telemetry record's attempts[].validation.claims carries the object through unchanged. Bare-string values keep validating (everything additive). The bare-string enum is enforced in Python (validate_response_manifest) — the schema pins only the object form's shape here and the type alternatives, a division that predates the subset validator's oneOf (v0.4.42, for contract_docs) and stays as it is.",
+      "additionalProperties": {
+        "type": ["string", "object"],
+        "additionalProperties": false,
+        "required": ["value"],
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": ["pass", "fail", "untested", "unknown"],
+            "description": "The claim itself — same vocabulary as the bare-string form."
+          },
+          "claim_basis": {
+            "type": "string",
+            "enum": ["predicted", "observed"],
+            "description": "Optional, mirroring telemetry-record.schema.json's annotated claims form exactly: predicted from structural grounds, or observed from a real run before shipping. Omit the key when the basis is unknown — null is not a basis."
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "description": "Blocking intent-gap questions per TARBALL.md section 5.9.2. Required and non-empty when response_kind='clarification'; on every other kind the block is absent or an EMPTY array (an empty array is tolerated, matching the doc's 'Forbidden (or empty)' wording — the doc is the contract of record; the conditional rule is enforced in Python — this schema only constrains entry shape).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["question", "context", "default_assumption", "why_blocked"],
+        "properties": {
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The question itself, stated so it can be answered in one short paragraph or less."
+          },
+          "context": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the worker was trying to do when it hit the gap."
+          },
+          "default_assumption": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the worker would have assumed absent an answer. Load-bearing: lets the planner answer with a single 'your assumption is correct'."
+          },
+          "why_blocked": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why the worker declined to proceed on that assumption."
+          },
+          "options": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Optional (v0.4.7): candidate answers, at least one when present — the asker's read of the choices, so the question arrives answerable. Doctrine: PLANNER.md §15. Legacy four-field rows without this key keep validating."
+          },
+          "recommendation": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional (v0.4.7): the worker's pick among the choices, extending default_assumption's cheapest-possible-answer role. Doctrine: PLANNER.md §15."
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["blocking", "batched"],
+            "description": "Optional (v0.4.7): PLANNER.md §15's two classes — only critical-path blockers interrupt; everything else batches. The vocabulary is CLOSED; validate_clarification_questions (bin/bale_validate.py) additionally enforces it row-wide at any depth."
+          },
+          "origin": {
+            "type": "string",
+            "enum": ["intent-gap", "probe-forbidden-environment"],
+            "description": "Optional (v0.4.24): which gap class put this question on the clarification path — 'intent-gap' for the canonical ambiguity/contradiction/untransported-decision triggers (TARBALL.md section 5.9.1), or 'probe-forbidden-environment' for an environment gap asked here because the request set expects_probe: no and the probe recourse was unavailable (TARBALL.md section 3.3). Both origins still indict packing — a probe-forbidden environment gap is an include-completeness failure under a probe ban — so the tag does not de-noise the packing signal; it splits it into two different fixes (brief/decomposition vs include completeness). The vocabulary is CLOSED; validate_clarification_questions (bin/bale_validate.py) additionally enforces it row-wide at any depth, the priority discipline applied again. Legacy rows without this key keep validating."
+          }
+        }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mechanical", "self_reported"],
+      "description": "Dual-stream session feedback (v0.3.8+, session B1). Optional so pre-B1 manifests validate; apply persists the block verbatim (the B2 telemetry record builds on it). Two streams by trust level: 'mechanical' holds values the lint (tools/response_lint.py) can recompute and verify; 'self_reported' holds worker-authored judgment the lint cannot check.",
+      "properties": {
+        "mechanical": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["response_kind", "schema_valid", "mirror_agreement", "claims_subset"],
+          "description": "Lint-computable results. The worker fills these by running the lint; the lint's feedback-block check recomputes each and flags any disagreement — a mismatch is the tell of a hand-filled or stale block.",
+          "properties": {
+            "response_kind": {
+              "type": "string",
+              "enum": ["normal", "bailout", "clarification"],
+              "description": "Echo of the manifest's effective response_kind (defaulted 'normal' when the top-level key is absent)."
+            },
+            "schema_valid": {
+              "type": "boolean",
+              "description": "Whether the manifest validates against this schema, as found by the lint's manifest-schema check."
+            },
+            "mirror_agreement": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["changes_to_files", "files_to_changes"],
+              "description": "The TARBALL.md section 10.1 both-directions mirror result, split by direction.",
+              "properties": {
+                "changes_to_files": {
+                  "type": "boolean",
+                  "description": "Every created/modified entry has its files/ member with matching size and recomputed sha256; deleted entries follow the section 5.2 shape. Vacuously true on kinds that ship no files/."
+                },
+                "files_to_changes": {
+                  "type": "boolean",
+                  "description": "Nothing under files/ is undeclared in changes[]. Vacuously true on kinds that ship no files/."
+                }
+              }
+            },
+            "claims_subset": {
+              "type": "boolean",
+              "description": "set(claims) is a verbatim subset of validation_will_run (TARBALL.md section 5.3)."
+            },
+            "linkage": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "required": ["kind", "point"],
+              "description": "Present when the session went through a probe or clarification round on the way to this response; null or absent otherwise. Self-reported placement data riding in mechanical because its shape is fixed even though the lint cannot verify it.",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["probe", "clarification"],
+                  "description": "Which recourse the session used (TARBALL.md section 5.9's taxonomy)."
+                },
+                "point": {
+                  "type": "string",
+                  "enum": ["pre-read", "pre-build", "mid-build"],
+                  "description": "When in the session the gap surfaced: before any triggered drill-down reading, after reading but before building, or mid-build."
+                },
+                "depends_on": {
+                  "type": ["string", "null"],
+                  "description": "Session ID of the linked round when it exists as a durable artifact (a file-based probe or a shipped clarification response); null for a paste-back probe or an in-chat ask, which resolve within the session (TARBALL.md sections 4.5, 5.9.1)."
+                }
+              }
+            },
+            "provenance": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "required": ["bale_version", "contract_docs", "packer", "work_class", "model_identity"],
+              "description": "The request manifest's provenance block echoed verbatim, plus model_identity. Null when the request carried no provenance (packed by a pre-0.3.8 bale — the one-apply-behind bootstrap case).",
+              "properties": {
+                "bale_version": { "type": "string", "minLength": 1 },
+                "contract_docs": {
+                  "type": "object",
+                  "description": "Verbatim echo of the request's contract_docs. PLANNER.md joined the carried set in v0.4.11 — admitted, not required (one-apply-behind: the wiring session's own response echoes a four-key block, and pre-v0.4.11 echoes stay valid). Since v0.4.42 a oneOf over the same two key sets the request schema admits — the four-key set keyed by CLAUDE.md (every pack before v0.4.43), and the same set with AGENT.md in place of CLAUDE.md (the current spelling, stamped since v0.4.43) — so the verbatim echo validates whichever spelling the request was stamped under, for good; exactly one of the pair may be present (request-manifest.schema.json).",
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "required": ["CLAUDE.md", "TARBALL.md", "DOCS.md", "CODE.md"],
+                      "properties": {
+                        "CLAUDE.md": { "type": "string", "minLength": 1 },
+                        "TARBALL.md": { "type": "string", "minLength": 1 },
+                        "DOCS.md":    { "type": "string", "minLength": 1 },
+                        "CODE.md":    { "type": "string", "minLength": 1 },
+                        "PLANNER.md": { "type": "string", "minLength": 1 }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "required": ["AGENT.md", "TARBALL.md", "DOCS.md", "CODE.md"],
+                      "properties": {
+                        "AGENT.md":  { "type": "string", "minLength": 1 },
+                        "TARBALL.md": { "type": "string", "minLength": 1 },
+                        "DOCS.md":    { "type": "string", "minLength": 1 },
+                        "CODE.md":    { "type": "string", "minLength": 1 },
+                        "PLANNER.md": { "type": "string", "minLength": 1 }
+                      }
+                    }
+                  ]
+                },
+                "packer": { "type": "string", "minLength": 1 },
+                "work_class": {
+                  "type": "string",
+                  "enum": ["code", "doc", "contract-doc", "meta", "mixed"]
+                },
+                "checkpoint": {
+                  "type": ["object", "null"],
+                  "additionalProperties": false,
+                  "required": ["path", "sha256"],
+                  "description": "Echo of the request's provenance.checkpoint stamp (v0.3.28) — the blind checkpoint's pack-time {path, sha256} identity, or null when the request was packed with no checkpoint configured. Optional so echoes of pre-v0.3.28 requests (which carry no key) stay valid; when the request carries it, the verbatim echo does too.",
+                  "properties": {
+                    "path":   { "type": "string", "minLength": 1 },
+                    "sha256": { "type": "string", "minLength": 1 }
+                  }
+                },
+                "checkpoint_scope_admitted": {
+                  "type": "boolean",
+                  "description": "Echo of the request's provenance.checkpoint_scope_admitted stamp (v0.3.28): whether the planner admitted a checkpoint-covering pack scope with --allow-checkpoint-in-scope. Optional so echoes of pre-v0.3.28 requests stay valid."
+                },
+                "base_files": {
+                  "type": "object",
+                  "additionalProperties": {"type": "string", "minLength": 1},
+                  "description": "Echo of the request's provenance.base_files stamp (v0.4.23) — the base-drift map, per-file sha256 (hex) of the write forecast's committed bytes at pack time, keyed by repo-relative path; {} for an empty (read-only) forecast. Optional so echoes of pre-v0.4.23 requests (which carry no key) stay valid; the block is echoed verbatim, so the key rides through exactly when the request carried it, and the echo shape must admit it because additionalProperties is false here. Mirrors the request schema's definition (request-manifest.schema.json)."
+                },
+                "checkpoint_waived": {
+                  "type": "string",
+                  "enum": ["read-only"],
+                  "description": "Echo of the request's provenance.checkpoint_waived stamp (v0.4.9): present when the request waived the per-session checkpoint for the empty-forecast (read-only) shape. Optional — the block is echoed verbatim, so the key rides through exactly when the request carried it; the echo shape must admit it because additionalProperties is false here."
+                },
+                "packed_at": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Echo of the request's provenance.packed_at stamp (v0.4.30) — the pack instant, ISO 8601 UTC with offset at seconds precision; its date equals the session id's date. Optional so echoes of pre-v0.4.30 requests (which carry no key) stay valid; the block is echoed verbatim, so the key rides through exactly when the request carried it, and the echo shape must admit it because additionalProperties is false here. Mirrors the request schema's definition (request-manifest.schema.json)."
+                },
+                "model_identity": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:[.-][a-z0-9]+)*$",
+                  "description": "SELF-REPORTED AND UNVERIFIABLE TODAY: the worker states its own model identity; no mechanism attests it. Recorded for longitudinal aggregation, read with that caveat. Format, pinned since v0.4.42 so the value aggregates instead of splitting into free-text spellings: `<vendor>:<model>` — lowercase throughout, spaces rendered as hyphens, no parenthetical, no `self-reported` suffix (the whole field is self-reported by definition), and the literal `unknown` as the model token when the session cannot see its exact model string. Examples: `anthropic:claude-fable-5.1`, `anthropic:unknown`. The pattern refuses anything else — a free-text spelling with capitals, spaces, a parenthetical or a suffix is a lint error, not a variant."
+                }
+              }
+            }
+          }
+        },
+        "self_reported": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["assumptions", "judgment_calls", "budget_pressure", "includes_missing", "compaction_occurred"],
+          "description": "Worker-authored stream. Honest empties are meaningful ([] = none arose); the lint checks shape only, never content.",
+          "properties": {
+            "assumptions": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Assumptions the session proceeded on without confirmation (the recoverable-risk posture of TARBALL.md section 3.3 / 5.9.1), one per entry."
+            },
+            "judgment_calls": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Decisions the worker made that the planner should be able to find without reading the diff — design choices, tie-breaks, interpretations."
+            },
+            "budget_pressure": {
+              "type": "string",
+              "enum": ["none", "tight", "bailed"],
+              "description": "The session's own read of its context budget: comfortable throughout, felt the AGENT.md section 11.3 pressure without bailing, or this response is a bailout."
+            },
+            "includes_missing": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "What the session wanted but the request did not ship — packing signal for the planner, one entry per miss. Two entry forms, both strings in one array (the shape is unchanged since v0.3.8): a repo-relative path for a file the session needed in context/ (e.g. `bin/bale_config.py`), or a line opening `decision:` for a ruling the brief did not carry and the session had to assume or ask for (e.g. `decision: whether [layout] is project-layer only`). The marker is the literal `decision:` prefix; everything after it is prose."
+            },
+            "docs_read": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Optional (v0.4.24): the docs and sections the session actually read, one doc or doc-section reference per entry (e.g. 'TARBALL.md sections 1, 2, 5, 7'). Self-report, weighted like everything else in this stream — the lint checks shape only, never content, and no mechanism attests the reading happened. Additive and OPTIONAL, so every pre-v0.4.24 manifest keeps validating and omission means the session reported nothing, never that it read nothing."
+            },
+            "compaction_occurred": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["occurred"],
+              "description": "Whether the runtime compacted mid-session (AGENT.md section 11.6). When true, disclosure_ref points at where the disclosure lives.",
+              "properties": {
+                "occurred": { "type": "boolean" },
+                "disclosure_ref": {
+                  "type": ["string", "null"],
+                  "description": "Where the compaction disclosure was recorded (e.g. 'notes.md' or a chat pointer); null when occurred is false."
+                }
+              }
+            },
+            "forecast_departures": {
+              "type": "array",
+              "description": "The worker's own structured account of judgment past the ask (v0.4.2, ADR-0015, ratified — additive and OPTIONAL, so every pre-epoch manifest stays valid and omission means the session declares no departures). One entry per changes[] path the worker shipped outside the session's write forecast: path plus why, the structured twin of the notes.md enumeration (which remains the human-facing account and the apply-walkthrough input; this field is the aggregable one). Apply persists the feedback block verbatim into telemetry, so `bale stats` cross-checks these declarations against the mechanically admitted overridden_paths — an admitted path with no declared departure is the ADR-0014 audit smell, computed instead of eyeballed.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "why"],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The repo-relative changes[] path shipped outside the forecast."
+                  },
+                  "why": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Why the goal required this path — the argument the drift makes for itself."
+                  }
+                }
+              }
+            },
+            "light_blocks": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Optional (v0.4.34): the number of light question blocks (TARBALL.md section 5.10) the worker emitted this session — the chat-carried ask tier, which opens no exchange record, so this count is the only place the tier becomes visible to stats. Self-report, like everything in this stream; the lint checks shape only. Additive and OPTIONAL, so every earlier manifest keeps validating, and the crafter's skeleton seeds nothing: omission means the session reported no count, never that it emitted no block — a worker who emitted a block writes the number."
+            },
+            "paste_carried_rounds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Optional (v0.4.34): the number of exchange rounds (TARBALL.md section 5.9.2) whose record traveled by paste block rather than by tarball — the courier the operator chose at carry time — so telemetry stops reading a real round as zero where no clarification tarball was applied. Self-report, like everything in this stream; the lint checks shape only. Additive and OPTIONAL, so every earlier manifest keeps validating, and the crafter's skeleton seeds nothing: omission means the session reported no count, never that no round was paste-carried."
+            }
+          }
+        }
+      }
+    }
+  }
+}

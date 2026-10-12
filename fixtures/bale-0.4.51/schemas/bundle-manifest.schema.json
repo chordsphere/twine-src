@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/bundle-manifest.schema.json",
+  "title": "bale planner-bundle manifest",
+  "description": "Shape of bundle.json, the manifest inside a planner bundle (a gzipped tar with the reserved .bale-bundle filename suffix; format home in the bale tool's own documentation, v0.4.12). The bundle is the one planner-emitted file carrying a session's brief, its blind checkpoint, and its full pack invocation; this manifest binds them: the argument vector the consumer replays, the published sha256 of each member's LF-normalized bytes (the fields land here; the verification lands with the consuming verb), and the pre-answered intents that route through — never around — the pack pipeline's decline-default exchanges. Landed schema-first, this schema family's established precedent: the pack-side half (deny-list, intents API, this validation surface) exists now; the open verb and the crafter emission — planned, not yet landed — consume and produce it. INTENTIONALLY LOOSE, matching the sibling schemas: additionalProperties is true at the envelope and inside entries so future additive fields do not reject earlier bundles; what it pins, it pins — the four-key required envelope, bundle_format exactly 1, the two named member slots (object or explicit null, the depends_on uniform-shape precedent), and the closed intent-prompt vocabulary at its named spot, which parse_pre_answered_intents (bin/bale_pack.py, INTENT_PROMPTS) additionally enforces at the consumption site. Cross-field invariants the schema subset cannot express — 64-lowercase-hex sha256 values, flat distinct member paths, an argv free of the delivery flags the consumer supplies — live in validate_bundle_manifest (bin/bale_validate.py), the per-record library entry point in the validate_telemetry_record posture.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "bundle_format",
+    "pack_argv",
+    "members",
+    "pre_answered"
+  ],
+  "properties": {
+    "bundle_format": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Format version of the bundle container and this manifest. Exactly 1 today; a consumer refuses an unrecognized version rather than guessing at member semantics."
+    },
+    "pack_argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "The pack invocation's argument vector AFTER the pack subcommand — goal positional first by convention, then flags — replayed verbatim by the consumer, which appends the delivery flags itself: --readme-file pointing at the extracted brief member when members.brief is present (--no-readme when it is null), and --checkpoint-file pointing at the extracted checkpoint member when members.checkpoint is present. Storing either delivery flag here is invalid (validate_bundle_manifest): the member's presence is the single source for the flag, so the stored argv can never disagree with the shipped bytes."
+    },
+    "members": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["brief", "checkpoint"],
+      "description": "The bundle's payload members, each sitting flat beside bundle.json at the archive root. Both slots are always present — an object when the member ships, an explicit null when it does not (uniform shape, the depends_on precedent). sha256 values are computed over the member's LF-normalized bytes (every CRLF read as LF — the format-level rule that keeps a bundle verifiable after a line-ending-mangling transport), which is also how the consumer normalizes before verifying.",
+      "properties": {
+        "brief": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "required": ["path", "sha256"],
+          "description": "The request README prose (the brief), or null for a bundle that deliberately packs without one.",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Flat archive-member name (conventionally brief.md)."
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64,
+              "description": "sha256 hex digest of the member's LF-normalized bytes; exactly 64 lowercase hex characters (validate_bundle_manifest enforces the exact form)."
+            }
+          }
+        },
+        "checkpoint": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "required": ["path", "sha256"],
+          "description": "The planner-authored blind checkpoint script, or null for a project that pins none. The bundle is oracle-bearing exactly when this member ships — the basis for the pack walk's structural auto-exclusion of .bale-bundle files, which applies to the suffix unconditionally either way.",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Flat archive-member name (conventionally checkpoint.sh)."
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64,
+              "description": "sha256 hex digest of the member's LF-normalized bytes; exactly 64 lowercase hex characters (validate_bundle_manifest enforces the exact form)."
+            }
+          }
+        }
+      }
+    },
+    "pre_answered": {
+      "type": "array",
+      "description": "The bundle's pre-answered intents — explicit, per-prompt accepts of named decline-default exchanges in the pack pipeline, routed through the exchange, never around it — a ratified design constraint of the format. An empty array is the honest-empty form: no prompt is pre-answered and every decline default governs. An intent that matches no prompt the invocation raises also changes nothing — the decline default governs as if the intent were absent, and the pack reports the unconsumed intent loudly.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["prompt", "subject"],
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "enum": ["supersede"],
+            "description": "The named prompt this intent answers. CLOSED vocabulary, mirrored by INTENT_PROMPTS in bin/bale_pack.py (parity pinned by test): supersede is the split-supersession y/N exchange. There is deliberately no value meaning every-prompt."
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the prompt is about — for supersede, the parent session id the exchange would close. Consumption requires an exact match, so an intent authored for one parent can never answer a prompt about another."
+          }
+        }
+      }
+    }
+  }
+}

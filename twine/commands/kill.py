@@ -9,7 +9,7 @@ will call: it requests the between-calls abort, kills every process group
 the session's runtime recorded — its own, then each it registered — and
 waits until none of them is alive, then closes the session in bale with the
 closure reason `aborted` — `bale unlock <sid> --reason aborted --json`,
-through the run seam (ctx.run) and only with the pinned bale. When it
+through the run seam (ctx.run) and only with a bale the gate admits. When it
 cannot finish, the report says where it stopped and gives the one line that
 finishes by hand.
 
@@ -21,14 +21,17 @@ where the runtime does not look stops nothing; `--cwd` is not a directory;
 `--grace` is not a non-negative number of at most 600 seconds.
 
 The bale is located first, so the report says what was found, but a bale
-that is absent, unreadable or not the pin is **not a refusal** (session 5c,
-the sitting's correction to 5b): the abort request and the process kill run
+that is absent, unreadable or one the gate refuses (below the floor, or
+schemas that do not hash as pinned; an exact pin before session
+2026-10-12-twine-pin-floor-002) is **not a refusal** (session 5c, the
+sitting's correction to 5b): the abort request and the process kill run
 with any bale or none — D15's kill must work when the harness itself is
-wedged, and an install drifted off the pin is one way it can be. The pin
+wedged, and an install the gate refuses is one way it can be. The gate
 gates the closure alone, which `close_aborted` checks itself: such a kill
 ends `stopped_at: "closure"`, not ok, with the drive refusal in `reason`
-and the unlock line to finish by hand (D2, D17: the pin exists for the
-closure's vocabulary, not for the signal).
+and the unlock line to finish by hand (D2, D17: the gate exists for the
+closure's vocabulary, not for the signal). The closure's line is held to
+the keys the manifest lists for the unlock surface when it is read.
 
 No module here spawns a process: bale runs through ctx.run, and signals go
 through twine.process's group helpers. The contract is
@@ -107,7 +110,7 @@ def cmd_kill(ctx: Context, args: argparse.Namespace) -> Result:
     except ValueError as exc:
         report.refusals.append(str(exc))
     # The bale is located first so the report says what was found, but its
-    # drive refusal does not join `refusals`: the pin gates the closure
+    # drive refusal does not join `refusals`: the gate (D2) gates the closure
     # alone (close_aborted checks it), never the abort or the signal.
     executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which)
     report.bale = executable.as_json()
@@ -138,7 +141,7 @@ def cmd_kill(ctx: Context, args: argparse.Namespace) -> Result:
 
 COMMANDS = (
     Command(
-        name="kill",
+        name=kill.READER,
         summary="the kill-switch: request the between-calls abort, kill every "
                 "process group the session's runtime recorded, and close it in "
                 "bale as `aborted`",
@@ -170,9 +173,10 @@ COMMANDS = (
                     "--grace seconds, and wait until no member of any is alive — "
                     "or name the survivors and stop; then, only when nothing of "
                     "them is alive, close the session in bale with `bale unlock "
-                    "SID --reason aborted --json`, run in --cwd with the pinned "
-                    "bale, once. The abort and the kill run with any bale or "
-                    "none; only the closure needs the pin. ok when all three "
+                    "SID --reason aborted --json`, run in --cwd with a bale the "
+                    "gate admits (at or above the floor, schemas as pinned), "
+                    "once. The abort and the kill run with any bale or none; "
+                    "only the closure needs the gate. ok when all three "
                     "landed. Otherwise the report says where it stopped and gives "
                     "the one line that finishes by hand. twine never reverts, "
                     "merges or applies anything."),

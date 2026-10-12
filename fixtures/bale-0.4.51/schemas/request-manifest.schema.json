@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/request-manifest.schema.json",
+  "title": "bale request manifest",
+  "description": "Shape of request-NNN/manifest.json per TARBALL.md section 3.2. Field semantics live in TARBALL.md; this schema constrains only the universal envelope. Cross-field invariants (path-safety, etc.) stay in bale's Python validators.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "project",
+    "goal",
+    "depends_on",
+    "constraints",
+    "out_of_scope",
+    "expects_probe",
+    "context_included"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "YYYY-MM-DD-<slug>-NNN per TARBALL.md section 1."
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project name (typically repo basename)."
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One sentence. Used as the session headline."
+    },
+    "depends_on": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["previous_response", "previous_probe"],
+      "properties": {
+        "previous_response": {
+          "type": ["string", "null"],
+          "description": "Session ID of a prior response this builds on (typically a bailout), or null."
+        },
+        "previous_probe": {
+          "type": ["string", "null"],
+          "description": "Session ID of a prior probe whose output is in context/, or null. Probe output is normally pasted back within the probing session (TARBALL.md section 4.2), so this is populated mainly when the file-based fallback (section 4.4) shipped output in this request's context/."
+        },
+        "superseded_session": {
+          "type": ["string", "null"],
+          "description": "Session ID of the open session this pack closed as superseded-by-split (`bale pack --supersedes`, v0.3.17), or null on every non-supersession pack. The child->parent half of split lineage — one-directional by design, since the child sid does not exist when the parent closes. Additive: not required, so previously stamped request manifests remain valid; bale-built manifests always carry the key (null when unused)."
+        }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Things the architect commits to up front. Prose, one item per concern."
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Explicit list of near-by concerns the agent should not address. Prose, not glob patterns; bale does not mechanically enforce against paths."
+    },
+    "expects_probe": {
+      "type": "string",
+      "enum": ["yes", "no", "claude-decides", "agent-decides"],
+      "description": "Per TARBALL.md section 3.2/3.3. `agent-decides` and `claude-decides` are aliases for the same posture (the worker probes whenever an environment gap surfaces); both spellings validate for good, so a manifest stamped under either keeps validating. Since v0.4.43 pack and handoff emit `agent-decides` by default; `claude-decides` is the alias that stays accepted."
+    },
+    "context_included": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Declarative list of what's in context/. Each entry is the in-tarball path, prefixed context/: a request path context/<p> is the repo path <p> — the prefix is tarball layout, and nothing in a response (no changes[] path, no self-report) carries it (TARBALL.md section 3.1). The manifest's other path fields (resolved_scope, provenance.base_files) and every response changes[] path are repo-relative."
+    },
+    "resolved_scope": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "The session's recorded write forecast exactly as the registry records it (v0.3.21; forecast semantics per ADR-0015): normalized, deduplicated, sorted repo-relative entries — directory entries cover their subtrees — resolved from --write, defaulting to the resolved include set when the flag is absent, or [] for a read-only pack (locks nothing, may land nothing). The key's contract to the worker is unchanged: the authoritative read of what the own-forecast drift gate and the sibling gates enforce repo-side — one source with the registry record, never a re-derivation — and the forecast is a forecast, not a wall: out-of-forecast work ships enumerated and is admitted per path at apply. What the VALUE is changed under the contract (forecast, not include set); manifests stamped pre-separation carry the include set, which the gates read as an over-forecast — the conservative direction. Stamped by both request-building paths (pack, handoff). Additive per the depends_on.superseded_session precedent: not required, so previously stamped manifests stay valid; bale-built manifests always carry it."
+    },
+    "readme": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "description": "Whether the request ships a README.md brief, so a worker that reads manifest.json first learns from the manifest itself that a brief exists (TARBALL.md section 3.1 places the file at the request root). null when no README ships; otherwise exactly two keys: path, always the request-root name README.md, and sha256, the hex sha256 of the shipped README.md bytes — the same value the bale pack report echoes as its readme sha256 row. Stamped by both request-building paths: bale pack from the brief it ships, bale handoff as null (it ships no README). Top-level, not under provenance, because the response echoes provenance verbatim. Additive per the resolved_scope precedent: not required, so hand-rolled and previously stamped manifests stay valid; bale-built manifests always carry it.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "enum": ["README.md"],
+          "description": "The brief's path in the request tarball, relative to its root — always README.md."
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "description": "Hex sha256 of the shipped README.md bytes; sha256sum of the file inside the request reproduces it."
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bale_version", "contract_docs", "packer", "work_class"],
+      "description": "Stamped by bale at pack time (v0.3.8+). Optional so pre-stamp requests and hand-rolled requests still validate; when bale builds the request, the block is always present. The response's feedback.mechanical.provenance echoes it (response-manifest.schema.json).",
+      "properties": {
+        "bale_version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The VERSION constant of the bale that packed this request."
+        },
+        "contract_docs": {
+          "type": "object",
+          "description": "sha256 (hex) of each carried global doc, hashed from the packing install at pack time — pins exactly which contract text the session was run under. PLANNER.md joined the carried set in v0.4.11; it is admitted but deliberately not required (one-apply-behind: the response to the wiring session itself echoes a four-key block, and pre-v0.4.11 manifests and telemetry history stay valid). Since v0.4.42 the block is a oneOf over two key sets — the four-key set keyed by CLAUDE.md, the spelling every pack before v0.4.43 stamped, and the same set with AGENT.md in place of CLAUDE.md, the current spelling (the operating-agreement doc is docs/AGENT.md since v0.4.43, and pack has stamped AGENT.md since) — because every manifest stamped before the rename must keep validating for good, and a response echoes its request's block verbatim. Exactly one of the pair may be present: a block carrying both CLAUDE.md and AGENT.md matches neither branch and is refused, and the same key set is required and admitted on both sides of the echo (response-manifest.schema.json).",
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "required": ["CLAUDE.md", "TARBALL.md", "DOCS.md", "CODE.md"],
+              "properties": {
+                "CLAUDE.md": { "type": "string", "minLength": 1 },
+                "TARBALL.md": { "type": "string", "minLength": 1 },
+                "DOCS.md":    { "type": "string", "minLength": 1 },
+                "CODE.md":    { "type": "string", "minLength": 1 },
+                "PLANNER.md": { "type": "string", "minLength": 1 }
+              }
+            },
+            {
+              "additionalProperties": false,
+              "required": ["AGENT.md", "TARBALL.md", "DOCS.md", "CODE.md"],
+              "properties": {
+                "AGENT.md":  { "type": "string", "minLength": 1 },
+                "TARBALL.md": { "type": "string", "minLength": 1 },
+                "DOCS.md":    { "type": "string", "minLength": 1 },
+                "CODE.md":    { "type": "string", "minLength": 1 },
+                "PLANNER.md": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        },
+        "packer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Who authored this pack. Resolution: --packer flag > [identity].packer in <repo>/bale.toml > [identity].packer in the global bale.toml > the literal 'unconfigured' (logged with a hint to run `bale config init`)."
+        },
+        "work_class": {
+          "type": "string",
+          "enum": ["code", "doc", "contract-doc", "meta", "mixed"],
+          "description": "Coarse class of the session's intended work, from the --work-class flag; defaults to 'mixed' rather than being required. Seed enum — extend by schema edit, not free text."
+        },
+        "checkpoint": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "description": "The blind checkpoint's pack-time identity (v0.3.28 — the contract_docs precedent extended): the configured [validation] base path and the sha256 of its committed bytes at the pack-time target tip, or explicit null when no checkpoint is configured. Absence of the KEY is the pre-v0.3.28 / hand-rolled-request signal, which is what keeps apply's stamp verification additive: verification runs only when the key is present, and stampless requests validate and apply unchanged with stamp_matched null. Additive per the resolved_scope precedent: not required, so previously stamped manifests stay valid; bale-built manifests always carry it.",
+          "properties": {
+            "path":   { "type": "string", "minLength": 1 },
+            "sha256": { "type": "string", "minLength": 1 }
+          }
+        },
+        "checkpoint_scope_admitted": {
+          "type": "boolean",
+          "description": "True when the planner admitted the request past the checkpoint blindness refusal with --allow-checkpoint-in-scope — the resolved write forecast covered the configured checkpoint's path, or (ADR-0015 read side) the resolved include set would have shipped its content; pack since v0.3.28, handoff against its reading-plan forecast (the mirroring flag, v0.3.33); false otherwise. Stamped unconditionally by bale-built provenance blocks (uniform shape), optional in the schema so pre-v0.3.28 and hand-rolled manifests stay valid. Echoed into telemetry via the response's feedback.mechanical.provenance — the durable record of a delegated oracle-maintenance session."
+        },
+        "base_files": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "minLength": 1},
+          "description": "The base-drift stamp (v0.4.23 — the checkpoint stamp's pattern one level wider): per-file sha256 (hex) of the resolved write forecast's committed bytes at the pack-time tip (HEAD), keyed by repo-relative path. Directory forecast entries are enumerated to the committed files under them at pack time (per-file granularity is the ratified default; whole-tree hashing was rejected at ratification). A forecast path with no committed base bytes — untracked at pack, or a file the response is expected to create — is absent from the map, and apply compares only the intersection of the response's changes[] with the map, so absence never refuses. {} for an empty (read-only) forecast. Apply's base-drift gate refuses a covered path whose base-tree bytes no longer match — the lost-update guard, overridable per path via --accept-base-drift. Absence of the KEY is the pre-feature / hand-rolled-request signal, which is what keeps the gate additive: a stampless request applies exactly as before the feature, with no retroactive stamping (the v0.4.7 additive/legacy-tolerant pattern). Additive per the checkpoint precedent: not required, so previously stamped manifests stay valid; bale-built blocks carry it whenever the request-building path passed its forecast — both do."
+        },
+        "checkpoint_waived": {
+          "type": "string",
+          "enum": ["read-only"],
+          "description": "The read-only checkpoint waiver's stamp (v0.4.9): present — with provenance.checkpoint explicit null — when a checkpoint IS configured with a {sid}-bearing base but the pack's resolved write forecast is empty, so the per-session resolved-existence gate was waived (an empty forecast lands nothing; there is nothing for an oracle to grade). Lets the ledger distinguish waived (configured, deliberately not required) from unconfigured (checkpoint null, no key). Closed enum — extend by schema edit, not free text. Additive per the checkpoint precedent: not required, so every pre-v0.4.9 manifest stays valid; absent on every non-waived pack."
+        },
+        "packed_at": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The pack instant (v0.4.30): ISO 8601 UTC with an explicit offset at seconds precision (e.g. 2026-09-15T00:20:31+00:00 — the created_at shape bin/bale_validate.py accepts). Read from the same UTC instant the session id's date was minted from, so packed_at[:10] equals the sid's date on every bale-built request, and the emitted opener names the same value. One clock: session ids, their per-day counter files, and every timestamp bale writes are UTC (TARBALL.md section 1). Additive per the checkpoint_scope_admitted precedent: stamped unconditionally by bale-built blocks (uniform shape), admitted here but never required, so pre-stamp and hand-rolled manifests validate unchanged; admitted on the response echo (response-manifest.schema.json) so the verbatim copy keeps it, and the response to the stamping session itself echoes a block without it (one-apply-behind)."
+        }
+      }
+    }
+  }
+}

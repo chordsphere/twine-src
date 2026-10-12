@@ -74,10 +74,10 @@ from twine import REPO_ROOT, TRANSITIONS_TABLE, bale, kill, process
 from twine.cli import Context, main
 from twine.commands import kill as kill_verb
 
-from tests.helpers import (PIN, UNLOCK_KEYS, UNLOCK_RECORDED_ABSENT_SID,
+from tests.helpers import (FLOOR, UNLOCK_KEYS, UNLOCK_RECORDED_ABSENT_SID,
                            UNLOCK_RECORDED_READ_ONLY_SID, UNLOCK_RECORDED_SID, UNLOCK_REFUSED,
                            RealGroup, RecordedUnlock, Recording, StubBale, TempRoots,
-                           dies_within, process_alive, run_cli, unlock_recording)
+                           dies_within, drop_key, process_alive, run_cli, unlock_recording)
 
 # The session the recorded `aborted` close names (and whose HOLD refusal was
 # recorded just before it): a test that wants the closure ok kills it.
@@ -85,12 +85,28 @@ SID = UNLOCK_RECORDED_SID
 EXE = Path("/double/root/bin/bale")
 
 
-def executable(path: Path = EXE, installed: str = PIN) -> bale.Executable:
+def executable(path: Path = EXE, installed: str = FLOOR, *,
+               schemas_match: bool = True) -> bale.Executable:
     """A bale.Executable as locate_executable would build it for a root at
-    `installed` — a value, not a bale: nothing is run but the double the
-    test hands the closure."""
+    `installed` whose schemas hash as pinned (or, `schemas_match` false, one
+    whose exchange-record schema does not) — a value, not a bale: nothing is
+    run but the double the test hands the closure, and no disk is read. The
+    gate's verdict is spelled as bale.check spells it (since session
+    2026-10-12-twine-pin-floor-002), so drive_refusal answers as it would."""
     root = bale.Root(path.parent.parent, "--bale-root", f"--bale-root {path.parent.parent}")
-    return bale.Executable(root, path, installed, PIN, f"bin/VERSION reads {installed}")
+    manifest = bale.load_manifest()
+    names = tuple(sorted(manifest.schemas))
+    bad = () if schemas_match else ("exchange-record.schema.json",)
+    schemas = bale.SchemaVerdict(root.path / "schemas", True, names, bad, ())
+    parsed, floor = bale.parse_version(installed), bale.parse_version(FLOOR)
+    problems = []
+    if parsed is None or floor is None or parsed < floor:
+        problems.append(f"installed {installed} is below the floor {FLOOR}")
+    problems.extend(schemas.problems())
+    verdict = bale.CheckResult(FLOOR, installed, root.path, root.source, schemas,
+                               not problems, "; ".join(problems) or "admitted", len(names))
+    return bale.Executable(root, path, installed, FLOOR, f"bin/VERSION reads {installed}",
+                           verdict, manifest)
 # bale 0.4.51's HOLD-branch refusal, as recorded for this sid (fixtures/
 # bale-0.4.51/scratch/unlock_sid_--json+unlock-refused+hold-branch.json):
 # exit 1 and one `unlock-refused` line whose `reason` is `hold-branch` — the
@@ -1258,13 +1274,23 @@ class AbortedClosure(StateCase):
         self.assertEqual(len(runner.calls), 1)
         self.assertIn("may or may not have closed", closure.failures[0])
 
-    def test_an_unpinned_bale_is_never_started(self):
-        """The closure checks the pin itself, so the loop cannot reach an
-        unpinned bale by forgetting the gate."""
+    def test_a_bale_the_gate_refuses_is_never_started(self):
+        """The closure checks the gate itself, so the loop cannot reach a
+        refused bale by forgetting it: below the floor, or a schema that does
+        not hash as pinned. (Was test_an_unpinned_bale_is_never_started.)"""
+        for exe, says in ((executable(installed="0.4.46"), f"below the floor {FLOOR}"),
+                          (executable(schemas_match=False), "exchange-record.schema.json")):
+            with self.subTest(says=says):
+                runner = RecordedUnlock()
+                closure = self.close(runner, exe=exe)
+                self.assertEqual((closure.ok, closure.ran, runner.calls), (False, False, []))
+                self.assertIn(says, closure.failures[0])
+
+    def test_a_bale_above_the_floor_closes(self):
         runner = RecordedUnlock()
-        closure = self.close(runner, exe=executable(installed="0.4.46"))
-        self.assertEqual((closure.ok, closure.ran, runner.calls), (False, False, []))
-        self.assertIn("not the pin", closure.failures[0])
+        closure = self.close(runner, exe=executable(installed="0.4.52"))
+        self.assertTrue(closure.ok, closure.failures)
+        self.assertEqual(len(runner.calls), 1)
 
     def test_a_bale_that_cannot_start_is_not_ok(self):
         def cannot_start(argv, **kwargs):
@@ -1272,6 +1298,46 @@ class AbortedClosure(StateCase):
         closure = self.close(cannot_start)
         self.assertEqual((closure.ok, closure.ran), (False, False))
         self.assertIn("could not be started", closure.failures[0])
+
+    # The key check on the unlock line (session 2026-10-12-twine-pin-floor-002):
+    # the recorded close with one listed key deleted — absent, not null; NOT
+    # bale's, since bale prints every key on every outcome.
+    UNLOCK_SURFACE = "the unlock surface (bale unlock <sid> --reason aborted --json)"
+
+    def test_an_unlock_line_lacking_a_listed_key_is_not_ok_naming_it(self):
+        """Every other fact of the line is the close twine asked for, yet a
+        listed key gone makes it not ok: ran true, the key and the surface
+        named, the unlock line handed back to finish by hand."""
+        aborted = unlock_recording("aborted")
+        for key in ("telemetry", "message", "open_sessions", "reason"):
+            with self.subTest(key=key):
+                runner = RecordedUnlock(stdout=drop_key(aborted.path, key))
+                closure = self.close(runner)
+                self.assertEqual((closure.ok, closure.ran, closure.exit_code), (False, True, 0))
+                self.assertEqual(closure.failures,
+                                 [f"bale's unlock line lacks the key {key!r}, which the "
+                                  f"consumption manifest lists for {self.UNLOCK_SURFACE}; "
+                                  "existing keys are never removed, so this bale is not "
+                                  "the contract twine reads"])
+                self.assertEqual(closure.operator_line, f"bale unlock {SID} --reason aborted")
+                self.assertEqual(len(runner.calls), 1)
+
+    def test_a_missing_key_is_named_beside_the_refusal(self):
+        """The HOLD refusal with `message` deleted: the key named beside the
+        refusal's own failures, and the hand line still bale's remedy — the
+        line still says `unlock-refused` with `hold-branch`."""
+        runner = RecordedUnlock(HOLD, stdout=drop_key(HOLD.path, "message"))
+        closure = self.close(runner)
+        joined = "; ".join(closure.failures)
+        self.assertIn("lacks the key 'message'", joined)
+        self.assertIn("'hold-branch'", joined)
+        self.assertTrue(closure.hold_branch)
+        self.assertEqual(closure.operator_line, f"bale revert {SID}")
+
+    def test_an_extra_key_on_the_unlock_line_is_free(self):
+        line = dict(unlock_recording("aborted").line, a_key_bale_added_later=None)
+        closure = self.close(RecordedUnlock(stdout=(json.dumps(line) + "\n").encode()))
+        self.assertTrue(closure.ok, closure.failures)
 
 
 # ---------------------------------------------------------------------------
@@ -1559,7 +1625,9 @@ class KillVerb(StateCase):
         self.assertEqual((obj["state_dir"], obj["state_dir_source"], obj["cwd"],
                           obj["grace_seconds"]),
                          (str(self.state), "--state-dir", str(self.repo), 0.0))
-        self.assertEqual(obj["bale"]["pin_matches"], True)
+        self.assertEqual((obj["bale"]["floor"], obj["bale"]["floor_admits"],
+                          obj["bale"]["schemas_match"]), (FLOOR, True, True))
+        self.assertNotIn("pin_matches", obj["bale"])
         self.assertNotIn("Traceback", err)
 
     def test_the_verb_is_the_functions_report(self):
@@ -1702,15 +1770,20 @@ class KillVerb(StateCase):
         self.assertIn("cannot resolve twine's state directory", obj["reason"])
         self.assertEqual(runner.calls, [])
 
-    def test_the_pin_gates_the_closure_alone(self):
-        """Session 5c, the sitting's correction to 5b: a bale that is not the
-        pin, or is absent, is not a refusal. The abort request is written, a
+    def test_the_gate_gates_the_closure_alone(self):
+        """Session 5c, the sitting's correction to 5b: a bale the gate
+        refuses — below the floor, a schema that does not hash as pinned —
+        or one that is absent, is not a refusal. (Was
+        test_the_pin_gates_the_closure_alone; the floor since session
+        2026-10-12-twine-pin-floor-002.) The abort request is written, a
         real group is killed, bale is never reached (the run-seam double
         records no call), and the kill stops at the closure with the drive
         refusal in `reason`, the unlock line to finish by hand, and the
         `bale` object saying what was found."""
-        for root, found in ((self.roots.other, "0.4.46"), (self.roots.absent, None),
-                            (self.base / "no-such-root", None)):
+        for root, found, admits in ((self.roots.other, "0.4.46", False),
+                                    (self.roots.bad_schema, FLOOR, True),
+                                    (self.roots.absent, None, None),
+                                    (self.base / "no-such-root", None, None)):
             with self.subTest(root=root.name):
                 for sub in ("abort", "running"):
                     if (self.state / sub).is_dir():
@@ -1731,7 +1804,8 @@ class KillVerb(StateCase):
                                  (1, False, "closure", False, []))
                 self.assertEqual(runner.calls, [], "bale is never reached")
                 self.assertEqual((obj["ran"], obj["argv"], obj["closure"]), (False, None, None))
-                self.assertIn("pinned bale", obj["reason"])
+                self.assertTrue("is not one twine drives" in obj["reason"]
+                                or "no bale install found" in obj["reason"], obj["reason"])
                 self.assertEqual(obj["operator_line"], f"bale unlock {SID} --reason aborted")
                 self.assertTrue(obj["abort_requested"])
                 self.assertTrue(kill.abort_requested(self.state, SID))
@@ -1739,30 +1813,48 @@ class KillVerb(StateCase):
                                  (True, True))
                 for pid in group.pids:
                     self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
-                self.assertEqual((obj["bale"]["installed"], obj["bale"]["pin_matches"]),
-                                 (found, False if found else None))
+                self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor_admits"]),
+                                 (found, admits))
                 self.assertEqual(obj["bale"]["root"], str(root), "what --bale-root named")
 
-    def test_an_unpinned_bale_renders_not_finished_at_the_closure(self):
+    def test_a_refused_bale_renders_not_finished_at_the_closure(self):
+        """Was test_an_unpinned_bale_renders_not_finished_at_the_closure."""
         code, out, err, runner = self.run_verb("--bale-root", str(self.roots.other))
         self.assertEqual((code, runner.calls), (1, []))
         lines = out.splitlines()
         self.assertIn("NOT FINISHED (stopped at closure)", lines[0])
         self.assertTrue(any(l.strip().startswith("abort:   requested") for l in lines), out)
         self.assertIn("closure: NOT CLOSED", out)
-        self.assertIn("not the pin", out)
+        self.assertIn(f"below the floor {FLOOR}", out)
         self.assertIn(f"finish by hand: bale unlock {SID} --reason aborted", out)
         self.assertIn("the abort and the process kill go ahead; the closure will not", err)
 
-    def test_a_pinned_bale_closes_as_before(self):
+    def test_an_admitted_bale_closes_as_before(self):
+        """Was test_a_pinned_bale_closes_as_before: at the floor, and above it."""
         group = self.group()
         kill.register_running(self.state, SID, group.pgid, group.pgid)
         code, obj, err, runner = self.json_of("--grace", "2")
-        self.assertEqual((code, obj["ok"], obj["closed"], obj["bale"]["pin_matches"]),
+        self.assertEqual((code, obj["ok"], obj["closed"], obj["bale"]["floor_admits"]),
                          (0, True, True, True))
+        above = self.json_of("--bale-root", str(self.roots.above))[1]
+        self.assertEqual((above["closed"], above["bale"]["installed"]), (True, "0.4.52"))
         self.assertEqual(len(runner.calls), 1)
         for pid in group.pids:
             self.assertTrue(dies_within(pid), f"{pid} outlived the kill")
+
+    def test_the_unlock_key_check_through_the_verb(self):
+        """`twine kill` with the recorded close lacking `closure_reason`: the
+        abort and the process kill land, the closure ran and is not ok, the
+        reason naming the key and the surface; it stops at the closure with
+        the unlock line to finish by hand."""
+        aborted = unlock_recording("aborted")
+        runner = RecordedUnlock(stdout=drop_key(aborted.path, "closure_reason"))
+        code, obj, _, _ = self.json_of("--grace", "0", runner=runner)
+        self.assertEqual((code, obj["ok"], obj["stopped_at"], obj["ran"], obj["closed"]),
+                         (1, False, "closure", True, False))
+        self.assertIn("bale's unlock line lacks the key 'closure_reason'", obj["reason"])
+        self.assertIn("the unlock surface", obj["reason"])
+        self.assertEqual(obj["operator_line"], f"bale unlock {SID} --reason aborted")
 
     def test_every_path_carries_the_same_keys(self):
         ok = self.json_of()[1]

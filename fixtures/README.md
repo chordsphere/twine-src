@@ -17,6 +17,34 @@ A carried paste is landed with every CRLF turned into LF and nothing
 else changed; the tests prove it by turning the LFs back into CRLFs and
 hashing to the received bytes.
 
+**The floor, and what it means here** (since session
+`2026-10-12-twine-pin-floor-002`, D2 as amended at the sitting
+`2026-10-08-open-arc2-003`). twine no longer drives one exact bale: it
+drives any bale **at or above the floor** — `share/bale-consumption.toml`'s
+`[bale] floor`, `0.4.51` — whose installed `schemas/*.json` hash as the
+manifest's `[bale.schemas]` pins them, and every verb that reads a bale
+`--json` line checks that line for the keys the manifest lists for its
+surface. The floor is the version **the recordings were made at**, so
+`fixtures/bale-<floor>/` is the directory the tests replay, and it is
+raised only by a recording session (contract §16). An install that moves
+without touching a listed key or a pinned schema needs nothing here:
+0.4.52 was the first, admitted with nothing re-recorded (probe
+`twine-052-delta`, 2026-10-12, found its `bin/bale`, `bale_report.py`,
+`bale_relay.py`, `bale_open.py` and all eight schemas byte-identical to
+0.4.51's). Until that session the directory was named by the exact pin;
+the sections below that say "the pin" are that history.
+
+**The schemas** (same session). The eight files the gate hashes land
+byte-exact under the floor's directory, `fixtures/bale-0.4.51/schemas/`,
+named as installed. They are not recordings — no argv printed them, they
+have no `.stderr` sibling, and `bin/twine-land-recordings` neither derives
+nor checks them (`tests/fixture_rule.py` `SCHEMAS_WHERE`) — so they have a
+table of their own, `| file | bytes | sha256 |`, in the 0.4.51 section,
+and `tests/test_fixtures.py` holds them to it and to the manifest. The
+tests' stub install roots copy them (`tests/helpers.py`
+`install_schemas`), so the gate admits a stub as it admits the operator's
+install.
+
 **stderr, and where a version's recordings come from** (since session
 `2026-10-12-twine-pin-051-001`, the pin at 0.4.51). Every recording of a
 bale argv or a crafter emission also lands the **stderr** the command
@@ -162,8 +190,15 @@ fixtures/bale-<version>/carried/<kind>_<identity>[_to-<addressee>].txt   a carri
   bump (a copy would claim an emitting version it does not have); the
   consumption manifest's format entry names that version as
   `fixtures_version`, and `carried_relpath` reads it from there. A
-  crafter emission is re-recorded at each pin, so its `fixtures_version`
-  is the pin.
+  crafter emission is **re-recorded when the crafter's sha256 moves**
+  (the recorder prints it), so its `fixtures_version` is the floor's — the
+  version its last recording was made at. (Until session
+  `2026-10-12-twine-pin-floor-002` the rule was "at each pin".) 0.4.52's
+  crafter moved — sha256 `c167f5b5…` (probe `twine-052-delta`): its probe
+  scaffold gained a bound line and a bounded capture, the sentinels,
+  trailer and placeholders unchanged — and that scaffold is a `probe`
+  specimen for a later session to record, not a gate: twine reads the
+  sentinels, the trailer and the sections, none of which moved.
 
 How to verify a fixture is still the recorded bytes: `sha256sum` it and
 compare with the row below; `wc -c` must match too (the trailing
@@ -469,3 +504,30 @@ what `bin/twine-land-recordings --check` reads.
 | file | emission | received (line endings, bytes, sha256) | bytes | sha256 |
 |---|---|---|---|---|
 | `bale-0.4.51/carried/probe-output_twine-051-record.txt` | the output of probe `twine-051-record` (`bin/twine-record-fixtures`), run 2026-10-08T13:35:24Z; its trailer counts 1444 lines and the paste carries 1444 | CRLF 135428 `b1bb27d1d54b40dc75a086c36c719742e6170b647c93de94d5a86b2662063e01` | 133981 | `dec7a229a8e108c2e2dd43a499e80ce473603201882f7422c1ef98dc7908a238` |
+
+### The installed schemas (session `2026-10-12-twine-pin-floor-002`)
+
+The eight `schemas/*.json` files the gate's second half hashes, landed
+byte-exact under the floor's directory. They came from the operator's
+`bale-src` context tarball of 2026-10-07 at 0.4.51, carried into the
+session as `bale-0.4.51-schemas.tar.gz` (sha256
+`b6e6217244fdb81e0e5cab71230f1db9ead6fc632d1414494832779499e614e1`,
+117,394 bytes of JSON in eight files). Every hash below is the one
+`share/bale-consumption.toml` pins in `[bale.schemas]` — unchanged since
+0.4.45 — and equals what probe `twine-052-delta` (2026-10-12) hashed in the
+operator's 0.4.52 install's `schemas/` and in the `bale-src` tree at head
+`3c85138`; probe `twine-floor-schemas` (2026-10-12T14:10:33Z) hashed the
+install's eight again and carried their bytes, which equal the tarball's
+file for file. No argv printed them, so the table has no command, exit or
+stderr: file, bytes, sha256.
+
+| file | bytes | sha256 |
+|---|---|---|
+| `bale-0.4.51/schemas/bundle-manifest.schema.json` | 6915 | `3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23` |
+| `bale-0.4.51/schemas/changelog-record.schema.json` | 5077 | `7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c` |
+| `bale-0.4.51/schemas/diagnostics.schema.json` | 2992 | `bfeef3cc0a6b91b47b1c1c9084ca47349b23a6661b10c848da3b4ef28b413521` |
+| `bale-0.4.51/schemas/escalation-record.schema.json` | 5547 | `16729aae82e20425f91b9fb343de6a74d00fa417ce3cd718767413deee550c41` |
+| `bale-0.4.51/schemas/exchange-record.schema.json` | 6457 | `c9c291899103c4a73768ef930697722b89c5c3ef8f5b388c78c36741316cddc8` |
+| `bale-0.4.51/schemas/request-manifest.schema.json` | 15000 | `70a0c2bd3b6b0d4cf17bc97010c2b7d58931527b7b3100aa984ca3576c075e3d` |
+| `bale-0.4.51/schemas/response-manifest.schema.json` | 26227 | `02d2b6413d078e031641c99e09a9fea909555bdfcb9b2a8a110dbdce63f5817e` |
+| `bale-0.4.51/schemas/telemetry-record.schema.json` | 49179 | `b79d7bf75c10f5799484f906954461e7379ef6d4a870bb7df8c08ce050b38825` |

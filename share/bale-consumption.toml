@@ -1,8 +1,10 @@
 # share/bale-consumption.toml — twine's consumption manifest (twine-seed.md
-# D3, D4; T10). Beside the pin, exactly which bale surfaces twine reads,
-# so a pin bump is a mechanical diff of this file against bale's
-# changelog since the pinned version. Every key twine does not list here
-# is a key bale can change for free.
+# D3, D4; T10). Beside the floor and the schema hashes, exactly which bale
+# surfaces twine reads and which keys of each, so a bale that moves is a
+# mechanical diff of this file against bale's changelog since the floor.
+# Every key twine does not list here is a key bale can change for free;
+# every key it does list is checked present on the line twine reads
+# (twine.bale.missing_keys_failure — D2 as amended, below).
 #
 # Landed by session 2026-10-01-twine-core-002 against bale 0.4.45 as
 # installed on the architect's machine (probe twine-core-fixtures,
@@ -14,10 +16,16 @@
 # (2026-10-08), the recorder bin/twine-record-fixtures now is, whose
 # paste-back bin/twine-land-recordings landed — twenty-four recordings,
 # stdout and stderr (fixtures/README.md, "bale 0.4.51") — beside the
-# desk's reading of bale-src's context tarball. This is the last exact
-# pin: the session after it (twine-pin-floor) makes `pin` a floor plus
-# this file's key-and-schema contract. twine.bale.load_manifest parses
-# it; tests/ walk it.
+# desk's reading of bale-src's context tarball. That was the last exact
+# pin: session 2026-10-12-twine-pin-floor-002 made it a floor plus this
+# file's key-and-schema contract (D2 as amended at sitting
+# 2026-10-08-open-arc2-003): twine drives any bale at or above the floor
+# (below) whose installed schemas/ hash as the table below pins them, and every verb
+# that reads a bale --json line checks, on that line, the keys its
+# [[surface]] lists. A bale that moves without touching a listed key or a
+# pinned schema needs nothing here (0.4.52 was the first such, admitted
+# with nothing re-recorded); one that does needs a recording session, which
+# raises the floor. twine.bale.load_manifest parses it; tests/ walk it.
 #
 # Entry shape, [[surface]]:
 #   kind             "file" (a path under the install root twine reads),
@@ -85,29 +93,31 @@
 #                    section and the bale source function(s), read by probe
 #   emitted_by       what prints it
 #   fixtures         the recorded or carried emissions under fixtures/
-#   fixtures_version the bale version that emitted those files: the pin for
-#                    a crafter emission (re-recorded at every pin), the
+#   fixtures_version the bale version that emitted those files: the floor
+#                    for a crafter emission (re-recorded when the crafter's
+#                    sha256 moves; the floor until session
+#                    2026-10-12-twine-pin-floor-002 said "at every pin"), the
 #                    version that printed a carried paste, which stays under
-#                    that version's directory across a pin bump
+#                    that version's directory when the floor moves
 #                    (tests/helpers.py carried_relpath reads it here)
 #   keys             for a JSON-bodied format, the record keys twine reads
 #
-# A pin bump diffs the format entries too (D3 names the bundle format
+# A recording session diffs the format entries too (D3 names the bundle format
 # among the surfaces): a changed sentinel, trailer or body serialization
 # is a changed surface even though no verb's --json moved.
 #
-# [[wanted]] names a surface a later session needs and the pinned bale
-# does not have — so the gap is data, not a sentence in a brief. Shape:
+# [[wanted]] names a surface a later session needs and the bale at the
+# floor does not have — so the gap is data, not a sentence in a brief. Shape:
 #   verb, flags      the surface wanted
 #   needed_by        the twine session or verb that needs it, and why
-#   status           what the pinned bale does instead
+#   status           what the bale at the floor does instead
 # No [[wanted]] entry remains at 0.4.49 or 0.4.51: the three the 0.4.45
 # manifest carried (`open --json`, `relay --json`, a reason-coded `unlock
 # --json` refusal) landed in bale-src at twine's asking (0.4.47, 0.4.48) and
 # are [[surface]] entries below. The shape stays for the next gap.
 #
 # [[vocabulary]] (session 2026-10-03-twine-transitions-004) is a closed set
-# of spellings bale declares, recorded as data so a pin bump diffs them
+# of spellings bale declares, recorded as data so a recording session diffs them
 # mechanically (D4). The transition table (share/transitions.toml) keys
 # its three bale axes on exactly these values; `twine transitions` names
 # any value without a row. Entry shape:
@@ -125,10 +135,23 @@
 #   written_against  the bale version the values were read from
 #   read_at          the probe(s) or readings that read them, never recalled
 
+# The floor (D2 as amended, session 2026-10-12-twine-pin-floor-002): the
+# lowest bale twine drives — the version the recordings under fixtures/
+# were made at, so fixtures/bale-<floor>/ is their directory — raised only
+# by a recording session. Compared to <root>/bin/VERSION as three dotted
+# integers (a tuple: 0.4.100 is above 0.4.51). The key was `pin`, an exact
+# version, until that session; twine no longer reads it.
 [bale]
-pin = "0.4.51"
+floor = "0.4.51"
 
-# sha256 of each schema file as installed (schemas/*.json). Read at bale
+# The gate's second half: sha256 of each schema file as installed
+# (<root>/schemas/*.json). An install at or above the floor is driven only
+# when every file below is there with this hash, which holds the two
+# schema-homed vocabularies fixed; the files themselves are under
+# fixtures/bale-0.4.51/schemas/ (landed byte-exact by session
+# 2026-10-12-twine-pin-floor-002 from bale-src's context tarball of
+# 2026-10-07 at 0.4.51; probe twine-floor-schemas hashed the operator's
+# 0.4.52 install's on 2026-10-12, all eight equal). Read at bale
 # 0.4.45 by probe twine-core-fixtures (2026-10-01); UNCHANGED at 0.4.49 —
 # the desk of sitting 2026-10-06-continue-twine-002 hashed 0.4.49's eight
 # schemas/*.json from bale-src's context tarball on 2026-10-07 and every
@@ -154,7 +177,7 @@ stdout = "n/a"
 keys = []
 read_by = ["bale check", "status"]
 written_against = "0.4.51"
-note = "one line, the version string, trailing newline; twine strips and compares it to [bale] pin (D2)"
+note = "one line, the version string, trailing newline; twine strips it, parses three dotted integers and compares the tuple to [bale] floor (D2 as amended; to [bale] pin, exactly, until session 2026-10-12-twine-pin-floor-002)"
 
 [[surface]]
 kind = "verb"
@@ -227,7 +250,7 @@ fixture = "fixtures/bale-0.4.51/scratch/apply_--dry-run_--json_tarball+dry-run.j
 also_recorded = [
   {argv = ["apply", "--dry-run", "--json", "<tarball>"], cwd = "scratch", outcome = "scope-drift-refused", fixture = "fixtures/bale-0.4.51/scratch/apply_--dry-run_--json_tarball+scope-drift-refused.json"},
 ]
-doubles = ["tests/test_carry_bale.py BaleDouble: the two *-refused outcomes not recorded (required-check-refused, base-drift-refused) with exit 1, a bale error (nothing on stdout, a non-zero exit), stdout that is not one JSON object, a timeout, and one outcome bale never emits, spelled as no bale outcome is (twine-test-not-a-bale-outcome)"]
+doubles = ["tests/test_carry_bale.py BaleDouble: the two *-refused outcomes not recorded (required-check-refused, base-drift-refused) with exit 1, a bale error (nothing on stdout, a non-zero exit), stdout that is not one JSON object, a timeout, and one outcome bale never emits, spelled as no bale outcome is (twine-test-not-a-bale-outcome)", "the recorded dry-run line with its one listed key, outcome, deleted (session 2026-10-12-twine-pin-floor-002's key check), named as not bale's"]
 written_against = "0.4.51"
 note = "the only apply argv twine builds (T12: twine.bale.dry_run_argv; never without --dry-run, never an admission or override flag). Recorded at 0.4.49 in the scratch repository with exit 0 (the 0.4.45 carried line had its exit unrecorded), and re-recorded at 0.4.51 with its stderr (the line unchanged in shape): the line's keys are outcome, sid, log, verdict, merge, telemetry, drift, checkpoint, required_checks, base_drift, archive, sweep; twine reads outcome and carries the object whole. The scope-drift refusal — the refusal the 2b-ii carry-forward owed — is recorded too (exit 1, `drift` naming the out-of-scope path, the session scope and the remedy line). The other two refusals and the error path stay documented (format_apply_json's docstring), not recorded; doubles stand in for them until a recording probe captures them"
 
@@ -249,7 +272,7 @@ also_recorded = [
   {argv = ["relay", "<sid>", "-", "--json"], cwd = "scratch", outcome = "relay-refused", reason = "not-an-object", fixture = "fixtures/bale-0.4.51/scratch/relay_sid_stdin_--json+relay-refused+not-an-object.json"},
   {argv = ["relay", "<sid>", "-", "--json"], cwd = "scratch", outcome = "relay-refused", reason = "not-open", fixture = "fixtures/bale-0.4.51/scratch/relay_sid_stdin_--json+relay-refused+not-open.json"},
 ]
-doubles = ["tests/helpers.py RecordedRelay with bytes or an exit named as not bale's: a timeout, a capped stdout, a stdout that is not one JSON object, an exit-1 empty stdout, and edited lines (another sid, a null, empty or non-string block, an outcome bale never emits, a relayed line beside exit 1)"]
+doubles = ["tests/helpers.py RecordedRelay with bytes or an exit named as not bale's: a timeout, a capped stdout, a stdout that is not one JSON object, an exit-1 empty stdout, and edited lines (another sid, a null, empty or non-string block, an outcome bale never emits, a relayed line beside exit 1, a listed key deleted)", "the vouch doubles (since session 2026-10-08-twine-exchange-vouch-005; contract §11.4): the relayed line with its block replaced by one twine cannot vouch for — edited after its trailer, its trailer or END cut, unescaped in transit, a BEGIN with no sid, two blocks in one string, prose or a blank line around the block, no block, the crafter's light block, the block naming another sid — and the no-body and body-not-json blocks tests/test_carry_bale.py builds by hand, each named as not bale's"]
 written_against = "0.4.51"
 note = "wanted by Arc 1 session 2b-ii, which landed carry exchange without it, passing the flagless relay's stdout through as text; bale 0.4.48 added it. Read since session 2026-10-08-twine-carry-exchange-json-001 by `carry exchange`, whose argv is `relay <sid> - --json` (twine.bale.relay_argv; the only relay argv twine builds), stdin exactly the exchange block's own lines (twine.shapes.block_text). ok exactly when bale exits 0 and the line's outcome is relayed, its sid the block's and its block a non-empty string twine can vouch for — exactly one intact exchange block of the same session, as take reads it (since session 2026-10-08-twine-exchange-vouch-005); human stdout is then that block. twine reads outcome, sid, block and cause — the cause only to quote it whole in a refusal's reason, never to dispatch on (bale: its wording is the stderr text and may change) — and carries the line whole in the twin's `relay`. The flagless `relay <sid> -` surface, its stand-in (the crafter's --emit-block emission, which stays the exchange format's fixture) and its doubles are retired. Recorded at 0.4.51 in the scratch repository under twine's own argv, the paste block on stdin (bale: `paste block read from <stdin> (trailer verified)`): a clarification manifest's block relayed as round 1 from worker, stdin that is not a paste block (reason not-an-object) and the block under a sid not open (reason not-open) — and the round re-emitted with no input. The stdin form is recorded now, so the assumption the 0.4.49 recordings rested on (made with a file and replayed for `-`, on a reading of bin/bale_relay.py `_read_relay_input`) is retired. Since bale 0.4.50 the line carries a 13th key, `reason` (null unless refused), and the two refusals' fixture names carry it in place of the tags 0.4.49's README assigned (ingest, session-gate). Every recording's stderr is recorded beside it (the relayed and re-emitted rounds' carry the operator's clipboard notice); twine passes stderr through and reads nothing from it"
 

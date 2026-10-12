@@ -47,8 +47,10 @@ format_apply_json documents (one of them recorded since the pin at
 0.4.49, and at 0.4.51); a bale error prints nothing on stdout and exits non-zero. The one
 outcome no bale emits, used to prove twine names an outcome it does not
 know, is spelled NOT_A_BALE_OUTCOME (tests/helpers.py) so no reader takes
-it for bale's. And the carry verbs drive only the pinned bale (D2):
-section 8.
+it for bale's. And the carry verbs drive only a bale the gate admits
+(D2; an exact pin until session 2026-10-12-twine-pin-floor-002, a floor
+plus schema hashes since): section 8; and each checks, on the line it
+reads, the keys the consumption manifest lists for its surface: section 9.
 
 Sections:
   1. Helpers and doubles
@@ -58,7 +60,8 @@ Sections:
   5. carry response: never a merge (T12)
   6. End to end, as a subprocess, against a stub bale
   7. Finding bale: the tests never reach a real one
-  8. The pin gates (D2, decided by Arc 1 session 4)
+  8. The gate (D2; a floor since session 2026-10-12-twine-pin-floor-002)
+  9. The contract on the line: the listed keys (same session)
 """
 
 from __future__ import annotations
@@ -72,6 +75,7 @@ import shlex
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from twine import REPO_ROOT, bale, shapes
@@ -81,11 +85,12 @@ from twine.commands.carry_bale import (BALE_STDOUT_CAP_BYTES, BALE_TIMEOUT_SECON
                                        vouch_for_relayed_block)
 from twine.process import RunResult
 
-from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, PIN, RELAY_KEYS,
+from tests.helpers import (ABOVE, BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, FLOOR, RELAY_KEYS,
                            RELAY_RECORDED_ABSENT_SID, RELAY_RECORDED_SID, RELAY_STDIN_KEY,
                            FixturePlayer, RecordedRelay, RecordingRunner, Run, StubBale,
-                           TempRoots, block_for_sid, carried_relpath, emission_relpath,
-                           fixture_relpath, relay_recording, relayed_block, run_cli, turn)
+                           TempRoots, block_for_sid, carried_relpath, drop_key,
+                           emission_relpath, fixture_relpath, relay_recording, relayed_block,
+                           run_cli, turn)
 
 # ---------------------------------------------------------------------------
 # 1. Helpers and doubles
@@ -159,7 +164,8 @@ def run_verb(verb: str, *argv: str, runner, env: dict | None = None,
              stdin: bytes = b"") -> Run:
     """`twine carry <verb> …` in-process, bale reached only through
     `runner`. TWINE_BALE_ROOT names a temp root with bin/VERSION at the
-    pin unless `env` says otherwise; nothing is looked up on PATH."""
+    floor and the eight schemas unless `env` says otherwise; nothing is
+    looked up on PATH."""
     out, err = io.StringIO(), io.StringIO()
     ctx = Context(env=env if env is not None else {"TWINE_BALE_ROOT": ROOTS.ok.as_posix()},
                   stdout=out, stderr=err, which=lambda name: None,
@@ -1251,8 +1257,11 @@ class EndToEnd(TempCase):
         self.assertEqual(obj["stdout"], RELAYED.stdout.decode("utf-8"))
         self.assertEqual((obj["relay"], obj["outcome"]), (RELAYED.line, "relayed"))
         self.assertEqual(obj["bale"]["executable"], str(self.stub.executable))
-        self.assertEqual((obj["bale"]["installed"], obj["bale"]["pin_matches"]),
-                         (PIN, True))
+        self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor"],
+                          obj["bale"]["floor_admits"], obj["bale"]["schemas_match"]),
+                         (FLOOR, FLOOR, True, True))
+        self.assertNotIn("pin", obj["bale"])
+        self.assertNotIn("pin_matches", obj["bale"])
         self.assertIn("[bale] stub: not bale", run.stderr)
 
     def test_carry_exchange_human_stdout_is_the_relayed_block(self):
@@ -1337,9 +1346,12 @@ class EndToEnd(TempCase):
         self.assertEqual((obj["stdout"], obj["stderr"]), ("", "[bale] stub: no\n"))
         self.assertNotIn("Traceback", run.stderr)
 
-    def test_a_version_other_than_the_pin_is_refused_and_never_run(self):
-        """D2, decided by session 4: the stub at 0.4.46 is never started."""
-        (self.stub.root / "bin" / "VERSION").write_text("0.4.46\n", encoding="utf-8")
+    def test_below_the_floor_is_refused_and_never_run(self):
+        """D2 as amended (session 2026-10-12-twine-pin-floor-002; was
+        test_a_version_other_than_the_pin_is_refused_and_never_run): the stub
+        at 0.4.49, below the floor, is never started — every schema as
+        pinned, so the version alone refuses it."""
+        (self.stub.root / "bin" / "VERSION").write_text("0.4.49\n", encoding="utf-8")
         for argv in (["carry", "response", str(self.tarball())],
                      ["carry", "exchange", str(self.exchange_turn())]):
             with self.subTest(verb=argv[1]):
@@ -1347,11 +1359,65 @@ class EndToEnd(TempCase):
                 obj = one_line(self, run.stdout, " ".join(argv[:2]))
                 self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"]),
                                  (1, False, False, None))
-                self.assertEqual((obj["bale"]["installed"], obj["bale"]["pin_matches"]),
-                                 ("0.4.46", False))
-                self.assertIn(f"is 0.4.46, not the pin {PIN}", obj["reason"])
+                self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor_admits"],
+                                  obj["bale"]["schemas_match"]), ("0.4.49", False, True))
+                self.assertIn(f"installed 0.4.49 is below the floor {FLOOR}", obj["reason"])
                 self.assertEqual(obj["refusals"], [obj["reason"]])
                 self.assertIsNone(self.stub.argv(), "the stub was started")
+
+    def test_above_the_floor_is_driven(self):
+        """The stub at 0.4.52 — the operator's install when the floor landed,
+        every schema as pinned — is driven as the floor's own would be:
+        carry exchange relays and carry response dry-runs, ok."""
+        (self.stub.root / "bin" / "VERSION").write_text(ABOVE + "\n", encoding="utf-8")
+        run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
+                      bale_root=self.stub.root)
+        obj = one_line(self, run.stdout, "carry exchange")
+        self.assertEqual((run.code, obj["ok"], obj["outcome"]), (0, True, "relayed"),
+                         obj["reason"])
+        self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor_admits"]),
+                         (ABOVE, True))
+        self.assertEqual(self.stub.argv(), ["relay", RELAY_RECORDED_SID, "-", "--json"])
+        tarball = self.tarball()
+        run = run_cli("carry", "response", str(tarball), "--json", bale_root=self.stub.root)
+        obj = one_line(self, run.stdout, "carry response")
+        self.assertEqual((run.code, obj["ok"], obj["apply_line"]),
+                         (0, True, f"bale apply {tarball}"), obj["reason"])
+
+    def test_a_schema_that_does_not_hash_as_pinned_is_refused_and_never_run(self):
+        """At the floor, but one installed schema's bytes differ: the gate's
+        second half refuses it before bale starts, naming the file."""
+        altered = self.stub.root / "schemas" / TempRoots.ALTERED_SCHEMA
+        altered.write_bytes(altered.read_bytes() + b" ")
+        run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
+                      bale_root=self.stub.root)
+        obj = one_line(self, run.stdout, "carry exchange")
+        self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
+        self.assertEqual((obj["bale"]["floor_admits"], obj["bale"]["schemas_match"]),
+                         (True, False))
+        self.assertIn(TempRoots.ALTERED_SCHEMA, obj["reason"])
+        self.assertIn("do not hash as the manifest pins them", obj["reason"])
+        self.assertIsNone(self.stub.argv(), "the stub was started")
+
+    def test_the_key_check_end_to_end(self):
+        """The stub replays a line that is NOT bale's: the relayed recording
+        with `cause` deleted (absent, not null). bale ran and exited 0, and
+        the line is not ok — `ran` true, the reason naming the key and the
+        relay surface; human mode one NOT OK line, never the block."""
+        line = self.write(drop_key(RELAYED.path, "cause"), "relay-line-without-cause.json")
+        stub = StubBale(relay_stdout=line)
+        self.addCleanup(stub.cleanup)
+        run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
+                      bale_root=stub.root)
+        obj = one_line(self, run.stdout, "carry exchange")
+        self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"]),
+                         (1, False, True, 0))
+        self.assertIn("bale's relay line lacks the key 'cause'", obj["reason"])
+        self.assertIn("the relay surface (bale relay <sid> - --json)", obj["reason"])
+        human = run_cli("carry", "exchange", str(self.exchange_turn()), bale_root=stub.root)
+        self.assertEqual((human.code, len(human.stdout.splitlines())), (1, 1))
+        self.assertIn("NOT OK", human.stdout)
+        self.assertNotIn("BALE EXCHANGE", human.stdout)
 
 
 # ---------------------------------------------------------------------------
@@ -1364,8 +1430,8 @@ class FindingBale(TempCase):
     def test_a_bale_on_path_is_never_run_by_the_cli_tests(self):
         """A `bale` on PATH that would leave a marker: run_cli pins
         TWINE_BALE_ROOT to a missing directory, so the verbs refuse — no
-        readable bin/VERSION there, and twine drives only the pinned bale
-        (D2) — and the PATH bale never runs."""
+        readable bin/VERSION there and no schemas/, and twine drives only a
+        bale the gate admits (D2) — and the PATH bale never runs."""
         bindir = self.dir / "bin"
         bindir.mkdir()
         marker = self.dir / "reached"
@@ -1380,13 +1446,16 @@ class FindingBale(TempCase):
                 run = run_cli(*argv, "--json", extra_env=env)
                 obj = one_line(self, run.stdout, " ".join(argv[:2]))
                 self.assertEqual((obj["ok"], obj["ran"]), (False, False))
-                self.assertIn("cannot tell this one's version", obj["reason"])
+                self.assertIn("bin/VERSION unreadable", obj["reason"])
+                self.assertIn("is not one twine drives", obj["reason"])
                 self.assertEqual(obj["bale"]["source"], "TWINE_BALE_ROOT")
         self.assertFalse(marker.exists(), "a test reached the bale on PATH")
 
-    def test_a_pinned_root_with_no_bin_bale_could_not_be_started(self):
-        """The VERSION reads the pin, but there is no bin/bale: learned by
-        starting it, through the real seam — a refusal, ran false."""
+    def test_an_admitted_root_with_no_bin_bale_could_not_be_started(self):
+        """The VERSION reads the floor and the schemas hash as pinned, but
+        there is no bin/bale: learned by starting it, through the real seam —
+        a refusal, ran false. (Was
+        test_a_pinned_root_with_no_bin_bale_could_not_be_started.)"""
         for argv in (["carry", "exchange", str(self.exchange_turn())],
                      ["carry", "response", str(self.tarball())]):
             with self.subTest(verb=argv[1]):
@@ -1394,7 +1463,7 @@ class FindingBale(TempCase):
                 obj = one_line(self, run.stdout, " ".join(argv[:2]))
                 self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
                 self.assertIn("could not be started", obj["reason"])
-                self.assertEqual(obj["bale"]["pin_matches"], True)
+                self.assertEqual(obj["bale"]["floor_admits"], True)
 
     def test_no_bale_anywhere_is_a_refusal(self):
         for verb, arg in (("exchange", str(self.exchange_turn())),
@@ -1409,15 +1478,15 @@ class FindingBale(TempCase):
                 self.assertEqual(runner.calls, [])
 
     def test_bale_root_flag_wins_over_the_environment(self):
-        """--bale-root names a root at another version while TWINE_BALE_ROOT
-        names one at the pin: the flag's root is the one found (and, not
-        being the pin, refused — section 8)."""
+        """--bale-root names a root below the floor while TWINE_BALE_ROOT
+        names one at it: the flag's root is the one found (and, below the
+        floor, refused — section 8)."""
         runner = BaleDouble(stdout=DRY_RUN.read_bytes())
         _, obj = self.response(str(self.tarball()), "--bale-root", str(ROOTS.other),
                                runner=runner)
         self.assertEqual(obj["bale"]["executable"], str(ROOTS.other / "bin" / "bale"))
         self.assertEqual((obj["bale"]["source"], obj["bale"]["installed"],
-                          obj["bale"]["pin_matches"]),
+                          obj["bale"]["floor_admits"]),
                          ("--bale-root", ROOTS.other_version, False))
         self.assertEqual(runner.calls, [])
 
@@ -1438,15 +1507,20 @@ class FindingBale(TempCase):
 
 
 # ---------------------------------------------------------------------------
-# 8. The pin gates (D2, decided by Arc 1 session 4)
+# 8. The gate (D2, decided by Arc 1 session 4; a floor since session
+#    2026-10-12-twine-pin-floor-002)
 # ---------------------------------------------------------------------------
 
 
-class ThePinGates(TempCase):
-    """The carry verbs drive only a bale whose bin/VERSION is the pin. The
-    transition table keys on bale 0.4.51's outcome and closure
-    vocabularies; another version may answer in spellings it has no move
-    for, so the version is checked before bale starts — never after."""
+class TheGate(TempCase):
+    """The carry verbs drive a bale the gate admits — exactly one `twine bale
+    check` reports ok: bin/VERSION at or above the floor, as three dotted
+    integers compared as a tuple, and every schema the manifest pins
+    installed with its sha256 — and refuse every other before bale starts,
+    never after. The transition table keys on bale's outcome and closure
+    vocabularies; the floor is the version they were read at and the schema
+    hashes hold the two schema-homed ones fixed. (Was ThePinGates: an exact
+    pin, until the floor.)"""
 
     def both(self, root: Path) -> list[tuple[str, Run, dict, object]]:
         """Each carry verb at `root`: exchange answered by the relayed
@@ -1461,45 +1535,156 @@ class ThePinGates(TempCase):
             out.append((verb, run, one_line(self, run.stdout, f"carry {verb}"), runner))
         return out
 
-    def test_another_version_is_refused_before_bale_starts(self):
-        for verb, run, obj, runner in self.both(ROOTS.other):
-            with self.subTest(verb=verb):
-                self.assert_refused(run, obj, runner, f"is {ROOTS.other_version}",
-                                    f"not the pin {PIN}", "(D2)",
-                                    "bump the pin in a session")
-                self.assertEqual(obj["bale"]["pin_matches"], False)
+    def test_below_the_floor_is_refused_before_bale_starts(self):
+        """Was test_another_version_is_refused_before_bale_starts."""
+        for root, installed in ((ROOTS.below, TempRoots.BELOW),
+                                (ROOTS.other, ROOTS.other_version)):
+            for verb, run, obj, runner in self.both(root):
+                with self.subTest(installed=installed, verb=verb):
+                    self.assert_refused(run, obj, runner,
+                                        f"installed {installed} is below the floor {FLOOR}",
+                                        "(D2)", "raise the floor in a recording session")
+                    self.assertEqual((obj["bale"]["floor_admits"], obj["bale"]["floor"]),
+                                     (False, FLOOR))
 
-    def test_an_unreadable_version_is_refused_before_bale_starts(self):
-        for verb, run, obj, runner in self.both(ROOTS.absent):
-            with self.subTest(verb=verb):
-                self.assert_refused(run, obj, runner, "cannot tell this one's version",
-                                    f"the pinned bale {PIN}")
-                self.assertIsNone(obj["bale"]["installed"])
+    def test_at_and_above_the_floor_are_driven(self):
+        """Was test_the_pinned_version_is_driven: the floor, 0.4.52 and
+        0.4.100 (above as a tuple, below as a string) are all driven."""
+        for root, installed in ((ROOTS.ok, FLOOR), (ROOTS.above, ABOVE),
+                                (ROOTS.far_above, TempRoots.FAR_ABOVE)):
+            for verb, run, obj, runner in self.both(root):
+                with self.subTest(installed=installed, verb=verb):
+                    self.assertEqual((run.code, obj["ok"], obj["ran"]), (0, True, True),
+                                     obj["reason"])
+                    self.assertEqual(len(runner.calls), 1)
+                    self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor_admits"],
+                                      obj["bale"]["schemas_match"]), (installed, True, True))
 
-    def test_the_pinned_version_is_driven(self):
-        for verb, run, obj, runner in self.both(ROOTS.ok):
-            with self.subTest(verb=verb):
-                self.assertEqual((run.code, obj["ok"], obj["ran"]), (0, True, True))
-                self.assertEqual(len(runner.calls), 1)
-                self.assertEqual(obj["bale"]["pin_matches"], True)
+    def test_schemas_that_do_not_hash_as_pinned_are_refused_before_bale_starts(self):
+        """At the floor, but a schema altered, or no schemas/ at all: the
+        gate's second half refuses, naming what failed."""
+        for root, says in ((ROOTS.bad_schema, TempRoots.ALTERED_SCHEMA),
+                           (ROOTS.no_schemas, "no schemas/ directory")):
+            for verb, run, obj, runner in self.both(root):
+                with self.subTest(root=root.name, verb=verb):
+                    self.assert_refused(run, obj, runner, says, "is not one twine drives")
+                    self.assertEqual((obj["bale"]["floor_admits"],
+                                      obj["bale"]["schemas_match"]), (True, False))
 
-    def test_a_refused_version_is_one_reason_among_the_others(self):
+    def test_an_unreadable_or_unparsable_version_is_refused_before_bale_starts(self):
+        for root, says in ((ROOTS.absent, "bin/VERSION unreadable"),
+                           (ROOTS.unparsable, "not a version of three dotted integers")):
+            for verb, run, obj, runner in self.both(root):
+                with self.subTest(root=root.name, verb=verb):
+                    self.assert_refused(run, obj, runner, says, f"the floor {FLOOR}")
+                    self.assertIsNone(obj["bale"]["floor_admits"])
+
+    def test_a_refused_bale_is_one_reason_among_the_others(self):
         """The gate is a refusal like any other: named beside the rest, all
         at once, before anything runs."""
         runner = BaleDouble()
         run = run_verb("response", str(self.dir / "nope.tar.gz"), "--json",
-                       runner=runner, env={"TWINE_BALE_ROOT": ROOTS.other.as_posix()})
+                       runner=runner, env={"TWINE_BALE_ROOT": ROOTS.below.as_posix()})
         obj = one_line(self, run.stdout, "carry response")
         self.assertEqual(len(obj["refusals"]), 2, obj["refusals"])
         self.assertIn("no such file", obj["refusals"][0])
-        self.assertIn("not the pin", obj["refusals"][1])
+        self.assertIn("below the floor", obj["refusals"][1])
         self.assertEqual(runner.calls, [])
 
-    def test_the_gate_reads_the_pin_from_the_manifest_never_a_literal(self):
+    def test_the_gate_reads_the_floor_from_the_manifest_never_a_literal(self):
+        """Was test_the_gate_reads_the_pin_from_the_manifest_never_a_literal:
+        the floor and the verdict come from the manifest and `check`; with
+        the manifest unusable the floor is unknown and nothing is driven."""
         executable = bale.locate_executable(str(ROOTS.ok), {}, lambda name: None)
-        self.assertEqual((executable.pin, executable.drive_refusal), (PIN, None))
-        unknown = bale.Executable(executable.root, executable.path, PIN, None, "")
-        self.assertIn("the pin is unknown", unknown.drive_refusal)
+        self.assertEqual((executable.floor, executable.drive_refusal), (FLOOR, None))
+        self.assertIs(executable.verdict.ok, True)
+        self.assertEqual(set(executable.as_json()),
+                         {"executable", "root", "source", "installed", "floor",
+                          "floor_admits", "schemas_match"})
+        unknown = bale.Executable(executable.root, executable.path, FLOOR, None, "")
+        self.assertIn("the floor is unknown", unknown.drive_refusal)
+        self.assertIsNone(unknown.floor_admits)
+        with mock.patch.object(bale, "load_manifest",
+                               side_effect=bale.ManifestError("unusable for the test")):
+            gone = bale.locate_executable(str(ROOTS.ok), {}, lambda name: None)
+        self.assertEqual((gone.floor, gone.verdict, gone.manifest), (None, None, None))
+        self.assertIn("the floor is unknown", gone.drive_refusal)
+
+
+# ---------------------------------------------------------------------------
+# 9. The contract on the line: the keys the manifest lists (session
+#    2026-10-12-twine-pin-floor-002)
+# ---------------------------------------------------------------------------
+
+
+class TheKeysOnTheLine(TempCase):
+    """Each reader checks, on the line it reads, every key the consumption
+    manifest lists for its surface: a recorded line with one listed key
+    deleted — absent, not null — is not ok, `ran` true, the reason naming
+    the key and the surface, appended beside whatever else the line fails;
+    a key the manifest does not list is free. The edited lines are NOT
+    bale's (bale prints every key on every outcome)."""
+
+    def test_the_relay_line_lacking_a_listed_key_is_not_ok_naming_it(self):
+        for key in ("outcome", "sid", "block", "cause"):
+            with self.subTest(key=key):
+                runner = RecordedRelay(stdout=drop_key(RELAYED.path, key))
+                run, obj = self.exchange(str(self.exchange_turn()), runner=runner)
+                self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, True))
+                self.assertIn(f"bale's relay line lacks the key {key!r}, which the "
+                              "consumption manifest lists for the relay surface "
+                              "(bale relay <sid> - --json)", obj["reason"])
+                self.assertEqual(len(runner.calls), 1)
+
+    def test_a_missing_key_is_named_beside_what_else_the_line_fails(self):
+        """`outcome` deleted: the key check names it, and so does the outcome
+        check (None is not "relayed") — both, at once."""
+        runner = RecordedRelay(stdout=drop_key(RELAYED.path, "outcome"))
+        _, obj = self.exchange(str(self.exchange_turn()), runner=runner)
+        self.assertIn("lacks the key 'outcome'", obj["reason"])
+        self.assertIn("bale reported outcome None", obj["reason"])
+
+    def test_several_missing_keys_are_named_together(self):
+        line = json.loads(RELAYED.path.read_bytes())
+        del line["cause"], line["sid"]
+        runner = RecordedRelay(stdout=(json.dumps(line) + "\n").encode())
+        _, obj = self.exchange(str(self.exchange_turn()), runner=runner)
+        self.assertIn("lacks the keys 'sid', 'cause'", obj["reason"])
+
+    def test_a_null_listed_key_is_present(self):
+        """The recorded relayed line's `cause` is null — present — and the
+        line is ok: the check asks for presence, never a value."""
+        self.assertIsNone(RELAYED.line["cause"])
+        _, obj = self.exchange(str(self.exchange_turn()))
+        self.assertTrue(obj["ok"], obj["reason"])
+
+    def test_an_extra_key_is_free(self):
+        for verb in ("exchange", "response"):
+            with self.subTest(verb=verb):
+                source = RELAYED.path if verb == "exchange" else DRY_RUN
+                line = json.loads(source.read_bytes())
+                line["a_key_bale_added_later"] = {"free": True}
+                data = (json.dumps(line) + "\n").encode()
+                if verb == "exchange":
+                    _, obj = self.exchange(str(self.exchange_turn()),
+                                           runner=RecordedRelay(stdout=data))
+                else:
+                    _, obj = self.response(str(self.tarball()),
+                                           runner=BaleDouble(stdout=data))
+                self.assertTrue(obj["ok"], obj["reason"])
+
+    def test_the_apply_line_lacking_its_listed_key_is_not_ok_naming_it(self):
+        """The apply surface lists one key, `outcome`; the recorded dry run
+        without it is not ok, the key and the surface named, beside the
+        outcome check's own failure, and no apply line is handed back."""
+        runner = BaleDouble(stdout=drop_key(DRY_RUN, "outcome"))
+        run, obj = self.response(str(self.tarball()), runner=runner)
+        self.assertEqual((run.code, obj["ok"], obj["ran"], obj["apply_line"]),
+                         (1, False, True, None))
+        self.assertIn("bale's apply line lacks the key 'outcome', which the consumption "
+                      "manifest lists for the apply surface (bale apply --dry-run --json "
+                      "<tarball>)", obj["reason"])
+        self.assertIn("bale reported outcome None, not 'dry-run'", obj["reason"])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/changelog-record.schema.json",
+  "title": "bale changelog record",
+  "description": "Shape of claude/changelog/<version>.json — one record per bale version, naming the machine-readable surfaces that version changed (schemas, closed vocabularies, record and manifest shapes, CLI-accepted values, the release layout), each by repo path with one line of what changed. Landed at v0.4.35; the 0.4.35 record is the first, and no earlier version is backfilled. The discipline that fills it is CODE.md section 8.5: the session that changes a machine-readable surface writes the entry in the same response, so a version's record is written by the change rather than reconstructed after it. A structured surface list, not a narrative log — prose history stays with git and the response notes. Primarily for bale's own version ladder; external consumers read the same surface list. INTENTIONALLY LOOSE, matching escalation-record.schema.json and exchange-record.schema.json: additionalProperties is true at the top level and inside each surface row, so future additive fields keep earlier records validating; what it pins, it pins — the five-field required core (record_version exactly 1, version, session_id, at, surfaces), surfaces non-empty, and each row's path and change. validate_changelog_record (bin/bale_validate.py, the per-record library entry point) layers the rules kept in Python beside the schema pass: version is dotted numeric X.Y.Z, at parses as ISO 8601 with a UTC offset, and every surface path is repo-relative (not absolute, no '..' segment).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "record_version",
+    "version",
+    "session_id",
+    "at",
+    "surfaces"
+  ],
+  "properties": {
+    "record_version": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Versioned evolution hook, exactly 1 for this shape. Additive fields do not bump it; a shape-breaking change does, and consumers filter or branch on it."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The bale version this record describes, dotted numeric X.Y.Z with no v prefix (e.g. 0.4.35) — equal to bin/VERSION at the version's release, and to the record's file name without .json. The X.Y.Z form is validate_changelog_record's check, in Python — the subset validator gained `pattern` in v0.4.42 (for the response manifest's model_identity), but this check predates it and stays where it is."
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The session that wrote the record (full form YYYY-MM-DD-<slug>-NNN per TARBALL.md section 1) — normally the version's bumper. A later session in the same version that changes another surface appends its own row and names itself in that row's session_id."
+    },
+    "at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "When the record was written, ISO 8601 with a UTC offset (e.g. 2026-09-17T02:30:00+00:00 or ...Z), dated on bale's UTC clock like every other bale timestamp."
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional. When a later same-version session last appended a row, ISO 8601 UTC. Absent on a record only its first writer touched."
+    },
+    "surfaces": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The machine-readable surfaces this version changed, at least one — a version that changed none writes no record. Order is the writer's; one row per surface per change, so a surface two sessions changed may appear twice.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["path", "change"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Repo-relative path of the surface's home (schemas/telemetry-record.schema.json, bin/bale_report.py, ...). A surface whose home is one named spot inside a larger file is still named by the file; the change line names the spot."
+          },
+          "change": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One line of what changed on that surface, written for a consumer deciding whether it must react (e.g. \"closure_reason enum gains 'aborted' (additive)\")."
+          },
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional. The session that made this change, when it is not the record's own session_id — how a same-version append stays attributed. Absent reads as the record's session_id."
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional free text for anything the surface rows cannot carry — a compatibility caveat, a consumer hint. Kept short; the narrative belongs to the response notes."
+    }
+  }
+}
