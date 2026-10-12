@@ -1,0 +1,245 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-12-twine-seed-tidy7-006",
+  "created_at": "2026-10-12T17:56:21+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-12T17:56:21+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "twine-seed.md"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-12-twine-seed-tidy7-006.log",
+      "bundle": {
+        "stem": "2026-10-12-twine-seed-tidy7",
+        "brief_sha256": "5884b253f5efc8621f35cc7919c0a1402f6973a2c6dca6e05494543077644769",
+        "checkpoint_sha256": "94e9758d062ba2b6df80a6c95b27c613a65f54ff654209518cca17d90677a3ba",
+        "manifest_sha256": "27dc4aa4da7c063a8cf8d5807299b86baa2cb4671fab75f754cbd6584fd9379f"
+      },
+      "provenance": {
+        "work_class": "contract-doc",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-12T17:56:21+00:00"
+      }
+    },
+    {
+      "at": "2026-10-12T18:10:51+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-12-twine-seed-tidy7-006.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "seed: each block verbatim exactly once": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "seed: blocks at their anchors, in order, one blank before each": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "seed: seven insertions removed give the base (sha256, 1454 lines)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "seed: 1540 lines landed": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "seed: no TODO added": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "seed: no [model.] price table added": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION untouched": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "project test suite (staged, python3 -B)": {
+            "value": "pass",
+            "claim_basis": "predicted"
+          }
+        },
+        "claim_verdict": {
+          "seed: each block verbatim exactly once": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "seed: blocks at their anchors, in order, one blank before each": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "seed: seven insertions removed give the base (sha256, 1454 lines)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "seed: 1540 lines landed": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "seed: no TODO added": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "seed: no [model.] price table added": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION untouched": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "project test suite (staged, python3 -B)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "fixtures: seven block sha256 pins",
+          "seed: each block verbatim exactly once",
+          "seed: blocks at their anchors, in order, one blank before each",
+          "seed: seven insertions removed give the base (sha256, 1454 lines)",
+          "seed: 1540 lines landed",
+          "seed: no TODO added",
+          "seed: no [model.] price table added",
+          "VERSION untouched",
+          "project test suite (staged, python3 -B)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "twine-seed.md"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "twine-seed.md"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "f41c405455a0f1eda48c48c6bf47a5bcd3cb08213ece2a1270c4799f479c65e7",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "contract-doc",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-12-twine-seed-tidy7-006.sh",
+              "sha256": "94e9758d062ba2b6df80a6c95b27c613a65f54ff654209518cca17d90677a3ba"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-12T17:56:21+00:00",
+            "base_files": {
+              "twine-seed.md": "128671eab865722d3e97b5826b135d17c91902383415dcae9b6cd6a3ff0cb2e8"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "The project suite's only reader of twine-seed.md is test_spend.py's no-prices scan (the brief's fact, carried from tidy6); the suite claim is predicted on it, since the suite is not in the request.",
+            "twine-seed.md and VERSION sit at the project root, as resolved_scope and context_included name them."
+          ],
+          "judgment_calls": [
+            "The four mutations tidy6 ran are not in the request; six were chosen here (one altered character in a block, D landed at the 1156 copy of the D2 anchor, F before D, a missing blank before a block, one stray byte outside the blocks, a TODO added inside a block's run) plus a moved VERSION.",
+            "The suite runner is picked at run time: pytest when importable (with -p no:cacheprovider), else unittest discover over tests/; a tree with no tests/ prints [SKIP] with that reason.",
+            "The fixtures check is left unclaimed: it tests validation.sh's own embedded bytes, not the change."
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md META through 11.2",
+            "README.md (the brief)",
+            "twine-seed.md (anchors and the three runs)",
+            "TARBALL.md sections 1, 2, 5, 7 and 10.1",
+            "DOCS.md INDEX and section 1 table only (no inventory row fired)",
+            "tools/craft_response.py usage docstring; tools/response_lint.py self_reported and model_identity schema"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-12-twine-seed-tidy7-006.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-12-twine-seed-tidy7-006.sh",
+          "sha256": "94e9758d062ba2b6df80a6c95b27c613a65f54ff654209518cca17d90677a3ba"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-12T18:10:51+00:00",
+  "outcome": "applied"
+}
