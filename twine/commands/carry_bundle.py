@@ -27,6 +27,12 @@ after a successful open does not make the verb not ok (the session is open
 in bale; a failure that invited a retry would open another desk): `record`
 is null and `record_error` says why.
 
+A refusal bale prints (since bale 0.4.50: outcome `open-refused`, exit 1, a
+`reason` code and a `cause`) is NOT OK, the reason naming bale's code and
+quoting its cause whole, never dispatching on the cause's wording; nothing
+is recorded (session 2026-10-12-twine-bundle-051-004). Under --check the
+same.
+
 Refused before bale starts, every reason named at once: BUNDLE empty, or —
 when it names no existing file — beginning with `-`; `--cwd` not a
 directory (or the current directory gone); no bale found or startable, or
@@ -46,14 +52,14 @@ be open, since no record is written for a line twine did not accept.
 The contract is claude/context/cli-contract.md §15.
 
 Sections:
-  1. Limits and names            (~line 60)
-  2. What the verb learned       (~line 80)
-  3. The verb                    (~line 185)
-  4. Refusals before bale        (~line 245)
+  1. Limits and names            (~line 85)
+  2. What the verb learned       (~line 110)
+  3. The verb                    (~line 200)
+  4. Refusals before bale        (~line 240)
   5. Reading bale's line         (~line 305)
-  6. The record                  (~line 345)
-  7. Rendering                   (~line 410)
-  8. The registry entry          (~line 450)
+  6. The record                  (~line 390)
+  7. Rendering                   (~line 445)
+  8. The registry entry          (~line 485)
 """
 
 from __future__ import annotations
@@ -85,8 +91,16 @@ READER = "carry bundle"
 # An open runs the bundle's checkpoint dry-run, which may run a whole suite:
 # 300 seconds (the other bale calls' limit) is too short (brief §2.3).
 BUNDLE_TIMEOUT_SECONDS = 1800.0
-# The outcome --check wants (format_open_json, bale 0.4.49): nothing written.
+# The outcome --check wants (format_open_json; recorded at bale 0.4.51):
+# nothing written.
 REHEARSED = "rehearsed"
+# bale's refusal line (bale 0.4.50 on; recorded at 0.4.51 as
+# open_bundle_--json+open-refused.json, exit 1): `reason` one code of bale's
+# OPEN_REFUSAL_REASONS, `cause` bale's sentence — the `[bale] error:` text on
+# stderr. carry bundle names the code and quotes the cause whole, and
+# dispatches on neither: the cause's wording is bale's and may change
+# (session 2026-10-12-twine-bundle-051-004).
+OPEN_REFUSED = "open-refused"
 # What state_dir_fault says of a path that is simply absent: the one fault
 # carry bundle does not refuse — the record's writer creates the directory.
 STATE_DIR_ABSENT = "does not exist"
@@ -301,7 +315,12 @@ def read_line(outcome: BundleOutcome, manifest: bale.Manifest | None) -> None:
     already a failure (call_bale), and the line is still read and reported.
     A line lacking a listed key after an open says the session may be open
     (it is not recorded: the verb is not ok), as the other unaccepted-open
-    failures do."""
+    failures do.
+
+    A refusal line (`open-refused`, with or without --check — a refused
+    rehearsal prints the same line) is named by refusal_failure in place
+    of the outcome mismatch: bale's `reason` code and its `cause`, quoted
+    whole."""
     try:
         obj = json.loads(outcome.call.stdout)
     except (ValueError, RecursionError):
@@ -335,6 +354,9 @@ def read_line(outcome: BundleOutcome, manifest: bale.Manifest | None) -> None:
                         "says which — twine never retries an open, and records none "
                         "from a line it did not accept")
         outcome.failures.append(lacking)
+    if obj.get("outcome") == OPEN_REFUSED:
+        outcome.failures.append(refusal_failure(obj))
+        return
     wanted = (REHEARSED,) if outcome.check else inflight.RECORDED_OUTCOMES
     if obj.get("outcome") not in wanted:
         mode = "--check wants" if outcome.check else "an open wants"
@@ -352,6 +374,20 @@ def read_line(outcome: BundleOutcome, manifest: bale.Manifest | None) -> None:
                                 f"(opener {opener!r})")
 
 
+def refusal_failure(line: dict[str, Any]) -> str:
+    """The failure an `open-refused` line makes: bale's `reason` code named
+    and its `cause` quoted whole — bale's only account of why — as `carry
+    exchange` names a `relay-refused` line. Neither is dispatched on; a code
+    or cause that is absent, null, empty or not a string is said to be
+    missing rather than guessed at."""
+    code = line.get("reason")
+    cause = line.get("cause")
+    named = f"reason {code!r}" if isinstance(code, str) and code else "no reason code"
+    quoted = (f'"{cause}"' if isinstance(cause, str) and cause
+              else "its line names no cause")
+    return f"bale refused the open (outcome {OPEN_REFUSED!r}, {named}): {quoted}"
+
+
 # ---------------------------------------------------------------------------
 # 6. The record
 # ---------------------------------------------------------------------------
@@ -364,8 +400,10 @@ def _text_or_none(value: Any) -> str | None:
 def record(ctx: Context, outcome: BundleOutcome) -> None:
     """Record the open (twine/inflight.py) and settle the tarball the desk
     needs: bale's when its line gives one, else — for a second desk — the
-    record's. A record that cannot be written leaves the verb ok: `record`
-    null, `record_error` naming why, a warning on stderr."""
+    record's. (What the record itself keeps is inflight._compose's: on an
+    appended second desk its own tarball when set, else bale's.) A record
+    that cannot be written leaves the verb ok: `record` null, `record_error`
+    naming why, a warning on stderr."""
     assert outcome.open is not None and outcome.state_dir is not None
     line = outcome.open
     bundle = line.get("bundle")
@@ -393,6 +431,9 @@ def record(ctx: Context, outcome: BundleOutcome) -> None:
                      f"open ({written.path})")
         if written.fresh:
             ctx.info(f"warning: {written.fresh}")
+        if bales is not None and recorded_tarball not in (None, bales):
+            ctx.info(f"the in-flight record keeps its own tarball {recorded_tarball}; "
+                     f"bale's line names {bales}")
     if bales is not None:
         outcome.tarball, outcome.tarball_source = bales, "bale"
     elif outcome.outcome == inflight.SECOND_DESK and recorded_tarball is not None:
@@ -476,7 +517,9 @@ COMMANDS = (
                     "a sid and an opener. On an open, stdout is exactly bale's opener "
                     "— paste it into the new chat and attach the request tarball "
                     "stderr names — and the open is recorded in twine's state "
-                    "directory, inflight/<sid>.json. Never retried: an open that "
+                    "directory, inflight/<sid>.json. A refusal bale prints "
+                    "(\"open-refused\") is NOT OK, naming bale's reason code and "
+                    "quoting its cause. Never retried: an open that "
                     "timed out may or may not have opened a session (`bale status` "
                     "says which)."),
 )

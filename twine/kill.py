@@ -66,12 +66,12 @@ runner it is handed. It never reads the seam's hook: the record is all it
 relies on.
 
 Sections:
-  1. Names and errors                 (~line 98)
-  2. The abort request                (~line 247)
-  3. The running record               (~line 328)
-  4. The process-level kill           (~line 719)
-  5. The aborted closure              (~line 951)
-  6. The kill, end to end             (~line 1133)
+  1. Names and errors                 (~line 102)
+  2. The abort request                (~line 270)
+  3. The running record               (~line 350)
+  4. The process-level kill           (~line 740)
+  5. The aborted closure              (~line 975)
+  6. The kill, end to end             (~line 1170)
 """
 
 from __future__ import annotations
@@ -131,8 +131,10 @@ CLEAR_LOCK_SECONDS = 5.0
 # retried: it may or may not have closed the session).
 UNLOCK_TIMEOUT_SECONDS = 120.0
 UNLOCK_STDOUT_CAP_BYTES = 1024 * 1024
-# What a close looks like (format_unlock_json's key contract, bale 0.4.49;
-# recorded: fixtures/bale-0.4.49/scratch/unlock_sid_--reason-aborted_--json.json).
+# What a close looks like (format_unlock_json's key contract, bale 0.4.49 on;
+# recorded at the floor, 0.4.51:
+# fixtures/bale-0.4.51/scratch/unlock_sid_--reason-aborted_--json.json — first
+# recorded at 0.4.49, under fixtures/bale-0.4.49/).
 UNLOCKED_OUTCOME = "unlocked"
 
 # A sid names a file (`<sid>.json`): bounded well under a file name's 255
@@ -971,9 +973,9 @@ def _await_members_gone(pgid: int, timeout: float, proc_root: Path) -> list[int]
 # 5. The aborted closure
 # ---------------------------------------------------------------------------
 
-# bale 0.4.49's refusal when the session reached HOLD, as recorded
-# (fixtures/bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json,
-# exit 1): under `--json` bale prints one line on stdout whose `outcome` is
+# bale's refusal when the session reached HOLD, as recorded at the floor,
+# 0.4.51 (fixtures/bale-0.4.51/scratch/unlock_sid_--json+unlock-refused+hold-branch.json,
+# exit 1; first recorded at 0.4.49, the line unchanged): under `--json` bale prints one line on stdout whose `outcome` is
 # `unlock-refused` and whose `reason` is the code `hold-branch`, one of the
 # closed set the unlock surface of share/bale-consumption.toml lists (bale
 # 0.4.47). The hand line keys on that code (session

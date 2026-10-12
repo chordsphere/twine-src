@@ -26,6 +26,12 @@ What is recorded, and what stands in for what is not:
     recording's bytes or from nothing, and named a double where it is
     used.
 
+Since session 2026-10-12-twine-bundle-051-004 the recorded refusal is read:
+NOT OK, the reason naming bale's `reason` code and quoting its `cause`
+(section 7, and end to end in section 12); and a second desk's tarball is
+kept in the in-flight record — a fresh record holds bale's, an appended one
+keeps its own or adopts bale's (sections 5, 10 and 12).
+
 Sections:
   1. Helpers and doubles
   2. Refused before bale starts
@@ -537,26 +543,45 @@ class SecondDesk(Case):
         self.assertEqual(run.stdout, open_recording("second-desk").line["opener"])
         self.assertIn(f"{SID}@desk-2", run.stdout)
 
-    def test_second_desk_with_no_record_writes_a_fresh_one_and_says_so(self):
-        """No record to append to: a fresh one, said so. The twin's tarball
-        is the recorded line's (bale's, since 0.4.50), but the fresh record
-        keeps `tarball` null — the behaviour carry bundle has had since
-        session carry-bundle-003, which reads no tarball from a second-desk
-        line into a fresh record; taking bale's there is twine-bundle-051's,
-        and this test pins that it stands until then."""
+    def test_second_desk_with_no_record_writes_a_fresh_one_holding_bales_tarball(self):
+        """No record to append to: a fresh one, said so, holding the
+        recorded second-desk line's tarball — bale's, the outbox path bale
+        0.4.50 on names. Moved to the rule of session
+        2026-10-12-twine-bundle-051-004 (contract §15.4): renamed from
+        test_second_desk_with_no_record_writes_a_fresh_one_and_says_so, which
+        pinned the fresh record's `tarball` null until this session."""
         second = open_recording("second-desk")
-        _, obj = self.twin(str(self.bundle), runner=self.player(SELECT_SECOND_DESK))
+        self.assertIsNotNone(second.line["tarball"])
+        run, obj = self.twin(str(self.bundle), runner=self.player(SELECT_SECOND_DESK))
         self.assertEqual((obj["ok"], obj["tarball"], obj["tarball_source"]),
                          (True, second.line["tarball"], "bale"))
         self.assertEqual(obj["record"], str(self.record_file()))
         self.assertIn("no in-flight record", obj["record_error"])
         self.assertIn("fresh", obj["record_error"])
+        self.assertIn("bale's tarball", obj["record_error"])
+        self.assertNotIn("tarball null", obj["record_error"])
         record = self.read_record()
         self.assertEqual((record["tarball"], record["cwd"], len(record["opens"])),
-                         (None, str(self.repo), 1))
+                         (second.line["tarball"], str(self.repo), 1))
         self.assertEqual(record["opens"][0]["outcome"], "second-desk")
+        self.assertIn("(from bale)", run.stderr)
+
+    def test_a_fresh_second_desk_record_is_null_only_when_bales_tarball_is(self):
+        """A double: the recorded second-desk line with its tarball nulled
+        (0.4.49's line had it null; 0.4.50 on names it when the outbox file
+        exists). Fresh, `tarball` null, and the sentence says bale named
+        none; the twin has no tarball to hand on."""
+        runner = OpenDouble(stdout=edited_line("second-desk", tarball=None))
+        run, obj = self.twin(str(self.bundle), runner=runner)
+        self.assertEqual((obj["ok"], obj["tarball"], obj["tarball_source"]), (True, None, None))
+        self.assertIn("tarball null (bale's line names none)", obj["record_error"])
+        self.assertIsNone(self.read_record()["tarball"])
+        self.assertIn("no request tarball is known", run.stderr)
 
     def test_second_desk_over_a_record_that_is_not_one_replaces_it_naming_why(self):
+        """Moved to session twine-bundle-051-004's rule: the fresh record
+        that replaces the unreadable one holds bale's tarball (it held null
+        before)."""
         self.record_file().parent.mkdir(parents=True)
         self.record_file().write_text(json.dumps({"sid": SID}) + "\n", encoding="utf-8")
         run, obj = self.twin(str(self.bundle), runner=self.player(SELECT_SECOND_DESK))
@@ -564,20 +589,61 @@ class SecondDesk(Case):
         self.assertIn("is not an in-flight record", obj["record_error"])
         self.assertIn("lacks cwd, tarball, opens", obj["record_error"])
         self.assertIn("fresh", obj["record_error"])
-        self.assertEqual(self.read_record()["tarball"], None)
+        self.assertIn("bale's tarball", obj["record_error"])
+        self.assertEqual(self.read_record()["tarball"],
+                         open_recording("second-desk").line["tarball"])
+        self.assertEqual((obj["tarball"], obj["tarball_source"]),
+                         (open_recording("second-desk").line["tarball"], "bale"))
         self.assertIn("warning:", run.stderr)
 
     def test_bales_tarball_wins_when_its_second_desk_line_names_one(self):
         """A double: the recorded second-desk line with its tarball edited to
         one the record does not hold — bale 0.4.51's line names the same
         outbox path as the first open's, so the edit is what tells whose
-        wins: bale's, tarball_source "bale"; the record keeps its own."""
+        wins: the twin's is bale's, tarball_source "bale"; the record keeps
+        its own, since it is set (contract §15.4's append-keeps-own case —
+        moved to session twine-bundle-051-004's rule, whose other append
+        case, adopting, is the test after this one). stderr says the two
+        differ."""
         self.twin(str(self.bundle), runner=self.player())
         runner = OpenDouble(stdout=edited_line("second-desk", tarball="/from/bale.tar.gz"))
-        _, obj = self.twin(str(self.bundle), runner=runner)
+        run, obj = self.twin(str(self.bundle), runner=runner)
         self.assertEqual((obj["tarball"], obj["tarball_source"]), ("/from/bale.tar.gz", "bale"))
-        self.assertEqual(self.read_record()["tarball"], open_recording("opened").line["tarball"],
+        self.assertEqual(obj["record_error"], None)
+        first = open_recording("opened").line["tarball"]
+        self.assertEqual(self.read_record()["tarball"], first,
                          "the record keeps the first open's tarball")
+        self.assertIn(f"the in-flight record keeps its own tarball {first}; bale's line "
+                      "names /from/bale.tar.gz", run.stderr)
+
+    def test_an_appended_record_with_no_tarball_adopts_bales(self):
+        """A double: the recorded open with its tarball nulled, then the
+        recorded second desk (which names the outbox path). The record held
+        none, so the appended record adopts bale's (session
+        twine-bundle-051-004); the twin's is bale's, "bale"."""
+        self.twin(str(self.bundle), runner=OpenDouble(stdout=edited_line("opened",
+                                                                          tarball=None)))
+        self.assertIsNone(self.read_record()["tarball"])
+        second = open_recording("second-desk")
+        run, obj = self.twin(str(self.bundle), runner=self.player(SELECT_SECOND_DESK))
+        self.assertEqual((obj["ok"], obj["tarball"], obj["tarball_source"], obj["record_error"]),
+                         (True, second.line["tarball"], "bale", None))
+        record = self.read_record()
+        self.assertEqual(record["tarball"], second.line["tarball"])
+        self.assertEqual([e["outcome"] for e in record["opens"]], ["opened", "second-desk"])
+        self.assertNotIn("keeps its own tarball", run.stderr)
+
+    def test_an_appended_record_is_handed_on_when_bales_line_names_none(self):
+        """A double: the recorded second desk with its tarball nulled, after
+        the recorded open. The record keeps its own; the twin's is the
+        record's, tarball_source "record" — the fallback 0.4.49 needed,
+        kept."""
+        self.twin(str(self.bundle), runner=self.player())
+        _, obj = self.twin(str(self.bundle),
+                           runner=OpenDouble(stdout=edited_line("second-desk", tarball=None)))
+        first = open_recording("opened").line["tarball"]
+        self.assertEqual((obj["tarball"], obj["tarball_source"]), (first, "record"))
+        self.assertEqual(self.read_record()["tarball"], first)
 
     def test_two_desks_at_once_lose_neither_entry(self):
         """The read-append-replace runs under the flock on inflight/."""
@@ -682,36 +748,101 @@ class NotOk(Case):
                         human.stdout)
         return obj
 
-    def test_the_recorded_refusal_is_not_ok_and_records_nothing(self):
+    def test_the_recorded_refusal_names_bales_code_and_quotes_its_cause(self):
         """The refusal recorded at 0.4.51 (bale 0.4.50 on prints one), replayed
         through the player with its group selected: a bundle file that does
         not exist — exit 1, outcome `open-refused`, reason `not-found`, the
-        line's `cause` and bale's `[bale] error: <cause>` on stderr. Not ok,
-        naming the exit and the outcome; the line is parsed and reported
-        (`open`, `outcome`), never trusted; nothing recorded; bale's
-        recorded stderr reaches the twin's and twine's stderr. carry bundle
-        reads neither `reason` nor `cause` yet (twine-bundle-051's), so the
-        reason quotes neither."""
+        line's `cause` and bale's `[bale] error: <cause>` on stderr. NOT OK,
+        the reason naming the exit, bale's code and its cause quoted whole
+        (session 2026-10-12-twine-bundle-051-004, as `carry exchange` names a
+        relay-refused line); the outcome mismatch ("an open wants …") is
+        replaced by it; the line is parsed and reported (`open`,
+        `outcome`), never trusted; nothing recorded; bale's recorded stderr
+        reaches the twin's and twine's stderr. Moved from
+        test_the_recorded_refusal_is_not_ok_and_records_nothing, which
+        pinned that the reason quoted neither code nor cause."""
         refused = open_recording("open-refused")
         self.assertEqual((refused.exit_code, refused.line["outcome"], refused.line["reason"]),
                          (1, "open-refused", "not-found"))
+        cause = refused.line["cause"]
+        self.assertTrue(cause)
         player = self.player(SELECT_REFUSED)
         run, obj = self.twin(str(self.bundle), runner=player)
         self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"], obj["outcome"],
-                          obj["record"], obj["tarball"], obj["sid"]),
-                         (1, False, True, 1, "open-refused", None, None, None))
+                          obj["record"], obj["tarball"], obj["sid"], obj["refusals"]),
+                         (1, False, True, 1, "open-refused", None, None, None, []))
         self.assertEqual(obj["open"], refused.line)
-        for needle in ("bale exited 1", "bale reported outcome 'open-refused'"):
-            self.assertIn(needle, obj["reason"])
-        self.assertNotIn("not-found", obj["reason"])
-        self.assertNotIn(refused.line["cause"], obj["reason"])
+        self.assertEqual(obj["reason"],
+                         "bale exited 1; bale refused the open (outcome 'open-refused', "
+                         f"reason 'not-found'): \"{cause}\"")
+        self.assertNotIn("an open wants", obj["reason"])
+        self.assertNotIn("may be open", obj["reason"])
         self.assertEqual(obj["stderr"], refused.stderr.decode("utf-8"))
-        self.assertIn(f"[bale] error: {refused.line['cause']}", run.stderr)
+        self.assertIn(f"[bale] error: {cause}", run.stderr)
         self.assertEqual(tree(self.state), set(), "a refused open recorded something")
         self.assertEqual(len(player.calls), 1, "an open is never retried")
         human = self.run_verb(str(self.bundle), runner=self.player(SELECT_REFUSED))
         self.assertEqual((human.code, human.stdout.count("\n")), (1, 1))
-        self.assertTrue(human.stdout.startswith(f"carry bundle {self.bundle}: NOT OK — "))
+        self.assertEqual(human.stdout, f"carry bundle {self.bundle}: NOT OK — {obj['reason']}\n")
+        self.assertEqual(tree(self.state), set())
+
+    def test_a_refused_line_with_cause_null_says_no_cause(self):
+        """A double: the recorded refusal with `cause` null. NOT OK, the code
+        still named, and "no cause" where the quote would be — never a
+        quoted "None"."""
+        for cause in (None, "", 7):
+            with self.subTest(cause=cause):
+                runner = OpenDouble(exit_code=1, stdout=edited_line("open-refused", cause=cause))
+                obj = self.not_ok(runner, "bale refused the open (outcome 'open-refused', "
+                                          "reason 'not-found'): its line names no cause")
+                self.assertNotIn('"None"', obj["reason"])
+
+    def test_a_refused_line_with_no_reason_code_says_so(self):
+        """A double: the recorded refusal with `reason` null — the cause is
+        still quoted whole."""
+        cause = open_recording("open-refused").line["cause"]
+        self.not_ok(OpenDouble(exit_code=1, stdout=edited_line("open-refused", reason=None)),
+                    f"bale refused the open (outcome 'open-refused', no reason code): \"{cause}\"")
+
+    def test_the_cause_is_quoted_never_dispatched_on(self):
+        """A double: the recorded refusal with its code and cause edited to
+        text bale never printed — `unclassified`, the fallback, and a cause
+        that reads like an open. The reason names and quotes them as they
+        stand; nothing in it depends on the cause's wording, and nothing is
+        recorded."""
+        cause = "opened session 2026-10-08-sc-002 (a double, not bale's wording)"
+        obj = self.not_ok(OpenDouble(exit_code=1, stdout=edited_line(
+            "open-refused", reason="unclassified", cause=cause)),
+            f"(outcome 'open-refused', reason 'unclassified'): \"{cause}\"")
+        self.assertEqual(obj["sid"], None)
+
+    def test_a_refused_rehearsal_is_named_the_same(self):
+        """Under --check a refused rehearsal prints the same line (a double:
+        the recorded refusal answered to the --check argv). NOT OK naming the
+        code and the cause, not "--check wants 'rehearsed'"; nothing
+        written, no state directory needed."""
+        refused = open_recording("open-refused")
+        runner = OpenDouble(exit_code=1, stdout=refused.stdout)
+        run, obj = self.twin(str(self.bundle), "--check", runner=runner, state=False)
+        self.assertEqual((run.code, obj["ok"], obj["ran"], obj["check"], obj["outcome"]),
+                         (1, False, True, True, "open-refused"))
+        self.assertIn(f"reason 'not-found'): \"{refused.line['cause']}\"", obj["reason"])
+        self.assertNotIn("--check wants", obj["reason"])
+        self.assertFalse(self.state.exists())
+
+    def test_a_refused_line_lacking_reason_or_cause_fails_the_key_check(self):
+        """Doubles: the recorded refusal with `reason` or `cause` deleted —
+        absent, not null. Both are on the open surface's keys since session
+        twine-bundle-051-004, so the key check names the absent key; the
+        refusal is still named. Nothing recorded, and no "may be open" (a
+        refusal opened nothing)."""
+        for key in ("reason", "cause"):
+            with self.subTest(key=key):
+                obj = self.not_ok(OpenDouble(exit_code=1,
+                                             stdout=edited_line("open-refused", drop=key)),
+                                  f"bale's open line lacks the key {key!r}",
+                                  "bale refused the open")
+                self.assertNotIn("may be open", obj["reason"])
 
     def test_a_bale_that_stopped_before_writing_its_line_is_not_ok(self):
         """A double, the stopped-before-a-line case: exit 1 and nothing on
@@ -962,6 +1093,68 @@ class TheRecordModule(Case):
         self.assertEqual(self.read_record(), rec.record)
         self.assertTrue(self.record_file().read_bytes().endswith(b"}\n"))
 
+    # _compose's tarball rules (contract §15.4; session
+    # 2026-10-12-twine-bundle-051-004), through record_open.
+
+    def second(self, tarball: str | None) -> inflight.Recorded:
+        return inflight.record_open(self.state, SID, outcome="second-desk", cwd="/desk-2",
+                                    tarball=tarball, desk="desk-2", bundle_sha256="b",
+                                    opener="desk-2 opener\n")
+
+    def opened(self, tarball: str | None) -> inflight.Recorded:
+        return inflight.record_open(self.state, SID, outcome="opened", cwd="/r",
+                                    tarball=tarball, desk=None, bundle_sha256="b",
+                                    opener="opener\n")
+
+    def test_compose_a_fresh_second_desk_record_keeps_bales_tarball(self):
+        rec = self.second("/bale/outbox.tar.gz")
+        self.assertEqual((rec.record["tarball"], rec.record["cwd"], rec.found),
+                         ("/bale/outbox.tar.gz", "/desk-2", None))
+        self.assertIn("no in-flight record", rec.fresh)
+        self.assertIn("bale's tarball", rec.fresh)
+        self.assertEqual(self.read_record(), rec.record)
+
+    def test_compose_a_fresh_second_desk_record_is_null_only_when_bales_is(self):
+        rec = self.second(None)
+        self.assertIsNone(rec.record["tarball"])
+        self.assertIn("tarball null (bale's line names none)", rec.fresh)
+
+    def test_compose_a_fresh_record_over_one_that_is_not_one_keeps_bales_tarball(self):
+        self.write_raw("{")
+        rec = self.second("/bale/outbox.tar.gz")
+        self.assertEqual(rec.record["tarball"], "/bale/outbox.tar.gz")
+        self.assertIn("is not a JSON object", rec.fresh)
+        self.assertIn("fresh record holding only this second-desk open, bale's tarball",
+                      rec.fresh)
+
+    def test_compose_an_appended_record_adopts_bales_when_its_own_is_null(self):
+        self.opened(None)
+        rec = self.second("/bale/outbox.tar.gz")
+        self.assertEqual((rec.record["tarball"], rec.record["cwd"], rec.fresh),
+                         ("/bale/outbox.tar.gz", "/r", None))
+        self.assertEqual(rec.found["tarball"], None)
+        self.assertEqual([e["outcome"] for e in rec.record["opens"]], ["opened", "second-desk"])
+        self.assertEqual(self.read_record()["tarball"], "/bale/outbox.tar.gz")
+
+    def test_compose_an_appended_record_keeps_its_own_when_set(self):
+        self.opened("/first/own.tar.gz")
+        for bales in ("/bale/other.tar.gz", "/first/own.tar.gz", None):
+            with self.subTest(bales=bales):
+                rec = self.second(bales)
+                self.assertEqual((rec.record["tarball"], rec.fresh), ("/first/own.tar.gz", None))
+        self.assertEqual(len(self.read_record()["opens"]), 4)
+
+    def test_compose_an_appended_record_with_neither_tarball_stays_null(self):
+        self.opened(None)
+        self.assertIsNone(self.second(None).record["tarball"])
+
+    def test_compose_opened_is_unchanged(self):
+        """`opened` holds its own line's tarball and replaces what was there."""
+        self.second("/bale/outbox.tar.gz")
+        rec = self.opened(None)
+        self.assertEqual((rec.record["tarball"], rec.replaced, len(rec.record["opens"])),
+                         (None, True, 1))
+
     # list_inflight (session twine-status-inflight): what `twine status`
     # reads the records through. Its rendering in `status` is
     # tests/test_status.py's InflightRecords.
@@ -1144,6 +1337,72 @@ class EndToEnd(Case):
         self.assertIsNone(self.stub.argv(), "the stub was started")
 
 
+class EndToEndRefusalAndTarball(Case):
+    """Session 2026-10-12-twine-bundle-051-004 end to end, as a subprocess
+    through the real seam, against StubBale replaying a recording (and its
+    recorded stderr): the refusal, and _compose's three second-desk cases —
+    fresh, appended adopting, appended keeping its own — with the twin's
+    tarball and tarball_source on each."""
+
+    def stub(self, name: str, exit_code: int = 0) -> StubBale:
+        stub = StubBale(open_stdout=open_recording(name).path, exit_code=exit_code)
+        self.addCleanup(stub.cleanup)
+        return stub
+
+    def carry(self, stub: StubBale, *extra: str) -> tuple[Run, dict]:
+        run = run_cli("carry", "bundle", str(self.bundle), "--cwd", str(self.repo),
+                      "--state-dir", str(self.state), *extra, bale_root=stub.root)
+        self.assertNotIn("Traceback", run.stderr)
+        return run, (json.loads(run.stdout) if "--json" in extra else {})
+
+    def seed(self, tarball: str | None) -> None:
+        inflight.record_open(self.state, SID, outcome="opened", cwd=str(self.repo),
+                             tarball=tarball, desk=None, bundle_sha256=RECORDED_BUNDLE_SHA256,
+                             opener=open_recording("opened").line["opener"])
+
+    def test_the_recorded_refusal_is_not_ok_naming_the_code_and_the_cause(self):
+        refused = open_recording("open-refused")
+        stub = self.stub("open-refused", exit_code=1)
+        run, obj = self.carry(stub, "--json")
+        self.assertEqual((run.code, obj["ok"], obj["exit_code"], obj["outcome"], obj["record"]),
+                         (1, False, 1, "open-refused", None))
+        self.assertIn(f"reason 'not-found'): \"{refused.line['cause']}\"", obj["reason"])
+        self.assertEqual(stub.argv(), ["open", str(self.bundle), "--json"])
+        self.assertIn(f"[bale] error: {refused.line['cause']}", run.stderr)
+        human, _ = self.carry(stub)
+        self.assertEqual(human.code, 1)
+        self.assertTrue(human.stdout.startswith(f"carry bundle {self.bundle}: NOT OK — "))
+        self.assertIn("'not-found'", human.stdout)
+        self.assertIn(refused.line["cause"], human.stdout)
+        self.assertEqual(tree(self.state), set(), "a refused open wrote state")
+
+    def test_a_second_desk_into_an_empty_state_dir_records_bales_tarball(self):
+        second = open_recording("second-desk")
+        run, obj = self.carry(self.stub("second-desk"), "--json")
+        self.assertEqual((run.code, obj["ok"], obj["tarball"], obj["tarball_source"]),
+                         (0, True, second.line["tarball"], "bale"))
+        self.assertIn("fresh", obj["record_error"])
+        self.assertEqual(self.read_record()["tarball"], second.line["tarball"])
+
+    def test_a_second_desk_appended_to_a_record_with_no_tarball_adopts_bales(self):
+        self.seed(None)
+        second = open_recording("second-desk")
+        run, obj = self.carry(self.stub("second-desk"), "--json")
+        self.assertEqual((run.code, obj["tarball"], obj["tarball_source"], obj["record_error"]),
+                         (0, second.line["tarball"], "bale", None))
+        record = self.read_record()
+        self.assertEqual((record["tarball"], len(record["opens"])), (second.line["tarball"], 2))
+
+    def test_a_second_desk_appended_to_a_record_with_its_own_tarball_keeps_it(self):
+        self.seed("/first/own.tar.gz")
+        second = open_recording("second-desk")
+        run, obj = self.carry(self.stub("second-desk"), "--json")
+        self.assertEqual((run.code, obj["tarball"], obj["tarball_source"]),
+                         (0, second.line["tarball"], "bale"))
+        self.assertEqual(self.read_record()["tarball"], "/first/own.tar.gz")
+        self.assertIn("keeps its own tarball /first/own.tar.gz", run.stderr)
+
+
 # ---------------------------------------------------------------------------
 # The contract on the line: the keys the manifest lists (session
 # 2026-10-12-twine-pin-floor-002)
@@ -1161,7 +1420,9 @@ class TheKeysOnTheLine(Case):
     SURFACE = "the open surface (bale open <bundle> --json)"
 
     def test_an_opened_line_lacking_a_listed_key_is_not_ok_and_not_recorded(self):
-        for key in ("desk", "tarball", "bundle"):
+        # `reason` and `cause` joined the open surface's keys in session
+        # 2026-10-12-twine-bundle-051-004: an opened line owes them too (null).
+        for key in ("desk", "tarball", "bundle", "reason", "cause"):
             with self.subTest(key=key):
                 runner = OpenDouble(stdout=edited_line("opened", drop=key))
                 run, obj = self.twin(str(self.bundle), runner=runner)

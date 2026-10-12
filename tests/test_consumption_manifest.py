@@ -494,20 +494,31 @@ class SurfacesAreWalkable(unittest.TestCase):
         """Arc 1 session 3's wanted verb, recorded at 0.4.49 — opened,
         second-desk and, with --check, rehearsed — and read since session
         2026-10-07-twine-carry-bundle-003 by `twine carry bundle`, which
-        reads exactly the keys the entry names (outcome, sid, tarball,
-        opener, desk, bundle), each one of format_open_json's 23 at 0.4.51
-        (`reason` and `cause` trail 0.4.49's 21). Since the pin at 0.4.51 a
-        refusal is recorded too — `open-refused`, exit 1, a line on stdout
-        with reason `not-found` — and `second-desk`'s `tarball` is non-null;
-        the note says both, and that `carry bundle` reads neither `reason`
-        nor `cause` yet. Rewritten from test_open_json_is_a_surface_read_by_nothing_yet,
-        which pinned read_by and keys empty until row 3's verb existed."""
+        reads exactly the keys the entry names — eight since session
+        2026-10-12-twine-bundle-051-004: outcome, sid, tarball, opener, desk,
+        bundle, and the refusal's reason and cause — each one of
+        format_open_json's 23 at 0.4.51 (`reason` and `cause` trail 0.4.49's
+        21), so the key check requires all eight of every open line. Since
+        the pin at 0.4.51 a refusal is recorded too — `open-refused`, exit 1,
+        a line on stdout with reason `not-found` — and `second-desk`'s
+        `tarball` is non-null; the note says both, and that `carry bundle`
+        names the refusal's code and quotes its cause and keeps the
+        second-desk tarball since twine-bundle-051. Rewritten from
+        test_open_json_is_a_surface_read_by_nothing_yet, which pinned
+        read_by and keys empty until row 3's verb existed; its key list
+        moved from six to eight, and its "reads neither" needle went with
+        the sentence it found."""
         open_ = self.by_verb_and_flags()[("open", ("--json",))]
         self.assertEqual((open_["argv"], open_["keys"], open_["read_by"]),
                          (["open", "<bundle>", "--json"],
-                          ["outcome", "sid", "tarball", "opener", "desk", "bundle"],
+                          ["outcome", "sid", "tarball", "opener", "desk", "bundle",
+                           "reason", "cause"],
                           ["carry bundle"]))
+        self.assertEqual(len(open_["keys"]), 8)
         self.assertTrue(set(open_["keys"]) <= set(OPEN_KEYS))
+        for name in OPEN_RECORDINGS:
+            line = open_recording(name).line
+            self.assertTrue(all(key in line for key in open_["keys"]), name)
         for name in OPEN_RECORDINGS:
             self.assertEqual(tuple(open_recording(name).line), OPEN_KEYS, name)
         self.assertIn("carry bundle", open_["note"])
@@ -526,9 +537,11 @@ class SurfacesAreWalkable(unittest.TestCase):
         self.assertEqual((refused.exit_code, refused.line["outcome"], refused.line["reason"]),
                          (1, "open-refused", "not-found"))
         self.assertIsNotNone(open_recording("second-desk").line["tarball"])
-        for needle in ("open-refused", "not-found", "second-desk", "reads neither",
-                       "twine-bundle-051"):
+        for needle in ("open-refused", "not-found", "second-desk", "twine-bundle-051",
+                       "quoting its `cause` whole", "never dispatching on the cause",
+                       "adopts bale's"):
             self.assertIn(needle, open_["note"])
+        self.assertNotIn("reads neither", open_["note"])
         pack = self.by_verb_and_flags()[("pack", ("--json",))]
         self.assertEqual((pack["argv"][:2], pack["read_by"]), (["pack", "<goal>"], []))
         self.assertIn("opener", pack["key_owner"])

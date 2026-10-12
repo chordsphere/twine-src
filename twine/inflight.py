@@ -9,7 +9,7 @@ answers `opened` or `second-desk`, the verb records the open here:
 one JSON object with exactly four keys —
 
     {"sid": <sid>, "cwd": <the absolute directory bale ran in>,
-     "tarball": <bale's tarball from the opened line, or null>,
+     "tarball": <bale's request tarball, or null>,
      "opens": [{"outcome": "opened" | "second-desk",
                 "desk": <bale's desk: null | "desk-2" | …>,
                 "bundle_sha256": <bale's bundle.sha256>,
@@ -22,14 +22,21 @@ exclusive flock on `<state-dir>/inflight/` (twine/kill.py's
 `_write_replacing` and `_locked`, imported, not moved).
 
 `opened` writes a record holding that one open, replacing any record of the
-same sid. `second-desk` appends its entry to the record of that sid,
-keeping the record's `tarball` and `cwd`; with no record, or one that
-cannot be read as this shape, it writes a fresh record — `tarball` null,
-this invocation's `cwd`, only this entry — and says which (`Recorded.fresh`).
+same sid, its `tarball` the opened line's. `second-desk` appends its entry
+to the record of that sid, keeping the record's `cwd` and its `tarball` when
+that is set — adopting the second-desk line's when the record's is null and
+the line names one; with no record, or one that cannot be read as this
+shape, it writes a fresh record — the second-desk line's `tarball` (null
+only when bale's is null), this invocation's `cwd`, only this entry — and
+says which (`Recorded.fresh`). Session 2026-10-12-twine-bundle-051-004
+made those two second-desk rules: before it, the second-desk line's tarball
+was never kept.
 
-Why it exists in Arc 1 already: bale 0.4.49's `second-desk` line carries
-`tarball` null, so the record of the first open is where twine finds the
-request tarball a second desk needs (brief ruling 3).
+Why it exists in Arc 1 already: bale 0.4.49's `second-desk` line carried
+`tarball` null, so the record of the first open was where twine found the
+request tarball a second desk needs (brief ruling 3). Since bale 0.4.50 the
+`second-desk` line names the outbox tarball itself when the file exists;
+the record still answers when a line names none.
 
 It is a **cache** in N4's sense: every value in it is bale's (from the line
 bale printed) or the invocation's (`cwd`, `recorded_at`). Deleting it loses
@@ -41,10 +48,10 @@ without writing, locking or creating anything, and names each entry there
 that is not a record rather than dropping it.
 
 Sections:
-  1. Names and errors       (~line 65)
-  2. Reading a record       (~line 120)
-  3. Listing the records    (~line 210)
-  4. Recording an open      (~line 320)
+  1. Names and errors       (~line 70)
+  2. Reading a record       (~line 130)
+  3. Listing the records    (~line 220)
+  4. Recording an open      (~line 330)
 """
 
 from __future__ import annotations
@@ -73,7 +80,8 @@ RECORD_KEYS = ("sid", "cwd", "tarball", "opens")
 OPEN_KEYS = ("outcome", "desk", "bundle_sha256", "opener_sha256", "recorded_at")
 
 # The two outcomes of `bale open --json` that open a session at a desk
-# (format_open_json, bale 0.4.49). `rehearsed` (under --check) writes nothing.
+# (format_open_json; recorded at bale 0.4.51). `rehearsed` (under --check)
+# and `open-refused` (bale 0.4.50 on) write nothing.
 OPENED = "opened"
 SECOND_DESK = "second-desk"
 RECORDED_OUTCOMES = (OPENED, SECOND_DESK)
@@ -333,7 +341,8 @@ class Recorded:
               an error: the open bale reported is the session's now)
     fresh     a `second-desk` found no record to append to, or one that
               could not be read as one, and wrote a fresh record holding
-              only its own entry, `tarball` null — the sentence says which
+              only its own entry and bale's `tarball` (null when the line
+              names none) — the sentence says which
     """
 
     path: Path
@@ -361,8 +370,10 @@ def record_open(state_dir: Path, sid: str, *, outcome: str, cwd: str,
     replaces the record under an exclusive flock on `inflight/`, so two
     desks recording at once lose neither entry.
 
-    `tarball` is bale's (the opened line's; a second desk's is not kept:
-    the record's stands, or null on a fresh record). Raises ValueError for
+    `tarball` is bale's, from the line of this open: an `opened` record
+    holds it; a fresh `second-desk` record holds it; an appended
+    `second-desk` keeps the record's own when set and adopts it when the
+    record's is null (_compose). Raises ValueError for
     a sid or outcome that is not one, InflightError (carrying the record it
     found, if any) when the record cannot be written."""
     path = inflight_path(state_dir, sid)
@@ -407,7 +418,17 @@ def _compose(sid: str, outcome: str, cwd: str, tarball: str | None,
              entry: dict[str, Any], found: dict[str, Any] | None, fault: str | None,
              path: Path) -> tuple[dict[str, Any], bool, str | None]:
     """The record to write, whether an `opened` replaced one, and the
-    sentence a fresh `second-desk` record carries."""
+    sentence a fresh `second-desk` record carries.
+
+    The tarball rules (contract §15.4; session 2026-10-12-twine-bundle-051-004,
+    once bale 0.4.50's `second-desk` line began naming the outbox tarball):
+    every value stays bale's, so
+
+      opened                 bale's `tarball` (null when the line has none)
+      second-desk, appended  the record's own when it is set; bale's when
+                             the record's is null (adopted); null when both are
+      second-desk, fresh     bale's (null only when bale's is null)
+    """
     if outcome == OPENED:
         replaced = found is not None or fault is not None
         if replaced:
@@ -419,12 +440,22 @@ def _compose(sid: str, outcome: str, cwd: str, tarball: str | None,
         if found["cwd"] != cwd:
             log.info("in-flight record for %s: this desk ran in %s; the record keeps "
                      "the first open's %s", sid, cwd, found["cwd"])
-        return ({"sid": sid, "cwd": found["cwd"], "tarball": found["tarball"],
+        kept = found["tarball"]
+        if kept is None and tarball is not None:
+            log.info("in-flight record for %s: the record held no tarball; it adopts "
+                     "the one bale's second-desk line names, %s", sid, tarball)
+            kept = tarball
+        elif kept is not None and tarball is not None and kept != tarball:
+            log.info("in-flight record for %s: the record keeps its own tarball %s; "
+                     "bale's second-desk line names %s", sid, kept, tarball)
+        return ({"sid": sid, "cwd": found["cwd"], "tarball": kept,
                  "opens": [*found["opens"], entry]}, False, None)
+    held = ("bale's tarball" if tarball is not None
+            else "tarball null (bale's line names none)")
     if fault is not None:
         fresh = (f"{fault} — it was replaced by a fresh record holding only this "
-                 "second-desk open, tarball null")
+                 f"second-desk open, {held}")
     else:
         fresh = (f"no in-flight record of {sid} to append this second-desk open to; "
-                 f"a fresh one holding only it was written at {path}, tarball null")
-    return ({"sid": sid, "cwd": cwd, "tarball": None, "opens": [entry]}, False, fresh)
+                 f"a fresh one holding only it was written at {path}, {held}")
+    return ({"sid": sid, "cwd": cwd, "tarball": tarball, "opens": [entry]}, False, fresh)

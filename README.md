@@ -60,8 +60,13 @@ Arc 1 (the courier) session 1 landed twine's core:
   `inflight/<sid>.json` — the sid, where bale ran, the request tarball,
   and one entry per desk — so a second desk on the same session (bale's
   `second-desk`) is handed the request tarball: bale's own when its line
-  names one (bale 0.4.50 on), else the first open's. The record is a cache of what bale printed; nothing removes it
-  yet. Without `--check` an open is refused unless a state directory
+  names one (bale 0.4.50 on), else the record's. Since 0.15.0 the record
+  keeps that tarball too: a second desk's fresh record holds bale's, and
+  an appended one keeps its own or, holding none, adopts bale's. The
+  record is a cache of what bale printed; nothing removes it yet. A
+  refusal bale prints (`open-refused`, bale 0.4.50 on) is NOT OK, naming
+  bale's reason code and quoting its cause; nothing is recorded. Without
+  `--check` an open is refused unless a state directory
   resolves (an open that could not be recorded is refused before it
   happens); the same gate and the same key check on bale's line as the
   other carry verbs.

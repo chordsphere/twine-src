@@ -11,7 +11,8 @@ Modules:
   cli       the parser built from the registry, dispatch, and the
             --json discipline (one JSON line on stdout, exit 0/1/2)
   bale      the bale surface twine reads: install-root resolution,
-            bin/VERSION, the consumption manifest, the pin check (D2, D4)
+            bin/VERSION, the consumption manifest, the gate (D2, D4: the
+            floor and the schema hashes) and the key check on bale's lines
   shapes    the bale shapes in text: find, parse and verify every block a
             courier carries (probe, probe-output, light, exchange, relay);
             pure, executes nothing — `twine take` is the verb over it
@@ -34,8 +35,13 @@ Modules:
             (`bale unlock <sid> --reason aborted --json`, through the seam,
             the one step the pin gates) — called by `twine kill` and,
             later, the Arc 2 loop; spawns nothing itself
+  inflight  the in-flight record (Arc 1 session 3): <state-dir>/inflight/
+            <sid>.json, a cache of the opens `carry bundle` carried into
+            bale — written by that verb (record_open), listed by `twine
+            status` (list_inflight); nothing in Arc 1 removes one
   commands  the verb modules, each exposing COMMANDS (a family may span
-            modules: the `carry` verbs live in carry.py and carry_bale.py)
+            modules: the `carry` verbs live in carry.py, carry_bale.py
+            and carry_bundle.py)
 
 Stdlib only (T9). Nothing here imports from bale's bin/, office's lib/
 or tedder-src (T10); the `bale` executable is driven only through its

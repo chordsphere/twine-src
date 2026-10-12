@@ -59,9 +59,12 @@ text, and a test that needs bytes bale never printed still names them.)
 
 Since Arc 1 session 3 (`twine carry bundle`): StubBale also replays an
 `open` recording (`open_stdout=`), and `open_recording(name)` reads the
-three recorded `bale open … --json` lines (OPEN_RECORDINGS) — opened and
+recorded `bale open … --json` lines (OPEN_RECORDINGS) — opened and
 second-desk in the scratch repository, rehearsed under --check in
-~/twine-src — as `unlock_recording` reads the unlock lines.
+~/twine-src, and since the pin at 0.4.51 the refusal, open-refused (exit 1:
+StubBale's `exit_code=1` replays it end to end, as session
+2026-10-12-twine-bundle-051-004's tests do) — as `unlock_recording` reads
+the unlock lines.
 
 Since session 2026-10-08-twine-carry-exchange-json-001 (`carry exchange`
 reads `bale relay --json`'s line): `relay_recording(name)` reads the four
