@@ -304,7 +304,9 @@ aborted --json` (read by
 and since 0.4.49 the refusal line's `reason`, `message` and
 `open_sessions`; §14) and `bale open <bundle> --json` / `bale open
 --check <bundle> --json` (read by `carry bundle`: the keys `outcome`,
-`sid`, `tarball`, `opener`, `desk` and `bundle`; §15); `bale pack --json`
+`sid`, `tarball`, `opener`, `desk` and `bundle`, and since session
+`2026-10-12-twine-bundle-051-004` the refusal line's `reason` and `cause`;
+§15); `bale pack --json`
 is a recorded surface read by nothing yet. The
 file's header comment spells the entry shapes;
 `tests/test_consumption_manifest.py` walks them. `twine.bale.load_manifest`
@@ -1939,8 +1941,10 @@ false, exit 1, **bale not started**, nothing written:
 
 **ok** exactly when bale exits 0 and its stdout is one JSON object
 carrying every key the manifest lists for the open surface (`outcome`,
-`sid`, `tarball`, `opener`, `desk`, `bundle`; §6's key check, since session
-`2026-10-12-twine-pin-floor-002`) whose
+`sid`, `tarball`, `opener`, `desk`, `bundle`, and since session
+`2026-10-12-twine-bundle-051-004` `reason` and `cause` — every open line
+bale 0.4.50 on prints carries both, null unless refused; §6's key check,
+since session `2026-10-12-twine-pin-floor-002`) whose
 `outcome` is `"opened"` or `"second-desk"` (without `--check`) or
 `"rehearsed"` (with it), and, for the first two, whose `sid` is a string
 twine accepts as a sid (`twine.kill.is_sid`, §14.1's rule) and whose
@@ -1961,6 +1965,23 @@ the session may be open) — bale's stderr surfaced; no traceback;
 non-zero exit is still parsed and reported (`open`, `outcome`), never
 trusted.
 
+**A refusal is named by bale's code and cause** (session
+`2026-10-12-twine-bundle-051-004`). Since bale 0.4.50 a refused open prints
+a line too: `outcome` `"open-refused"`, exit 1, `reason` one code of bale's
+`OPEN_REFUSAL_REASONS` and `cause` bale's sentence (the `[bale] error:`
+text on stderr). That line is **not ok**, exit 1, and its failure names
+both — `bale refused the open (outcome 'open-refused', reason
+'not-found'): "<cause>"`, the cause quoted whole, as `carry exchange` names
+a `relay-refused` line (§11.2) — in place of the outcome mismatch (no `an
+open wants …` beside it), after `bale exited 1`. A code that is absent,
+null, empty or not a string reads `no reason code`; a cause likewise reads
+`its line names no cause`. twine dispatches on neither: the cause's wording
+is bale's and may change, and the code is named, never branched on.
+Nothing is recorded, and the reason does not say the session may be open
+(a refusal opened nothing). Under `--check` the same — a refused rehearsal
+prints the same line, and is named the same way, not as `--check wants
+'rehearsed'`.
+
 **The in-flight record**, on ok with `opened` or `second-desk` only:
 `<state-dir>/inflight/<sid>.json`, the directory 0700 (when twine creates
 it; an existing `inflight/` keeps the mode it has), the file 0600,
@@ -1971,7 +1992,7 @@ these keys, in this order:
 
 ```
 {"sid": <sid>, "cwd": <the absolute directory bale ran in>,
- "tarball": <bale's tarball from the opened line, or null>,
+ "tarball": <bale's request tarball (below: whose line, and when), or null>,
  "opens": [{"outcome": "opened" | "second-desk",
             "desk": <bale's desk: null | "desk-2" | …>,
             "bundle_sha256": <bale's bundle.sha256>,
@@ -1983,20 +2004,29 @@ these keys, in this order:
   of the same sid. Replacing is not an error: `record_error` stays null, and
   stderr says an earlier record was replaced.
 - `second-desk` **appends** its entry to the record of that sid, keeping
-  its `tarball` and `cwd` (the first open's). With no record, or one that
-  cannot be read as this shape (§15.7), it writes a **fresh** record —
-  `tarball` null, this invocation's `cwd`, only this entry — and
-  `record_error` says which (`no in-flight record of <sid> to append …`, or
-  the faults of the record it replaced), with a warning on stderr; the verb
-  stays ok.
+  its `cwd` (the first open's) and its `tarball` **when that is set** — and
+  **adopting bale's** when the record's is null and the line names one
+  (null when neither has one). With no record, or one that cannot be read
+  as this shape (§15.7), it writes a **fresh** record — **bale's
+  `tarball`** (null only when the line's is null), this invocation's `cwd`,
+  only this entry — and `record_error` says which (`no in-flight record of
+  <sid> to append …`, or the faults of the record it replaced, each ending
+  `bale's tarball` or `tarball null (bale's line names none)`), with a
+  warning on stderr; the verb stays ok.
 - **The tarball a second desk needs:** bale 0.4.49's `second-desk` line had
   `tarball` null; since bale 0.4.50 it names the outbox path when the file
   exists (the 0.4.51 recording carries it). On `second-desk` the twin's
-  `tarball` is bale's when bale gives one, else the record's (a fresh
-  second-desk record still keeps `tarball` null — taking bale's there is
-  `twine-bundle-051`'s); `tarball_source` says which — `"bale"`,
-  `"record"`, or null when neither has one. On `opened` it is bale's,
-  `tarball_source` `"bale"` (null when bale gave none).
+  `tarball` is bale's when bale gives one, else the record's;
+  `tarball_source` says which — `"bale"`, `"record"`, or null when neither
+  has one. On `opened` it is bale's, `tarball_source` `"bale"` (null when
+  bale gave none). When an appended record keeps its own tarball and bale's
+  line names a different one, the twin's is bale's (`"bale"`: no third
+  value — the source names where the twin's value came from, and the twin
+  hands on what bale printed for this desk) and stderr names both. Session
+  `2026-10-12-twine-bundle-051-004` made the record's two second-desk rules
+  (before it a second-desk line's tarball was never recorded): the record
+  stays a cache of bale's values, and keeping the value bale prints makes
+  that true again.
 - **A record that cannot be written after a successful open does not make
   the verb not ok**: the session is open in bale, and a failure that
   invited a retry would open another desk. `record` is null, `record_error`
@@ -2022,7 +2052,9 @@ these keys, in this order:
   rehearsed — bale would open it (nothing written)`.
 - **Human mode, not ok:** one stdout line, `carry bundle BUNDLE: refused —
   …` (bale not started) or `carry bundle BUNDLE: NOT OK — …`. `BUNDLE` in
-  the human lines is the argument as the operator gave it.
+  the human lines is the argument as the operator gave it. A refusal bale
+  printed reads `carry bundle BUNDLE: NOT OK — bale exited 1; bale refused
+  the open (outcome 'open-refused', reason '<code>'): "<cause>"` (§15.4).
 
 The JSON twin, `command` `"carry bundle"`. Fixed names, present on every
 path:
@@ -2075,11 +2107,18 @@ so the fixture player answers them with the recordings, the test selecting
 `opened`, `second-desk` or `open-refused` for the grouped name (§7);
 `tests/helpers.py`'s `open_recording(name)` reads them and
 `StubBale(open_stdout=…)` replays one (and its stderr) as a subprocess.
-**The refusal is recorded**: `carry bundle` reads it as it reads any line
-that is not an open — not ok, `bale exited 1` and the outcome named, the
-line reported (`open`, `outcome`), nothing recorded — and reads neither
-`reason` nor `cause` yet (that is `twine-bundle-051`'s, as is the fresh
-second-desk record keeping bale's tarball, §15.4). The exit-1,
+**The refusal is recorded, and read** (since session
+`2026-10-12-twine-bundle-051-004`): not ok, `bale exited 1`, bale's code
+(`not-found`) named and its `cause` quoted whole, the line reported
+(`open`, `outcome`), nothing recorded (§15.4) — replayed through the player
+and, end to end, by `StubBale` with exit 1. Doubles built from its bytes
+stand in for what bale has not printed: a `cause` or a `reason` null, both
+edited to text bale never printed (the `unclassified` fallback and a cause
+that reads like an open, to show nothing dispatches on it), the line
+answered to `--check`, and the line with `reason` or `cause` deleted (§6's
+key check). The second-desk recording, replayed into an empty state
+directory, writes a fresh record holding its tarball; edited with that
+tarball null it is the double for a line that names none. The exit-1,
 nothing-on-stdout case — bale's refusal at 0.4.49 (BALE.md §6.7 then:
 `fail()`, the reason on stderr) — stays a double named as such
 (`OpenDouble` in `tests/test_carry_bundle.py`), now the case of a bale
@@ -2126,11 +2165,14 @@ other entry in `inflight/`, by name — §4 lists the kinds); an absent
 `tests/test_carry_bundle.py`; its rendering in `status` is
 `tests/test_status.py`'s `InflightRecords`.
 
-The tests (`tests/test_carry_bundle.py`) replay the three recordings
-through the fixture player — `opened` and `second-desk` with the test's
-directory as the scratch repository, `rehearsed` with `--cwd` the
-repository root — and run the verb end to end as a subprocess against
-`StubBale` replaying `opened` into a temporary state directory. Every state
+The tests (`tests/test_carry_bundle.py`) replay the four recordings
+through the fixture player — `opened`, `second-desk` and `open-refused`
+with the test's directory as the scratch repository, `rehearsed` with
+`--cwd` the repository root — and run the verb end to end as a subprocess
+against `StubBale` replaying `opened`, `second-desk` (into an empty state
+directory, and appended to a record with and without a tarball of its own)
+and `open-refused` (exit 1) into a temporary state directory. `_compose`'s
+tarball rules are also tested through `record_open` directly. Every state
 directory is a temporary one; the in-process runs carry an environment
 with no state variables, so a verb without `--state-dir` refuses rather
 than touch the real default.
