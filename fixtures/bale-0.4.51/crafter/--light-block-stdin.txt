@@ -1,0 +1,11 @@
+=== LIGHT BEGIN 2026-10-02-twine-take-read-001 ===
+[1] question:     Specimen row 1 — does twine take report a probe block's script with its fences stripped?
+    while doing:  Recording fixtures for twine take (specimen only; no answer wanted)
+    would assume: stripped
+    why blocked:  not blocked; a recorded specimen for the parser's tests
+[2] question:     Specimen row 2: is a relay block to planner ever delivered to a worker?
+    while doing:  Recording the routing rule's fixture (specimen only; no answer wanted)
+    would assume: never
+    why blocked:  not blocked; a recorded specimen for the parser's tests
+Reply: answer inline, "as assumed", or "formal".
+=== LIGHT END 2026-10-02-twine-take-read-001 ===

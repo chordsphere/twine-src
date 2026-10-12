@@ -1,0 +1,18 @@
+[bale] dry-run validating drift-response-2026-10-08-sc-002.tar.gz against session 2026-10-08-sc-002
+[bale] apply.sh and validation.sh syntax checks passed
+[bale] manifest schema validation passed
+[bale] cross-session forecast collision check passed against 1 sibling session(s): 2026-10-08-ro-001
+[bale] admission prompt not offered (--dry-run predicts, never admits): the decline default applies to every drifted path
+[bale] [REJECT] own-forecast drift (BALE.md §11 row 22): 1 changes[] path(s) outside session 2026-10-08-sc-002's write forecast — other.txt; write forecast: hello.txt
+
+  [SCOPE-DRIFT-REFUSED] 2026-10-08-sc-002
+  past the forecast: other.txt
+  write forecast:    hello.txt
+  dry-run:           a real apply would refuse the same way
+  telemetry:         not recorded (dry-run has no outcome)
+
+The session stays open; nothing was staged or committed. Out-of-forecast work is worker judgment past the ask (ADR-0015): check the response's notes.md for its enumeration, then either:
+  - admit every drifted path deliberately by pasting this line (delete a flag to admit less):
+      bale apply 'drift-response-2026-10-08-sc-002.tar.gz' --allow-out-of-scope 'other.txt'
+  - regenerate the response inside the forecast and re-run `bale apply`,
+  - or reforecast: `bale unlock 2026-10-08-sc-002` and re-pack with a write forecast covering the work.

@@ -1,25 +1,30 @@
 """`twine carry bundle` (Arc 1 session 3, "offline courier — emit") and the
 in-flight record it keeps (twine/inflight.py). No test here reaches a bale
 (T8): bale is the fixture player (tests.helpers.FixturePlayer) answering
-from the three recorded `bale open … --json` lines, a run-seam double
+from the four recorded `bale open … --json` lines, a run-seam double
 (OpenDouble, below), or a stub executable (tests.helpers.StubBale).
 
 What is recorded, and what stands in for what is not:
 
-  - `bale open <bundle> --json`, recorded twice at bale 0.4.49 in the
-    scratch repository (fixtures/bale-0.4.49/scratch/open_bundle_--json
-    +opened.json and +second-desk.json, exit 0 each): the player answers the
-    argv only when a test selects the group (SELECT_OPENED,
-    SELECT_SECOND_DESK), with this test's directory as the scratch root.
+  - `bale open <bundle> --json`, recorded three times at the pin, bale
+    0.4.51, in the scratch repository, each with its stderr
+    (fixtures/bale-0.4.51/scratch/open_bundle_--json+opened.json and
+    +second-desk.json, exit 0 each — the second-desk line names a tarball
+    since bale 0.4.50 — and +open-refused.json, exit 1, a bundle file that
+    does not exist): the player answers the argv only when a test selects
+    the group (SELECT_OPENED, SELECT_SECOND_DESK, SELECT_REFUSED), with this
+    test's directory as the scratch root.
   - `bale open --check <bundle> --json`, recorded once in ~/twine-src
-    (fixtures/bale-0.4.49/twine-src/open_--check_bundle_--json.json, exit
+    (fixtures/bale-0.4.51/twine-src/open_--check_bundle_--json.json, exit
     0): the player answers it with --cwd the repository root.
-  - an open refusal: unrecorded (bale prints nothing on stdout and exits 1
-    through fail(), its reason on stderr — BALE.md §6.7); an OpenDouble,
+  - a bale that stopped before writing its line (exit 1, nothing on
+    stdout): no longer what a refusal looks like — since 0.4.50 a refusal
+    prints a line, the recorded one above — but kept as an OpenDouble,
     named as one. So are a timeout, a capped stdout, a line with an outcome
-    no bale emits (NOT_A_BALE_OUTCOME) and a recorded line with its `sid` or
-    `opener` taken out — each built in this file from a recording's bytes or
-    from nothing, and named a double where it is used.
+    no bale emits (NOT_A_BALE_OUTCOME) and a recorded line with its `sid`,
+    `opener` or `tarball` edited — each built in this file from a
+    recording's bytes or from nothing, and named a double where it is
+    used.
 
 Sections:
   1. Helpers and doubles
@@ -67,6 +72,10 @@ from tests.helpers import (NOT_A_BALE_OUTCOME, OPEN_KEY, OPEN_KEYS, OPEN_RECORDE
 SID = OPEN_RECORDED_SID
 SELECT_OPENED = {OPEN_KEY: "opened"}
 SELECT_SECOND_DESK = {OPEN_KEY: "second-desk"}
+SELECT_REFUSED = {OPEN_KEY: "open-refused"}
+# The scoped bundle the recorder opened (its sha256 as the recorder printed
+# it, and as the recorded lines' `bundle.sha256` carry it).
+RECORDED_BUNDLE_SHA256 = "6ecf00e1361a8a80cf534db55dbb21dd05b9ce0b9e1a5949a9de733dd3373901"
 RECORD_KEYS = ("sid", "cwd", "tarball", "opens")
 ENTRY_KEYS = ("outcome", "desk", "bundle_sha256", "opener_sha256", "recorded_at")
 UTC_Z = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -425,9 +434,9 @@ class Opened(Case):
         self.assertEqual(tuple(entry), ENTRY_KEYS)
         self.assertEqual((entry["outcome"], entry["desk"], entry["bundle_sha256"],
                           entry["opener_sha256"]),
-                         ("opened", None,
-                          "223b026b178499c313e6cfbe871a7ec7aa560097c7791b2831dff0d1075e8a26",
+                         ("opened", None, RECORDED_BUNDLE_SHA256,
                           sha256_text(recording.line["opener"])))
+        self.assertEqual(recording.line["bundle"]["sha256"], RECORDED_BUNDLE_SHA256)
         self.assertRegex(entry["recorded_at"], UTC_Z)
 
     def test_human_stdout_is_byte_identical_to_the_recorded_opener(self):
@@ -485,16 +494,23 @@ class Opened(Case):
 
 class SecondDesk(Case):
 
-    def test_opened_then_second_desk_appends_and_takes_the_records_tarball(self):
+    def test_opened_then_second_desk_appends_and_takes_bales_tarball(self):
+        """The recorded second desk after the recorded open: the entry is
+        appended to the record, which keeps the first open's tarball. Since
+        bale 0.4.50 the second-desk line names the request tarball itself
+        (the outbox path — the 0.4.51 recording carries it; 0.4.49's was
+        null), so the twin's `tarball` is bale's, `tarball_source` "bale".
+        Renamed from …_takes_the_records_tarball (0.4.49: "record")."""
         opened = open_recording("opened")
         second = open_recording("second-desk")
-        self.assertIsNone(second.line["tarball"], "bale 0.4.49's second-desk names none")
+        self.assertEqual(second.line["tarball"], opened.line["tarball"])
+        self.assertIsNotNone(second.line["tarball"])
         self.twin(str(self.bundle), runner=self.player())
         run, obj = self.twin(str(self.bundle), runner=self.player(SELECT_SECOND_DESK))
         self.assertEqual((obj["ok"], obj["outcome"], obj["desk"], obj["sid"]),
                          (True, "second-desk", "desk-2", SID))
         self.assertEqual((obj["tarball"], obj["tarball_source"]),
-                         (opened.line["tarball"], "record"))
+                         (second.line["tarball"], "bale"))
         self.assertEqual((obj["record"], obj["record_error"]), (str(self.record_file()), None))
         record = self.read_record()
         self.assertEqual(tuple(record), RECORD_KEYS)
@@ -504,7 +520,7 @@ class SecondDesk(Case):
         self.assertEqual(record["opens"][1]["opener_sha256"],
                          sha256_text(second.line["opener"]))
         self.assertEqual(tuple(record["opens"][1]), ENTRY_KEYS)
-        self.assertIn("(from record)", run.stderr)
+        self.assertIn("(from bale)", run.stderr)
         self.assertIn("desk-2", run.stderr)
 
     def test_human_stdout_is_the_desk_2_opener(self):
@@ -514,9 +530,16 @@ class SecondDesk(Case):
         self.assertIn(f"{SID}@desk-2", run.stdout)
 
     def test_second_desk_with_no_record_writes_a_fresh_one_and_says_so(self):
+        """No record to append to: a fresh one, said so. The twin's tarball
+        is the recorded line's (bale's, since 0.4.50), but the fresh record
+        keeps `tarball` null — the behaviour carry bundle has had since
+        session carry-bundle-003, which reads no tarball from a second-desk
+        line into a fresh record; taking bale's there is twine-bundle-051's,
+        and this test pins that it stands until then."""
+        second = open_recording("second-desk")
         _, obj = self.twin(str(self.bundle), runner=self.player(SELECT_SECOND_DESK))
         self.assertEqual((obj["ok"], obj["tarball"], obj["tarball_source"]),
-                         (True, None, None))
+                         (True, second.line["tarball"], "bale"))
         self.assertEqual(obj["record"], str(self.record_file()))
         self.assertIn("no in-flight record", obj["record_error"])
         self.assertIn("fresh", obj["record_error"])
@@ -527,7 +550,7 @@ class SecondDesk(Case):
 
     def test_second_desk_over_a_record_that_is_not_one_replaces_it_naming_why(self):
         self.record_file().parent.mkdir(parents=True)
-        self.record_file().write_text('{"sid": "2026-10-07-sc-002"}\n', encoding="utf-8")
+        self.record_file().write_text(json.dumps({"sid": SID}) + "\n", encoding="utf-8")
         run, obj = self.twin(str(self.bundle), runner=self.player(SELECT_SECOND_DESK))
         self.assertTrue(obj["ok"])
         self.assertIn("is not an in-flight record", obj["record_error"])
@@ -537,8 +560,10 @@ class SecondDesk(Case):
         self.assertIn("warning:", run.stderr)
 
     def test_bales_tarball_wins_when_its_second_desk_line_names_one(self):
-        """A double: the recorded second-desk line with a tarball, as the
-        bale-src follow-on will print it — bale's, tarball_source "bale"."""
+        """A double: the recorded second-desk line with its tarball edited to
+        one the record does not hold — bale 0.4.51's line names the same
+        outbox path as the first open's, so the edit is what tells whose
+        wins: bale's, tarball_source "bale"; the record keeps its own."""
         self.twin(str(self.bundle), runner=self.player())
         runner = OpenDouble(stdout=edited_line("second-desk", tarball="/from/bale.tar.gz"))
         _, obj = self.twin(str(self.bundle), runner=runner)
@@ -649,9 +674,44 @@ class NotOk(Case):
                         human.stdout)
         return obj
 
-    def test_a_refusal_nothing_on_stdout_exit_1(self):
-        """A double for bale's refusal (BALE.md §6.7: exit 1 through fail(),
-        nothing on stdout, the reason on stderr) — no refusal is recorded."""
+    def test_the_recorded_refusal_is_not_ok_and_records_nothing(self):
+        """The refusal recorded at 0.4.51 (bale 0.4.50 on prints one), replayed
+        through the player with its group selected: a bundle file that does
+        not exist — exit 1, outcome `open-refused`, reason `not-found`, the
+        line's `cause` and bale's `[bale] error: <cause>` on stderr. Not ok,
+        naming the exit and the outcome; the line is parsed and reported
+        (`open`, `outcome`), never trusted; nothing recorded; bale's
+        recorded stderr reaches the twin's and twine's stderr. carry bundle
+        reads neither `reason` nor `cause` yet (twine-bundle-051's), so the
+        reason quotes neither."""
+        refused = open_recording("open-refused")
+        self.assertEqual((refused.exit_code, refused.line["outcome"], refused.line["reason"]),
+                         (1, "open-refused", "not-found"))
+        player = self.player(SELECT_REFUSED)
+        run, obj = self.twin(str(self.bundle), runner=player)
+        self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"], obj["outcome"],
+                          obj["record"], obj["tarball"], obj["sid"]),
+                         (1, False, True, 1, "open-refused", None, None, None))
+        self.assertEqual(obj["open"], refused.line)
+        for needle in ("bale exited 1", "bale reported outcome 'open-refused'"):
+            self.assertIn(needle, obj["reason"])
+        self.assertNotIn("not-found", obj["reason"])
+        self.assertNotIn(refused.line["cause"], obj["reason"])
+        self.assertEqual(obj["stderr"], refused.stderr.decode("utf-8"))
+        self.assertIn(f"[bale] error: {refused.line['cause']}", run.stderr)
+        self.assertEqual(tree(self.state), set(), "a refused open recorded something")
+        self.assertEqual(len(player.calls), 1, "an open is never retried")
+        human = self.run_verb(str(self.bundle), runner=self.player(SELECT_REFUSED))
+        self.assertEqual((human.code, human.stdout.count("\n")), (1, 1))
+        self.assertTrue(human.stdout.startswith(f"carry bundle {self.bundle}: NOT OK — "))
+
+    def test_a_bale_that_stopped_before_writing_its_line_is_not_ok(self):
+        """A double, the stopped-before-a-line case: exit 1 and nothing on
+        stdout, the reason on stderr — what bale's refusal looked like before
+        0.4.50 (BALE.md §6.7 at 0.4.49: exit 1 through fail()), kept for any
+        bale that stops before its line. Renamed from
+        test_a_refusal_nothing_on_stdout_exit_1, when no refusal was
+        recorded."""
         obj = self.not_ok(OpenDouble(exit_code=1, stdout=b"",
                                      stderr=b"[bale] error: a double, not bale\n"),
                           "bale exited 1", "not one JSON object", "it was empty")

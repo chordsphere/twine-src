@@ -11,11 +11,12 @@ from twine import CONSUMPTION_MANIFEST, REPO_ROOT, shapes
 from twine.bale import ManifestError, load_manifest
 from twine.registry import load_registry
 
+from tests.fixture_rule import assign_groups
 from tests.helpers import (BALE_VOCABULARIES, GROUP_SEP, OPEN_KEYS, OPEN_RECORDINGS, PIN,
                            RELAY_KEYS, RELAY_RECORDINGS, UNLOCK_KEYS, UNLOCK_RECORDINGS, Role,
                            TempRoots, carried_relpath, emission_relpath, fixture_key,
-                           fixture_relpath, open_recording, relay_recording, split_group,
-                           unlock_recording)
+                           fixture_relpath, fixture_stem, open_recording, relay_recording,
+                           split_group, unlock_recording)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHEMA_FILES = {
@@ -24,9 +25,10 @@ SCHEMA_FILES = {
     "exchange-record.schema.json", "request-manifest.schema.json",
     "response-manifest.schema.json", "telemetry-record.schema.json",
 }
-# The eight schema hashes, unchanged from 0.4.45 to 0.4.49 (the manifest's
-# header says who hashed them and when); pinned here so a silent edit of
-# the manifest's table fails by name.
+# The eight schema hashes, unchanged from 0.4.45 through 0.4.49 to 0.4.51
+# (the manifest's header says who hashed them and when — at 0.4.51 a probe,
+# twine-051-record); pinned here so a silent edit of the manifest's table
+# fails by name.
 SCHEMA_SHA256 = {
     "bundle-manifest.schema.json": "3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23",
     "changelog-record.schema.json": "7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c",
@@ -47,22 +49,34 @@ ALSO_RECORDED_REQUIRED = {"argv", "cwd", "outcome", "fixture"}
 VOCABULARY_REQUIRED = {"axis", "values", "home", "pointer", "also_at", "excluded",
                        "read_by", "written_against", "read_at", "note"}
 README_ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| `(?P<cmd>[^`]+)` \|", re.M)
-# The unlock refusal's reason codes at 0.4.49 (UNLOCK_REFUSAL_REASONS in
-# bin/bale_report.py, read by the desk): the closed set `reason` takes.
+# The unlock refusal's reason codes at 0.4.49, unchanged at 0.4.51
+# (UNLOCK_REFUSAL_REASONS in bin/bale_report.py, read by the desk): the
+# closed set `reason` takes.
 UNLOCK_REASONS = ["hold-branch", "not-open", "several-open", "not-a-repo", "integration-json"]
+# The relay refusal's reason codes since bale 0.4.50 (RELAY_REFUSAL_REASONS in
+# bin/bale_report.py, read by the desk of sitting 2026-10-08-open-arc2-003 from
+# bale-src's context tarball; brief of session 2026-10-12-twine-pin-051-001,
+# §3), in bale's order, `unclassified` the fallback.
+RELAY_REASONS = ["not-open", "held-branch", "not-found", "not-an-object", "trailer-mismatch",
+                 "malformed-block", "wrong-session", "schema", "stale-round", "skipped-round",
+                 "planner-round-one", "unresolved-answer", "thread-changed", "no-rounds",
+                 "unreadable-record", "unreadable-input", "no-sid", "not-a-repo",
+                 "system-dir", "config-invalid", "no-git", "unclassified"]
 
 
-def expected_relpath(entry: dict) -> str:
-    """The path the naming rule gives an argv recorded in `cwd` with the
-    outcome group a verb entry (or an also_recorded row) implies: the
-    outcome, plus the reason where one is named, when the fixture carries
-    a group at all; the plain name otherwise."""
-    group = None
-    if GROUP_SEP in entry["fixture"].rsplit("/", 1)[-1]:
-        group = entry["outcome"]
-        if entry.get("reason"):
-            group += GROUP_SEP + entry["reason"]
-    return fixture_relpath(entry["argv"], entry["cwd"], group)
+def expected_relpaths(entries: list[dict]) -> list[str]:
+    """The paths the naming rule gives a verb surface's recordings — its
+    `fixture` and each `also_recorded` row, as entries with `argv`, `cwd`,
+    `outcome` and `reason` — with the outcome groups the collision rule
+    (fixture_rule.assign_groups, the lander's own) assigns among them: none
+    for an argv recorded once, `+<outcome>`, and `+<reason>` only where two
+    share the outcome."""
+    keyed = []
+    for e in entries:
+        stem, ext = fixture_stem(e["argv"])
+        keyed.append((stem + ext, e.get("outcome"), e.get("reason")))
+    return [fixture_relpath(e["argv"], e["cwd"], group)
+            for e, group in zip(entries, assign_groups(keyed))]
 
 
 class ManifestParses(unittest.TestCase):
@@ -84,9 +98,15 @@ class ManifestParses(unittest.TestCase):
             self.assertRegex(digest, SHA256, name)
 
     def test_the_schema_hashes_are_unchanged_at_the_pin(self):
-        """0.4.49's eight schemas hash to 0.4.45's values (the desk's
-        reading of bale-src's context tarball, 2026-10-07)."""
+        """0.4.51's eight schemas hash to 0.4.45's values — re-hashed by a
+        probe this time, twine-051-record (2026-10-08), where 0.4.49's were
+        the desk's reading of bale-src's context tarball; the header says
+        so."""
         self.assertEqual(load_manifest().schemas, SCHEMA_SHA256)
+        text = CONSUMPTION_MANIFEST.read_text(encoding="utf-8")
+        comment = text.split("\n[bale.schemas]\n", 1)[0].rsplit("\npin = ", 1)[1]
+        self.assertIn("UNCHANGED at 0.4.51", comment)
+        self.assertIn("re-hashed this time\n# by a probe: twine-051-record", comment)
 
 
 class SurfacesAreWalkable(unittest.TestCase):
@@ -133,10 +153,10 @@ class SurfacesAreWalkable(unittest.TestCase):
                 if "fixture" in s:
                     path = REPO_ROOT / s["fixture"]
                     self.assertTrue(path.is_file(), s["fixture"])
-                    outcome = (json.loads(path.read_bytes())["outcome"]
-                               if path.suffix == ".json" else None)
-                    self.assertEqual(s["fixture"], expected_relpath(
-                        {**s, "outcome": outcome, "reason": None}))
+                    line = json.loads(path.read_bytes()) if path.suffix == ".json" else {}
+                    reason = line.get("reason")
+                    entries = [{**s, "outcome": line.get("outcome"),
+                                "reason": reason if isinstance(reason, str) else None}]
                     for row in s.get("also_recorded", []):
                         with self.subTest(argv=s["argv"], also=row["fixture"]):
                             self.assertTrue(ALSO_RECORDED_REQUIRED <= set(row), row)
@@ -146,8 +166,12 @@ class SurfacesAreWalkable(unittest.TestCase):
                             self.assertEqual(line["outcome"], row["outcome"])
                             if isinstance(line.get("reason"), str):
                                 self.assertEqual(row.get("reason"), line["reason"])
-                            self.assertEqual(row["fixture"], expected_relpath(row))
+                            else:
+                                self.assertNotIn("reason", row, "a reason the line lacks")
                             self.assertEqual(row["argv"][0], s["verb"])
+                        entries.append(row)
+                    self.assertEqual(expected_relpaths(entries),
+                                     [e["fixture"] for e in entries])
                 else:
                     expected = fixture_relpath(s["argv"], s["cwd"])
                     self.assertFalse((REPO_ROOT / expected).exists(),
@@ -176,7 +200,9 @@ class SurfacesAreWalkable(unittest.TestCase):
                         seen.add(str(keyed))
                     elif token != "-":
                         self.assertNotIsInstance(keyed, Role)
-        self.assertEqual(seen, {"sid", "tarball", "file", "bundle", "goal"})
+        # No `<file>` since the pin at 0.4.51: the relay recordings are of
+        # twine's own argv, whose input is `-` (the stdin role), not a file.
+        self.assertEqual(seen, {"sid", "tarball", "bundle", "goal"})
 
     def test_the_two_new_roles_normalize_as_the_readme_says(self):
         """Session 2026-10-07-twine-pin-049-001's rules: every positional
@@ -240,10 +266,10 @@ class SurfacesAreWalkable(unittest.TestCase):
 
     def test_the_kill_switchs_unlock_surface(self):
         """Session 5b: `twine kill` runs exactly `bale unlock <sid> --reason
-        aborted --json` and reads format_unlock_json's keys — at 0.4.49 the
-        three the refusal line added too. The `aborted` close is recorded
-        (session 2026-10-07-twine-pin-049-001), the five other outcomes
-        beside it; no double and no `unrecorded` remain, the refusal's
+        aborted --json` and reads format_unlock_json's keys — since 0.4.49
+        the three the refusal line added too. The `aborted` close is recorded
+        (session 2026-10-07-twine-pin-049-001; re-recorded at 0.4.51 with its
+        stderr), the five other outcomes beside it; no double and no `unrecorded` remain, the refusal's
         reason codes are the closed set the entry records, and the
         recording the tests replay is the file the entry names."""
         unlock = self.by_verb_and_flags()[("unlock", ("--reason", "--json"))]
@@ -280,8 +306,9 @@ class SurfacesAreWalkable(unittest.TestCase):
             self.assertIn(reason, UNLOCK_REASONS)
 
     def test_every_json_verb_the_pin_bump_recorded_is_a_surface(self):
-        """status and stats (the brief of session core-002), and the four
-        verbs the 0.4.49 probes recorded under --json."""
+        """status and stats (the brief of session core-002), and the verbs
+        the 0.4.49 probes, and at 0.4.51 the recorder, recorded under
+        --json."""
         argvs = {tuple(s["argv"]) for s in self.verbs()}
         self.assertIn(("status", "--json"), argvs)
         self.assertIn(("stats", "--json"), argvs)
@@ -314,25 +341,28 @@ class SurfacesAreWalkable(unittest.TestCase):
         the pin bump recorded it, and since session
         2026-10-08-twine-carry-exchange-json-001 `carry exchange` reads it:
         `read_by` names the verb, `keys` the four it reads — each one of
-        format_relay_json's twelve, which every recorded line carries in
-        order — and the note names twine's argv, that the recordings were
-        made with a file, and the assumption the tests replay them on
-        (`_read_relay_input`). Rewritten from
-        test_relay_json_is_a_surface_now, which pinned read_by and keys empty
-        and the flagless surface beside it."""
+        format_relay_json's thirteen, which every recorded line carries in
+        order. Since the pin at 0.4.51 the surface's argv is twine's own,
+        `relay <sid> - --json`, recorded with the block on stdin (the
+        relayed round and both refusals), so the note says the stdin form is
+        recorded and the assumption the 0.4.49 file recordings rested on is
+        retired. Rewritten from the 0.4.49 version, whose argv was
+        `relay <sid> <file> --json` and whose note named the assumption."""
         by = self.by_verb_and_flags()
         relay = by[("relay", ("--json",))]
         self.assertEqual((relay["argv"], relay["keys"], relay["read_by"], relay["cwd"]),
-                         (["relay", "<sid>", "<file>", "--json"],
+                         (["relay", "<sid>", "-", "--json"],
                           ["outcome", "sid", "block", "cause"], ["carry exchange"],
                           "scratch"))
         self.assertTrue(set(relay["keys"]) <= set(RELAY_KEYS))
         self.assertIn("format_relay_json", relay["key_owner"])
         for key in RELAY_KEYS:
             self.assertIn(key, relay["key_owner"])
-        self.assertEqual([(r["outcome"], r.get("reason")) for r in relay["also_recorded"]],
-                         [("re-emitted", None), ("relay-refused", "ingest"),
-                          ("relay-refused", "session-gate")])
+        self.assertEqual([(r["argv"], r["outcome"], r.get("reason"))
+                          for r in relay["also_recorded"]],
+                         [(["relay", "<sid>", "--json"], "re-emitted", None),
+                          (["relay", "<sid>", "-", "--json"], "relay-refused", "not-an-object"),
+                          (["relay", "<sid>", "-", "--json"], "relay-refused", "not-open")])
         self.assertEqual(relay["fixture"], relay_recording("relayed").relpath)
         self.assertEqual(sorted([relay["fixture"]] + [r["fixture"] for r in
                                                       relay["also_recorded"]]),
@@ -342,8 +372,31 @@ class SurfacesAreWalkable(unittest.TestCase):
                 self.assertEqual(tuple(relay_recording(name).line), RELAY_KEYS)
         self.assertNotIn(("relay", ()), by, "the flagless surface is retired")
         for needle in ("2b-ii", "carry exchange", "relay <sid> - --json",
-                       "_read_relay_input", "with a file", "relay_sid_stdin_--json.json"):
+                       "paste block read from <stdin>", "_read_relay_input", "retired"):
             self.assertIn(needle, relay["note"])
+        self.assertNotIn("replaces the assumption", relay["note"])
+
+    def test_the_relay_refusals_reason_is_bales_closed_set(self):
+        """Since bale 0.4.50 a relay refusal's line carries a `reason` code
+        from RELAY_REFUSAL_REASONS: the surface records the set (in bale's
+        order, `unclassified` last) as `reasons` with its home, not as a
+        table axis, and each recorded refusal's code is one of them. twine
+        reads no `reason` from the relay line — `keys` stay the four."""
+        relay = self.by_verb_and_flags()[("relay", ("--json",))]
+        self.assertEqual(relay["reasons"], RELAY_REASONS)
+        self.assertEqual(len(relay["reasons"]), 22)
+        self.assertIn("RELAY_REFUSAL_REASONS in bin/bale_report.py (bale 0.4.50)",
+                      relay["reasons_home"])
+        self.assertNotIn("reason", relay["keys"])
+        self.assertNotIn("relay-reason", self.manifest.vocabularies, "not a table axis")
+        for name in ("not-an-object", "not-open"):
+            with self.subTest(recording=name):
+                rec = relay_recording(name)
+                self.assertEqual((rec.exit_code, rec.line["outcome"], rec.line["reason"]),
+                                 (1, "relay-refused", name))
+                self.assertIn(rec.line["reason"], RELAY_REASONS)
+        for name in ("relayed", "re-emitted"):
+            self.assertIsNone(relay_recording(name).line["reason"], name)
 
     def test_every_format_fixture_exists_follows_naming_and_parses_as_its_kind(self):
         """Each fixture parses, with take's parser, as one intact block of
@@ -387,13 +440,22 @@ class SurfacesAreWalkable(unittest.TestCase):
                     self.assertEqual(rel, expected)
 
     def test_the_carried_pastes_stay_under_the_version_that_printed_them(self):
-        """The desk's preference, ratified by this landing: the two 0.4.45
-        pastes are pointed at by path, not copied under bale-0.4.49/."""
+        """The desk's preference, ratified at 0.4.49 and standing at 0.4.51:
+        the two 0.4.45 pastes are pointed at by path, not copied under the
+        pin's directory. The pin's own `carried/` holds exactly one file,
+        the recorder's paste-back the 0.4.51 recordings were landed from —
+        and no format entry names it (the probe-output entry keeps the 0.4.45
+        paste as its specimen)."""
         by_format = {s["format"]: s for s in self.manifest.surfaces if s["kind"] == "format"}
         self.assertEqual({k: v["fixtures_version"] for k, v in by_format.items()},
                          {"probe": PIN, "light": PIN, "exchange": PIN,
                           "probe-output": "0.4.45", "relay": "0.4.45"})
-        self.assertFalse((REPO_ROOT / f"fixtures/bale-{PIN}/carried").exists())
+        carried = REPO_ROOT / f"fixtures/bale-{PIN}/carried"
+        self.assertEqual(sorted(p.name for p in carried.iterdir()),
+                         ["probe-output_twine-051-record.txt"])
+        named = {rel for s in by_format.values() for rel in s["fixtures"]}
+        self.assertFalse(any(rel.startswith(f"fixtures/bale-{PIN}/carried/") for rel in named))
+        self.assertIn("bale-0.4.51/carried/", by_format["probe-output"]["note"])
 
     def test_no_wanted_surface_remains(self):
         """The three gaps the 0.4.45 manifest carried — `open --json`,
@@ -414,9 +476,13 @@ class SurfacesAreWalkable(unittest.TestCase):
         second-desk and, with --check, rehearsed — and read since session
         2026-10-07-twine-carry-bundle-003 by `twine carry bundle`, which
         reads exactly the keys the entry names (outcome, sid, tarball,
-        opener, desk, bundle), each one of format_open_json's 21. Rewritten
-        from test_open_json_is_a_surface_read_by_nothing_yet, which pinned
-        read_by and keys empty until row 3's verb existed."""
+        opener, desk, bundle), each one of format_open_json's 23 at 0.4.51
+        (`reason` and `cause` trail 0.4.49's 21). Since the pin at 0.4.51 a
+        refusal is recorded too — `open-refused`, exit 1, a line on stdout
+        with reason `not-found` — and `second-desk`'s `tarball` is non-null;
+        the note says both, and that `carry bundle` reads neither `reason`
+        nor `cause` yet. Rewritten from test_open_json_is_a_surface_read_by_nothing_yet,
+        which pinned read_by and keys empty until row 3's verb existed."""
         open_ = self.by_verb_and_flags()[("open", ("--json",))]
         self.assertEqual((open_["argv"], open_["keys"], open_["read_by"]),
                          (["open", "<bundle>", "--json"],
@@ -428,9 +494,22 @@ class SurfacesAreWalkable(unittest.TestCase):
         self.assertIn("carry bundle", open_["note"])
         self.assertIn("format_open_json", open_["key_owner"])
         self.assertIn("opener", open_["key_owner"])
-        self.assertEqual([(r["argv"], r["cwd"], r["outcome"]) for r in open_["also_recorded"]],
-                         [(["open", "<bundle>", "--json"], "scratch", "second-desk"),
-                          (["open", "--check", "<bundle>", "--json"], "repo", "rehearsed")])
+        self.assertEqual([(r["argv"], r["cwd"], r["outcome"], r.get("reason"))
+                          for r in open_["also_recorded"]],
+                         [(["open", "<bundle>", "--json"], "scratch", "second-desk", None),
+                          (["open", "<bundle>", "--json"], "scratch", "open-refused",
+                           "not-found"),
+                          (["open", "--check", "<bundle>", "--json"], "repo", "rehearsed",
+                           None)])
+        self.assertEqual(len(OPEN_KEYS), 23)
+        self.assertEqual(OPEN_KEYS[-2:], ("reason", "cause"))
+        refused = open_recording("open-refused")
+        self.assertEqual((refused.exit_code, refused.line["outcome"], refused.line["reason"]),
+                         (1, "open-refused", "not-found"))
+        self.assertIsNotNone(open_recording("second-desk").line["tarball"])
+        for needle in ("open-refused", "not-found", "second-desk", "reads neither",
+                       "twine-bundle-051"):
+            self.assertIn(needle, open_["note"])
         pack = self.by_verb_and_flags()[("pack", ("--json",))]
         self.assertEqual((pack["argv"][:2], pack["read_by"]), (["pack", "<goal>"], []))
         self.assertIn("opener", pack["key_owner"])
@@ -439,10 +518,19 @@ class SurfacesAreWalkable(unittest.TestCase):
     def test_the_unlock_refusal_line_is_what_the_entry_says(self):
         """Session 5c asked bale-src for a refusal printed as a JSON line
         with a reason code; 0.4.47's is recorded: outcome unlock-refused,
-        a reason from the closed set, bale's message, nothing closed. No
-        recording carries a stderr — none was recorded and none is derived
-        (session 2026-10-07-twine-kill-reason-002): twine reads the refusal
-        by its `reason`."""
+        a reason from the closed set, bale's message, nothing closed. Since
+        the pin at 0.4.51 each recording carries the stderr bale printed
+        beside it, so the entry's `stdout` sentence — the line "beside
+        `[bale] error: <message>` on stderr" — is checked against bytes: each
+        refusal's stderr ends with exactly that line, the line's own
+        `message` (the HOLD refusal's after bale's `[bale] unlock: <sid>`
+        line), and the note says it is recorded fact. twine still reads the
+        refusal by its `reason`, never by stderr (session
+        2026-10-07-twine-kill-reason-002, whose "no recording carries a
+        stderr" this replaces)."""
+        unlock = self.by_verb_and_flags()[("unlock", ("--reason", "--json"))]
+        self.assertIn("beside `[bale] error: <message>` on stderr", unlock["stdout"])
+        self.assertIn("recorded fact", unlock["note"])
         for name in ("hold-branch", "not-open", "integration-json"):
             with self.subTest(recording=name):
                 rec = unlock_recording(name)
@@ -452,11 +540,18 @@ class SurfacesAreWalkable(unittest.TestCase):
                 self.assertTrue(rec.line["message"])
                 self.assertIsNone(rec.line["closure_reason"])
                 self.assertEqual(tuple(rec.line), UNLOCK_KEYS)
-                self.assertEqual(rec.stderr, b"")
+                error = f"[bale] error: {rec.line['message']}\n".encode("utf-8")
+                self.assertTrue(rec.stderr.endswith(error), rec.stderr)
+                before = rec.stderr[:-len(error)]
+                self.assertEqual(before, b"" if name != "hold-branch"
+                                 else f"[bale] unlock: {rec.line['sid']}\n".encode())
         close = unlock_recording("aborted")
         self.assertEqual((close.exit_code, close.line["outcome"], close.line["closure_reason"],
-                          close.line["reason"], close.stderr),
-                         (0, "unlocked", "aborted", None, b""))
+                          close.line["reason"]),
+                         (0, "unlocked", "aborted", None))
+        self.assertTrue(close.stderr.startswith(f"[bale] unlock: {close.line['sid']}\n"
+                                                .encode()))
+        self.assertNotIn(b"[bale] error:", close.stderr)
 
 
 class VocabulariesAreWalkable(unittest.TestCase):
@@ -487,7 +582,8 @@ class VocabulariesAreWalkable(unittest.TestCase):
     def test_each_home_is_an_installed_file_twine_pins(self):
         """A schema home is one of the eight whose sha256 [bale.schemas]
         pins; a source-file home records the sha256 as read at the pin —
-        bin/bale_report.py's at 0.4.49, format_apply_json at line 3040."""
+        bin/bale_report.py's at 0.4.51 (the installed file's, as probe
+        twine-051-record hashed it), format_apply_json at line 3426."""
         for entry in self.entries:
             with self.subTest(axis=entry["axis"]):
                 home = entry["home"]
@@ -500,18 +596,22 @@ class VocabulariesAreWalkable(unittest.TestCase):
                     self.assertRegex(entry["home_sha256"], SHA256)
         apply = self.manifest.vocabularies["apply-outcome"]
         self.assertEqual(apply["home_sha256"],
-                         "20871bc61408ef9a21a2d14789399463cf5ed9a92802b951f6a1438fe75b0c78")
-        self.assertIn("line 3040", apply["pointer"])
+                         "1f4f2c758fdc3b1f8f92e25dc1561dddbc4ffb11b335f86cdefab4a3e77b21e1")
+        self.assertIn("line 3426", apply["pointer"])
 
     def test_the_re_reading_at_the_pin_is_named_as_not_a_probe(self):
-        """The pin bump re-read the vocabularies from bale-src's context
-        tarball, not by probe; each entry's read_at says so beside the
-        probe that first read it."""
+        """Each pin bump re-read the vocabularies from bale-src's context
+        tarball, not by probe; each entry's read_at says so for 0.4.49 and
+        for 0.4.51 beside the probe that first read it — at 0.4.51 with the
+        schema homes' hashes re-taken by probe twine-051-record."""
         for entry in self.entries:
             with self.subTest(axis=entry["axis"]):
                 self.assertTrue(entry["read_at"][0].startswith("twine-"))
-                self.assertTrue(any("not a probe" in r and "0.4.49" in r
-                                    for r in entry["read_at"][1:]), entry["read_at"])
+                for version in ("0.4.49", PIN):
+                    self.assertTrue(any("not a probe" in r and version in r
+                                        for r in entry["read_at"][1:]), entry["read_at"])
+                if entry["home"].startswith("schemas/"):
+                    self.assertTrue(any("twine-051-record" in r for r in entry["read_at"]))
 
     def test_null_is_excluded_from_the_closure_reasons_by_name(self):
         closure = self.manifest.vocabularies["closure-reason"]

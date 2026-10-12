@@ -1,0 +1,2 @@
+[bale] unlock: 2026-10-08-sc-002
+[bale] error: branch bale/2026-10-08-sc-002 exists — this session reached HOLD. Use `bale revert 2026-10-08-sc-002` to discard the branch and clear the lock together, or `bale unlock --force` to clear only the lock (the branch would be left in place for you to delete manually).

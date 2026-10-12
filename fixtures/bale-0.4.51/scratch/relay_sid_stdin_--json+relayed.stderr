@@ -1,0 +1,14 @@
+[bale] relay: session 2026-10-08-sc-002
+[bale] relay: paste block read from <stdin> (trailer verified)
+[bale] relay: exchange record preserved as round 1 at .bale/clarifications/2026-10-08-sc-002/001.json (from worker)
+[bale] relay: session 2026-10-08-sc-002 stays open and suspended — no staging, no validation, no commit, no telemetry record
+[bale] clipboard: copied the exchange block to the clipboard (`clip.exe`, global bale.toml)
+
+  [RELAYED] 2026-10-08-sc-002
+  session:   2026-10-08-sc-002
+  ingested:  exchange record from <stdin>
+  preserved: .bale/clarifications/2026-10-08-sc-002/001.json (round 1, from worker)
+  thread:    1 round(s); awaiting planner
+  block:     emitted on stdout for the planner
+
+Next step — answer as an exchange record (from: planner, round 2, answers[] keyed question_round 1), then `bale relay 2026-10-08-sc-002 <answer.json|->`.

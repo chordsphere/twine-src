@@ -17,6 +17,32 @@ A carried paste is landed with every CRLF turned into LF and nothing
 else changed; the tests prove it by turning the LFs back into CRLFs and
 hashing to the received bytes.
 
+**stderr, and where a version's recordings come from** (since session
+`2026-10-12-twine-pin-051-001`, the pin at 0.4.51). Every recording of a
+bale argv or a crafter emission also lands the **stderr** the command
+printed beside it, byte-exact, as a **sibling file**: the same name with
+the extension `.stderr` in place of `.json` or `.txt`
+(`unlock_sid_--json+unlocked.json` beside `unlock_sid_--json+unlocked.stderr`),
+present even when stderr was empty (zero bytes). A version's section
+lists each recording in one **eight-column row** —
+
+```
+| file | command | ran in | exit | bytes | sha256 | stderr bytes | stderr sha256 |
+```
+
+— `file` the path under `fixtures/`, `command` the argv as the recorder
+echoed it, `ran in` the directory, then the exit, the stdout's bytes and
+sha256, and the sibling's bytes and sha256. The six-column rows of the
+0.4.45 and 0.4.49 sections stay as history: rows without stderr.
+A version's recordings come from **one paste-back**: the recorder,
+`bin/twine-record-fixtures`, runs every surface once and prints each
+stream's bytes, sha256 and a gzip+base64 copy of the whole stream; the
+paste-back lands under the version's `carried/` as the recordings' source
+(CRLF→LF, like any carried paste); and the lander,
+`bin/twine-land-recordings`, derives every file, sibling and row from it
+— `--check` proves the tree still holds exactly that. Nothing in a
+version's directory is typed. Contract §16 is the bump procedure.
+
 **Layout and naming.**
 
 ```
@@ -36,7 +62,9 @@ fixtures/bale-<version>/<where>/<verb>_<flag[-value…]>[_<flag[-value…]>…].
   command (`bale --version`) has no verb and starts with the flag.
 - `<ext>` is `.json` when `--json` was among the flags, else `.txt`.
 - `tests/helpers.py`'s `fixture_relpath(argv, cwd)` computes the path
-  from the argv after `bale`, and `share/bale-consumption.toml`'s
+  from the argv after `bale` (the rule itself is `tests/fixture_rule.py`,
+  which the lander imports too, since session
+  `2026-10-12-twine-pin-051-001`), and `share/bale-consumption.toml`'s
   `[[surface]]` entries point at these files by that path. A session
   recording a new fixture adds a surface entry, a row below, and nothing
   else.
@@ -51,7 +79,7 @@ per verb:
 
 | verb | argv after `bale` | normalized | name |
 |---|---|---|---|
-| `relay` | `relay <sid> - --json` | `relay`, role `sid`, role `stdin` (a file argument: role `file`) | `relay_sid_stdin_--json.json` — not recorded (below) |
+| `relay` | `relay <sid> - --json` | `relay`, role `sid`, role `stdin` (a file argument: role `file`) | `relay_sid_stdin_--json.json` — recorded since 0.4.51 (below) |
 | `apply` | `apply --dry-run --json <tarball>` | every positional after `apply` is role `tarball` | `apply_--dry-run_--json_tarball.json` |
 | `unlock` | `unlock <sid> --reason aborted --json` | a positional right after `unlock` is role `sid` (session 5b) | `unlock_sid_--reason-aborted_--json.json` |
 | `open` | `open [--check] <bundle> --json` | every positional after `open` is role `bundle` (session `2026-10-07-twine-pin-049-001`) | `open_bundle_--json.json`, `open_--check_bundle_--json.json` |
@@ -60,15 +88,16 @@ per verb:
 The `relay` row is twine's own argv since session
 `2026-10-08-twine-carry-exchange-json-001` (the flagless `relay <sid> -`,
 which would have named `relay_sid_stdin.txt`, is retired, and was never
-recorded). `relay_sid_stdin_--json.json` is not recorded either: the
-0.4.49 probe recorded `relay` with a file argument
-(`relay_sid_file_--json…`, and the re-emission with none). The tests
-replay those recordings for twine's argv (`tests/helpers.py` `RecordedRelay`) on a
-named assumption: bale 0.4.49's `bin/bale_relay.py` `_read_relay_input`
-reads stdin for `-` and the file otherwise, and nothing downstream of it
-differs — the way `RecordedUnlock` replays the refusals recorded without
-`--reason` (below). A recording of `relay <sid> - --json` replaces the
-assumption.
+recorded). `relay_sid_stdin_--json.json` is recorded since 0.4.51 (probe
+`twine-051-record`: the relayed round, and two refusals, each with the
+paste block or a line that is not one on stdin). The 0.4.49 probe had
+recorded `relay` with a file argument (`relay_sid_file_--json…`, and the
+re-emission with none), and the tests replayed those recordings for
+twine's argv on a named assumption — that bale reads `-` as it reads the
+file (`_read_relay_input`); the 0.4.51 recording retired the assumption,
+and the 0.4.49 files stay as history. (`RecordedUnlock` still replays the
+unlock refusals, recorded without `--reason`, for twine's argv on its own
+named assumption: below.)
 
 A value that selects *what* bale reports — `stats --sid <sid>`'s
 dossier, `--slug ro` — is not per-run and stays in the name. The fixture
@@ -93,13 +122,22 @@ answers a grouped name only when the test names the group it wants
 always visible where it is used.
 
 **The exit column** is what the player answers as the exit code (stdout
-is the file; stderr is not recorded byte-exact for any row — the probes
-print its first lines only, and clip.exe mangled their non-ASCII — so the
-player answers it empty, and no test replays a stderr from a recording or
-derives one; see "stderr" under bale 0.4.49 below). A row whose exit was
-not captured says `unrecorded`, never a guess, and the player refuses to
-answer for it unless the test names the code it assumes; every row of
-the 0.4.49 section has one.
+is the file). A row whose exit was not captured says `unrecorded`, never
+a guess, and the player refuses to answer for it unless the test names
+the code it assumes; every row of the 0.4.49 and 0.4.51 sections has one.
+
+**The stderr columns** (since 0.4.51) are what the player answers on
+stderr: the sibling's bytes, held to the row's sha256 (`tests/helpers.py`
+`recorded_stderr`). They are recorded byte-exact — the recorder prints a
+gzip+base64 copy of each stream, which survives a clipboard that mangles
+non-ASCII text — and nothing about a stderr is derived. Before 0.4.51 no
+row recorded stderr (the probes printed its first lines only, and clip.exe
+mangled their non-ASCII); the 0.4.49 session derived one refusal's stderr
+from its line until session `2026-10-07-twine-kill-reason-002` retired the
+derivation, and the 0.4.49 section's "stderr" paragraph is that history.
+twine reads no decision from bale's stderr — it reports and passes it
+through — and a test that needs a stderr bale never printed still names
+its bytes as not bale's.
 
 What is not the stdout of a `bale` argv keeps the version directory and
 names its own `<where>`; both kinds are text formats `twine take` reads,
@@ -313,3 +351,121 @@ The 0.4.45 section above and every file under `bale-0.4.45/` stay as
 recorded history; the tests read the pinned version's directory
 (`tests/helpers.py` `PIN`) and, for a carried paste, the version the
 manifest's format entry names.
+
+## bale 0.4.51
+
+Recorded 2026-10-08 by one probe, `twine-051-record` (13:35:24Z), landed
+by session `2026-10-12-twine-pin-051-001` (the pin bump from 0.4.49)
+through `bin/twine-land-recordings` from its paste-back, which lands here
+too (the carried table below). bale 0.4.51 at `/home/chordsphere/bale`
+(`~/.local/bin/bale`), its `bin/bale_report.py` sha256
+`1f4f2c758fdc3b1f8f92e25dc1561dddbc4ffb11b335f86cdefab4a3e77b21e1`, its
+`tools/craft_response.py` sha256
+`3d82833b7bc446207e1aeb2c970a78e455ae4b0e15d5cb78342b6badea487b08` (0.4.49's),
+its eight `schemas/*.json` hashed by the probe and every one unchanged since
+0.4.45; WSL2, python 3.12.3. The probe is the recorder,
+`bin/twine-record-fixtures`, as it now stands with its slug fixed: every
+verb ran with stdin closed (or the named file on stdin), and each stream's
+bytes, sha256, newline fact and gzip+base64 copy were printed. Every
+recording below is a stream copy decoded, hashed to the values printed
+beside it before the paste: the raw heads crossed `clip.exe` (em dashes
+and section signs mangled), the copies are the bytes. Nothing was repaired.
+
+`~/twine-src` was at head `c91dfda` on `master` (`VERSION` 0.10.0), the
+sitting `2026-10-08-open-arc2-003` (read-only) open — `status --json`'s
+`session` and the `--integration` refusal's `open_sessions` name it — and
+latest applied `2026-10-08-twine-seed-tidy6-002`. The `--check` bundle was
+crafted outside the repository (`/tmp/tmp.7us84LTOtN/check/`, nine pack
+tokens, a brief, no checkpoint) and rehearsed in it. Everything that writes
+ran in a **throwaway repository**, `/tmp/tmp.7us84LTOtN/scratch-repo`,
+created under `mktemp -d` and removed at the end: `git init -b main`, one
+committed `hello.txt` (head `6f5d5de`), no `bale.toml` of its own, the
+operator's global one in force (clipboard `clip.exe`, a `post_pack` hook
+offered and declined on closed stdin). In it the probe packed the
+read-only session `2026-10-08-ro-001` (goal `twine-051-record: the
+read-only session`, one positional), opened the scoped session
+`2026-10-08-sc-002` from a crafter bundle (`--include hello.txt --write
+hello.txt`, a brief, no checkpoint), opened it again as desk-2, asked for
+a bundle that does not exist, relayed a one-question clarification
+manifest as round 1 from worker through the paste block on stdin (964
+bytes, sha256 `7921f0df07f8e2054238fb0466ec01ffef44fac49be0661025432f1699b77c9c`),
+re-emitted it, fed relay a line that is not a paste block and the block
+under a sid not open (`no-such-sid-twine-051`), dry-ran a clean response
+(`hello.txt` modified) and a drifting one (`other.txt` created beside it),
+made the branch `bale/2026-10-08-sc-002` by hand for the HOLD refusal and
+deleted it, closed the scoped session `aborted`, the read-only one without
+a reason, and ran the no-op. The two crafter block renderers were fed on
+stdin the same specimen clarification manifest as 2026-10-02's (1001
+bytes, sha256 `8a9fa99994237b94e1c9e5b2e3599a93eb232f6f0ba0f840ba0887a35e2f8c9b`).
+
+| file | command | ran in | exit | bytes | sha256 | stderr bytes | stderr sha256 |
+|---|---|---|---|---|---|---|---|
+| `bale-0.4.51/anywhere/--version.txt` | `bale --version` | `/home/chordsphere/twine-src` | 0 | 12 | `de4bfb2eea95dc5102c052339fba0c576c839a7bb8de083373994b04c109bcb4` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `bale-0.4.51/twine-src/status_--json.json` | `bale status --json` | `/home/chordsphere/twine-src` | 0 | 2830 | `688c2a65b1d33342d3ef789c3cf3314001c747fd49c5802896a7c04dd709b572` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `bale-0.4.51/twine-src/stats_--json.json` | `bale stats --json` | `/home/chordsphere/twine-src` | 0 | 19063 | `22fd5448775a980c8db490079a51ab4d8ce63f5ba3a9312f52208585b35bd05b` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `bale-0.4.51/twine-src/stats_--sid-2026-10-01-twine-seed-001_--json.json` | `bale stats --sid 2026-10-01-twine-seed-001 --json` | `/home/chordsphere/twine-src` | 0 | 4026 | `c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `bale-0.4.51/twine-src/unlock_sid_--json+unlock-refused+not-open.json` | `bale unlock no-such-sid-twine-051 --json` | `/home/chordsphere/twine-src` | 1 | 391 | `a6da42625c53f2f18442bf0297400918e033f9091d16bbd3dadb324a1e54029a` | 119 | `2e8ec66238b6879a63d7667cad8a197d8853d75d7aacab55b5cab26066cc475e` |
+| `bale-0.4.51/twine-src/unlock_--integration_--json.json` | `bale unlock --integration --json` | `/home/chordsphere/twine-src` | 1 | 514 | `f64fec6c21aa9f97c1ac5528a4fafea15a9538c1b02310858d0f0bc8f4254049` | 253 | `23b022935757f1b3999ef3354c3efc723f777c6652c280093ad4bad6f79439fc` |
+| `bale-0.4.51/twine-src/open_--check_bundle_--json.json` | `bale open --check /tmp/tmp.7us84LTOtN/check/twine-051-probe.bale-bundle --json` | `/home/chordsphere/twine-src` | 0 | 723 | `b8cf0ef8e85cb6779c9e56d50b31baf876c5a27bb33300bf3ea9121e27371bf0` | 1802 | `95788022dd14dbb6302b3538fbf413fcec7911eb3d404048e59371eec1c8753d` |
+| `bale-0.4.51/crafter/--probe-twine-take-fixture.txt` | `craft_response.py --probe twine-take-fixture` | `/home/chordsphere/twine-src` | 0 | 2626 | `1f5e235fd0958b4e984b2b5fe7c1745466171c02eff9603b1eb09330ccdca00e` | 594 | `9411fa4d519f03fef3f20e48e095b72e18f264adc18fe4b1d1fd3b989dd8c6cc` |
+| `bale-0.4.51/crafter/--light-block-stdin.txt` | `craft_response.py --light-block -` | `/home/chordsphere/twine-src` | 0 | 722 | `55c53cfe057b2e5a5cee10b7f6eabbbcb5365e24cc481329b27f19c6f3cebdb8` | 632 | `643da8527bb2b45bb3db80aa07bbec63e0552d0786cdec1e63a549f261a45d17` |
+| `bale-0.4.51/crafter/--emit-block-stdin.txt` | `craft_response.py --emit-block -` | `/home/chordsphere/twine-src` | 0 | 1618 | `b1730d1a40eb48bf3b60be5fb389c110ee4f0b843fe87e87fa192c6720e2a2d9` | 317 | `87c88a3de079ecc5c7fee937d2628a49ade99251fb1662b51afda70ebd63691a` |
+| `bale-0.4.51/scratch/pack_goal_--slug-ro_--read-only_--no-readme_--json.json` | `bale pack twine-051-record: the read-only session --slug ro --read-only --no-readme --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 2030 | `0320baecb3f0e70913d3de98ecdfef6cc50e88133e0f55945add6152da9949ed` | 4287 | `b1c36a6b10417025f48c68c06c559f80a9d0ffc9bdd052d75f3c26151e7d07ef` |
+| `bale-0.4.51/scratch/open_bundle_--json+opened.json` | `bale open /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 2337 | `838012cf6c7c760f5ff5786c6c9fc0f4cfec4a7f4bf2217a35384464cca930c9` | 4562 | `e4b2a2b64409eca88d509ef1d7cce854bd0db91f961410bc766f54e17f643f2b` |
+| `bale-0.4.51/scratch/open_bundle_--json+second-desk.json` | `bale open /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 2316 | `7629b63b930a99f2e2888e3df7be93810d886d4bd65688578d03cd48f1b66bba` | 2730 | `93684b7d2d0463be5cd50f4a08452d7cdd315b0bd1de6d9f3bcce63888e64c20` |
+| `bale-0.4.51/scratch/open_bundle_--json+open-refused.json` | `bale open /tmp/tmp.7us84LTOtN/no-such-twine-051.bale-bundle --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 1 | 536 | `31908963df7fa7919ffd37f634a9bbe8866e0346a845894f5845fa7646a30fcf` | 82 | `8b84698f329ec410e64a5612c8494524c01f15e955a4d31dce5cf04cd331670c` |
+| `bale-0.4.51/scratch/relay_sid_stdin_--json+relayed.json` | `bale relay 2026-10-08-sc-002 - --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 1384 | `b98fc9c13e4851701c2b1ee55f558c45319c8ed237a3a50ea8885c5329c9d5d0` | 872 | `c9219a9b0b296867ee1e986f1f9413d19e4931459cc8509d5caec64def80c27c` |
+| `bale-0.4.51/scratch/relay_sid_--json.json` | `bale relay 2026-10-08-sc-002 --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 1329 | `600559d6927583dde5c8bcc7111d1707d13f8567d3197e15c489f3ef886d5f1c` | 857 | `30d6b99c5db67b52b98014b16439e8ebc51ab9360de689c389622ab7b4a0d6c6` |
+| `bale-0.4.51/scratch/relay_sid_stdin_--json+relay-refused+not-an-object.json` | `bale relay 2026-10-08-sc-002 - --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 1 | 544 | `2151ca6880480456eb8bae15ec9dcba57fef01e23192714811185f34d45671da` | 356 | `07dbaa4a3f2e04929a705c3c2dd4275bd9430c3915c313543c7369fcdfb9836f` |
+| `bale-0.4.51/scratch/relay_sid_stdin_--json+relay-refused+not-open.json` | `bale relay no-such-sid-twine-051 - --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 1 | 495 | `7af4cac97afab2acea2020c989b197324a9b497a8e699409f0f40661a8a7c764` | 264 | `4dd50c0efb1d5dde0c26bbbdf9803b456fa45144d02dec8c9e953ea46d700993` |
+| `bale-0.4.51/scratch/apply_--dry-run_--json_tarball+dry-run.json` | `bale apply --dry-run --json /tmp/tmp.7us84LTOtN/clean/clean-response-2026-10-08-sc-002.tar.gz` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 290 | `7e7fd743b142148a90b145032709297c8ade1493595a5ba5a2ad8e5933d3cea8` | 747 | `24da1657bfc9cf300c8d1109aae85052916932dbddbf47072210a74da777fd82` |
+| `bale-0.4.51/scratch/apply_--dry-run_--json_tarball+scope-drift-refused.json` | `bale apply --dry-run --json /tmp/tmp.7us84LTOtN/drift/drift-response-2026-10-08-sc-002.tar.gz` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 1 | 521 | `226625c1bfd08134df342813795fdd9dc03664787723525867674a787c068ca0` | 1363 | `deb16ba9bd89454784f85cc3011ac3f27365f58f45888f84b06d3bf4615eea7c` |
+| `bale-0.4.51/scratch/unlock_sid_--json+unlock-refused+hold-branch.json` | `bale unlock 2026-10-08-sc-002 --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 1 | 569 | `b6bd5de4407d3f378daea09b3a9883c4394da7bdd24f805846d0ba1337934cda` | 314 | `98198a9917db84acc4d8b901bc57fcaf99a819b58cfd27ea41050a9d41f47e8a` |
+| `bale-0.4.51/scratch/unlock_sid_--reason-aborted_--json.json` | `bale unlock 2026-10-08-sc-002 --reason aborted --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 489 | `319fb276ca1f3b5ab1801a680210ea5d2a7bc31ab60ed7251bb15e9b60501b6e` | 499 | `c20c85866f6403dbd89c209f52431866198036589654012eb630744ee154855f` |
+| `bale-0.4.51/scratch/unlock_sid_--json+unlocked.json` | `bale unlock 2026-10-08-ro-001 --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 498 | `be6651120e7e7c06f4b00feb722adb9f5a110adc846a0481cd4af1e53ae6a4ec` | 413 | `3a67defb0070a978697aed381171ab07764d44bdaf025987cd1920ad6d398ecb` |
+| `bale-0.4.51/scratch/unlock_--json.json` | `bale unlock --json` | `/tmp/tmp.7us84LTOtN/scratch-repo` | 0 | 231 | `e7a675b90e559559496927b2de7baad3f31f7d62268991615c3beded8bbe501e` | 39 | `73e52366af85bc078cf566c3a5551e2f920c17a41bec616e956e290ad8cfe0fc` |
+
+Outcome groups in this section, by normalized argv (the rule is above):
+`unlock_sid_--json` — `unlock-refused+not-open` (in `twine-src/`),
+`unlock-refused+hold-branch` and `unlocked` (in `scratch/`), the two
+refusals sharing the outcome and so each carrying its line's `reason`;
+`open_bundle_--json` — `opened`, `second-desk` and `open-refused`, three
+outcomes, so no reason (the refusal's line has one, `not-found`);
+`relay_sid_stdin_--json` — `relayed`, `relay-refused+not-an-object` and
+`relay-refused+not-open`, each refusal carrying its line's `reason`, which
+relay lines have had since bale 0.4.50 (no tag is this section's);
+`apply_--dry-run_--json_tarball` — `dry-run`, `scope-drift-refused`.
+`relay <sid> --json`, the re-emission, is recorded once and keeps its plain
+name.
+
+What the recordings say, beside 0.4.49's: `stats --sid …`, the no-op
+unlock, the probe scaffold and the light block are byte-identical to their
+0.4.49 recordings, and the exchange block differs only in `created_at` and
+its trailer. `open --json`'s line has 23 keys, `reason` and `cause` after
+0.4.49's 21; a refusal prints one (`open-refused`, exit 1, its `reason`
+from `OPEN_REFUSAL_REASONS`), and `second-desk`'s `tarball` is the outbox
+path (0.4.49's was null). `relay --json`'s line has 13 keys, `reason`
+last. `unlock`, `apply`, `pack`, `status` (13 keys) and `stats` lines are
+unchanged in shape; the two `~/twine-src` unlock refusals differ from
+0.4.49's only in the sid and in `open_sessions`. **stderr**, recorded for
+every row: each unlock refusal's stderr ends with `[bale] error: <message>`
+and a newline, the line's own `message` (the HOLD refusal's is preceded by
+bale's `[bale] unlock: <sid>` line); each relay and open refusal's carries
+the line `[bale] error: <cause>`, the line's own `cause` (the
+`not-an-object` relay refusal's between two `[bale] relay:` lines, the
+second saying the refusal was recorded as a `relay-refused` attempt); the
+relayed and re-emitted rounds', pack's and the two opens' carry the
+operator's clipboard notice (`[bale] clipboard: copied … (`clip.exe`,
+global bale.toml)`); `status`, both `stats` and `--version` printed
+nothing on stderr. The crafter emissions' stderr is
+the crafter's `[craft]` commentary. The tests replay all of it: the
+player answers each row's sibling, and `unlock_recording`,
+`open_recording` and `relay_recording` return it.
+
+Carried paste: the recordings' source. It is not a format entry's fixture
+(the `probe-output` entry keeps the 0.4.45 paste as its specimen); it is
+what `bin/twine-land-recordings --check` reads.
+
+| file | emission | received (line endings, bytes, sha256) | bytes | sha256 |
+|---|---|---|---|---|
+| `bale-0.4.51/carried/probe-output_twine-051-record.txt` | the output of probe `twine-051-record` (`bin/twine-record-fixtures`), run 2026-10-08T13:35:24Z; its trailer counts 1444 lines and the paste carries 1444 | CRLF 135428 `b1bb27d1d54b40dc75a086c36c719742e6170b647c93de94d5a86b2662063e01` | 133981 | `dec7a229a8e108c2e2dd43a499e80ce473603201882f7422c1ef98dc7908a238` |

@@ -45,8 +45,8 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.probe_turn = Path(self._turns.name) / "turn.txt"
         self.probe_turn.write_text(fenced_probe(filled_probe()), encoding="utf-8")
         # The two bale hand-offs run a stub bale (a double, never bale):
-        # relay replays the recorded `relay --json` line (relayed, 0.4.49,
-        # the scratch repository; since session
+        # relay replays the recorded `relay --json` line (relayed, recorded at
+        # the pin under twine's own argv in the scratch repository; since session
         # 2026-10-08-twine-carry-exchange-json-001 — before it, the crafter's
         # exchange emission stood in for the flagless relay's stdout), and
         # carry exchange carries that line's own block, so the line answers
@@ -56,12 +56,13 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         self.dry_run = REPO_ROOT / fixture_relpath(
             ["apply", "--dry-run", "--json", "/any/response.tar.gz"], "scratch", "dry-run")
         # kill's closure: the stub answers unlock with the recorded `aborted`
-        # close of KILL_SID (bale 0.4.49; fixtures/README.md).
+        # close of KILL_SID (bale 0.4.51; fixtures/README.md), and on stderr
+        # the recording's sibling.
         self.unlock_line = unlock_recording("aborted").path
         self.kill_repo = Path(self._turns.name) / "repo"
         self.kill_repo.mkdir()
         # carry bundle (Arc 1 session 3): the stub answers open with the
-        # recorded --check rehearsal (bale 0.4.49), and the bundle is a file
+        # recorded --check rehearsal (bale 0.4.51), and the bundle is a file
         # the stub never reads.
         self.bundle = Path(self._turns.name) / "json-discipline.bale-bundle"
         self.bundle.write_bytes(b"a bundle the stub never reads\n")

@@ -1,0 +1,9 @@
+[bale] unlock: 2026-10-08-ro-001
+[bale] closed session 2026-10-08-ro-001 in the registry
+[bale] wiped /tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-ro-001
+[bale] sweep: committed 1 file(s) as a2a4322
+
+  [UNLOCK] 2026-10-08-ro-001
+  lock:      cleared
+  session:   wiped (/tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-ro-001)
+  telemetry: recorded claude/telemetry/2026-10-08-ro-001.json

@@ -1,0 +1,61 @@
+[bale] tree position: branch main; latest applied none yet
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+[bale] packing without a README (--no-readme)
+[bale] created /tmp/tmp.7us84LTOtN/scratch-repo/.gitignore with '.bale/'.
+[bale] auto-committed the .gitignore change
+[bale] selected 2 files for context/ (13 B, max depth 0)
+[bale] session id: 2026-10-08-ro-001
+[bale] pack clock: 2026-10-08T13:35:25+00:00 (UTC; the sid's date is this instant's date)
+[bale] work_class inferred 'meta' for the read-only session shape (no --work-class given; pass the flag to override)
+[bale] read-only session shape (v0.3.15): recorded write forecast is empty — locks nothing (siblings pack freely), may land nothing (the own-forecast drift gate refuses every changes[] path this session ships). Close-out (board 33): the next read-only pack offers to close this session, or run `bale unlock` now
+[bale] provenance: base-drift stamp covers 0 committed file(s) across 0 forecast entries (HEAD bytes; files with no committed base are absent by design)
+[bale] provenance: packer='chordsphere' work_class='meta' bale_version=0.4.51 packed_at=2026-10-08T13:35:25+00:00
+[bale] request manifest schema validation passed
+[bale] wrote /tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-ro-001.tar.gz
+[bale] recorded session scope for 2026-10-08-ro-001: (empty — read-only session)
+[bale] open provenance: work_class='meta' packer='chordsphere' recorded at .bale/sessions/2026-10-08-ro-001/provenance.json
+[bale] open provenance: telemetry record opened at claude/telemetry/2026-10-08-ro-001.json (outcome 'opened'; close-time events append to it)
+[bale] opened session 2026-10-08-ro-001 in the registry (lock pointer written)
+
+  hook:   post_pack (global)
+  script: /home/chordsphere/bale/user/scripts/copy-request-to-downloads.sh
+  cwd:    /tmp/tmp.7us84LTOtN/scratch-repo
+  env:    BALE_HOOK=post_pack
+          BALE_SESSION_ID=2026-10-08-ro-001
+          BALE_TARBALL=/tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-ro-001.tar.gz
+          BALE_REPO_ROOT=/tmp/tmp.7us84LTOtN/scratch-repo
+  This script runs as your user. It may write outside the repo,
+  install software, or perform any action its author chose.
+  Inspect the script before approving.
+  default: accept — global-layer hook — your own script
+  run this hook? [Y/n] 
+[bale] [hook post_pack] declined (stdin closed or interrupted); not invoking.
+
+Open the session: paste the block below into a fresh agent chat,
+unedited, with the request tarball attached.
+
+--8<-- session opener (copy everything between the scissor lines) --8<--
+I'm using "bale", a CLI that packaged the attached request tarball.
+This message opens read-only bale session 2026-10-08-ro-001
+(empty write forecast: an orchestration/discussion session — no changes land from it).
+Goal, verbatim from the request manifest: twine-051-record: the read-only session
+The docs and tools in the tarball are mine, written for this workflow;
+AGENT.md and the four docs beside it are my instructions for this
+session. Read manifest.json first, then AGENT.md; AGENT.md says when
+the other four docs are needed. tools/craft_response.py and
+tools/response_lint.py are stdlib-only formatters with no network
+access — conveniences over the docs, which are the contract; read them
+before you run them, and a response assembled by hand is just as
+valid.
+Packed at 2026-10-08T13:35:25+00:00 (UTC).
+bale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.
+If you need something from me, a fact from my machine or a decision,
+end that turn with the matching block from TARBALL.md (a probe, a
+light question block, or a clarification response) rather than a
+question in prose, which tends to get lost. This is a planner session:
+nothing lands from it, so don't build a response tarball, even an
+empty one. What I need back is your answer in chat and, for each
+session I ask you to author, a crafter bundle with its bale open line,
+as PLANNER.md describes.
+--8<-- end session opener --8<--
+[bale] clipboard: copied the session opener to the clipboard (`clip.exe`, global bale.toml)

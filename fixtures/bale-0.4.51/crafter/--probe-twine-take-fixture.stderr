@@ -1,0 +1,3 @@
+[craft] clipboard copy wired through the installed bale (`bale clipboard`): at run time it copies the PROBE BEGIN/END block with that machine's [clipboard] command, project or global, and says so either way
+[craft] fallback for a machine without bale on PATH: remedy text naming `bale config init --global` (no request key: bale.toml found; [clipboard] command / [probe] clipboard_command unset)
+[craft] probe skeleton emitted — fill the TODO placeholders (what, why, real sections with caps), then paste into chat; no lint runs on a probe — the architect audits it by eye (TARBALL.md 4.2)

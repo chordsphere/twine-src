@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+# PROBE twine-record-fixtures: record every bale --json surface twine reads, stdout AND stderr, at the installed bale — the twine-src reads, the verbs that write in a throwaway repository, and the three crafter emissions.
+# Why: a pin bump lands fixtures/bale-<version>/ from one paste-back of this recorder, every surface recorded once, byte-exact, with both streams; bin/twine-land-recordings lands them (contract §16). First run as probe twine-051-record (2026-10-08, bale 0.4.51); landed as bin/twine-record-fixtures by session 2026-10-12-twine-pin-051-001, the slug made an argument and nothing else changed.
+# Read-only: writes nothing under ~/twine-src or any repository of yours; every write goes under one `mktemp -d` directory (a throwaway git repository and its session state) that is removed at the end; stdout is the only output.
+#
+# Run it from ~/twine-src (the packing repo) with the pinned-to-be bale on PATH:
+#     bin/twine-record-fixtures [SLUG] > <slug>.txt
+# SLUG names the paste-back's PROBE BEGIN/END sentinels (default:
+# twine-record-<installed bin/VERSION>, so the next bump's paste-back names
+# itself). Attach the file (the paste-back) to the pin-bump worker's chat.
+# Expect 24 recordings and ~1400 output lines (~120 KB); the integrity trailer counts them.
+# Every verb runs with stdin closed (< /dev/null) so nothing can prompt.
+
+probe() {
+  CAP_RAW_LINES=60
+  SCRATCH="$(mktemp -d)"
+  trap 'rm -rf "$SCRATCH"' EXIT
+  RECORD_N=0
+  HERE="$(pwd)"
+
+  # ---- helpers --------------------------------------------------------------
+  stream() {  # stream <name> <file>: bytes, sha256, newline fact, raw head, gzip+base64 whole
+    local name="$1" f="$2" n lines
+    n=$(wc -c <"$f" | tr -d ' ')
+    echo "$name bytes: $n"
+    echo "$name sha256: $(sha256sum "$f" | cut -c1-64)"
+    if [ "$n" -eq 0 ]; then
+      echo "$name ends with newline: n/a (empty)"
+      echo "--- raw: $name (empty) ---"
+      echo "--- end raw ---"
+      echo "--- gzip+base64: $name (decode with: base64 -d | gunzip) ---"
+      gzip -n -c "$f" | base64 -w 76
+      echo "--- end gzip+base64 ---"
+      return
+    fi
+    if [ "$(tail -c 1 "$f" | od -An -c | tr -d ' ')" = '\n' ]; then
+      echo "$name ends with newline: yes"
+    else
+      echo "$name ends with newline: no"
+    fi
+    lines=$(wc -l <"$f" | tr -d ' ')
+    echo "--- raw: $name (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---"
+    head -n "$CAP_RAW_LINES" "$f"
+    [ "$(tail -c 1 "$f" | od -An -c | tr -d ' ')" = '\n' ] || echo
+    echo "--- end raw ---"
+    [ "$lines" -gt "$CAP_RAW_LINES" ] && echo "[raw truncated: $lines lines total, showing $CAP_RAW_LINES; decode the gzip+base64 copy for the whole stream]"
+    echo "--- gzip+base64: $name (decode with: base64 -d | gunzip) ---"
+    gzip -n -c "$f" | base64 -w 76
+    echo "--- end gzip+base64 ---"
+  }
+  rec() {  # rec <label> <annotation> <stdin-file or -> <cwd> -- <argv...>
+    local label="$1" ann="$2" input="$3" dir="$4"; shift 5
+    RECORD_N=$((RECORD_N + 1))
+    local out="$SCRATCH/rec.$RECORD_N.out" err="$SCRATCH/rec.$RECORD_N.err" rc
+    echo "== recording: $label ($ann)"
+    echo "argv: $*"
+    if [ "$input" = "-" ]; then
+      echo "stdin: /dev/null"
+      (cd "$dir" && PYTHONDONTWRITEBYTECODE=1 "$@" </dev/null >"$out" 2>"$err"); rc=$?
+    else
+      echo "stdin: $input ($(wc -c <"$input" | tr -d ' ') bytes, sha256 $(sha256sum "$input" | cut -c1-64))"
+      (cd "$dir" && PYTHONDONTWRITEBYTECODE=1 "$@" <"$input" >"$out" 2>"$err"); rc=$?
+    fi
+    echo "cwd: $dir"
+    echo "exit: $rc"
+    stream stdout "$out"
+    stream stderr "$err"
+  }
+  run() {  # run <what> -- <argv...>: an unrecorded step, exit and first stderr lines shown
+    local what="$1"; shift 2
+    local err="$SCRATCH/step.err" rc
+    "$@" </dev/null >"$SCRATCH/step.out" 2>"$err"; rc=$?
+    echo "[step] $what: exit $rc"
+    head -n 4 "$err" | sed 's/^/[step]   /'
+    local n; n=$(wc -l <"$err" | tr -d ' ')
+    [ "$n" -gt 4 ] && echo "[step]   [truncated: $n stderr lines total, showing 4]"
+    return $rc
+  }
+
+  # ---- section: environment --------------------------------------------------
+  echo "--- section: environment ---"
+  echo "date-utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "cwd: $HERE"
+  echo "uname: $(uname -srm)"
+  echo "python3: $(python3 --version 2>&1)"
+  BALE="$(command -v bale || true)"
+  echo "bale on PATH: ${BALE:-NOT FOUND}"
+  if [ -z "$BALE" ]; then echo "no bale on PATH: nothing to record"; return; fi
+  BALE_REAL="$(readlink -f "$BALE")"
+  INSTALL="$(cd "$(dirname "$BALE_REAL")/.." && pwd)"
+  echo "install root: $INSTALL"
+  echo "install bin/VERSION: $(cat "$INSTALL/bin/VERSION" 2>/dev/null || echo unreadable)"
+  CRAFTER="$INSTALL/tools/craft_response.py"
+  echo "crafter: $CRAFTER ($(sha256sum "$CRAFTER" 2>/dev/null | cut -c1-64))"
+  echo "install bin/bale_report.py sha256: $(sha256sum "$INSTALL/bin/bale_report.py" | cut -c1-64)"
+  echo "install schemas: $(ls "$INSTALL/schemas" | tr '\n' ' ')"
+  (cd "$INSTALL/schemas" && sha256sum *.json | sed 's/^/schema /')
+  echo "clipboard key in the project bale.toml: $(grep -c 'clipboard' bale.toml 2>/dev/null || echo 0) line(s) (the global one is read by bale and shows as a copy notice on stderr)"
+  echo "repo: $HERE; git head: $(git rev-parse --short HEAD 2>/dev/null) on $(git rev-parse --abbrev-ref HEAD 2>/dev/null); VERSION $(cat VERSION 2>/dev/null)"
+  echo "git status --porcelain (head):"; git status --porcelain=v1 2>&1 | head -n 10
+  echo "latest applied tag: $(git tag -l 'applied/*' | sort | tail -n 1)"
+  echo "scratch: $SCRATCH (removed at the end)"
+
+  # ---- section: twine-src, read-only -----------------------------------------
+  echo "--- section: twine-src, read-only (nothing written here) ---"
+  rec "--version" "anywhere" - "$HERE" -- bale --version
+  rec "status_--json" "repo" - "$HERE" -- bale status --json
+  rec "stats_--json" "repo" - "$HERE" -- bale stats --json
+  rec "stats_--sid-2026-10-01-twine-seed-001_--json" "repo; the dossier" - "$HERE" -- bale stats --sid 2026-10-01-twine-seed-001 --json
+  rec "unlock_sid_--json" "unlock-refused: not-open; repo" - "$HERE" -- bale unlock no-such-sid-twine-051 --json
+  rec "unlock_--integration_--json" "unlock-refused: integration-json; repo" - "$HERE" -- bale unlock --integration --json
+
+  # a throwaway planner bundle, crafted OUTSIDE the repo, rehearsed with --check in it
+  mkdir -p "$SCRATCH/check"
+  printf '%s\n' "# Brief — twine-051-record rehearsal" "" "A throwaway brief: the probe rehearses \`bale open --check\` on this bundle and records the line. Nothing opens." > "$SCRATCH/check/brief.md"
+  echo "[craft] the --check bundle (crafted in $SCRATCH/check):"
+  (cd "$SCRATCH/check" && PYTHONDONTWRITEBYTECODE=1 python3 -I "$CRAFTER" --bundle twine-051-probe --brief brief.md \
+      --pack-arg "twine-051-record: a bundle rehearsed with --check, never opened" --pack-arg=--slug --pack-arg twine-051-probe \
+      --pack-arg=--include --pack-arg README.md --pack-arg=--write --pack-arg README.md \
+      --pack-arg=--expects-probe --pack-arg no --out-dir "$SCRATCH/check" 2>&1 | head -n 8 | sed 's/^/[craft]   /')
+  CHECK_BUNDLE="$(ls "$SCRATCH"/check/*.bale-bundle 2>/dev/null | head -n 1)"
+  echo "check bundle: $CHECK_BUNDLE ($(sha256sum "$CHECK_BUNDLE" 2>/dev/null | cut -c1-64))"
+  rec "open_--check_bundle_--json" "rehearsed; repo" - "$HERE" -- bale open --check "$CHECK_BUNDLE" --json
+
+  # ---- section: the crafter's emissions (in the repo; its bale.toml is what the probe tail reads) ----
+  echo "--- section: crafter emissions, run in $HERE with python3 -I ---"
+  SPECIMEN="$SCRATCH/specimen.json"
+  cat > "$SPECIMEN" <<'EOF'
+{"session_id": "2026-10-02-twine-take-read-001", "responds_to": "2026-10-02-twine-take-read-001", "corrects": null, "response_kind": "clarification", "summary": "specimen rows for twine take, re-recorded for the 0.4.51 pin", "changes": [], "deferred": [], "validation_will_run": [], "claims": {}, "questions": [{"question": "Specimen row 1 — does twine take report a probe block's script with its fences stripped?", "context": "Recording fixtures for twine take (specimen only; no answer wanted)", "default_assumption": "stripped", "why_blocked": "not blocked; a recorded specimen for the parser's tests"}, {"question": "Specimen row 2: is a relay block to planner ever delivered to a worker?", "context": "Recording the routing rule's fixture (specimen only; no answer wanted)", "default_assumption": "never", "why_blocked": "not blocked; a recorded specimen for the parser's tests", "options": ["never", "with consent"], "recommendation": "never", "priority": "batched", "origin": "intent-gap"}]}
+EOF
+  echo "specimen clarification manifest (fed on stdin to the two block renderers): $(wc -c <"$SPECIMEN" | tr -d ' ') bytes, sha256 $(sha256sum "$SPECIMEN" | cut -c1-64)"
+  echo "--- raw: specimen (one line) ---"; cat "$SPECIMEN"; echo "--- end raw ---"
+  rec "--probe-twine-take-fixture" "crafter" - "$HERE" -- python3 -I "$CRAFTER" --probe twine-take-fixture
+  rec "--light-block-stdin" "crafter" "$SPECIMEN" "$HERE" -- python3 -I "$CRAFTER" --light-block -
+  rec "--emit-block-stdin" "crafter" "$SPECIMEN" "$HERE" -- python3 -I "$CRAFTER" --emit-block -
+
+  # ---- section: the scratch repository ---------------------------------------
+  echo "--- section: the scratch repository (every write below stays under it) ---"
+  REPO="$SCRATCH/scratch-repo"
+  mkdir -p "$REPO"
+  (cd "$REPO" && git init -q -b main . && printf 'hello\n' > hello.txt && git add hello.txt \
+     && git -c user.name=probe -c user.email=probe@twine.invalid commit -q -m 'hello' && echo "scratch repo: git head $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD); files: $(git ls-files | tr '\n' ' '); no bale.toml")
+  rec "pack_goal_--slug-ro_--read-only_--no-readme_--json" "packed; scratch; opener key" - "$REPO" -- bale pack "twine-051-record: the read-only session" --slug ro --read-only --no-readme --json
+  RO_SID="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sid") or "")' "$SCRATCH/rec.$RECORD_N.out" 2>/dev/null)"
+  echo "read-only sid: ${RO_SID:-NONE}"
+
+  mkdir -p "$SCRATCH/scoped"
+  printf '%s\n' "# Brief — twine-051-record scoped session" "" "A throwaway brief for the scoped scratch session the probe opens, relays a round into, dry-runs two responses against and closes \`aborted\`. Nothing of twine's lands." > "$SCRATCH/scoped/brief.md"
+  echo "[craft] the scoped bundle (crafted in $SCRATCH/scoped):"
+  (cd "$SCRATCH/scoped" && PYTHONDONTWRITEBYTECODE=1 python3 -I "$CRAFTER" --bundle twine-051-scoped --brief brief.md \
+      --pack-arg "twine-051-record: the scoped session" --pack-arg=--slug --pack-arg sc \
+      --pack-arg=--include --pack-arg hello.txt --pack-arg=--write --pack-arg hello.txt \
+      --pack-arg=--expects-probe --pack-arg no --out-dir "$SCRATCH/scoped" 2>&1 | head -n 8 | sed 's/^/[craft]   /')
+  SCOPED_BUNDLE="$(ls "$SCRATCH"/scoped/*.bale-bundle 2>/dev/null | head -n 1)"
+  echo "scoped bundle: $SCOPED_BUNDLE ($(sha256sum "$SCOPED_BUNDLE" 2>/dev/null | cut -c1-64))"
+  rec "open_bundle_--json" "opened; scratch" - "$REPO" -- bale open "$SCOPED_BUNDLE" --json
+  SID="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sid") or "")' "$SCRATCH/rec.$RECORD_N.out" 2>/dev/null)"
+  echo "scoped sid: ${SID:-NONE}"
+  rec "open_bundle_--json" "second-desk; scratch; the same bundle again" - "$REPO" -- bale open "$SCOPED_BUNDLE" --json
+  rec "open_bundle_--json" "open-refused: not-found; scratch; a bundle file that does not exist" - "$REPO" -- bale open "$SCRATCH/no-such-twine-051.bale-bundle" --json
+
+  # relay: a one-question clarification manifest for the scoped session, as the paste block, on stdin
+  mkdir -p "$SCRATCH/clar"
+  python3 -I - "$SID" > "$SCRATCH/clar/manifest.json" <<'EOF'
+import json, sys
+sid = sys.argv[1]
+print(json.dumps({"session_id": sid, "responds_to": sid, "corrects": None, "response_kind": "clarification",
+  "summary": "a specimen clarification for the twine-051-record probe",
+  "changes": [], "deferred": [], "validation_will_run": [], "claims": {},
+  "questions": [{"question": "Which of the two?", "context": "recording relay - --json in a scratch repository",
+                 "default_assumption": "the first", "why_blocked": "the brief names both"}]}))
+EOF
+  (cd "$SCRATCH/clar" && PYTHONDONTWRITEBYTECODE=1 python3 -I "$CRAFTER" --emit-block manifest.json > block.txt 2> emit.err; echo "[craft] --emit-block exit $?: $(head -n 1 emit.err)")
+  BLOCK="$SCRATCH/clar/block.txt"
+  echo "the block twine would carry: $(wc -c <"$BLOCK" | tr -d ' ') bytes, sha256 $(sha256sum "$BLOCK" | cut -c1-64)"
+  printf 'this is not a paste block\n' > "$SCRATCH/clar/bogus.txt"
+  rec "relay_sid_stdin_--json" "relayed; scratch; round 1 from worker, the paste block on stdin — twine's own argv" "$BLOCK" "$REPO" -- bale relay "$SID" - --json
+  rec "relay_sid_--json" "re-emitted; scratch; no input" - "$REPO" -- bale relay "$SID" --json
+  rec "relay_sid_stdin_--json" "relay-refused: not-an-object; scratch; stdin neither a paste block nor JSON" "$SCRATCH/clar/bogus.txt" "$REPO" -- bale relay "$SID" - --json
+  rec "relay_sid_stdin_--json" "relay-refused: not-open; scratch; a sid not open, the block on stdin" "$BLOCK" "$REPO" -- bale relay no-such-sid-twine-051 - --json
+
+  # two response tarballs for the scoped session: clean (hello.txt modified) and drifting (other.txt beside it)
+  build_response() {  # build_response <name> <extra-file-or-empty>; prints the tarball path only
+    local name="$1" extra="$2"
+    local dir="$SCRATCH/$name/response-$SID"
+    mkdir -p "$dir/files"
+    printf 'hello, twine\n' > "$dir/files/hello.txt"
+    [ -n "$extra" ] && printf 'drift\n' > "$dir/files/$extra"
+    (cd "$SCRATCH/$name" && PYTHONDONTWRITEBYTECODE=1 python3 -I "$CRAFTER" --write --sid "$SID" "response-$SID" > "$SCRATCH/$name/craft.log" 2>&1)
+    python3 -I - "$dir/manifest.json" <<'EOF'
+import json, sys
+p = sys.argv[1]
+m = json.load(open(p))
+m["summary"] = "a specimen response for the twine-051-record probe: hello.txt rewritten"
+for c in m.get("changes", []):
+    c["reason"] = "specimen change for the recording probe"
+    c["action"] = "modified" if c["path"] == "hello.txt" else "created"
+m["validation_will_run"] = ["file syntax"]
+m["claims"] = {"file syntax": "pass"}
+json.dump(m, open(p, "w"), indent=2); open(p, "a").write("\n")
+EOF
+    printf '%s\n' '#!/usr/bin/env bash' '# the probe'"'"'s specimen validation: one check, always passing' 'echo "[PASS] file syntax"' 'exit 0' > "$dir/validation.sh"
+    chmod +x "$dir/validation.sh" "$dir/apply.sh" 2>/dev/null
+    (cd "$SCRATCH/$name" && tar -czf "$name-response-$SID.tar.gz" "response-$SID")
+    echo "$SCRATCH/$name/$name-response-$SID.tar.gz"
+  }
+  CLEAN="$(build_response clean "")"
+  head -n 3 "$SCRATCH/clean/craft.log" | sed 's/^/[craft]   /'
+  echo "clean response tarball: $CLEAN ($(sha256sum "$CLEAN" | cut -c1-64))"
+  rec "apply_--dry-run_--json_tarball" "dry-run; scratch; a clean response for the scoped session" - "$REPO" -- bale apply --dry-run --json "$CLEAN"
+  DRIFT="$(build_response drift other.txt)"
+  head -n 3 "$SCRATCH/drift/craft.log" | sed 's/^/[craft]   /'
+  echo "drifting response tarball: $DRIFT ($(sha256sum "$DRIFT" | cut -c1-64))"
+  rec "apply_--dry-run_--json_tarball" "scope-drift-refused; scratch; other.txt beside the forecast's hello.txt" - "$REPO" -- bale apply --dry-run --json "$DRIFT"
+
+  # the four unlock lines: the HOLD-branch refusal (a bale/<sid> branch made by hand), the aborted close, the read-only close, the no-op
+  (cd "$REPO" && git branch "bale/$SID" && echo "[step] made branch bale/$SID by hand (a session that reached HOLD has one)")
+  rec "unlock_sid_--json" "unlock-refused: hold-branch; scratch" - "$REPO" -- bale unlock "$SID" --json
+  (cd "$REPO" && git branch -D "bale/$SID" | sed 's/^/[step] /')
+  rec "unlock_sid_--reason-aborted_--json" "unlocked, aborted; scratch; twine kill's own argv" - "$REPO" -- bale unlock "$SID" --reason aborted --json
+  rec "unlock_sid_--json" "unlocked, closed-read-only; scratch; the read-only session, no reason given" - "$REPO" -- bale unlock "$RO_SID" --json
+  rec "unlock_--json" "no-op; scratch; nothing open" - "$REPO" -- bale unlock --json
+  echo "recordings: $RECORD_N"
+  echo "scratch removed at exit: yes ($SCRATCH)"
+}
+
+# The slug: the first argument, else twine-record-<installed version>
+# (read from the bale on PATH the way probe() reads it below).
+SLUG="${1:-}"
+case "$SLUG" in -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+if [ -z "$SLUG" ]; then
+  _bale_version="$(cat "$(dirname "$(readlink -f "$(command -v bale 2>/dev/null || echo /nonexistent)")")/VERSION" 2>/dev/null)"
+  SLUG="twine-record-${_bale_version:-unknown}"
+fi
+if ! printf '%s' "$SLUG" | grep -Eq '^[a-z0-9][a-z0-9.-]*$'; then
+  echo "twine-record-fixtures: slug '$SLUG' must be lowercase letters, digits, '.' and '-'" >&2
+  exit 2
+fi
+
+out="$(probe 2>&1 </dev/null)"
+emit_probe_block() {
+  echo "=== PROBE BEGIN $SLUG ==="
+  printf '%s\n' "$out"
+  printf -- '--- integrity: %s lines ---\n' "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+  echo "=== PROBE END $SLUG ==="
+}
+emit_probe_block
+
+# Clipboard copy (TARBALL.md 4.3): the installed bale copies the block
+# above with this machine's clipboard command, [clipboard] command in
+# bale.toml (the project's value, else the global one; set it once
+# with `bale config init --global`). This never fails the probe, and the
+# PROBE BEGIN/END banners above stay the dependency-free selection aid.
+clip_fallback() {
+  echo "[clipboard] probe output not copied: probes copy themselves through a current bale on PATH once 'bale config init --global' has set this machine's clipboard command; meanwhile select between the PROBE BEGIN/END banners and copy manually" >&2
+}
+if command -v bale >/dev/null 2>&1; then
+  emit_probe_block | PYTHONDONTWRITEBYTECODE=1 bale clipboard --block "probe block"
+  clip_rc=$?
+  if [ "$clip_rc" -gt 1 ]; then
+    echo "[clipboard] 'bale clipboard' exited $clip_rc, which is not a copy answer (0 copied, 1 not copied); a bale that predates paste-block copying has no clipboard verb, so upgrade it if that is the cause" >&2
+    clip_fallback
+  fi
+else
+  echo "[clipboard] bale is not on PATH, so this machine's clipboard command could not be looked up" >&2
+  clip_fallback
+fi

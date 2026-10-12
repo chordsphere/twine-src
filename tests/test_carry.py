@@ -3,10 +3,10 @@ refusals, nothing executing without --run, the run and its verified
 paste-back, and the ways a run is ran-but-not-ok.
 
 Every probe here is the crafter's recorded scaffold at the pin
-(fixtures/bale-<pin>/crafter/--probe-twine-take-fixture.txt, 0.4.49's) with
-its placeholders filled mechanically by tests.helpers.filled_probe, or a
-byte-level derivation of that — never a script typed from scratch. The
-0.4.49 scaffold's tail hands the block to whatever `bale` is on PATH
+(fixtures/bale-<pin>/crafter/--probe-twine-take-fixture.txt; 0.4.49's, and
+byte-identical at 0.4.51) with its placeholders filled mechanically by
+tests.helpers.filled_probe, or a byte-level derivation of that — never a
+script typed from scratch. The 0.4.49 scaffold's tail hands the block to whatever `bale` is on PATH
 (`bale clipboard`), so the filled specimen ends before it; the one test
 that keeps the tail runs it under a PATH it builds (section 5).
 Probes that must prove "nothing ran" write a marker file into the test's

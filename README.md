@@ -53,13 +53,13 @@ Arc 1 (the courier) session 1 landed twine's core:
   open is recorded in twine's state directory as
   `inflight/<sid>.json` — the sid, where bale ran, the request tarball,
   and one entry per desk — so a second desk on the same session (bale's
-  `second-desk`, whose line names no tarball) is handed the first open's
-  tarball. The record is a cache of what bale printed; nothing removes it
+  `second-desk`) is handed the request tarball: bale's own when its line
+  names one (bale 0.4.50 on), else the first open's. The record is a cache of what bale printed; nothing removes it
   yet. Without `--check` an open is refused unless a state directory
   resolves (an open that could not be recorded is refused before it
   happens); same pin gate as the other carry verbs.
 - `transitions` (session 4): the transition table (D17), as data in
-  `share/transitions.toml` — bale 0.4.49's 13 telemetry outcomes, 9
+  `share/transitions.toml` — the pinned bale's 13 telemetry outcomes, 9
   closure reasons and the 9 outcomes `bale apply --json` prints, plus
   twine's own stop set for the runtime, each with a move: what happens
   next and who does it (twine, the operator or the planner). No default
@@ -112,16 +112,24 @@ Arc 1 (the courier) session 1 landed twine's core:
   never reverts, merges or applies anything. Nothing records a running
   group yet (the runtime is Arc 2's), so today a kill requests the abort
   and closes the session.
-- `share/bale-consumption.toml` — the bale version pin (`0.4.49`) and
-  the consumption manifest: the schema hashes, every bale surface
-  twine reads, and the three vocabularies the transition table keys on,
-  as data.
+- `share/bale-consumption.toml` — the bale version pin (`0.4.51`, the
+  last exact pin: the next session makes it a floor) and the consumption
+  manifest: the schema hashes, every bale surface twine reads, and the
+  three vocabularies the transition table keys on, as data.
 - `fixtures/` — recorded `bale … --json` outputs from the pinned
-  version (twenty-three at 0.4.49, including every outcome of `bale
-  unlock --json` the kill-switch's tests replay and the three `bale open
-  --json` lines `carry bundle`'s tests replay), the crafter's
-  emissions, and carried pastes of bale output, byte-exact; the only
-  bale the tests ever see. Earlier versions' recordings stay as history.
+  version (twenty-four at 0.4.51, each with the stderr bale printed beside
+  it, including every outcome of `bale unlock --json` the kill-switch's
+  tests replay, the four `bale open --json` lines `carry bundle`'s tests
+  replay and `bale relay <sid> - --json` under twine's own argv), the
+  crafter's emissions, and carried pastes of bale output — among them the
+  recorder's paste-back the 0.4.51 recordings were landed from —
+  byte-exact; the only bale the tests ever see. Earlier versions'
+  recordings stay as history.
+- `bin/twine-record-fixtures` and `bin/twine-land-recordings` — the
+  recorder and the lander a pin bump runs: the probe that records every
+  bale surface twine reads, stdout and stderr, and the tool that lands its
+  paste-back under `fixtures/bale-<version>/` (or, with `--check`, proves
+  the tree still holds exactly it). Not twine verbs; contract §16.
 - `tests/` — the stdlib `unittest` suite.
 
 Stdlib only; python 3.11 or newer. The courier reads (`take`), runs a
@@ -154,6 +162,14 @@ python3 -I -S bin/twine transitions [--json]                     # the transitio
 python3 -I -S bin/twine spend totals [--sid SID] [--json]        # spend per session, at your prices
 python3 -I -S bin/twine spend check --sid SID --cap USD --model M --input N --max-output N   # admit or refuse one call
 python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill its process groups, close it `aborted`
+```
+
+A pin bump (contract §16) runs the two maintenance tools beside them:
+
+```
+bin/twine-record-fixtures [SLUG] > paste-back.txt       # in ~/twine-src, the new bale on PATH: record every surface
+python3 -I -S -B bin/twine-land-recordings paste-back.txt          # land it under fixtures/bale-<version>/, print the rows
+python3 -I -S -B bin/twine-land-recordings fixtures/bale-0.4.51/carried/probe-output_twine-051-record.txt --check
 ```
 
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to

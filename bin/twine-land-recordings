@@ -1,0 +1,552 @@
+#!/usr/bin/env python3
+"""twine-land-recordings — land a version's recordings from one paste-back.
+
+    bin/twine-land-recordings PASTE [--version V] [--check] [--tree DIR]
+
+PASTE is the paste-back of `bin/twine-record-fixtures` (the recorder; its
+first run was probe `twine-051-record`): one `=== PROBE BEGIN <slug> ===`
+block holding, per recording, a `== recording: <label> (<annotation>)`
+header, `argv:`, `stdin:`, `cwd:`, `exit:`, then for stdout and stderr the
+byte count, sha256, newline fact, a raw head and a gzip+base64 copy of the
+whole stream. CRLF line endings (a chat transport's) are folded to LF
+first; nothing else is changed.
+
+The lander refuses — exit 1, one line naming the recording — unless the
+integrity trailer counts the inner lines, the `recordings:` line counts
+the recordings, and every stream copy decodes to the byte count and sha256
+printed beside it (the raw heads are never read: they crossed the
+clipboard as text, the copies are the bytes). It derives each
+recording's path by fixtures/README.md's naming rule, imported from
+tests/fixture_rule.py (shared with tests/helpers.py, never re-derived
+here), and then:
+
+  without --check   writes, under fixtures/bale-<V>/, every recording's
+                    stdout file, its `.stderr` sibling (empty when stderr
+                    was) and the paste itself, LF, as
+                    carried/probe-output_<slug>.txt — refusing to replace
+                    a file that holds other bytes — and prints on stdout
+                    the README section's recording rows, the carried
+                    paste's row, and the consumption manifest's
+                    per-surface `fixture`/`also_recorded` lines, for the
+                    worker to place (nothing else in the tree is edited);
+  with --check      writes nothing, and exits 0 exactly when every
+                    derived file is in the tree byte-exact, no other file
+                    sits under fixtures/bale-<V>/, and fixtures/README.md
+                    carries each derived row exactly (the carried row by
+                    its bytes and hashes); otherwise exit 1 naming the
+                    first difference.
+
+V defaults to the paste's `install bin/VERSION:` line. --tree names the
+repository to land in or check (default: the one this script is in).
+Exit 2 on a usage error or a paste that cannot be read at all.
+
+stdlib only; runs under `python3 -I -S -B` (it puts its own repository on
+sys.path, as bin/twine does, to import the rule). Landed by session
+2026-10-12-twine-pin-051-001; contract §16.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import gzip
+import hashlib
+import json
+import os
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+REPO_ROOT = Path(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests import fixture_rule as rule  # noqa: E402  (path set up above)
+
+BEGIN = re.compile(r"^=== PROBE BEGIN (?P<slug>\S+) ===$")
+END = "=== PROBE END {slug} ==="
+TRAILER = re.compile(r"^--- integrity: (?P<n>\d+) lines ---$")
+HEADER = re.compile(r"^== recording: (?P<label>\S+) \((?P<annotation>.*)\)$")
+STREAMS = ("stdout", "stderr")
+WHERE_TOKENS = ("repo", "scratch", "anywhere", "crafter")
+CRAFTER_BASENAME = "craft_response.py"
+# The per-surface manifest argv writes a per-run value as `<role>` — and
+# the stdin role as the `-` twine passes (share/bale-consumption.toml).
+STDIN_TOKEN = "-"
+
+
+class Refusal(Exception):
+    """The paste, or the tree under --check, is not what the lander can
+    stand behind; the message names the first thing that differs."""
+
+
+@dataclass
+class Stream:
+    name: str
+    data: bytes
+
+
+@dataclass
+class Recording:
+    """One `== recording:` block of the paste, decoded and verified."""
+
+    number: int
+    label: str
+    annotation: str
+    command: str
+    cwd: str
+    exit: int
+    where: str
+    stdout: bytes
+    stderr: bytes
+    argv: list[str] = field(default_factory=list)     # after `bale`, or the tool's args
+    relpath: str = ""
+    line: dict | None = None
+
+    @property
+    def outcome(self) -> str | None:
+        return self.line.get("outcome") if isinstance(self.line, dict) else None
+
+    @property
+    def reason(self) -> str | None:
+        value = self.line.get("reason") if isinstance(self.line, dict) else None
+        return value if isinstance(value, str) else None
+
+
+@dataclass
+class Paste:
+    slug: str
+    lf_bytes: bytes
+    received_crlf: bool
+    environment: dict[str, str]
+    recordings: list[Recording]
+    counted: int
+
+
+# ---------------------------------------------------------------------------
+# Reading the paste
+# ---------------------------------------------------------------------------
+
+def fold(raw: bytes) -> tuple[bytes, bool]:
+    """The paste with CRLF folded to LF, and whether every line arrived
+    CRLF. A paste that mixes the two is read (the LF form is what lands)
+    but reported as not CRLF, so its carried row says LF."""
+    lf = raw.replace(b"\r\n", b"\n")
+    crlf = b"\r\n" in raw and lf.count(b"\n") == raw.count(b"\r\n")
+    return lf, crlf
+
+
+def decode_stream(lines: list[str], i: int, name: str, where: str) -> tuple[Stream, int]:
+    """Read one stream's block starting at lines[i] (`<name> bytes: N`):
+    the printed facts, then the raw head (skipped), then the gzip+base64
+    copy, decoded and checked against the printed bytes and sha256."""
+    def expect(prefix: str) -> str:
+        nonlocal i
+        if i >= len(lines) or not lines[i].startswith(prefix):
+            got = lines[i] if i < len(lines) else "the end of the paste"
+            raise Refusal(f"{where}: expected '{prefix}…', found {got!r}")
+        value = lines[i][len(prefix):]
+        i += 1
+        return value
+
+    size = expect(f"{name} bytes: ")
+    digest = expect(f"{name} sha256: ")
+    newline = expect(f"{name} ends with newline: ")
+    if not size.isdigit() or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise Refusal(f"{where}: {name}'s printed bytes or sha256 cannot be read")
+    expect(f"--- raw: {name} ")
+    copy_header = f"--- gzip+base64: {name} "
+    # The raw head is the stream as text; it ends at the `--- end raw ---`
+    # line that is followed (after an optional `[raw truncated …]` line)
+    # by this stream's copy header — so a raw line that happens to read
+    # `--- end raw ---` cannot end it early.
+    while True:
+        if i >= len(lines):
+            raise Refusal(f"{where}: {name}'s raw head never ends")
+        if lines[i] == "--- end raw ---":
+            nxt = i + 1
+            if nxt < len(lines) and lines[nxt].startswith("[raw truncated"):
+                nxt += 1
+            if nxt < len(lines) and lines[nxt].startswith(copy_header):
+                i = nxt + 1
+                break
+        i += 1
+    chunks = []
+    while True:
+        if i >= len(lines):
+            raise Refusal(f"{where}: {name}'s gzip+base64 copy never ends")
+        if lines[i] == "--- end gzip+base64 ---":
+            i += 1
+            break
+        chunks.append(lines[i])
+        i += 1
+    try:
+        data = gzip.decompress(base64.b64decode("".join(chunks), validate=True))
+    except (ValueError, OSError, EOFError) as exc:
+        raise Refusal(f"{where}: {name}'s gzip+base64 copy does not decode: {exc}") from None
+    if len(data) != int(size):
+        raise Refusal(f"{where}: {name} decodes to {len(data)} bytes; the paste printed {size}")
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise Refusal(f"{where}: {name} decodes to sha256 "
+                      f"{hashlib.sha256(data).hexdigest()}; the paste printed {digest}")
+    fact = ("n/a (empty)" if not data else "yes" if data.endswith(b"\n") else "no")
+    if newline != fact:
+        raise Refusal(f"{where}: {name}'s newline fact reads {newline!r}; the bytes say {fact!r}")
+    return Stream(name, data), i
+
+
+def read_paste(raw: bytes) -> Paste:
+    """Parse and verify a recorder paste-back. Raises Refusal."""
+    lf, crlf = fold(raw)
+    try:
+        text = lf.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise Refusal(f"the paste is not UTF-8: {exc}") from None
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    begins = [n for n, line in enumerate(lines) if BEGIN.match(line)]
+    if len(begins) != 1:
+        raise Refusal(f"the paste holds {len(begins)} PROBE BEGIN lines; the lander reads one")
+    start = begins[0]
+    slug = BEGIN.match(lines[start])["slug"]
+    try:
+        end = lines.index(END.format(slug=slug), start + 1)
+    except ValueError:
+        raise Refusal(f"no `{END.format(slug=slug)}` line closes the block") from None
+    inner = lines[start + 1:end]
+    if not inner or not TRAILER.match(inner[-1]):
+        raise Refusal("the block's last inner line is not the integrity trailer")
+    counted = int(TRAILER.match(inner[-1])["n"])
+    body = inner[:-1]
+    if counted != len(body):
+        raise Refusal(f"the trailer counts {counted} lines; the block carries {len(body)} "
+                      "(a truncated or edited paste)")
+
+    environment: dict[str, str] = {}
+    for line in body:
+        if line.startswith("--- section:") and "environment" not in line:
+            break
+        key, sep, value = line.partition(": ")
+        if sep and key in ("date-utc", "cwd", "install bin/VERSION", "install root",
+                           "bale on PATH", "crafter", "scratch"):
+            environment.setdefault(key, value)
+    scratch_line = next((ln for ln in body if ln.startswith("scratch: ")), None)
+    if scratch_line:
+        environment["scratch"] = scratch_line.split(" ", 2)[1]
+    for needed in ("cwd", "install bin/VERSION"):
+        if needed not in environment:
+            raise Refusal(f"the environment section has no `{needed}:` line")
+
+    recordings: list[Recording] = []
+    i = 0
+    while i < len(body):
+        m = HEADER.match(body[i])
+        if not m:
+            i += 1
+            continue
+        number = len(recordings) + 1
+        where_text = f"recording {number} ({m['label']}, {m['annotation']})"
+        i += 1
+        fields: dict[str, str] = {}
+        for key in ("argv", "stdin", "cwd", "exit"):
+            if i >= len(body) or not body[i].startswith(f"{key}: "):
+                raise Refusal(f"{where_text}: expected '{key}: …'")
+            fields[key] = body[i][len(key) + 2:]
+            i += 1
+        if not re.fullmatch(r"\d+", fields["exit"]):
+            raise Refusal(f"{where_text}: exit {fields['exit']!r} is not a number")
+        streams = {}
+        for name in STREAMS:
+            streams[name], i = decode_stream(body, i, name, where_text)
+        tokens = [p.strip() for p in m["annotation"].split(";")]
+        wheres = [t for t in tokens if t in WHERE_TOKENS]
+        if len(wheres) != 1:
+            raise Refusal(f"{where_text}: the annotation names {len(wheres)} of "
+                          f"{', '.join(WHERE_TOKENS)}; the lander needs exactly one")
+        recordings.append(Recording(number, m["label"], m["annotation"], fields["argv"],
+                                    fields["cwd"], int(fields["exit"]), wheres[0],
+                                    streams["stdout"].data, streams["stderr"].data))
+    declared = next((ln for ln in body if ln.startswith("recordings: ")), None)
+    if declared is None or declared != f"recordings: {len(recordings)}":
+        raise Refusal(f"the paste's `recordings:` line reads {declared!r}; "
+                      f"the lander decoded {len(recordings)}")
+    return Paste(slug, lf, crlf, environment, recordings, counted)
+
+
+# ---------------------------------------------------------------------------
+# Naming
+# ---------------------------------------------------------------------------
+
+def name_recordings(paste: Paste, version: str) -> None:
+    """Fill each recording's argv, line and relpath by the naming rule,
+    checking that where it says it ran agrees with its `cwd:`."""
+    here, scratch = paste.environment["cwd"], paste.environment.get("scratch")
+    keyed: dict[int, tuple[str, str | None, str | None]] = {}
+    for n, rec in enumerate(paste.recordings):
+        label = f"recording {rec.number} ({rec.label})"
+        if rec.where == "crafter":
+            tokens = rec.command.split(" ")
+            at = next((n for n, t in enumerate(tokens)
+                       if t == CRAFTER_BASENAME or t.endswith("/" + CRAFTER_BASENAME)), None)
+            if at is None:
+                raise Refusal(f"{label}: a crafter recording whose argv names no "
+                              f"{CRAFTER_BASENAME}")
+            rec.argv = tokens[at + 1:]
+            continue
+        try:
+            rec.argv = rule.echoed_argv(rec.command)
+        except ValueError as exc:
+            raise Refusal(f"{label}: {exc}") from None
+        if rec.where == "repo" and rec.cwd != here:
+            raise Refusal(f"{label}: annotated repo but ran in {rec.cwd}, not {here}")
+        if rec.where == "scratch" and not (scratch and rec.cwd.startswith(scratch + "/")):
+            raise Refusal(f"{label}: annotated scratch but ran in {rec.cwd}, "
+                          f"outside the scratch directory {scratch}")
+        if rec.stdout.endswith(b"\n") and rec.stdout.count(b"\n") == 1:
+            try:
+                parsed = json.loads(rec.stdout)
+            except ValueError:
+                parsed = None
+            rec.line = parsed if isinstance(parsed, dict) else None
+        stem, ext = rule.fixture_stem(rec.argv)
+        keyed[n] = (stem + ext, rec.outcome, rec.reason)
+    bale_indices = sorted(keyed)
+    try:
+        groups = rule.assign_groups([keyed[n] for n in bale_indices])
+    except rule.CollisionError as exc:
+        raise Refusal(str(exc)) from None
+    for n, group in zip(bale_indices, groups):
+        rec = paste.recordings[n]
+        rec.relpath = rule.fixture_relpath_at(version, rec.argv, rec.where, group)
+    for rec in paste.recordings:
+        if rec.where == "crafter":
+            rec.relpath = rule.emission_relpath_at(version, "crafter", rec.argv)
+    seen: dict[str, int] = {}
+    for rec in paste.recordings:
+        if rec.relpath in seen:
+            raise Refusal(f"recordings {seen[rec.relpath]} and {rec.number} both name "
+                          f"{rec.relpath}")
+        seen[rec.relpath] = rec.number
+
+
+def command_cell(rec: Recording) -> str:
+    """The README's command cell: the argv as the recorder echoed it, the
+    crafter by its basename."""
+    if rec.where == "crafter":
+        return " ".join([CRAFTER_BASENAME, *rec.argv])
+    return rec.command
+
+
+def rows_for(paste: Paste) -> list[rule.Row]:
+    return [rule.Row(rec.relpath.removeprefix("fixtures/"), command_cell(rec), rec.cwd,
+                     rec.exit, len(rec.stdout), hashlib.sha256(rec.stdout).hexdigest(),
+                     len(rec.stderr), hashlib.sha256(rec.stderr).hexdigest())
+            for rec in paste.recordings]
+
+
+def carried_for(paste: Paste, version: str) -> tuple[str, bytes, bytes | None]:
+    """The carried paste's relpath, its landed (LF) bytes, and the bytes as
+    received when they arrived CRLF (None when they did not)."""
+    rel = rule.carried_relpath_at(version, "probe-output", paste.slug)
+    received = paste.lf_bytes.replace(b"\n", b"\r\n") if paste.received_crlf else None
+    return rel, paste.lf_bytes, received
+
+
+def files_for(paste: Paste, version: str) -> dict[str, bytes]:
+    files: dict[str, bytes] = {}
+    for rec in paste.recordings:
+        files[rec.relpath] = rec.stdout
+        files[rule.stderr_relpath(rec.relpath)] = rec.stderr
+    rel, data, _ = carried_for(paste, version)
+    files[rel] = data
+    return files
+
+
+def manifest_argv(rec: Recording) -> list[str]:
+    """The surface argv the manifest writes: each role as `<role>`, the
+    stdin role as `-`."""
+    out = []
+    for token in rule.fixture_key(rec.argv):
+        if isinstance(token, rule.Role):
+            out.append(STDIN_TOKEN if token == "stdin" else f"<{token}>")
+        else:
+            out.append(token)
+    return out
+
+
+def toml_string(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def manifest_lines(paste: Paste) -> list[str]:
+    """Per verb, one inline table per recording, in the shape of the
+    manifest's `also_recorded` rows; the worker makes the recording of
+    twine's own argv the surface's `fixture` and places the rest."""
+    out: list[str] = []
+    by_verb: dict[str, list[Recording]] = {}
+    for rec in paste.recordings:
+        if rec.where == "crafter":
+            continue
+        verb = rec.argv[0] if rec.argv else "?"
+        by_verb.setdefault(verb, []).append(rec)
+    for verb, recs in by_verb.items():
+        out.append(f"# {verb}")
+        for rec in recs:
+            cwd = {"repo": "repo", "scratch": "scratch"}.get(rec.where, "anywhere")
+            parts = [f"argv = [{', '.join(toml_string(t) for t in manifest_argv(rec))}]",
+                     f"cwd = {toml_string(cwd)}"]
+            if rec.outcome is not None:
+                parts.append(f"outcome = {toml_string(rec.outcome)}")
+            if rec.reason is not None:
+                parts.append(f"reason = {toml_string(rec.reason)}")
+            parts.append(f"fixture = {toml_string(rec.relpath)}")
+            out.append("{" + ", ".join(parts) + "},")
+    crafted = [rec for rec in paste.recordings if rec.where == "crafter"]
+    if crafted:
+        out.append("# formats: the crafter emissions (each format entry's `fixtures`)")
+        for rec in crafted:
+            out.append(f"{toml_string(rec.relpath)},  # {command_cell(rec)}")
+    return out
+
+
+def carried_row(paste: Paste, version: str) -> str:
+    rel, data, received = carried_for(paste, version)
+    ending, rbytes = ("CRLF", received) if received is not None else ("LF", data)
+    return (f"| `{rel.removeprefix('fixtures/')}` | the output of probe `{paste.slug}` "
+            f"(`bin/twine-record-fixtures`), run {paste.environment.get('date-utc', '?')}; "
+            f"its trailer counts {paste.counted} lines and the paste carries {paste.counted} "
+            f"| {ending} {len(rbytes)} `{hashlib.sha256(rbytes).hexdigest()}` "
+            f"| {len(data)} | `{hashlib.sha256(data).hexdigest()}` |")
+
+
+# ---------------------------------------------------------------------------
+# Landing and checking
+# ---------------------------------------------------------------------------
+
+def land(paste: Paste, version: str, tree: Path, out) -> None:
+    files = files_for(paste, version)
+    for rel, data in files.items():
+        path = tree / rel
+        if path.exists():
+            if not path.is_file() or path.read_bytes() != data:
+                raise Refusal(f"{rel} exists with other bytes; a recording is never replaced "
+                              "(land a new version, or remove it by hand on purpose)")
+    for rel, data in files.items():
+        path = tree / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_bytes(data)
+    print(f"# landed {len(files)} files under fixtures/bale-{version}/ from probe "
+          f"{paste.slug}: {len(paste.recordings)} recordings, their stderr siblings, "
+          "and the paste", file=out)
+    print("\n# fixtures/README.md: the section's recording rows", file=out)
+    print(rule.RECORDING_HEADER, file=out)
+    for row in rows_for(paste):
+        print(rule.format_row(row), file=out)
+    print("\n# fixtures/README.md: the carried table's row (edit the prose cell as you like;"
+          " --check reads the file, the line endings, the bytes and the hashes)", file=out)
+    print(carried_row(paste, version), file=out)
+    print("\n# share/bale-consumption.toml: per surface, the recordings", file=out)
+    for line in manifest_lines(paste):
+        print(line, file=out)
+
+
+def check(paste: Paste, version: str, tree: Path) -> None:
+    files = files_for(paste, version)
+    for rel, data in files.items():
+        path = tree / rel
+        if not path.is_file():
+            raise Refusal(f"{rel} is not in the tree")
+        have = path.read_bytes()
+        if have != data:
+            raise Refusal(f"{rel} differs from the paste's bytes ({len(have)} bytes, sha256 "
+                          f"{hashlib.sha256(have).hexdigest()}; the paste: {len(data)}, "
+                          f"{hashlib.sha256(data).hexdigest()})")
+    directory = tree / "fixtures" / f"bale-{version}"
+    extra = sorted(p.relative_to(tree).as_posix() for p in directory.rglob("*")
+                   if p.is_file() and p.relative_to(tree).as_posix() not in files)
+    if extra:
+        raise Refusal(f"{extra[0]} is under fixtures/bale-{version}/ but the paste does not "
+                      "derive it")
+    readme = tree / "fixtures" / "README.md"
+    try:
+        text = readme.read_text(encoding="utf-8")
+        rows = rule.parse_rows(text)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        raise Refusal(f"fixtures/README.md cannot be read: {exc}") from None
+    for want in rows_for(paste):
+        key = f"fixtures/{want.file}"
+        have = rows.get(key)
+        if have is None:
+            raise Refusal(f"fixtures/README.md has no row for {want.file}")
+        if have != want:
+            raise Refusal(f"fixtures/README.md's row for {want.file} differs: it reads "
+                          f"{rule.format_row(have)!r}; the paste gives {rule.format_row(want)!r}")
+    rel, data, received = carried_for(paste, version)
+    carried = {m["file"]: m for m in rule.CARRIED_ROW.finditer(text)}
+    m = carried.get(rel.removeprefix("fixtures/"))
+    if m is None:
+        raise Refusal(f"fixtures/README.md has no carried row for {rel.removeprefix('fixtures/')}")
+    ending, rbytes = ("CRLF", received) if received is not None else ("LF", data)
+    got = (m["ending"], int(m["rbytes"]), m["rsha"], int(m["bytes"]), m["sha"])
+    want_cells = (ending, len(rbytes), hashlib.sha256(rbytes).hexdigest(), len(data),
+                  hashlib.sha256(data).hexdigest())
+    if paste.received_crlf or m["ending"] == "LF":
+        if got != want_cells:
+            raise Refusal(f"fixtures/README.md's carried row for {rel} reads {got}; "
+                          f"the paste gives {want_cells}")
+    else:
+        # Checking the landed LF copy: the row's received cells are the
+        # CRLF form the paste arrived in — every LF turned back into CRLF.
+        crlf = data.replace(b"\n", b"\r\n")
+        want_cells = ("CRLF", len(crlf), hashlib.sha256(crlf).hexdigest(), len(data),
+                      hashlib.sha256(data).hexdigest())
+        if got != want_cells:
+            raise Refusal(f"fixtures/README.md's carried row for {rel} reads {got}; "
+                          f"the landed paste gives {want_cells}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="twine-land-recordings",
+        description="Land (or --check) a bale version's recordings from one recorder "
+                    "paste-back (contract §16).")
+    parser.add_argument("paste", help="the recorder's paste-back (CRLF or LF)")
+    parser.add_argument("--version", help="the bale version (default: the paste's "
+                                          "`install bin/VERSION:` line)")
+    parser.add_argument("--check", action="store_true",
+                        help="write nothing; exit 0 exactly when the tree already holds "
+                             "what the paste derives")
+    parser.add_argument("--tree", type=Path, default=REPO_ROOT,
+                        help="the repository to land in or check (default: this script's)")
+    args = parser.parse_args(argv)
+    try:
+        raw = Path(args.paste).read_bytes()
+    except OSError as exc:
+        print(f"twine-land-recordings: cannot read {args.paste}: {exc}", file=sys.stderr)
+        return 2
+    try:
+        paste = read_paste(raw)
+        version = args.version or paste.environment["install bin/VERSION"]
+        if not re.fullmatch(r"\d+(\.\d+)+", version):
+            raise Refusal(f"version {version!r} is not a bale version")
+        name_recordings(paste, version)
+        if args.check:
+            check(paste, version, args.tree)
+            print(f"twine-land-recordings: ok — fixtures/bale-{version}/ holds the "
+                  f"{len(paste.recordings)} recordings of probe {paste.slug}, their stderr "
+                  "siblings and the paste, byte-exact, and fixtures/README.md's rows match",
+                  file=sys.stderr)
+        else:
+            land(paste, version, args.tree, sys.stdout)
+    except Refusal as exc:
+        print(f"twine-land-recordings: NOT OK — {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
