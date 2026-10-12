@@ -1,0 +1,1 @@
+[bale] error: session no-such-sid-twine-051 is not open in the registry — `bale relay` records rounds in a suspended (open, unbranched) session only. Open sessions: 2026-10-08-ro-001, 2026-10-08-sc-002. A closed session's thread is history; repack to ask again.

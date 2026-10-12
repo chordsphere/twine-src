@@ -1,0 +1,10 @@
+[bale] unlock: 2026-10-08-sc-002
+[bale] compatibility pointer repointed to 2026-10-08-ro-001 (1 session(s) still open)
+[bale] closed session 2026-10-08-sc-002 in the registry
+[bale] wiped /tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-sc-002
+[bale] sweep: committed 1 file(s) as d6d4c3f
+
+  [UNLOCK] 2026-10-08-sc-002
+  lock:      cleared
+  session:   wiped (/tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-sc-002)
+  telemetry: recorded claude/telemetry/2026-10-08-sc-002.json

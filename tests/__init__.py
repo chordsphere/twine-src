@@ -15,6 +15,8 @@ double named as one, never a bale.
 
 Layout (CODE.md §13): one file per subject —
   helpers.py                 the subprocess and temp-root helpers
+  fixture_rule.py            fixtures/README.md's naming rule and row shapes,
+                             shared with bin/twine-land-recordings
   test_registry.py           the registry, and parser/registry parity
   test_json_discipline.py    the one-JSON-line contract on every verb
   test_bale_check.py         root resolution and the pin check
@@ -30,4 +32,7 @@ Layout (CODE.md §13): one file per subject —
   test_transitions.py        `twine transitions` and the transition table
   test_spend.py              the cost spine: the usage record, the stream,
                              prices, totals, the pre-call check, `twine spend`
+  test_recordings.py         the recorder and the lander (bin/twine-record-
+                             fixtures, bin/twine-land-recordings) and the rule
+                             they share
 """

@@ -9,20 +9,24 @@ one run.
 What is recorded, and what stands in for what is not:
 
   - `bale apply --dry-run --json` on a clean response: recorded at bale
-    0.4.49 in a throwaway repository, with its exit (fixtures/bale-0.4.49/
-    scratch/apply_--dry-run_--json_tarball+dry-run.json, exit 0) — the
-    0.4.45 carried line, exit unrecorded, is history; the player answers
+    0.4.49 in a throwaway repository, with its exit, and re-recorded at the
+    pin, 0.4.51, with its stderr (fixtures/bale-0.4.51/scratch/
+    apply_--dry-run_--json_tarball+dry-run.json, exit 0) — the 0.4.45
+    carried line, exit unrecorded, is history; the player answers
     the argv only when a test selects the `dry-run` group (SELECT_DRY_RUN),
     since the scope-drift refusal is recorded under the same argv
     (…+scope-drift-refused.json, exit 1), and replayed in section 4.
   - `bale relay <sid> - --json`, the one relay argv twine builds since
     session 2026-10-08-twine-carry-exchange-json-001: four `relay … --json`
-    lines are recorded at 0.4.49 in the scratch repository — relayed,
-    re-emitted, and the ingest and session-gate refusals — made with a
-    file argument and replayed for twine's `-` by RecordedRelay on the
-    assumption its docstring names (bale's `_read_relay_input` reads stdin
-    for `-` exactly as it reads the file). The relayed line's own `block`
-    is what the tests carry, so each recording answers for its own sid.
+    lines are recorded at the pin, 0.4.51, in the scratch repository, each
+    with its stderr — relayed and the not-an-object and not-open refusals
+    under twine's own argv, the block (or a line that is not one) on stdin,
+    and the re-emission with no input — replayed by RecordedRelay and
+    answered by the player for twine's argv itself (since session
+    2026-10-12-twine-pin-051-001; the 0.4.49 recordings were made with a
+    file and replayed on an assumption, now retired). The relayed line's
+    own `block` is what the tests carry, so each recording answers for its
+    own sid.
     The flagless `bale relay <sid> -` is retired, and with it its
     stand-in (the crafter's --emit-block emission, which stays the
     `exchange` format's fixture and still feeds the vouching tests here,
@@ -40,7 +44,7 @@ What is recorded, and what stands in for what is not:
 Since Arc 1 session 4 the doubles speak bale's spellings: a refusal under
 --dry-run is one of the three `*-refused` outcomes with exit 1, as bale's
 format_apply_json documents (one of them recorded since the pin at
-0.4.49); a bale error prints nothing on stdout and exits non-zero. The one
+0.4.49, and at 0.4.51); a bale error prints nothing on stdout and exits non-zero. The one
 outcome no bale emits, used to prove twine names an outcome it does not
 know, is spelled NOT_A_BALE_OUTCOME (tests/helpers.py) so no reader takes
 it for bale's. And the carry verbs drive only the pinned bale (D2):
@@ -77,8 +81,8 @@ from twine.commands.carry_bale import (BALE_STDOUT_CAP_BYTES, BALE_TIMEOUT_SECON
                                        vouch_for_relayed_block)
 from twine.process import RunResult
 
-from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, PIN, RELAY_FILE_KEY,
-                           RELAY_KEYS, RELAY_RECORDED_ABSENT_SID, RELAY_RECORDED_SID,
+from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, PIN, RELAY_KEYS,
+                           RELAY_RECORDED_ABSENT_SID, RELAY_RECORDED_SID, RELAY_STDIN_KEY,
                            FixturePlayer, RecordedRelay, RecordingRunner, Run, StubBale,
                            TempRoots, block_for_sid, carried_relpath, emission_relpath,
                            fixture_relpath, relay_recording, relayed_block, run_cli, turn)
@@ -93,7 +97,7 @@ from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, PIN, RELAY_FIL
 # stands in for relay's stdout; the tests that relay carry relayed_block().
 EXCHANGE = REPO_ROOT / emission_relpath("crafter", ["--emit-block", "-"])
 EXCHANGE_SID = "2026-10-02-twine-take-read-001"
-# The relayed recording (bale 0.4.49, scratch repository, exit 0): the line
+# The relayed recording (bale 0.4.51, scratch repository, exit 0): the line
 # RecordedRelay answers by default, and its own block, carried as input.
 RELAYED = relay_recording("relayed")
 LIGHT = REPO_ROOT / emission_relpath("crafter", ["--light-block", "-"])
@@ -101,7 +105,7 @@ RELAY_TO_PLANNER = REPO_ROOT / carried_relpath(
     "relay", "2026-10-01-twine-seed-effort-003", "planner")
 DRY_RUN_ARGV = ["apply", "--dry-run", "--json", "/x.tar.gz"]
 DRY_RUN_KEY = "apply_--dry-run_--json_tarball"
-# The 0.4.49 dry run (recorded in the scratch repository, exit 0 in its
+# The pinned dry run (recorded in the scratch repository, exit 0 in its
 # row — no assumed exit remains) and the scope-drift refusal recorded under
 # the same argv (exit 1); the player replays whichever a test selects.
 DRY_RUN = REPO_ROOT / fixture_relpath(DRY_RUN_ARGV, "scratch", "dry-run")
@@ -116,7 +120,7 @@ NOT_BALES_STDERR = b"[twine test] not bale's stderr\n"
 RESPONSE_FIXED = {"tarball", "ran", "exit_code", "dry_run", "outcome", "apply_line",
                   "stderr", "reason", "refusals"}
 # What `bale apply --dry-run --json` may answer besides "dry-run", per bale
-# 0.4.49's format_apply_json (unchanged since 0.4.45): a refusal, exit 1,
+# 0.4.51's format_apply_json (unchanged since 0.4.45): a refusal, exit 1,
 # stdout the one line — "Emitted under --dry-run too when the plan would
 # refuse." The scope-drift one is recorded; the other two are doubles.
 DRY_RUN_REFUSALS = [o for o in BALE_VOCABULARIES["apply-outcome"] if o.endswith("-refused")]
@@ -243,7 +247,7 @@ class TempCase(unittest.TestCase):
 
     def player(self, select: dict | None = None) -> "RecordingPlayer":
         """The fixture player with this test's directory as the scratch
-        repository (where the 0.4.49 apply recordings were made) and the
+        repository (where the pinned apply recordings were made) and the
         dry-run group selected unless the test selects another."""
         return RecordingPlayer(REPO_ROOT, scratch_root=self.dir,
                                select=SELECT_DRY_RUN if select is None else select)
@@ -513,8 +517,8 @@ class ExchangeRelays(TempCase):
     def test_ok_json_carries_bales_stdout_and_stderr(self):
         """ok: the twin's `stdout` is bale's stdout as text — now the
         recorded JSON line, byte for byte — `relay` that line parsed and
-        `outcome` its outcome; a stderr (bytes named as not bale's: no
-        recording carries one) is reported and passed through."""
+        `outcome` its outcome; a stderr (here bytes named as not bale's, in
+        place of the recording's) is reported and passed through."""
         runner = RecordedRelay(stderr=NOT_BALES_STDERR)
         run, obj = self.exchange(str(self.exchange_turn()), runner=runner)
         self.assertEqual((obj["ok"], obj["exit_code"], obj["reason"], obj["refusals"]),
@@ -524,6 +528,32 @@ class ExchangeRelays(TempCase):
         self.assertEqual(tuple(obj["relay"]), RELAY_KEYS)
         self.assertEqual(obj["stderr"], NOT_BALES_STDERR.decode())
         self.assertIn(NOT_BALES_STDERR.decode().strip(), run.stderr)
+
+    def test_the_recorded_stderr_is_reported_and_passed_through(self):
+        """Since the pin at 0.4.51 the relayed recording carries the stderr
+        bale printed beside it — its `[bale] relay:` lines, among them
+        `paste block read from <stdin> (trailer verified)`, and the
+        operator's clipboard notice — and RecordedRelay replays it: the
+        twin's `stderr` is those bytes as text, twine's stderr carries them,
+        and nothing in them decides anything (the verb is ok)."""
+        self.assertIn(b"paste block read from <stdin> (trailer verified)", RELAYED.stderr)
+        run, obj = self.exchange(str(self.exchange_turn()), runner=RecordedRelay())
+        self.assertEqual((obj["ok"], obj["exit_code"]), (True, 0), obj["reason"])
+        self.assertEqual(obj["stderr"], RELAYED.stderr.decode("utf-8"))
+        self.assertIn("[bale] clipboard: copied the exchange block", run.stderr)
+
+    def test_the_block_twine_carries_is_the_stdin_bale_was_recorded_with(self):
+        """The relayed round was recorded under twine's own argv with the
+        paste block on stdin — 964 bytes, sha256 7921f0df… (fixtures/README.md,
+        "bale 0.4.51") — and that is byte for byte the block the tests carry
+        (the relayed line's own `block`, which bale hands back unchanged):
+        the replay answers exactly the call it was recorded for."""
+        runner = RecordedRelay()
+        self.exchange(str(self.exchange_turn()), runner=runner)
+        sent = runner.calls[0]["stdin"]
+        self.assertEqual((len(sent), hashlib.sha256(sent).hexdigest()),
+                         (964, "7921f0df07f8e2054238fb0466ec01ffef44fac49be0661025432f1699b77c9c"))
+        self.assertEqual(sent, RELAYED.line["block"].encode("utf-8"))
 
     def test_human_stdout_is_exactly_the_lines_block(self):
         """ok, human mode: stdout is exactly the recorded line's `block` —
@@ -545,15 +575,18 @@ class ExchangeRelays(TempCase):
         self.assertEqual((run.code, run.stdout), (0, block))
 
     def test_each_recorded_refusal_is_not_ok_quoting_its_cause(self):
-        """The two recorded `relay-refused` lines, exit 1: not ok, the
-        reason naming the exit and quoting bale's `cause` whole, the twin's
-        `relay` the line and `outcome` relay-refused. The session-gate line
-        names a sid that was never open, so the carried block names it too
-        (its sentinel edited; the trailer hashes the body only) — each
-        recording answers for its own sid. Human mode: one line, never a
-        block."""
-        cases = {"ingest": None,
-                 "session-gate": block_for_sid(RELAY_RECORDED_ABSENT_SID)}
+        """The two recorded `relay-refused` lines, exit 1, each recorded
+        under twine's own argv and named by its line's `reason` since 0.4.51
+        (`not-an-object`, `not-open`; 0.4.49's were `ingest` and
+        `session-gate`): not ok, the reason naming the exit and quoting
+        bale's `cause` whole — never the `reason` code, which twine does not
+        read — the twin's `relay` the line and `outcome` relay-refused, and
+        bale's recorded stderr, carrying `[bale] error: <cause>`, passed
+        through. The not-open line names a sid that was never open, so the
+        carried block names it too (its sentinel edited; the trailer hashes
+        the body only) — each recording answers for its own sid."""
+        cases = {"not-an-object": None,
+                 "not-open": block_for_sid(RELAY_RECORDED_ABSENT_SID)}
         for name, block in cases.items():
             with self.subTest(recording=name):
                 recording = relay_recording(name)
@@ -569,6 +602,10 @@ class ExchangeRelays(TempCase):
                 self.assertEqual(obj["stdout"], recording.stdout.decode("utf-8"))
                 self.assertEqual(obj["sid"], recording.line["sid"])
                 self.assertNotIn("names sid", obj["reason"], "the sids agree")
+                self.assertEqual(recording.line["reason"], name)
+                self.assertNotIn(f"'{name}'", obj["reason"], "twine reads no relay reason")
+                self.assertEqual(obj["stderr"], recording.stderr.decode("utf-8"))
+                self.assertIn(f"[bale] error: {cause}\n", obj["stderr"])
 
     def test_a_re_emission_recorded_nothing_and_is_not_ok(self):
         """The recorded `re-emitted` line (exit 0, the same block): bale
@@ -613,7 +650,7 @@ class ExchangeRelays(TempCase):
                 self.assertEqual(obj["outcome"], "relayed")
 
     def test_an_outcome_bale_never_emits_is_named(self):
-        """NOT bale's: NOT_A_BALE_OUTCOME, in no vocabulary of bale 0.4.49,
+        """NOT bale's: NOT_A_BALE_OUTCOME, in no vocabulary of bale 0.4.51,
         on the relayed line otherwise intact, exit 0."""
         obj = self.assert_relay_not_ok(
             RecordedRelay(stdout=relay_line_double(outcome=NOT_A_BALE_OUTCOME)),
@@ -648,9 +685,9 @@ class ExchangeRelays(TempCase):
 
     def test_human_mode_not_ok_is_one_line_and_never_bales_stdout(self):
         """Not ok is one line naming why, never the block and never the JSON
-        line: the recorded ingest refusal, and the recorded relayed line
-        beside exit 1 (a double for a broken contract)."""
-        for runner in (RecordedRelay("ingest"), RecordedRelay(exit_code=1)):
+        line: the recorded not-an-object refusal, and the recorded relayed
+        line beside exit 1 (a double for a broken contract)."""
+        for runner in (RecordedRelay("not-an-object"), RecordedRelay(exit_code=1)):
             with self.subTest(recording=runner.recording.relpath,
                               exit_code=runner.exit_code):
                 run = self.exchange_human(str(self.exchange_turn()), runner=runner)
@@ -686,11 +723,11 @@ class ExchangeRelays(TempCase):
         paths = {
             "refused before bale": (RecordedRelay(), str(self.write("No block.\n", "p.txt"))),
             "relayed": (RecordedRelay(), str(self.exchange_turn())),
-            "relay-refused": (RecordedRelay("ingest"), str(self.exchange_turn())),
+            "relay-refused": (RecordedRelay("not-an-object"), str(self.exchange_turn())),
             "no line": (RecordedRelay(stdout=b""), str(self.exchange_turn())),
         }
         expected = {"refused before bale": (None, None), "relayed": (RELAYED.line, "relayed"),
-                    "relay-refused": (relay_recording("ingest").line, "relay-refused"),
+                    "relay-refused": (relay_recording("not-an-object").line, "relay-refused"),
                     "no line": (None, None)}
         for name, (runner, path) in paths.items():
             with self.subTest(path=name):
@@ -698,24 +735,34 @@ class ExchangeRelays(TempCase):
                 self.assertTrue(EXCHANGE_FIXED <= set(obj), EXCHANGE_FIXED - set(obj))
                 self.assertEqual((obj["relay"], obj["outcome"]), expected[name])
 
-    def test_the_fixture_player_has_no_recording_of_twines_relay_argv(self):
-        """Through the fixture player, twine's own argv finds no recording
-        (`relay_sid_stdin_--json.json` was never recorded: the recordings
-        were made with a file) — which is why RecordedRelay replays them
-        for it, on a named assumption. The player does answer the recorded
-        file argv, with the very bytes and exit RecordedRelay replays."""
+    def test_the_fixture_player_answers_twines_relay_argv_from_the_recording(self):
+        """Through the fixture player, twine's own argv is answered from its
+        recording (`relay_sid_stdin_--json+relayed.json`, recorded at 0.4.51
+        with the block on stdin) — the very stdout, exit and stderr
+        RecordedRelay replays — once the test selects the group, since the
+        two refusals were recorded under the same argv; without a selection
+        the player refuses, naming the three. A file argument, which no
+        0.4.51 recording made, finds nothing. Rewritten from
+        test_the_fixture_player_has_no_recording_of_twines_relay_argv (0.4.49:
+        the player refused twine's argv, and answered the file argv only)."""
+        bale_exe = str(ROOTS.ok / "bin" / "bale")
+        argv = [bale_exe, "relay", RELAY_RECORDED_SID, "-", "--json"]
         player = FixturePlayer(REPO_ROOT, scratch_root=self.dir,
-                               select={RELAY_FILE_KEY: "relayed"})
+                               select={RELAY_STDIN_KEY: "relayed"})
+        answer = player(argv, cwd=self.dir)
+        replayed = RecordedRelay()(argv)
+        self.assertEqual((answer.exit_code, answer.stdout, answer.stderr),
+                         (0, RELAYED.stdout, RELAYED.stderr))
+        self.assertEqual((replayed.exit_code, replayed.stdout, replayed.stderr),
+                         (answer.exit_code, answer.stdout, answer.stderr))
         with self.assertRaises(AssertionError) as caught:
-            player([str(ROOTS.ok / "bin" / "bale"), "relay", RELAY_RECORDED_SID, "-",
-                    "--json"], cwd=self.dir)
-        self.assertIn("relay_sid_stdin_--json.json", str(caught.exception))
-        answer = player([str(ROOTS.ok / "bin" / "bale"), "relay", RELAY_RECORDED_SID,
-                         "/tmp/manifest.json", "--json"], cwd=self.dir)
-        replayed = RecordedRelay()([str(ROOTS.ok / "bin" / "bale"), "relay",
-                                    RELAY_RECORDED_SID, "-", "--json"])
-        self.assertEqual((answer.exit_code, answer.stdout), (0, RELAYED.stdout))
-        self.assertEqual((replayed.exit_code, replayed.stdout), (0, RELAYED.stdout))
+            FixturePlayer(REPO_ROOT, scratch_root=self.dir)(argv, cwd=self.dir)
+        for group in ("relayed", "relay-refused+not-an-object", "relay-refused+not-open"):
+            self.assertIn(f"{RELAY_STDIN_KEY}+{group}.json", str(caught.exception))
+        with self.assertRaises(AssertionError) as caught:
+            player([bale_exe, "relay", RELAY_RECORDED_SID, "/tmp/manifest.json", "--json"],
+                   cwd=self.dir)
+        self.assertIn("relay_sid_file_--json.json", str(caught.exception))
 
     def test_the_double_refuses_to_answer_for_another_sid(self):
         """RecordedRelay never replays a recording for a sid its line does
@@ -733,7 +780,7 @@ class ExchangeRelays(TempCase):
     def test_the_relayed_block_is_an_intact_exchange_block_of_its_sid(self):
         """The input the tests carry: `take` reads the relayed line's block
         as one exchange block of the recorded sid whose trailer holds; the
-        session-gate variant (sentinel edited) stays intact."""
+        not-open variant (sentinel edited) stays intact."""
         for block, sid in ((relayed_block(), RELAY_RECORDED_SID),
                            (block_for_sid(RELAY_RECORDED_ABSENT_SID),
                             RELAY_RECORDED_ABSENT_SID)):
@@ -1014,11 +1061,13 @@ class ResponseDryRuns(TempCase):
         return obj
 
     def test_the_recorded_scope_drift_refusal_is_not_ok(self):
-        """The refusal the 2b-ii carry-forward owed, recorded at 0.4.49 (a
-        response adding `other.txt` beside the forecast's `hello.txt`):
-        exit 1, the line on stdout with `drift` naming the path and bale's
-        remedy line — replayed through the player by selecting its group.
-        Not ok, naming the exit and the outcome, no apply line."""
+        """The refusal the 2b-ii carry-forward owed, recorded at 0.4.49 and
+        again at 0.4.51 (a response adding `other.txt` beside the forecast's
+        `hello.txt`): exit 1, the line on stdout with `drift` naming the path
+        and bale's remedy line — replayed through the player by selecting
+        its group. Not ok, naming the exit and the outcome, no apply line;
+        the stderr bale printed beside it (recorded since 0.4.51) is the
+        twin's `stderr`."""
         player = self.player(SELECT_DRIFT_REFUSED)
         run, obj = self.response(str(self.tarball()), runner=player)
         self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"],
@@ -1030,7 +1079,9 @@ class ResponseDryRuns(TempCase):
         self.assertIn("--allow-out-of-scope", recorded["drift"]["remedy"])
         for needle in ("bale exited 1", f"outcome {RECORDED_REFUSAL!r}", "not 'dry-run'"):
             self.assertIn(needle, obj["reason"])
-        self.assertEqual(obj["stderr"], "", "no row records stderr")
+        recorded_err = DRIFT_REFUSED.with_suffix(".stderr").read_bytes()
+        self.assertTrue(recorded_err, "bale explained the refusal on stderr")
+        self.assertEqual(obj["stderr"], recorded_err.decode("utf-8"))
         self.assertEqual(len(player.calls), 1)
 
     def test_each_dry_run_refusal_is_named_with_its_exit(self):
@@ -1213,9 +1264,11 @@ class EndToEnd(TempCase):
         self.assertEqual(run.stdout.encode("utf-8"), RELAYED.line["block"].encode("utf-8"))
 
     def test_a_recorded_refusal_through_the_real_seam(self):
-        """The stub replays the ingest refusal (exit 1): not ok, the cause
-        quoted, human stdout one line."""
-        refused = relay_recording("ingest")
+        """The stub replays the not-an-object refusal (exit 1) and, with it,
+        the stderr bale printed (its sibling): not ok, the cause quoted,
+        bale's `[bale] error:` line on twine's stderr, human stdout one
+        line."""
+        refused = relay_recording("not-an-object")
         stub = StubBale(relay_stdout=refused.path, exit_code=refused.exit_code)
         self.addCleanup(stub.cleanup)
         run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
@@ -1224,6 +1277,8 @@ class EndToEnd(TempCase):
         self.assertEqual((run.code, obj["ok"], obj["exit_code"], obj["outcome"]),
                          (1, False, 1, "relay-refused"))
         self.assertIn(f'"{refused.line["cause"]}"', obj["reason"])
+        self.assertEqual(obj["stderr"], refused.stderr.decode("utf-8"))
+        self.assertIn(f'[bale] error: {refused.line["cause"]}', run.stderr)
         human = run_cli("carry", "exchange", str(self.exchange_turn()),
                         bale_root=stub.root)
         self.assertEqual((human.code, len(human.stdout.splitlines())), (1, 1))
@@ -1389,7 +1444,7 @@ class FindingBale(TempCase):
 
 class ThePinGates(TempCase):
     """The carry verbs drive only a bale whose bin/VERSION is the pin. The
-    transition table keys on bale 0.4.49's outcome and closure
+    transition table keys on bale 0.4.51's outcome and closure
     vocabularies; another version may answer in spellings it has no move
     for, so the version is checked before bale starts — never after."""
 

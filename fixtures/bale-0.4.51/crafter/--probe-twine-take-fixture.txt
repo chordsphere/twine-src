@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# PROBE twine-take-fixture: TODO(worker) — what this asks, in one line.
+# Why: TODO(worker) — the gap this fills, in one line.
+# Read-only: writes nothing anywhere; stdout is the only output.
+
+probe() {
+  # TODO(worker): replace this placeholder with the real sections —
+  # one labeled section per question, every command's output capped,
+  # an explicit truncation marker when the cap bites (TARBALL.md 4.2).
+  # The cap-and-truncation pattern, worked for one command:
+  #   git status --porcelain=v1 2>&1 | head -n 40
+  #   n=$(git status --porcelain=v1 2>/dev/null | wc -l)
+  #   [ "$n" -gt 40 ] && echo "[truncated: $n lines total, showing 40]"
+  # Listing a tree, worked with caches excluded — __pycache__ and *.pyc
+  # (and node_modules, dist, build) are generated, never source, and
+  # would crowd the cap and mislead the reader into thinking they ship:
+  #   find bin -name __pycache__ -prune -o -name '*.pyc' -prune -o -type f -print | sort | head -n 80
+  # or, inside a git checkout, only what git tracks:
+  #   git ls-files -- bin | head -n 80
+  echo "--- section: TODO-example ---"
+  echo "TODO(worker): unfilled probe placeholder — not ready to paste"
+}
+
+out="$(probe 2>&1)"
+emit_probe_block() {
+  echo "=== PROBE BEGIN twine-take-fixture ==="
+  printf '%s\n' "$out"
+  printf -- '--- integrity: %s lines ---\n' "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+  echo "=== PROBE END twine-take-fixture ==="
+}
+emit_probe_block
+
+# Clipboard copy (TARBALL.md 4.3): the installed bale copies the block
+# above with this machine's clipboard command, [clipboard] command in
+# bale.toml (the project's value, else the global one; set it once
+# with `bale config init --global`). This never fails the probe, and the
+# PROBE BEGIN/END banners above stay the dependency-free selection aid.
+clip_fallback() {
+  echo "[clipboard] probe output not copied: probes copy themselves through a current bale on PATH once 'bale config init --global' has set this machine's clipboard command; meanwhile select between the PROBE BEGIN/END banners and copy manually" >&2
+}
+if command -v bale >/dev/null 2>&1; then
+  emit_probe_block | PYTHONDONTWRITEBYTECODE=1 bale clipboard --block "probe block"
+  clip_rc=$?
+  if [ "$clip_rc" -gt 1 ]; then
+    echo "[clipboard] 'bale clipboard' exited $clip_rc, which is not a copy answer (0 copied, 1 not copied); a bale that predates paste-block copying has no clipboard verb, so upgrade it if that is the cause" >&2
+    clip_fallback
+  fi
+else
+  echo "[clipboard] bale is not on PATH, so this machine's clipboard command could not be looked up" >&2
+  clip_fallback
+fi

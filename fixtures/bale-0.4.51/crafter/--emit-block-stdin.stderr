@@ -1,0 +1,2 @@
+[craft] clarification manifest normalized to a from: worker record, round 1, 2 question(s)
+[craft] block emitted on stdout — hand it to the courier for `bale relay <sid> <file|->`; the trailer is the sha256 of the body bytes, so a truncated paste refuses on ingest instead of being reasoned from (TARBALL.md 5.9.2)

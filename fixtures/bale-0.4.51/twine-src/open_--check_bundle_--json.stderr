@@ -1,0 +1,21 @@
+[bale] bale open --check: rehearsing planner bundle /tmp/tmp.7us84LTOtN/check/twine-051-probe.bale-bundle against the live tree — nothing will be written
+[bale] member brief verified: brief.md (sha256 591fb8d71583…, LF-normalized)
+[bale] member checkpoint: explicit null (not shipped)
+[bale] [validation] base carries {sid} (claude/checkpoints/{sid}.sh); existence check defers to the pre-allocation resolved-existence pre-flight; blindness coverage checked against the pattern
+[bale] checkpoint blindness gate passed: the declared write forecast does not cover claude/checkpoints/{sid}.sh and no include entry names it explicitly (incidental coverage auto-excludes at the walk)
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+
+  rehearsal:          bale open --check
+  project root:       /home/chordsphere/twine-src
+  branch:             master
+  gates:              every argv-only gate passed (flag pairs, brief and checkpoint reads, detached HEAD, include group, slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness, intents, supersession guards, forecast disjointness)
+  write forecast:     README.md
+  read includes:      README.md
+  include group:      none engaged
+  readme:             /tmp/bale-open-members-dku4nqhl/brief.md (read; no placeholder)
+  supersession:       none (no --supersedes)
+  checkpoint dry-run: no checkpoint member
+  not run:            the wizard's prompts, the supersession exchange, the read-only sweep, the sid mint and session state, the context walk and its caps, hooks, the request tarball, and every telemetry write
+  wrote:              nothing
+
+Rehearsal only: `bale open --dry-run` adds the checkpoint dry-run; `bale open` opens.

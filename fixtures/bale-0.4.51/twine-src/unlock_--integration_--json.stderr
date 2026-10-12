@@ -1,0 +1,1 @@
+[bale] error: `bale unlock --integration --json` is not supported: the json report is session-shaped (sid, closure_reason, telemetry) and the integration lock is repo-level state with none of those facts. Run `bale unlock --integration` without --json.

@@ -31,12 +31,13 @@ project's inventory.
   further recorded outcome of a verb as `also_recorded`), and the text
   formats `take` parses, each naming the version that emitted its
   fixtures — `[[wanted]]`, a shape kept in the header for a surface a
-  later session needs and the pin lacks (none at 0.4.49: the three the
+  later session needs and the pin lacks (none at 0.4.51: the three the
   0.4.45 manifest carried are surfaces now), and `[[vocabulary]]` for
   bale's three closed vocabularies the transition table keys on
   (telemetry outcomes, closure reasons, `bale apply --json` outcomes).
-  Pull when a session reads a new bale surface or bumps the pin; the
-  header comment spells the entry shapes.
+  Pinned at 0.4.51, the last exact pin (the next session makes it a
+  floor). Pull when a session reads a new bale surface or bumps the pin;
+  the header comment spells the entry shapes.
 - `../share/transitions.toml` — the transition table (D17): four axes
   (the three bale vocabularies and twine's stop set), one row per key,
   each naming a declared move with its actor (twine, operator or
@@ -69,8 +70,8 @@ project's inventory.
   exactly four keys (`sid`, `cwd`, `tarball`, and `opens` — one entry per
   desk, `outcome`, `desk`, `bundle_sha256`, `opener_sha256`, `recorded_at`),
   written on an `opened` or `second-desk` only, never removed in Arc 1, and
-  where a second desk finds the request tarball bale's `second-desk` line
-  does not name; `context/cli-contract.md` §15.4. Pull when a session
+  where a second desk finds the request tarball when bale's `second-desk`
+  line does not name one (bale 0.4.49's did not; 0.4.50 on names it); `context/cli-contract.md` §15.4. Pull when a session
   reads or writes spend, prices a model, maps a provider's usage onto the
   record (Arc 2), starts, stops or kills a session's runtime, or opens,
   tracks or closes a session twine carried in.
@@ -95,11 +96,13 @@ project's inventory.
   the running record with its `groups` and the process-level kill of every
   one of them, the pin gating the closure alone, the one `unlock` argv and
   the `aborted` closure, the recorded unlock lines the tests replay since
-  the pin at 0.4.49), §15, `carry bundle` (the courier opens a bundle with
-  the one `open` argv, never retried; the opener on stdout; the in-flight
-  record and the tarball a second desk needs; the three recorded open
-  lines the tests replay), the manifest and fixture shapes (per-run fixture
-  names, by role; outcome groups), how the tests run. Default inclusion for any session
+  the pin at 0.4.49, their stderr since 0.4.51), §15, `carry bundle` (the
+  courier opens a bundle with the one `open` argv, never retried; the
+  opener on stdout; the in-flight record and the tarball a second desk
+  needs; the four recorded open lines the tests replay, a refusal among
+  them), §16, recording a pin (the recorder, the lander and the bump
+  procedure), the manifest and fixture shapes (per-run fixture names, by
+  role; outcome groups; stderr siblings), how the tests run. Default inclusion for any session
   that adds a verb, runs a subprocess, routes a courier's block, or
   touches spend, the kill-switch or the in-flight record.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
@@ -109,5 +112,22 @@ project's inventory.
   values named by role, and the outcome group an argv recorded with more
   than one outcome carries), and per file the command, directory, date,
   probe, byte count and sha256 — exit codes, `unrecorded` where not
-  captured (no 0.4.49 row); one section per bale version, earlier
-  sections kept as history. Pull when recording or reading a fixture.
+  captured (no 0.4.49 or 0.4.51 row) — and, since 0.4.51, the stderr each
+  recording printed: a `.stderr` sibling per file and two more columns
+  per row; a version's recordings come from one carried paste-back, the
+  recorder's, which lands under its `carried/` as their source. One
+  section per bale version, earlier sections kept as history. Pull when
+  recording or reading a fixture.
+
+## Tools
+- `../bin/twine-record-fixtures` — the recorder: the probe a pin bump
+  runs in `~/twine-src` with the new bale on PATH, recording every bale
+  surface twine reads, stdout and stderr, with a gzip+base64 copy of
+  each stream; `[SLUG]`, default `twine-record-<installed version>`.
+  `context/cli-contract.md` §16.
+- `../bin/twine-land-recordings` — the lander: lands a recorder
+  paste-back under `fixtures/bale-<version>/` (recordings, `.stderr`
+  siblings, the paste) and prints the README rows and manifest lines, or
+  with `--check` writes nothing and exits 0 exactly when the tree holds
+  what the paste derives. Its naming rule is `../tests/fixture_rule.py`,
+  shared with the tests. Pull both when bumping the pin.

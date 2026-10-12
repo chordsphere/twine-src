@@ -1,0 +1,61 @@
+[bale] opening planner bundle /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle
+[bale] member brief verified: brief.md (sha256 0fb83b3faa61…, LF-normalized)
+[bale] member checkpoint: explicit null (not shipped)
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+[bale] no checkpoint member: skipping the dry-run leg (nothing to prove)
+[bale] replaying pack invocation: bale pack 'twine-051-record: the scoped session' --slug sc --include hello.txt --write hello.txt --expects-probe no --readme-file /tmp/bale-open-members-am61_6mj/brief.md
+[bale] tree position: branch main; latest applied none yet
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+[bale] selected 1 files for context/ (6 B, max depth 0)
+[bale] session id: 2026-10-08-sc-002
+[bale] pack clock: 2026-10-08T13:35:25+00:00 (UTC; the sid's date is this instant's date)
+[bale] forecast-disjointness gate passed (ADR-0015): pack write forecast (hello.txt) is disjoint from 1 open session(s): 2026-10-08-ro-001
+[bale] note: revert/retry/unlock/handoff resolve the session the compatibility pointer names (the most recently opened) while several are open; sid disambiguation for them is deferred (ADR-0006)
+[bale] provenance: base-drift stamp covers 1 committed file(s) across 1 forecast entry (HEAD bytes; files with no committed base are absent by design)
+[bale] provenance: packer='chordsphere' work_class='mixed' bale_version=0.4.51 packed_at=2026-10-08T13:35:25+00:00
+[bale] request manifest schema validation passed
+[bale] wrote /tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-sc-002.tar.gz
+[bale] recorded session scope for 2026-10-08-sc-002: hello.txt
+[bale] open provenance: work_class='mixed' packer='chordsphere' recorded at .bale/sessions/2026-10-08-sc-002/provenance.json
+[bale] open provenance: opened from bundle 'twine-051-scoped' (brief sha256 0fb83b3faa61…) — stamped as the opened attempt's bundle
+[bale] open provenance: telemetry record opened at claude/telemetry/2026-10-08-sc-002.json (outcome 'opened'; close-time events append to it)
+[bale] opened session 2026-10-08-sc-002 in the registry (lock pointer written)
+
+  hook:   post_pack (global)
+  script: /home/chordsphere/bale/user/scripts/copy-request-to-downloads.sh
+  cwd:    /tmp/tmp.7us84LTOtN/scratch-repo
+  env:    BALE_HOOK=post_pack
+          BALE_SESSION_ID=2026-10-08-sc-002
+          BALE_TARBALL=/tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-sc-002.tar.gz
+          BALE_REPO_ROOT=/tmp/tmp.7us84LTOtN/scratch-repo
+  This script runs as your user. It may write outside the repo,
+  install software, or perform any action its author chose.
+  Inspect the script before approving.
+  default: accept — global-layer hook — your own script
+  run this hook? [Y/n] 
+[bale] [hook post_pack] declined (stdin closed or interrupted); not invoking.
+
+Open the session: paste the block below into a fresh agent chat,
+unedited, with the request tarball attached.
+
+--8<-- session opener (copy everything between the scissor lines) --8<--
+I'm using "bale", a CLI that packaged the attached request tarball.
+This message opens bale session 2026-10-08-sc-002.
+Goal, verbatim from the request manifest: twine-051-record: the scoped session
+The docs and tools in the tarball are mine, written for this workflow;
+AGENT.md and the four docs beside it are my instructions for this
+session. Read manifest.json first, then AGENT.md, then README.md, my
+brief for this session; AGENT.md says when the other four docs are
+needed. tools/craft_response.py and tools/response_lint.py are
+stdlib-only formatters with no network access — conveniences over the
+docs, which are the contract; read them before you run them, and a
+response assembled by hand is just as valid.
+Packed at 2026-10-08T13:35:25+00:00 (UTC).
+bale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.
+If you need something from me, a fact from my machine or a decision,
+end that turn with the matching block from TARBALL.md (a probe, a
+light question block, or a clarification response) rather than a
+question in prose, which tends to get lost. This is a worker session:
+what I need back is one response tarball carrying the finished work.
+--8<-- end session opener --8<--
+[bale] clipboard: copied the session opener to the clipboard (`clip.exe`, global bale.toml)

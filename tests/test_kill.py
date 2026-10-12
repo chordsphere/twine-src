@@ -3,12 +3,13 @@
 
 No test here, and nothing in the suite, runs a real `bale unlock`: every
 unlock answer is one of the six `bale unlock … --json` lines recorded at
-bale 0.4.49 (tests/helpers.py unlock_recording, replayed by RecordedUnlock
-and StubBale; fixtures/README.md, "bale 0.4.49"), or bytes a test names as
-not bale's at all — the doubles session 5b built from format_unlock_json's
-docstring are gone (session 2026-10-07-twine-pin-049-001, contract §14.7).
-The session id the tests kill is the one the recorded `aborted` close
-names, 2026-10-07-sc-002, so the close is the recording's own. The
+the pin, bale 0.4.51 (tests/helpers.py unlock_recording, replayed by
+RecordedUnlock and StubBale; fixtures/README.md, "bale 0.4.51"), or bytes a
+test names as not bale's at all — the doubles session 5b built from
+format_unlock_json's docstring are gone (session
+2026-10-07-twine-pin-049-001, contract §14.7). The session id the tests
+kill is the one the recorded `aborted` close names, 2026-10-08-sc-002, so
+the close is the recording's own. The
 processes the kill kills are real `setsid`-led groups the tests start
 (tests/helpers.py RealGroup) — and a test that asserts one is dead polls
 for it (`dies_within`, brief §7) rather than checking once — and every state
@@ -28,9 +29,19 @@ come back; a cleared group is not signalled by the kill.
 Session 2026-10-07-twine-kill-reason-002: the hand line keys on the
 refusal line's `reason` code — `bale revert <sid>` exactly when the line
 says `unlock-refused` with `hold-branch` — and twine reads no stderr text.
-No recording carries a stderr (unlock_recording answers b"" for each), so
-no test replays one derived from a recording; a test that proves stderr
-passes through feeds NOT_BALES_STDERR, bytes this file names as not bale's.
+No recording carried a stderr then (unlock_recording answered b"" for
+each), so no test replayed one derived from a recording; a test that
+proves stderr passes through feeds NOT_BALES_STDERR, bytes this file names
+as not bale's.
+
+Session 2026-10-12-twine-pin-051-001 (the pin at 0.4.51): every recording
+now carries the stderr bale printed beside it, recorded byte-exact, and the
+replays answer it — each refusal's ends with `[bale] error: <message>`,
+which reaches the exit entry and passes through to twine's stderr byte for
+byte. The recorded HOLD refusal's stderr carries the very text the hand
+line was once keyed on; it decides nothing still (the code does), and the
+tests that feed NOT_BALES_STDERR or an empty stderr in its place keep their
+point.
 
 Sections:
   1. The between-calls abort
@@ -80,11 +91,12 @@ def executable(path: Path = EXE, installed: str = PIN) -> bale.Executable:
     test hands the closure."""
     root = bale.Root(path.parent.parent, "--bale-root", f"--bale-root {path.parent.parent}")
     return bale.Executable(root, path, installed, PIN, f"bin/VERSION reads {installed}")
-# bale 0.4.49's HOLD-branch refusal, as recorded for this sid (fixtures/
-# bale-0.4.49/scratch/unlock_sid_--json+unlock-refused+hold-branch.json):
+# bale 0.4.51's HOLD-branch refusal, as recorded for this sid (fixtures/
+# bale-0.4.51/scratch/unlock_sid_--json+unlock-refused+hold-branch.json):
 # exit 1 and one `unlock-refused` line whose `reason` is `hold-branch` — the
-# code twine's kill keys its hand line on (contract §14.5). Its stderr, like
-# every recording's, is empty: none was recorded and none is derived.
+# code twine's kill keys its hand line on (contract §14.5). Its stderr is the
+# recorded sibling: bale's `[bale] unlock: <sid>` line, then `[bale] error:
+# <message>` (the line's own message, which names the branch).
 HOLD = unlock_recording("hold-branch")
 NOT_OPEN = unlock_recording("not-open")
 
@@ -108,7 +120,10 @@ def unlock_refusal_reasons() -> list[str]:
 def hold_line_with(**changes) -> Recording:
     """The recorded HOLD refusal with keys of its line replaced — bytes that
     are NOT bale's (bale printed no such line), to prove which key the hand
-    line reads. The exit and the empty stderr stay the recording's."""
+    line reads. The exit stays the recording's; the stderr is empty (b"",
+    named here: no stderr was recorded beside an edited line, and the
+    recorded one names the branch, which would muddy what the line
+    proves)."""
     line = {**HOLD.line, **changes}
     return Recording(HOLD.relpath, (json.dumps(line) + "\n").encode(), HOLD.exit_code,
                      b"", line)
@@ -1108,44 +1123,54 @@ class AbortedClosure(StateCase):
         self.assertIsNone(closure.operator_line)
 
     def test_a_refusal_is_not_ok_names_bales_reason_and_is_never_retried(self):
-        """The recorded not-open refusal (bale 0.4.49: exit 1 and the
-        `unlock-refused` line on stdout; no stderr recorded): not ok, the
-        exit named first — with nothing on stderr, twine says so — then what
-        the line said instead of this close: its outcome with its reason
-        code `not-open`, its sid (the one that was never open) and its null
-        closure reason. The line is kept as bale's one JSON object
-        (contract §14.6's `closure`); `not-open` keeps the unlock line."""
+        """The recorded not-open refusal (bale 0.4.51: exit 1, the
+        `unlock-refused` line on stdout and `[bale] error: <message>` on
+        stderr, recorded byte-exact): not ok, the exit named first — quoting
+        the last line of bale's stderr, the recorded `[bale] error:` line —
+        then what the line said instead of this close: its outcome with its
+        reason code `not-open`, its sid (the one that was never open) and
+        its null closure reason. The recorded stderr passes through byte for
+        byte. The line is kept as bale's one JSON object (contract §14.6's
+        `closure`); `not-open` keeps the unlock line. With the stderr
+        replaced by none at all (b"", not bale's), twine says so instead."""
         runner = RecordedUnlock(NOT_OPEN)
         closure = self.close(runner)
         self.assertFalse(closure.ok)
         self.assertEqual(len(runner.calls), 1, "a closure is never retried")
+        error_line = f"[bale] error: {NOT_OPEN.line['message']}"
+        self.assertEqual(NOT_OPEN.stderr, (error_line + "\n").encode("utf-8"))
         self.assertEqual(closure.failures, [
-            "bale exited 1 with nothing on stderr",
+            f"bale exited 1: {error_line}",
             "bale reported outcome 'unlock-refused' (reason 'not-open'), not 'unlocked'",
             f"bale reported sid {UNLOCK_RECORDED_ABSENT_SID!r}, not {SID!r}",
             "bale reported closure_reason None, not 'aborted'"])
-        self.assertEqual(closure.stderr, "")
+        self.assertEqual(closure.stderr.encode("utf-8"), NOT_OPEN.stderr)
+        silent = self.close(RecordedUnlock(NOT_OPEN, stderr=b""))
+        self.assertEqual(silent.failures[0], "bale exited 1 with nothing on stderr")
+        self.assertEqual(silent.failures[1:], closure.failures[1:])
         self.assertFalse(closure.hold_branch)
         self.assertEqual(closure.operator_line, f"bale unlock {SID} --reason aborted")
         self.assertEqual(closure.unlock, NOT_OPEN.line)
         self.assertEqual((closure.unlock["reason"], closure.exit_code), ("not-open", 1))
 
     def test_the_hold_branch_refusal_hands_back_bales_own_remedy(self):
-        """Row 17 of the 0.4.49 recordings: bale refused to unlock the
-        session whose response had reached HOLD. The hand line keys on the
-        line's code — outcome `unlock-refused`, reason `hold-branch` — read
-        from the recording as replayed, with its stderr empty; the failures
-        name the code."""
+        """The HOLD-branch refusal recorded at the pin (row 17 at 0.4.49):
+        bale refused to unlock the session whose response had reached HOLD.
+        The hand line keys on the line's code — outcome `unlock-refused`,
+        reason `hold-branch` — read from the recording as replayed, with the
+        stderr bale printed (recorded since 0.4.51) reported byte for byte
+        and quoted in the exit entry by its last line, the `[bale] error:`
+        line; the failures name the code."""
         runner = RecordedUnlock(HOLD)
         closure = self.close(runner)
         self.assertFalse(closure.ok)
-        self.assertEqual(closure.stderr, "", "the recording's stderr: none")
+        self.assertEqual(closure.stderr.encode("utf-8"), HOLD.stderr, "the recorded stderr")
         self.assertEqual((closure.unlock["reason"], closure.unlock["outcome"]),
                          ("hold-branch", "unlock-refused"))
         self.assertTrue(closure.hold_branch)
         self.assertEqual(closure.operator_line, f"bale revert {SID}")
         self.assertEqual(closure.failures, [
-            "bale exited 1 with nothing on stderr",
+            f"bale exited 1: [bale] error: {HOLD.line['message']}",
             "bale reported outcome 'unlock-refused' (reason 'hold-branch'), not 'unlocked'",
             "bale reported closure_reason None, not 'aborted'"])
         self.assertEqual(len(runner.calls), 1)
@@ -1206,9 +1231,9 @@ class AbortedClosure(StateCase):
 
     def test_a_line_that_is_not_this_close_is_not_ok(self):
         """Two recorded lines that are not this close — the no-op with
-        nothing open (row 20) and the read-only session's close (row 19,
-        another sid, closure reason `closed-read-only`) — and two stdouts
-        that are no bale line at all."""
+        nothing open and the read-only session's close (another sid,
+        closure reason `closed-read-only`) — and two stdouts that are no
+        bale line at all."""
         read_only = unlock_recording("closed-read-only")
         cases = {
             "outcome 'no-op'": RecordedUnlock("no-op"),
@@ -1345,7 +1370,7 @@ class KillSession(StateCase):
                       report.reason)
         self.assertIn("(reason 'hold-branch'), not 'unlocked'", report.reason)
         self.assertEqual((report.as_json()["stderr"], report.as_json()["stderr_truncated"]),
-                         ("", False))
+                         (HOLD.stderr.decode("utf-8"), False))
         self.assertEqual(report.as_json()["closure"], HOLD.line)
 
     def test_a_refusal_with_another_code_names_it_and_hands_back_the_unlock_line(self):
@@ -1792,17 +1817,24 @@ class KillVerb(StateCase):
         self.assertIn("NOT CLOSED", closure_line)
         self.assertIn("(reason 'hold-branch')", closure_line)
         self.assertIn(NOT_BALES_STDERR.decode(), err, "the stderr passes through to twine's")
-        code, out, err, _ = self.run_verb(runner=RecordedUnlock(HOLD))
+        code, out, err, _ = self.run_verb(runner=RecordedUnlock(HOLD, stderr=b""))
         self.assertEqual(code, 1)
         self.assertIn(f"finish by hand: bale revert {SID}", out, "empty stderr, same hand line")
         self.assertNotIn("bale's stderr follows", err, "nothing to pass through")
+        # The recording's own stderr (since 0.4.51): it passes through byte
+        # for byte, after twine's notice, and the hand line is the same.
+        code, out, err, _ = self.run_verb(runner=RecordedUnlock(HOLD))
+        self.assertEqual(code, 1)
+        self.assertIn(f"finish by hand: bale revert {SID}", out)
+        self.assertIn("bale's stderr follows\n" + HOLD.stderr.decode("utf-8"), err)
 
 
 class KillEndToEnd(StateCase):
     """The real entrypoint as a subprocess, a real setsid-led group, and a
     stub bale (a double: StubBale replays the recorded `aborted` close, or a
-    recorded refusal line with its recorded exit — and on stderr nothing, or
-    bytes the test names as not bale's)."""
+    recorded refusal line with its recorded exit — and on stderr the
+    recording's sibling (since 0.4.51), or nothing, or bytes the test names
+    as not bale's, whichever the test says)."""
 
     def stub(self, **kwargs) -> StubBale:
         stub = StubBale(**kwargs)
@@ -1878,11 +1910,13 @@ class KillEndToEnd(StateCase):
         self.assertNotIn("Traceback", run.stderr)
 
     def test_a_stub_printing_the_hold_line_with_nothing_on_stderr_hands_back_revert(self):
-        """The desk's reproduction (brief §3), as a subprocess: a stub that
-        prints the recorded HOLD line, exits 1 and writes nothing on stderr.
-        The landed 0.8.0 tree handed back the unlock line; keyed on the
-        code, twine hands back bale's own remedy and names `hold-branch`."""
-        stub = self.stub(unlock_stdout=HOLD.path, exit_code=HOLD.exit_code)
+        """The desk's reproduction (session kill-reason-002's brief §3), as a
+        subprocess: a stub that prints the recorded HOLD line, exits 1 and
+        writes nothing on stderr — `stderr=""` in place of the recorded
+        sibling, the reproduction's condition, not bale's bytes. The landed
+        0.8.0 tree handed back the unlock line; keyed on the code, twine
+        hands back bale's own remedy and names `hold-branch`."""
+        stub = self.stub(unlock_stdout=HOLD.path, exit_code=HOLD.exit_code, stderr="")
         run = run_cli("kill", SID, "--state-dir", str(self.state), "--cwd", str(self.repo),
                       "--json", bale_root=stub.root)
         obj = json.loads(run.stdout)

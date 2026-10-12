@@ -6,6 +6,7 @@ process of its own."""
 from __future__ import annotations
 
 import ast
+import dataclasses
 import json
 import shutil
 import signal
@@ -301,11 +302,13 @@ class TheSeam(unittest.TestCase):
 
     def test_fixture_player_answers_a_recorded_bale_argv(self):
         """The double session 2b-ii builds on: `bale status --json` run in
-        the repo answers with the pinned version's recorded bytes."""
+        the repo answers with the pinned version's recorded bytes — and,
+        since the pin at 0.4.51, the stderr recorded beside them (empty for
+        status)."""
         player = FixturePlayer(REPO_ROOT)
         r = player(["bale", "status", "--json"], cwd=REPO_ROOT)
         recorded = (REPO_ROOT / f"fixtures/bale-{PIN}/twine-src/status_--json.json")
-        self.assertEqual((r.exit_code, r.stdout), (0, recorded.read_bytes()))
+        self.assertEqual((r.exit_code, r.stdout, r.stderr), (0, recorded.read_bytes(), b""))
         r = player(["/somewhere/bin/bale", "--version"], cwd="/tmp")
         self.assertEqual(r.stdout, (REPO_ROOT / f"fixtures/bale-{PIN}/anywhere/"
                                     "--version.txt").read_bytes())
@@ -347,8 +350,25 @@ class TheSeam(unittest.TestCase):
             self.assertEqual((close.exit_code, json.loads(close.stdout)["outcome"]),
                              (0, "unlocked"))
 
+    def test_fixture_player_answers_the_stderr_recorded_beside_stdout(self):
+        """Since the pin at 0.4.51 every pinned row records stderr, and the
+        player answers it: the `.stderr` sibling's bytes, held to the row's
+        sha256 — a refusal's `[bale] error:` line among them. A sibling whose
+        bytes are not the row's is refused, naming it, never answered."""
+        player = FixturePlayer(REPO_ROOT, select={"unlock_sid_--json": "unlock-refused+not-open"})
+        r = player(["bale", "unlock", "any-sid", "--json"], cwd=REPO_ROOT)
+        rel = f"fixtures/bale-{PIN}/twine-src/unlock_sid_--json+unlock-refused+not-open"
+        self.assertEqual(r.stderr, (REPO_ROOT / f"{rel}.stderr").read_bytes())
+        line = json.loads(r.stdout)
+        self.assertEqual(r.stderr, f"[bale] error: {line['message']}\n".encode("utf-8"))
+        row = player.rows[f"{rel}.json"]
+        player.rows[f"{rel}.json"] = dataclasses.replace(row, stderr_sha256="0" * 64)
+        with self.assertRaises(AssertionError) as caught:
+            player(["bale", "unlock", "any-sid", "--json"], cwd=REPO_ROOT)
+        self.assertIn("not the bytes its row records", str(caught.exception))
+
     def test_fixture_player_refuses_an_unrecorded_exit_without_a_named_assumption(self):
-        """The rule stays though no 0.4.49 row needs it: a row whose exit
+        """The rule stays though no pinned row needs it: a row whose exit
         is `unrecorded` is answered only with the code the test assumes."""
         rel = f"fixtures/bale-{PIN}/twine-src/status_--json.json"
         player = FixturePlayer(REPO_ROOT)

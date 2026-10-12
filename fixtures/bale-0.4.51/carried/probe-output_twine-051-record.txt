@@ -1,0 +1,1447 @@
+=== PROBE BEGIN twine-051-record ===
+--- section: environment ---
+date-utc: 2026-10-08T13:35:24Z
+cwd: /home/chordsphere/twine-src
+uname: Linux 6.6.87.1-microsoft-standard-WSL2 x86_64
+python3: Python 3.12.3
+bale on PATH: /home/chordsphere/.local/bin/bale
+install root: /home/chordsphere/bale
+install bin/VERSION: 0.4.51
+crafter: /home/chordsphere/bale/tools/craft_response.py (3d82833b7bc446207e1aeb2c970a78e455ae4b0e15d5cb78342b6badea487b08)
+install bin/bale_report.py sha256: 1f4f2c758fdc3b1f8f92e25dc1561dddbc4ffb11b335f86cdefab4a3e77b21e1
+install schemas: bundle-manifest.schema.json changelog-record.schema.json diagnostics.schema.json escalation-record.schema.json exchange-record.schema.json request-manifest.schema.json response-manifest.schema.json telemetry-record.schema.json 
+schema 3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23  bundle-manifest.schema.json
+schema 7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c  changelog-record.schema.json
+schema bfeef3cc0a6b91b47b1c1c9084ca47349b23a6661b10c848da3b4ef28b413521  diagnostics.schema.json
+schema 16729aae82e20425f91b9fb343de6a74d00fa417ce3cd718767413deee550c41  escalation-record.schema.json
+schema c9c291899103c4a73768ef930697722b89c5c3ef8f5b388c78c36741316cddc8  exchange-record.schema.json
+schema 70a0c2bd3b6b0d4cf17bc97010c2b7d58931527b7b3100aa984ca3576c075e3d  request-manifest.schema.json
+schema 02d2b6413d078e031641c99e09a9fea909555bdfcb9b2a8a110dbdce63f5817e  response-manifest.schema.json
+schema b79d7bf75c10f5799484f906954461e7379ef6d4a870bb7df8c08ce050b38825  telemetry-record.schema.json
+clipboard key in the project bale.toml: 0
+0 line(s) (the global one is read by bale and shows as a copy notice on stderr)
+repo: /home/chordsphere/twine-src; git head: c91dfda on master; VERSION 0.10.0
+git status --porcelain (head):
+?? claude/telemetry/2026-10-08-open-arc2-003.json
+latest applied tag: applied/2026-10-08-twine-seed-tidy6-002
+scratch: /tmp/tmp.7us84LTOtN (removed at the end)
+--- section: twine-src, read-only (nothing written here) ---
+== recording: --version (anywhere)
+argv: bale --version
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 12
+stdout sha256: de4bfb2eea95dc5102c052339fba0c576c839a7bb8de083373994b04c109bcb4
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+bale 0.4.51
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA0tKzElVMNAz0TM15AIAy/EejwwAAAA=
+--- end gzip+base64 ---
+stderr bytes: 0
+stderr sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stderr ends with newline: n/a (empty)
+--- raw: stderr (empty) ---
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAAwMAAAAAAAAAAAA=
+--- end gzip+base64 ---
+== recording: status_--json (repo)
+argv: bale status --json
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 2830
+stdout sha256: 688c2a65b1d33342d3ef789c3cf3314001c747fd49c5802896a7c04dd709b572
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "status", "version": "0.4.51", "sid": "2026-10-08-open-arc2-003", "repo": {"root": "/home/chordsphere/twine-src", "branch": "master", "tree_clean": false, "tree_change_count": 1, "bale_initialised": true}, "session": {"state": "packed", "goal": "Open Arc 2: the sitting that bumps the pin to bale 0.4.51, lands the small sessions the continue-twine-002 carry-forward queues, re-asks the nisaba item, and cuts the runtime into sessions from the seed's section 4", "expects_probe": "yes", "clarification": null}, "staging": {"present": true, "path": "/home/chordsphere/twine-src/.bale/staging", "sessions": {"2026-10-08-open-arc2-003": {"present": false, "path": "/home/chordsphere/twine-src/.bale/staging/2026-10-08-open-arc2-003", "strategy": "working-tree", "untracked_inputs": []}}, "stale": ["2026-10-08-twine-carry-exchange-json-001"]}, "outbox": ["request-2026-09-29-begin-harness-001.tar.gz", "request-2026-10-01-twine-core-002.tar.gz", "request-2026-10-01-twine-seed-001.tar.gz", "request-2026-10-01-twine-seed-effort-003.tar.gz", "request-2026-10-02-continue-twine-004.tar.gz", "request-2026-10-02-twine-carry-probe-002.tar.gz", "request-2026-10-02-twine-seed-close-003.tar.gz", "request-2026-10-02-twine-take-read-001.tar.gz", "request-2026-10-03-continue-twine-003.tar.gz", "request-2026-10-03-continue-twine-006.tar.gz", "request-2026-10-03-twine-carry-bale-002.tar.gz", "request-2026-10-03-twine-cost-spine-005.tar.gz", "request-2026-10-03-twine-seed-tidy-001.tar.gz", "request-2026-10-03-twine-transitions-004.tar.gz", "request-2026-10-04-twine-kill-switch-002.tar.gz", "request-2026-10-04-twine-seed-landings-001.tar.gz", "request-2026-10-05-continue-twine-002.tar.gz", "request-2026-10-05-twine-kill-followups-003.tar.gz", "request-2026-10-05-twine-seed-row5-001.tar.gz", "request-2026-10-06-continue-twine-002.tar.gz", "request-2026-10-06-twine-clear-group-003.tar.gz", "request-2026-10-06-twine-seed-tidy4-001.tar.gz", "request-2026-10-06-twine-seed-tidy5-004.tar.gz", "request-2026-10-07-twine-carry-bundle-003.tar.gz", "request-2026-10-07-twine-kill-reason-002.tar.gz", "request-2026-10-07-twine-pin-049-001.tar.gz", "request-2026-10-08-open-arc2-003.tar.gz", "request-2026-10-08-twine-carry-exchange-json-001.tar.gz", "request-2026-10-08-twine-seed-tidy6-002.tar.gz"], "applied": {"count": 22, "latest": "2026-10-08-twine-carry-exchange-json-001"}, "sessions": ["2026-10-08-open-arc2-003"], "scopes": {"2026-10-08-open-arc2-003": []}, "integration_lock": null, "config": {"project": "/home/chordsphere/twine-src/bale.toml", "global": "/home/chordsphere/bale/user/bale.toml", "hooks_wired": ["post_pack"], "search_paths": 1, "baleignore": false, "summary_failed": false}, "clipboard": {"command": "clip.exe", "source": "global", "key": "probe.clipboard_command", "shadowed": null, "problem": null}}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA5VWzXLbOAy+71NwdNmLacuq7W721ifoA2QyHpqGJdYUqYJUHTeTdy9ASV7F6Urp
+STaIv+8DSOAl823UvobsX5GFqGIbsoXIfgAG4x0L8+VmuV2zMJgjC4q82Ml1LvN/pG/ASYW6kHn+
+iVUQGk86Lxl6H1l5VZHvla48HkNTAcIqXowDGVCz/gGV0xUr1ipEQJZFBNhrC4rDn5QNcBNWypX0
+8a1j52t2oCzsjTPRKGsCcIIRW3jldCH0GF4SsgSxUfpMWnRcemVZ8pUwiC+oRUGmFYhgYjSupN8q
+ikNbNyGJG+NE9ILjiY6ShbDKHbvTUCtrRR+xE2nvyE8LsgOc54XQCvEqTx4vCo/iewsthIVAkCqc
+OyNngjooYSLUC0HehW5jd4KE2dQgjKMsboFO6OsuAYDj34E+OtKB2DBCeG7ob9g36A8J/BVScbVV
+aE5Gq9jR41prE2FRlYQ8EdYgBEgsM50LJi5WMwVdLZmd1eDmvxKE5PJ/++ZtvKHifxxwNdWYISJ1
+QHlljxePZ9KX3FN8RsxiagtqpIb4Jp3Hp9eeEcvMPY6T78J3tYTnriflt+AdxVpnT2xHd+rgn5Mh
+AtU5RJkc5A+yeJAHoHRlpdARPWy0jAqX5c/uAo3UOd56iOcxNdFHdLkZPuo36cKJmjIyV1MmhXzX
+05tp/TFVqQvnEBTjrLT1AeaT6iyiOoNEULPAP71HMRngN/q7af0xam7QOdA3C0/S0HQxth+xSDRF
+c7zOg+5ZoveWHji+k3PV2/QmZ2OtDBcTdTUHZDNOix9HumWzDb59z+9kkO04r5O31l/aJsxVcTtO
+Df1lO5fW7g/T2g1FpMGFskTfNnM57e6ruJlP6s5iO1fFz2+7sXVHO9vxn8cM05XqnrZJ9IMJNS+1
+wcMcjrsHelp18r39iOmNrd0YxhOZqKaxJi0NL9mwVRQFHVgaFiHebTvTD/9o5Qj3I+PtOOLIQZNs
+di4+pmlCIx9KTNN6b70+9yObJ7l3JzMMbP+Npv3cxOT3aBl9bdMKZP2hW4Lem6TJ2gbAtyaV9+ew
+vxhMrD1mDb1Ze16qOlTU+7ra8+gOowXNlI6m12i2h7auFV73J2VscpQOXtNuYpqDp/WorwnpubR1
+8sESntPADr5FnTaaHgHJzpBme5oyy5uX/eCBrSp19JcUrqePlS3Uwwr0+tcvhahfWQ4LAAA=
+--- end gzip+base64 ---
+stderr bytes: 0
+stderr sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stderr ends with newline: n/a (empty)
+--- raw: stderr (empty) ---
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAAwMAAAAAAAAAAAA=
+--- end gzip+base64 ---
+== recording: stats_--json (repo)
+argv: bale stats --json
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 19063
+stdout sha256: 22fd5448775a980c8db490079a51ab4d8ce63f5ba3a9312f52208585b35bd05b
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "stats", "epoch": {"first_sid": "2026-09-29-begin-harness-001", "first_created_at": "2026-09-29T22:25:01+00:00"}, "coverage": {"closure_reason": {"first_sid": "2026-09-29-begin-harness-001", "records_lacking": 0}, "clarification": {"first_sid": "2026-09-29-begin-harness-001", "records_lacking": 1}, "checkpoint": {"first_sid": "2026-10-01-twine-seed-001", "records_lacking": 7}, "scope_kind": {"first_sid": "2026-09-29-begin-harness-001", "records_lacking": 0}}, "filters": {"work_class": null, "since": null}, "corpus": {"records": 29, "parse_failures": 0, "filtered_record_versions": 0, "read_only_sessions": 6, "crash_debris_sessions": 0, "sessions": 23, "in_flight_sessions": 1, "response_attempts": 29, "validated_attempts": 29, "checks": 192, "handoff_origin_sessions": 0, "docs_read": {"sessions": 22, "tokens": {"--doc-assertions": 1, "--help": 1, "--validation-epilogue": 1, "--write": 2, "-emissions": 1, "-scratch": 1, ".gitignore": 2, "1": 25, "1-2": 1, "1-3": 2, "1-5": 1, "1-8": 1, "10": 10, "10.1": 9, "10.2": 1, "10.3": 1, "11": 3, "11.2": 15, "11.3-11.4": 1, "11.3-11.7": 1, "11.7": 1, "12.2": 1, "13.1-13.3": 1, "14": 1, "14.2": 2, "14.5-14.7": 2, "14.7": 1, "2": 24, "2026-10-02-twine-seed-close-003": 1, "3": 4, "3-4": 1, "3.1-3.2": 1, "3.2": 1, "4": 5, "4-5": 1, "4-7": 1, "4.1-4.6": 1, "4.3": 1, "5": 18, "5-6": 1, "5-8": 1, "5.1": 7, "5.1-5.3": 1, "5.1-5.4": 2, "5.1-5.5": 1, "5.1\u20135.4": 1, "5.9.2": 1, "5.9.4": 1, "6": 5, "6-8": 2, "6.4": 2, "7": 17, "7-10": 1, "7-8": 1, "7.7": 1, "8": 8, "9": 5, "9-13": 1, "AGENT.md": 22, "CLI": 5, "CODE.md": 3, "D1-D5": 1, "D15": 3, "D15-D24": 1, "D16": 1, "D2": 1, "D2-D4": 1, "D20": 1, "DOCS.md": 9, "Executable": 1, "HOLD": 3, "I": 1, "INDEX": 3, "META": 22, "META\u2013\u00a711.2": 1, "PLANNER.md": 2, "Proposals": 3, "Q": 1, "Q-6": 1, "Q-8": 1, "README.md": 32, "RealGroup": 1, "SEED.md": 1, "StubBale": 2, "T1-T14": 1, "T11": 1, "T12": 1, "T12-T14": 1, "T13": 1, "T14": 1, "T4": 1, "T8": 1, "T8-T10": 1, "TARBALL.md": 22, "TQ-1": 1, "VERSION": 2, "a": 1, "anchor": 3, "anchors": 1, "and": 28, "annotations": 3, "axes": 1, "axis": 1, "bale": 1, "bale.py": 1, "bale.toml": 4, "block": 5, "brief": 17, "builders": 1, "by": 1, "check": 2, "checks": 1, "claude/INDEX.md": 16, "claude/context/cli-contract.md": 12, "claude/responses/2026-09-28-seed-reconcile-001/notes.md": 1, "claude/responses/2026-10-01-twine-core-002/notes.md": 2, "claude/responses/2026-10-01-twine-seed-001/notes.md": 1, "claude/responses/2026-10-01-twine-seed-effort-003/notes.md": 1, "claude/responses/2026-10-02-twine-carry-probe-002/notes.md": 1, "claude/responses/2026-10-02-twine-seed-close-003/notes.md": 1, "claude/responses/2026-10-02-twine-take-read-001/notes.md": 2, "claude/responses/2026-10-03-twine-carry-bale-002/notes.md": 2, "claude/responses/2026-10-03-twine-cost-spine-005/notes.md": 2, "claude/responses/2026-10-03-twine-transitions-004/notes.md": 2, "claude/responses/2026-10-04-twine-kill-switch-002/notes.md": 2, "claude/responses/2026-10-05-twine-kill-followups-003/notes.md": 3, "claude/responses/2026-10-05-twine-seed-row5-001/notes.md": 1, "claude/responses/2026-10-06-twine-clear-group-003/notes.md": 1, "claude/responses/2026-10-06-twine-seed-tidy4-001/notes.md": 1, "claude/responses/2026-10-07-twine-carry-bundle-003/notes.md": 2, "claude/responses/2026-10-07-twine-kill-reason-002/notes.md": 2, "claude/responses/2026-10-07-twine-pin-049-001/notes.md": 2, "claude/telemetry/2026-09-29-begin-harness-001.json": 2, "claude/telemetry/2026-10-01-twine-seed-001.json": 1, "cli": 1, "cli.py": 2, "commands/carry_bale": 1, "commands/core": 1, "commands/core.py": 2, "commands/kill.py": 1, "commands/transitions.py": 1, "comments": 1, "constants": 1, "construction": 1, "context": 1, "core": 2, "delegated": 1, "directory": 1, "docstring": 11, "doubles": 1, "embedded": 8, "emission": 1, "emissions": 2, "end-to-end": 1, "entry": 1, "epilogue": 4, "exchange": 1, "facts": 1, "feedback": 7, "first": 1, "fixtures/README.md": 5, "fixtures/bale-0.4.45/crafter/--probe-twine-take-fixture.txt": 1, "flags": 1, "for": 3, "format": 1, "full": 16, "guard": 1, "harness-seed.md": 1, "head": 1, "header": 18, "headers": 2, "headings": 1, "helpers": 1, "hook's": 1, "imports": 9, "in": 20, "index-header": 1, "inventory": 3, "its": 4, "kill": 1, "kill.py": 1, "light-block": 1, "list": 1, "locate": 1, "locate_executable": 1, "main": 2, "manifest.json": 22, "module": 2, "names": 1, "neighborhoods": 1, "nisaba-seed.md": 1, "no-prices": 1, "of": 1, "outline": 1, "paragraph": 2, "paragraphs": 1, "part": 1, "parts": 2, "passing": 2, "paste-backs": 1, "paths": 1, "plus": 1, "probe": 2, "probe-fetched": 3, "probe-twine-049-fixtures": 1, "project": 1, "project's": 2, "read": 2, "reader": 1, "recordings": 1, "regions": 3, "registry": 1, "registry.py": 2, "relay": 2, "relay's": 1, "request": 1, "resolve_cwd": 1, "resolve_state_dir": 1, "response": 2, "response-manifest": 2, "road": 2, "row": 1, "run_cli": 1, "same": 1, "scan": 2, "schema": 10, "schema's": 3, "seam": 1, "section": 15, "sections": 38, "self_reported": 2, "semantics": 1, "sentence": 1, "session": 2, "setup": 1, "share/bale-consumption.toml": 7, "share/transitions.toml": 2, "shipped-files": 1, "sites": 5, "skeleton": 5, "skimmed": 3, "spend.py": 1, "spot-checked": 1, "state": 1, "state-directory": 1, "stderr": 2, "stop": 1, "stop-at-cap": 1, "surface": 2, "surfaces": 1, "table": 2, "tedder-src": 1, "test": 2, "test_carry_bale": 1, "test_carry_bale.py": 1, "test_consumption_manifest": 1, "test_consumption_manifest.py": 1, "test_json_discipline": 1, "test_json_discipline.py": 2, "test_kill.py": 1, "test_process.py": 1, "test_registry": 1, "test_registry.py": 2, "tests": 2, "tests/": 1, "tests/*.py": 1, "tests/__init__.py": 1, "tests/helpers.py": 8, "tests/test_carry.py": 1, "tests/test_carry_bale.py": 2, "tests/test_consumption_manifest.py": 5, "tests/test_fixtures.py": 1, "tests/test_json_discipline.py": 3, "tests/test_kill.py": 4, "tests/test_process.py": 3, "tests/test_registry.py": 1, "tests/test_spend.py": 2, "tests/test_status.py": 1, "tests/test_take.py": 2, "text": 1, "the": 44, "this": 1, "three": 1, "through": 20, "to": 2, "tools/craft_response.py": 20, "tools/response_lint.py": 18, "tools/response_lint.py's": 1, "transitions.py": 1, "twine-seed.md": 15, "twine/": 1, "twine/*.py": 1, "twine/__init__.py": 2, "twine/bale.py": 3, "twine/cli.py": 1, "twine/commands/*.py": 1, "twine/commands/__init__.py": 1, "twine/commands/carry_bale.py": 3, "twine/commands/core.py": 2, "twine/commands/kill.py": 1, "twine/commands/take.py": 1, "twine/kill.py": 4, "twine/process.py": 1, "twine/registry.py": 1, "twine/shapes.py": 1, "twine/spend.py": 1, "twine/transitions.py": 1, "unlock": 5, "unlock_argv": 1, "usage": 5, "used": 2, "verb": 1, "wanted": 1, "whole": 1, "worker": 2, "write": 5, "writes": 1, "written_against": 1, "\u00a71": 6, "\u00a710": 2, "\u00a710.1": 2, "\u00a710.6": 2, "\u00a711.2": 4, "\u00a711.3-\u00a711.7": 1, "\u00a711.7": 1, "\u00a713.2": 1, "\u00a714": 3, "\u00a716": 1, "\u00a717": 1, "\u00a72": 5, "\u00a73": 1, "\u00a74": 2, "\u00a75": 3, "\u00a75.1": 2, "\u00a75.1-\u00a75.4.1": 1, "\u00a76": 2, "\u00a77": 4, "\u00a78": 2}}, "light_blocks_total": 0, "paste_carried_rounds_total": 0, "clarification_rounds_total": 0}, "classes": {"code": {"sessions": 13, "closed_sessions": 13, "response_attempts": 19, "validated_attempts": 19, "checks": 113, "checks_agree": 110, "checks_disagree": 3, "checks_na": 0, "agreement_rate": 0.9734513274336283, "unparsed_validated_attempts": 0, "unparsed_share": 0.0, "held_attempts": 6, "hold_rate": 0.3157894736842105, "drift_refused_attempts": 0, "drift_refusal_rate": 0.0, "override_attempts": 1, "rejected_attempts": 0, "claims_declared": 113, "claims_per_validated_attempt": 5.947368421052632, "empty_claims_validated_attempts": 0, "checkpointed_attempts": 19, "checkpoint_hold_attempts": 6, "checkpoint_hold_rate": 0.3157894736842105, "checkpoint_catch_attempts": 3, "checkpoint_catch_rate": 0.15789473684210525, "required_check_refused_attempts": 0, "required_check_override_attempts": 0, "base_drift_refused_attempts": 0, "base_drift_override_attempts": 0, "forecast_attempts": 19, "forecast_drift_attempts": 1, "forecast_drift_rate": 0.05263157894736842, "forecast_drift_paths": 1, "forecast_admitted_paths": 1, "forecast_admission_rate": 1.0, "forecast_entries": 139, "forecast_entries_untouched": 9, "forecast_precision": 0.935251798561151, "bailout_sessions": 0, "sessions_with_response_attempt": 13, "bailout_rate": 0.0, "clarified_sessions": 0, "clarification_epoch_sessions": 13, "clarification_rate": 0.0, "linkage": {"attempts": 3, "kinds": {"probe": 3}, "points": {"pre-build": 3}}, "claim_basis": {"observed": {"checks": 113, "agree": 110, "agreement_rate": 0.9734513274336283}}, "members": {"held": ["2026-10-02-twine-take-read-001", "2026-10-03-twine-cost-spine-005", "2026-10-04-twine-kill-switch-002", "2026-10-07-twine-kill-reason-002", "2026-10-07-twine-pin-049-001"], "checks_disagree": ["2026-10-02-twine-take-read-001", "2026-10-03-twine-cost-spine-005", "2026-10-04-twine-kill-switch-002"], "unparsed": [], "drift_refused": [], "rejected": [], "required_check_refused": [], "base_drift_refused": [], "checkpoint_hold": ["2026-10-02-twine-take-read-001", "2026-10-03-twine-cost-spine-005", "2026-10-04-twine-kill-switch-002", "2026-10-07-twine-kill-reason-002", "2026-10-07-twine-pin-049-001"], "checkpoint_catch": ["2026-10-07-twine-kill-reason-002", "2026-10-07-twine-pin-049-001"], "forecast_drift": ["2026-10-02-twine-take-read-001"], "bailout": [], "empty_claims": []}}, "contract-doc": {"sessions": 1, "closed_sessions": 1, "response_attempts": 1, "validated_attempts": 1, "checks": 1, "checks_agree": 1, "checks_disagree": 0, "checks_na": 0, "agreement_rate": 1.0, "unparsed_validated_attempts": 0, "unparsed_share": 0.0, "held_attempts": 0, "hold_rate": 0.0, "drift_refused_attempts": 0, "drift_refusal_rate": 0.0, "override_attempts": 0, "rejected_attempts": 0, "claims_declared": 1, "claims_per_validated_attempt": 1.0, "empty_claims_validated_attempts": 0, "checkpointed_attempts": 1, "checkpoint_hold_attempts": 0, "checkpoint_hold_rate": 0.0, "checkpoint_catch_attempts": 0, "checkpoint_catch_rate": 0.0, "required_check_refused_attempts": 0, "required_check_override_attempts": 0, "base_drift_refused_attempts": 0, "base_drift_override_attempts": 0, "forecast_attempts": 1, "forecast_drift_attempts": 0, "forecast_drift_rate": 0.0, "forecast_drift_paths": 0, "forecast_admitted_paths": 0, "forecast_admission_rate": null, "forecast_entries": 1, "forecast_entries_untouched": 0, "forecast_precision": 1.0, "bailout_sessions": 0, "sessions_with_response_attempt": 1, "bailout_rate": 0.0, "clarified_sessions": 0, "clarification_epoch_sessions": 1, "clarification_rate": 0.0, "linkage": {"attempts": 0, "kinds": {}, "points": {}}, "claim_basis": {"predicted": {"checks": 1, "agree": 1, "agreement_rate": 1.0}}, "members": {"held": [], "checks_disagree": [], "unparsed": [], "drift_refused": [], "rejected": [], "required_check_refused": [], "base_drift_refused": [], "checkpoint_hold": [], "checkpoint_catch": [], "forecast_drift": [], "bailout": [], "empty_claims": []}}, "doc": {"sessions": 8, "closed_sessions": 8, "response_attempts": 9, "validated_attempts": 9, "checks": 78, "checks_agree": 78, "checks_disagree": 0, "checks_na": 0, "agreement_rate": 1.0, "unparsed_validated_attempts": 0, "unparsed_share": 0.0, "held_attempts": 1, "hold_rate": 0.1111111111111111, "drift_refused_attempts": 0, "drift_refusal_rate": 0.0, "override_attempts": 0, "rejected_attempts": 0, "claims_declared": 78, "claims_per_validated_attempt": 8.666666666666666, "empty_claims_validated_attempts": 0, "checkpointed_attempts": 8, "checkpoint_hold_attempts": 1, "checkpoint_hold_rate": 0.125, "checkpoint_catch_attempts": 1, "checkpoint_catch_rate": 0.125, "required_check_refused_attempts": 0, "required_check_override_attempts": 0, "base_drift_refused_attempts": 0, "base_drift_override_attempts": 0, "forecast_attempts": 9, "forecast_drift_attempts": 0, "forecast_drift_rate": 0.0, "forecast_drift_paths": 0, "forecast_admitted_paths": 0, "forecast_admission_rate": null, "forecast_entries": 10, "forecast_entries_untouched": 0, "forecast_precision": 1.0, "bailout_sessions": 0, "sessions_with_response_attempt": 8, "bailout_rate": 0.0, "clarified_sessions": 0, "clarification_epoch_sessions": 8, "clarification_rate": 0.0, "linkage": {"attempts": 1, "kinds": {"probe": 1}, "points": {"pre-read": 1}}, "claim_basis": {"observed": {"checks": 78, "agree": 78, "agreement_rate": 1.0}}, "members": {"held": ["2026-10-02-twine-seed-close-003"], "checks_disagree": [], "unparsed": [], "drift_refused": [], "rejected": [], "required_check_refused": [], "base_drift_refused": [], "checkpoint_hold": ["2026-10-02-twine-seed-close-003"], "checkpoint_catch": ["2026-10-02-twine-seed-close-003"], "forecast_drift": [], "bailout": [], "empty_claims": []}}, "meta": {"sessions": 1, "closed_sessions": 0, "response_attempts": 0, "validated_attempts": 0, "checks": 0, "checks_agree": 0, "checks_disagree": 0, "checks_na": 0, "agreement_rate": null, "unparsed_validated_attempts": 0, "unparsed_share": null, "held_attempts": 0, "hold_rate": null, "drift_refused_attempts": 0, "drift_refusal_rate": null, "override_attempts": 0, "rejected_attempts": 0, "claims_declared": 0, "claims_per_validated_attempt": null, "empty_claims_validated_attempts": 0, "checkpointed_attempts": 0, "checkpoint_hold_attempts": 0, "checkpoint_hold_rate": null, "checkpoint_catch_attempts": 0, "checkpoint_catch_rate": null, "required_check_refused_attempts": 0, "required_check_override_attempts": 0, "base_drift_refused_attempts": 0, "base_drift_override_attempts": 0, "forecast_attempts": 0, "forecast_drift_attempts": 0, "forecast_drift_rate": null, "forecast_drift_paths": 0, "forecast_admitted_paths": 0, "forecast_admission_rate": null, "forecast_entries": 0, "forecast_entries_untouched": 0, "forecast_precision": null, "bailout_sessions": 0, "sessions_with_response_attempt": 0, "bailout_rate": null, "clarified_sessions": 0, "clarification_epoch_sessions": 0, "clarification_rate": null, "linkage": {"attempts": 0, "kinds": {}, "points": {}}, "claim_basis": {}, "members": {"held": [], "checks_disagree": [], "unparsed": [], "drift_refused": [], "rejected": [], "required_check_refused": [], "base_drift_refused": [], "checkpoint_hold": [], "checkpoint_catch": [], "forecast_drift": [], "bailout": [], "empty_claims": []}}}, "closure_mix": {"applied": 22, "reverted": 0, "bailout": 0, "unlocked": {}}, "churn": {"rolled_back": 0, "re_applied": 0}, "cross_checks": {"clarification": {"self_reported_sessions": 0, "promoted_sessions": 0, "both": 0, "self_only": 0, "promoted_only": 0}, "budget": {"pressure": {"none": 22, "unreported": 1}, "bailed_with_pressure_none": 0, "compaction": {"reporting_sessions": 22, "occurred_sessions": 0}}, "forecast_departures": {"declared_paths": 1, "admitted_paths": 1, "both": 1, "admitted_only": 0, "declared_only": 0}}, "packers": {"chordsphere": {"sessions": 23, "validated_attempts": 29, "claims_declared": 192, "empty_claims_validated_attempts": 0, "claims_per_validated_attempt": 6.620689655172414}}, "doc_epochs": {"017e38f93a4c": {"first_created_at": "2026-10-01T22:01:45+00:00", "sessions": 9, "closed_sessions": 9, "in_flight": 0, "applied": 9, "reverted": 0, "bailout": 0, "unlocked": 0, "contract_docs": {"AGENT.md": "dd22b82cf4b3dc146fa813a862ab03c32d0b94faf8bab5e51218e6cdd5578fed", "TARBALL.md": "59ece7fde0adb7dd5c5f5d902d5cf1078c4562cebb82925aa529df19f22d1c8c", "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c", "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75", "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"}, "applied_rate": 1.0}, "382ee1d2d896": {"first_created_at": "2026-10-03T03:37:23+00:00", "sessions": 3, "closed_sessions": 3, "in_flight": 0, "applied": 3, "reverted": 0, "bailout": 0, "unlocked": 0, "contract_docs": {"AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285", "TARBALL.md": "004d4389c984e322c6b0e2ac57e1a2ee87fbc62d8f70ddacfc2104cc17464bab", "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c", "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75", "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"}, "applied_rate": 1.0}, "4f31157aa0ed": {"first_created_at": "2026-10-05T00:10:37+00:00", "sessions": 2, "closed_sessions": 2, "in_flight": 0, "applied": 2, "reverted": 0, "bailout": 0, "unlocked": 0, "contract_docs": {"AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285", "TARBALL.md": "f6c3326ee3c827498371886ead46349b50fa4f448e2facb0d40ee4d137ce234a", "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c", "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75", "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"}, "applied_rate": 1.0}, "98e12e01e303": {"first_created_at": "2026-10-06T15:58:41+00:00", "sessions": 3, "closed_sessions": 3, "in_flight": 0, "applied": 3, "reverted": 0, "bailout": 0, "unlocked": 0, "contract_docs": {"AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285", "TARBALL.md": "32680c8efcfb1c56c486846d0187063d38b7c5333e48c553db1a9ae0b2d118b1", "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c", "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75", "PLANNER.md": "5af584b98ed0591b57fbb146baf1441f8130a894e050882d22b3cd62c5cd17d5"}, "applied_rate": 1.0}, "3948f329b63d": {"first_created_at": "2026-10-07T16:28:06+00:00", "sessions": 5, "closed_sessions": 5, "in_flight": 0, "applied": 5, "reverted": 0, "bailout": 0, "unlocked": 0, "contract_docs": {"AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285", "TARBALL.md": "c32a8dc8bbc01634a9a5bfcff2bc6240b835f3ff6c71144f2e5d651600a04112", "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c", "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75", "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"}, "applied_rate": 1.0}, "unstamped": {"first_created_at": "2026-10-08T03:42:00+00:00", "sessions": 1, "closed_sessions": 0, "in_flight": 1, "applied": 0, "reverted": 0, "bailout": 0, "unlocked": 0, "contract_docs": null, "applied_rate": null}}, "members": {"in_flight": ["2026-10-08-open-arc2-003"], "read_only": ["2026-09-29-begin-harness-001", "2026-10-02-continue-twine-004", "2026-10-03-continue-twine-003", "2026-10-03-continue-twine-006", "2026-10-05-continue-twine-002", "2026-10-06-continue-twine-002"], "crash_debris": [], "clarification_self_only": [], "clarification_promoted_only": [], "forecast_admitted_only": [], "forecast_declared_only": [], "bailed_with_pressure_none": [], "compaction_occurred": []}}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+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
+mn/7Pwu34EB3SgAA
+--- end gzip+base64 ---
+stderr bytes: 0
+stderr sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stderr ends with newline: n/a (empty)
+--- raw: stderr (empty) ---
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAAwMAAAAAAAAAAAA=
+--- end gzip+base64 ---
+== recording: stats_--sid-2026-10-01-twine-seed-001_--json (repo; the dossier)
+argv: bale stats --sid 2026-10-01-twine-seed-001 --json
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 4026
+stdout sha256: c50f1c6661f291e1378c42e6599ed60f3127452e39c5ae2f5b12f8b20df73455
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "dossier", "session_id": "2026-10-01-twine-seed-001", "found": true, "record": {"record_version": 1, "created_at": "2026-10-01T22:01:45+00:00", "updated_at": "2026-10-01T22:45:44+00:00", "outcome": "applied", "work_class": "doc", "packer": "chordsphere", "in_flight": false, "closure": {"category": "applied", "unlock_reason": null}, "read_only": false, "crash_debris": false}, "attempts": [{"at": "2026-10-01T22:01:45+00:00", "command": "pack", "outcome": "opened", "closure_reason": null, "tarball": null, "scope_kind": "write-forecast", "scope": ["."], "change_paths": [], "overridden_paths": [], "required_check_overrides": [], "base_drift_overrides": [], "forecast_drift_paths": null, "validation": null, "checkpoint": null, "linkage": null, "clarification": null, "diagnostics": null, "provenance": {"work_class": "doc", "packer": "chordsphere", "packed_at": "2026-10-01T22:01:45+00:00"}, "superseded_by": null, "swept_by": null, "cause": null, "bundle": {"stem": "2026-10-01-twine-seed", "brief_sha256": "948b14b1311f9c6c8336f043d796b657c9f81ab2790187e12eebac2a4c07f68a", "checkpoint_sha256": null, "manifest_sha256": "bcce6a7655617cea7c9b30208d4aa47564c3f9cb32a06f4864279cc6155073fb"}, "log": ".bale/logs/2026-10-01-twine-seed-001.log"}, {"at": "2026-10-01T22:45:44+00:00", "command": "apply", "outcome": "applied", "closure_reason": null, "tarball": "response-2026-10-01-twine-seed-001.tar.gz", "scope_kind": "write-forecast", "scope": ["."], "change_paths": ["README.md", "bale.toml", "claude/INDEX.md", "twine-seed.md", "SEED.md"], "overridden_paths": [], "required_check_overrides": [], "base_drift_overrides": [], "forecast_drift_paths": [], "validation": {"state": "PASS", "exit_code": 0, "reconciliation_parsed": true, "claims_declared": 11, "checks": [{"check": "D1-D24 entries and pre-existing annotations byte-identical to harness-seed.md", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "INDEX coherence (crafter --doc-assertions --index claude/INDEX.md)", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "README.md names the seed, the three faces, that no code exists yet, and points at nisaba-seed.md 1", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "SEED.md absent", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "bale.toml parses and carries exactly the two keys", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "exactly one 2026-10-01-twine-seed-001 status annotation per D-entry, opening with a status word", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "no TODO in landed files", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "prune declarations (crafter --doc-assertions --prune-reasons)", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "the four architect messages present verbatim", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "the seed's header blockquote carries the pinned provenance and the standing rule", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}, {"check": "verbatim blocks from the brief present byte-exact (T4, T6, six runtime concerns, Arc 1 table, T7 sentence, N4 sentence)", "claim": "pass", "verdict": "pass", "agreement": "agree", "claim_basis": "observed"}]}, "checkpoint": {"configured": false}, "linkage": {"kind": "probe", "point": "pre-read", "depends_on": null}, "clarification": {"rounds": 0, "records": []}, "diagnostics": null, "provenance": null, "superseded_by": null, "swept_by": null, "cause": null, "bundle": null, "log": ".bale/logs/2026-10-01-twine-seed-001.log"}], "lineage": {"superseded_by": null, "superseded_from": [], "corrects": null, "corrected_by": []}}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA71XzW7jNhC+9ykIXbpFrUSyZdnJLYBz6KG7RZNDgSIQKGpkEZFJLUnFcYO8e2co
+yZbduruLtr5JM0PON//Dt0C3TugNBLcsKLS1EkwwYYEF/NQqkwUxptE0DeMojOLQbaWC0AIUYRTF
+JFrqVpGUMy3grwGhDf2/9Z/ZCxi6C0kx8oUB7qDIuDu++XE6vY3i22T+YxTdRhHd3DbFWdFkfpsk
+B9GRFbxpagkFUbfaPGei5tZ25gkiNlw8o5FIEBXCs00FBoghVVbWcl2RtpLXlqwRtbatAW+OQDBr
+bXYnSlpVa/GcoVnWG6naun73juBFplW9G19nuK2yAnIj7UAmWe4cbBpHtN/fgq9wDRq74d7t3p4T
+F+gGVAeux3+MDumOm5zX9YFgBR7KnmV359ZIB2GpMYLcumDgE7zgKniiiyuu1pA13FUeNdE0RtrI
+ogB1TDfwuZUGAykqQE/1YrDn59xCVhhZur/yBgw9f7i3R/3Ca4k5IsemeSWNlsodaLVUz3wNI6Ga
+431SnJwtJF8rbZ0UIyWNQVSKK9GlwbcllWd8OdspCWzbYKVAgeL5bhSZLTTuiCJ4a0e25Fh/dYfN
+YhqdLViCg4kHZWYrPp2nJHiTLPM4yeNZHJc3IhXL2Swto2RWLG7SPJ0vxE25jHk+XdxE8XIB8RQg
+52LKExEtynTJgyOHHy7uoWGOyhLsiBHkQkDKF+l8nsYLARxV5LNoGi2LhPNkMU8TMUMo+WzKo7RM
+lmmCyoVI4/k8WszK3Luq1mu66wpzGK7xx16fbVFXJItn/r6sTtrIqKyownfnW8uXCwvT3jZaWQjP
+Y0Ppq/UfwX9Qf8Gv93ern++vNl2Y0S9XTm/qDipvC7j+6ePq/reef4DREx7u71f0eeEy9ryjIqYc
+xj5LTvjl7uGBsMGrdJnQBRGjfsIoIWvpz+BdVDSHAYTmyo3FJks17hlxPGRp32D9N6lYxeFqmjBQ
+DuvCMgw9awyEqBF7gFojQWnn1ViW7zAkaJPC7sBr5jSruFE4J8d+9Mq7roz9gYwDU0jhxiS+NgAb
+8P2p+9mfzNCHfjIEOrdgXhC+T909YB9EJjS1F2xI7ANOlNKBYWGInShEDWA6uGGIuQSv7CT6P1wC
+5T4XmeIb9KurgJGTJv7LVXgZzj4BlgjcMaUZxZd5v1u2AzfpYkFNBcOCEtLynA+eZvElrOhrgnFk
+K3cJjfuyZT6pu4QU3PjkhFcuXL3rXLjV7Bl29hKgBr1aATvbyRhVbWtHBcNwmLFVSKW1mzDaSKig
+ttJVjA/SW9oUL2AC5tfjp9UnJhWr0aVQsFLWcBHvNaZFv3XNqG8k/1SzXjzshoq9SK1SOuEKbxg3
+osKpIxzDkrW4LVnqhZT6DFXmCH5zKTyUVd9bVuEGjW7Kab/+3GoH+1ogoUYqXHLZYTvz1eKPO/yi
+bDNtDZfAPPing2pZafTGI/Hr1t6NfoL4cmIfHpMJe0wnzMpXhIkzZYPW4VgDo7Ar3hnBYuZ4XuNE
+e1wwOk79fsI+Jvuf/ys9nt5Pt2g0VatSrttunu6fLYe1+i0YVheMR95tvv3hgCYqPYaIWAA2gsJm
+Ry+l02UcX470prSjeW+Kbl14/6olfdic/+1CPbwevnXbfOp8A4NvzgE5kCljhn0IrUWT3ci4njIc
+Rze8f/cnwmD4eroPAAA=
+--- end gzip+base64 ---
+stderr bytes: 0
+stderr sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stderr ends with newline: n/a (empty)
+--- raw: stderr (empty) ---
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAAwMAAAAAAAAAAAA=
+--- end gzip+base64 ---
+== recording: unlock_sid_--json (unlock-refused: not-open; repo)
+argv: bale unlock no-such-sid-twine-051 --json
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 1
+stdout bytes: 391
+stdout sha256: a6da42625c53f2f18442bf0297400918e033f9091d16bbd3dadb324a1e54029a
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "unlock-refused", "sid": "no-such-sid-twine-051", "log": null, "closure_reason": null, "session_dir_wiped": null, "branch_preserved": false, "telemetry": null, "debris": null, "sweep": null, "reason": "not-open", "message": "session no-such-sid-twine-051 is not open; nothing to unlock. Open session(s): 2026-10-08-open-arc2-003.", "open_sessions": ["2026-10-08-open-arc2-003"]}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA3WQQU7EMAxF95zCymqQyChTBEIzh+AACEWZxNNGpEllJ1MhxN1JSkVZwC7fz/H/
+9odIJds0ojiCKDEk+yYJL4XRiTsQ7F0DMUkudpBVyjz7iFI9HBoPqa88lhCqsCFxIdSEhlPc6ozM
+PkXtPOnZT+g2dCYT7aAnQka6LuRiAmNFGQOOmOl963Z4Js+/Bs+I0yZ/fGveLNOEsUUcq7vpl/3W
+IPDnOuC5ggzt36m9Bh97yAm+r7KH5wpgHbHj2yN0qnuUByXV02ImDdlOKnW/b7atotfuFvlF/Ncu
+Xj9vvgBOZlPphwEAAA==
+--- end gzip+base64 ---
+stderr bytes: 119
+stderr sha256: 2e8ec66238b6879a63d7667cad8a197d8853d75d7aacab55b5cab26066cc475e
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] error: session no-such-sid-twine-051 is not open; nothing to unlock. Open session(s): 2026-10-08-open-arc2-003.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAAzWMQQrCQAxF954iS7v4JR1RpB6iB5Au6hhssCQymeL1bRfuHjzeuz+mRUaSUrz0
+FBKhbmSOWPOM0CfqV03A5440NlHJP2K3nWa1F1Wn1RbP75aGTfwXx2h6Spwu6Bh8xR5hKjmB+dQe
+fobjdPB3AAAA
+--- end gzip+base64 ---
+== recording: unlock_--integration_--json (unlock-refused: integration-json; repo)
+argv: bale unlock --integration --json
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 1
+stdout bytes: 514
+stdout sha256: f64fec6c21aa9f97c1ac5528a4fafea15a9538c1b02310858d0f0bc8f4254049
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "unlock-refused", "sid": null, "log": null, "closure_reason": null, "session_dir_wiped": null, "branch_preserved": false, "telemetry": null, "debris": null, "sweep": null, "reason": "integration-json", "message": "`bale unlock --integration --json` is not supported: the json report is session-shaped (sid, closure_reason, telemetry) and the integration lock is repo-level state with none of those facts. Run `bale unlock --integration` without --json.", "open_sessions": ["2026-10-08-open-arc2-003"]}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA3VR0U7DMAx85yusPIG0TGVICPEZvCLUZe1tDWRJZSebEOLfccq0lgcez2ef7+wv
+k0ru0hHmmUyJIXUflrEvgt6syIjvlYglBAUhHWbQhSSF0TKcpDjXBSI+xbb33J79iMX8jl3shnZk
+CPg0MXsXBEplBByR+XPu7rFjLwvhMzDO8LrX+JhxYJd1q32vNWWP6sIdplDbnQug32hk7aJbUe3f
+kheKKZOUcUyc0T9THkCVI0Yt1Y5LMCuD01R0q6dZ0d8rrOia445c7CeZ5cLJg2pVVRtwQiDJLoPO
+Pg/qIYLSXqeSQE/TZVnTS4n0f4TtNKkvvGRZ1/BpRGwvdusBX82m2Tza+8Y2T7aS1nG3sU3zYN6+
+b34AsPcTAAICAAA=
+--- end gzip+base64 ---
+stderr bytes: 253
+stderr sha256: 23b022935757f1b3999ef3354c3efc723f777c6652c280093ad4bad6f79439fc
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] error: `bale unlock --integration --json` is not supported: the json report is session-shaped (sid, closure_reason, telemetry) and the integration lock is repo-level state with none of those facts. Run `bale unlock --integration` without --json.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA31PQU7EMBC78wofQWr2AfuMva4QDY1LAyFTzUwW8ftNKg6c9miP7bGv77HwFVQV
+PWMeCK0WWb4QQq7OD42epXb0aVJnZEMVh7V9F3WmM3wjxg3KQQ2F0aybgm1xZ8Kz5TRhKWJN+aaM
+XT3BWfhN198XxJqOmP8Pjw49a6SGwhsLzKMTP9m33qESsnaXGLHGxe2ES6sPJsyHU5r/bTk93QHJ
+sDyA/QAAAA==
+--- end gzip+base64 ---
+[craft] the --check bundle (crafted in /tmp/tmp.7us84LTOtN/check):
+[craft]   [craft] checkpoint naming: no bale.toml found; [validation] base not judged
+[craft]   [craft] member brief: brief.md (sha256 591fb8d71583ΓÇª, LF-normalized bytes as written)
+[craft]   [craft] member checkpoint: explicit null (not shipped)
+[craft]   [craft] pack_argv: 9 token(s); pre_answered: 0 intent(s)
+[craft]   [craft] no checkpoint member ΓÇö the bundle is oracle-less; a checkpoint-configured project's replayed pack will refuse it
+[craft]   [craft] wrote /tmp/tmp.7us84LTOtN/check/twine-051-probe.bale-bundle (476 bytes) ΓÇö ship the file and the printed line together; the line carries the bundle filename only, so a downloads-dir save is paste-ready
+[craft]   bale open twine-051-probe.bale-bundle
+check bundle: /tmp/tmp.7us84LTOtN/check/twine-051-probe.bale-bundle (fc27183a26f46c8c28b6e67039afe17e5b65d383e86e0db650d8cd1e41993f92)
+== recording: open_--check_bundle_--json (rehearsed; repo)
+argv: bale open --check /tmp/tmp.7us84LTOtN/check/twine-051-probe.bale-bundle --json
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 723
+stdout sha256: b8cf0ef8e85cb6779c9e56d50b31baf876c5a27bb33300bf3ea9121e27371bf0
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "rehearsed", "sid": null, "tarball": null, "log": null, "session_dir": null, "context_files": null, "readme_path": null, "readme_heading": null, "readme_sha256": null, "checkpoint_file_path": null, "checkpoint_file_sha256": null, "branch": null, "applied_latest": null, "sweep": null, "include_group": null, "opener": null, "bundle": {"path": "/tmp/tmp.7us84LTOtN/check/twine-051-probe.bale-bundle", "sha256": "fc27183a26f46c8c28b6e67039afe17e5b65d383e86e0db650d8cd1e41993f92", "stem": "twine-051-probe"}, "members": {"brief": "591fb8d7158369fefbebad7b2098772aaa8ab36b0541cbc0004b43eb5b7bfcae", "checkpoint": null}, "rehearsal": "check", "checkpoint_dry_run": null, "desk": null, "reason": null, "cause": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA2VSy27kIBC85ysizpkMfgHeb1jtXvZudUMzg4LBAqwkivLva08msTM5cKjqpqgu
++o3Fueg4Evt1zxKdCVImwx7uWXZm4cLs/QIKJATvN8LH0wYy5exiGIxLG6ljKPRSBus85Y1OBGak
+YYJy/kEurxsXTj/4fIa6EzvpM+mnKbrwoX4jdlu9vY0Jgt71wzR5R2bwUCiX3VTPRNMGXdB+NjSc
+Upx3dJwo0G5snIPxa5pv7GqLHcs4redRzlm1v//9LX+OF5PH8uwCHXhXHaYUkR6XjOlwVVgdfDpn
+VteyUg3UwrZCK10rFCQkb3qwVEnqUHSmUQ0pQdwsgBulTUVt1feN7euLWqFx1bp5lL0vtZFGpJQv
+tjE5smtj11cWlZFVpxrRW7JICEZizXslZQ0ACrARyLu20qg55y22DWGHEq2GywjbZ1wjen/42jNY
+9+mj43vrYNLrkOawpWooP31bixx3VQ1zpk/9u/9U2m/40wIAAA==
+--- end gzip+base64 ---
+stderr bytes: 1802
+stderr sha256: 95788022dd14dbb6302b3538fbf413fcec7911eb3d404048e59371eec1c8753d
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] bale open --check: rehearsing planner bundle /tmp/tmp.7us84LTOtN/check/twine-051-probe.bale-bundle against the live tree ΓÇö nothing will be written
+[bale] member brief verified: brief.md (sha256 591fb8d71583ΓÇª, LF-normalized)
+[bale] member checkpoint: explicit null (not shipped)
+[bale] [validation] base carries {sid} (claude/checkpoints/{sid}.sh); existence check defers to the pre-allocation resolved-existence pre-flight; blindness coverage checked against the pattern
+[bale] checkpoint blindness gate passed: the declared write forecast does not cover claude/checkpoints/{sid}.sh and no include entry names it explicitly (incidental coverage auto-excludes at the walk)
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+
+  rehearsal:          bale open --check
+  project root:       /home/chordsphere/twine-src
+  branch:             master
+  gates:              every argv-only gate passed (flag pairs, brief and checkpoint reads, detached HEAD, include group, slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness, intents, supersession guards, forecast disjointness)
+  write forecast:     README.md
+  read includes:      README.md
+  include group:      none engaged
+  readme:             /tmp/bale-open-members-dku4nqhl/brief.md (read; no placeholder)
+  supersession:       none (no --supersedes)
+  checkpoint dry-run: no checkpoint member
+  not run:            the wizard's prompts, the supersession exchange, the read-only sweep, the sid mint and session state, the context walk and its caps, hooks, the request tarball, and every telemetry write
+  wrote:              nothing
+
+Rehearsal only: `bale open --dry-run` adds the checkpoint dry-run; `bale open` opens.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA7VVzY7TMBC+9ynmRldqWhZYWLonJBZx4EdC3FZIO42niXcd29hOS0FI+xA8Aw/G
+kzDjJG26IG5EatR6/r755hv3aoWGPoG8wXmyUBRlTeXtEgLVhCFqW4E3aC0FWLVWsd8iNV4+82dt
+PH/y5uP79G6RgxZpqy0VD89OCx/ciuaStuijsEJtY4JUExi9IUiBCH7d/QDrUi1lttoYWBFsg06J
+7OSqw9ZQs5LiQdMaNhT0WpNadr/njYJprPHR2VM4e366Xp2rZ6dn549/3f2cwZtXhXWhQaO/kjq5
+ly4D9k7btAT64o0udQLbMoIp44FYa+9HUVcbTqMwaWeFrUhQYmAEEb5Frb7DtDTYKloc0sZFtsxj
+fXLBFXTklkrq6oKiNYUIyWU6fKACjXFlzs/MR2c2pIpDlHisja7qdAEro62yFCOUjunAqk9K6ohj
+j0xi2LN4ADZKUGESxxiFUAlSxH0EziQzIFi7QCVyQuW4U+Ell4R/NAtoFXuCtqVhHyCbwg4sNpyA
+GR6oNjuYsotWbEdz6ATb5LjvHBsBu1a2aG73k8BQbQpnOYFHZlJaiH0PLB5BzBB2XKis0XLGaTRt
+tagcmtmhnz2zs17UxVqzRhkmC3HGs/XAA28pzv5K3MlkAsOCoFnC/vljj9iPV+GGygTBuTS4LmrX
+CH8uqOhrCtSvTgwlR6wC2rIepeWnYdgU2JgbPrYBMXu7ETOjucJ0bZBXGHXgZrolkhGN2gqEim2K
+EvKpgteXL17O9gOsgmv9DP4Di1KDwxN/ia3nfeAz0X/VYhBAB/XpeCOhHfVwT5wdFx8Y9NtLvg/y
+ZFAN+Aeqxvaj1nq7dVbEWrEIhxQNHdOc7718pcmEi+4iiYW6bZ/Yz7VZHG4kib6QLeCbs6TaGUVB
+gI/bHHLnwnznsGJ6M4MW5xFlKuyK0HIIu42OOwQTyJuZ7aMnL47+ylQ+iKLBxgvRcnpE9rAnnUmA
+dxKKWyLf+2sFjdQT3QxxMbHGOnvpeIxfUl7T7KNTlOFzudq52zik/sxK4IXGwByyjMSzE24iQw3J
+PZEnmyfs0j32h7+JyeTDsHggSJdwPd66nqprQKViB+8PHi9GIdf5HeeT34hi9VsKBwAA
+--- end gzip+base64 ---
+--- section: crafter emissions, run in /home/chordsphere/twine-src with python3 -I ---
+specimen clarification manifest (fed on stdin to the two block renderers): 1001 bytes, sha256 8a9fa99994237b94e1c9e5b2e3599a93eb232f6f0ba0f840ba0887a35e2f8c9b
+--- raw: specimen (one line) ---
+{"session_id": "2026-10-02-twine-take-read-001", "responds_to": "2026-10-02-twine-take-read-001", "corrects": null, "response_kind": "clarification", "summary": "specimen rows for twine take, re-recorded for the 0.4.51 pin", "changes": [], "deferred": [], "validation_will_run": [], "claims": {}, "questions": [{"question": "Specimen row 1 ΓÇö does twine take report a probe block's script with its fences stripped?", "context": "Recording fixtures for twine take (specimen only; no answer wanted)", "default_assumption": "stripped", "why_blocked": "not blocked; a recorded specimen for the parser's tests"}, {"question": "Specimen row 2: is a relay block to planner ever delivered to a worker?", "context": "Recording the routing rule's fixture (specimen only; no answer wanted)", "default_assumption": "never", "why_blocked": "not blocked; a recorded specimen for the parser's tests", "options": ["never", "with consent"], "recommendation": "never", "priority": "batched", "origin": "intent-gap"}]}
+--- end raw ---
+== recording: --probe-twine-take-fixture (crafter)
+argv: python3 -I /home/chordsphere/bale/tools/craft_response.py --probe twine-take-fixture
+stdin: /dev/null
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 2626
+stdout sha256: 1f5e235fd0958b4e984b2b5fe7c1745466171c02eff9603b1eb09330ccdca00e
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+#!/usr/bin/env bash
+# PROBE twine-take-fixture: TODO(worker) ΓÇö what this asks, in one line.
+# Why: TODO(worker) ΓÇö the gap this fills, in one line.
+# Read-only: writes nothing anywhere; stdout is the only output.
+
+probe() {
+  # TODO(worker): replace this placeholder with the real sections ΓÇö
+  # one labeled section per question, every command's output capped,
+  # an explicit truncation marker when the cap bites (TARBALL.md 4.2).
+  # The cap-and-truncation pattern, worked for one command:
+  #   git status --porcelain=v1 2>&1 | head -n 40
+  #   n=$(git status --porcelain=v1 2>/dev/null | wc -l)
+  #   [ "$n" -gt 40 ] && echo "[truncated: $n lines total, showing 40]"
+  # Listing a tree, worked with caches excluded ΓÇö __pycache__ and *.pyc
+  # (and node_modules, dist, build) are generated, never source, and
+  # would crowd the cap and mislead the reader into thinking they ship:
+  #   find bin -name __pycache__ -prune -o -name '*.pyc' -prune -o -type f -print | sort | head -n 80
+  # or, inside a git checkout, only what git tracks:
+  #   git ls-files -- bin | head -n 80
+  echo "--- section: TODO-example ---"
+  echo "TODO(worker): unfilled probe placeholder ΓÇö not ready to paste"
+}
+
+out="$(probe 2>&1)"
+emit_probe_block() {
+  echo "=== PROBE BEGIN twine-take-fixture ==="
+  printf '%s\n' "$out"
+  printf -- '--- integrity: %s lines ---\n' "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+  echo "=== PROBE END twine-take-fixture ==="
+}
+emit_probe_block
+
+# Clipboard copy (TARBALL.md 4.3): the installed bale copies the block
+# above with this machine's clipboard command, [clipboard] command in
+# bale.toml (the project's value, else the global one; set it once
+# with `bale config init --global`). This never fails the probe, and the
+# PROBE BEGIN/END banners above stay the dependency-free selection aid.
+clip_fallback() {
+  echo "[clipboard] probe output not copied: probes copy themselves through a current bale on PATH once 'bale config init --global' has set this machine's clipboard command; meanwhile select between the PROBE BEGIN/END banners and copy manually" >&2
+}
+if command -v bale >/dev/null 2>&1; then
+  emit_probe_block | PYTHONDONTWRITEBYTECODE=1 bale clipboard --block "probe block"
+  clip_rc=$?
+  if [ "$clip_rc" -gt 1 ]; then
+    echo "[clipboard] 'bale clipboard' exited $clip_rc, which is not a copy answer (0 copied, 1 not copied); a bale that predates paste-block copying has no clipboard verb, so upgrade it if that is the cause" >&2
+    clip_fallback
+  fi
+else
+  echo "[clipboard] bale is not on PATH, so this machine's clipboard command could not be looked up" >&2
+  clip_fallback
+fi
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA4VW0W4bNxB811dsFceSCp0cp3kobChFXBtNgMAODAFBkBoK726lu4oiryRPstAG
+6Ef0C/slneWdVMlxmiebPO5wdnZ2qSffndTenaSlOWGzolT5ovOE3t3eXFxRWJeGk6AWnMzK+1A7
+PqPJzeVNf23dgt2A/vnrb1oXKlAoSk/KL/yQSkPWMGmEjoD0vtg8EhQKprmqmrhZqfWXgbes8sQa
+jfC1KwN7MhbHzZyU2awLdnxOPuS2DgQMAZTDhHVVh1GnUzmbcn9Af3SInhwwOCPHlVYZN9fHfwur
+c3a0LkMRsRwrTZ6zUFrjhXJEifxUyprz7UeqEPZ7zV4WQ+IVuw1ldrlUJu/5lg5lqqo4H0YQZYjv
+K11mJXRztclUxFkqIQc52UQGCKE05t2fvLq9ePX27WiZ04vR88Goyag5k+CeZA+mUiGwA5OYbE4z
+6yLtltJZjCWa43IfVKg9JUllXcZalWa8OqXnL49P6U8qID8lhl48ayPM+Kj/f1EnOa9OTK01gtcZ
+JXrQBn6k7pHpUjIPAKM7Oj4mzgpL3Y8tbc7P6MjEwqOQNig9JF/YtdT6xbO7bsR5W0JhKT40Y96l
+FwuWqaxAKN9nus6xKQ6bTqtN3J9OoXhO34+wjkh9WRqb83Rp81ozrJcDfEhpXep8QMrBm2zYCbMh
+GSkpeVsj26FARZC1rXVOmbPrfFctwV2WXotyrYfEU6UJVpxmFsIfHzbIrqy2lZiVCEP7QWy15APe
+SQWBmBLbfuvFJHr7+2FTMc1kB9dAeW9d2Kvej031rJP28mXO0E+KCPxsAW8Om6aJPTyPflTZwu+b
+RHv0PkRCwSPLB9hNJRN8bPuhafaE79Wy0uCYJN3dscMmrI00PsoVO/WgDaWA6Pao4AaWgKt94G7n
+c6cD0uPuUb+JEa8Ouh1elmEad6apttmi7frm0vF43I6zi6tf3lw/MtQIR4Rk1HBGvaf+V9ODaXHV
+3jZS7EmeWPAcAwlz6alvTYv9JqT/GMa2IfA3OEpy6lFv0H2E4NX15Vfpff4iyw6G5M+6rFKrHKxo
+q82DSfEDRBYfovLoKVE6VVomQVVyMzEbHIyk1K54O/wwEpcwIGhgfmV7F8QBMqSPu7277SauAIqg
+j4JdauoLOKj+Bk8AZKV0jd5h7bmZ/NrirIwljHDG/A74P2NARAqfWprwxxzI+JokTcinwQhzDwSb
+ppypUjeJRFlid8py94DFip+IrKky6GjfZgo9NjEu54pNzibbJDOMFbDR7VhXZT7qSKbTGbRL1QNX
+7YvQeLGd9GLbqDCGWvzgm9LgtiXQV1F5Z+t5gVbMaucYfRsTxqXvXk1eRymo91UNelQoH2X7VqnO
+acnKrAu0b5sYpRzW3D4wX5XItG4CRo3cN116efwcBixnu3onq4bz3tSXXjwXYCMiPfAqrP/uw+T1
+zfXlzfXk/e2bydXFh8nVzzeXV+PT1pU79knShHQbXeNCuiUWw2Xjo5+wABd5V9q95nU5pbsdgcfq
+1Du8qIcHA+9rTlsUPCpFmRXyc0KqqBoVlPFreK3/rC3rEPf8V+TBOc5F3CAztHKcK3mz48BqExEY
+Gf1SN2P3MoWHUzx1lupq7vBWSCMgsYjU/qbJVO25KYAkdWDIjjweHemqR20ZWbW5tN6Kl33LNvgr
+b5uEQX5trbyzdbUlcUgBBP4FEnZU90IKAAA=
+--- end gzip+base64 ---
+stderr bytes: 594
+stderr sha256: 9411fa4d519f03fef3f20e48e095b72e18f264adc18fe4b1d1fd3b989dd8c6cc
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[craft] clipboard copy wired through the installed bale (`bale clipboard`): at run time it copies the PROBE BEGIN/END block with that machine's [clipboard] command, project or global, and says so either way
+[craft] fallback for a machine without bale on PATH: remedy text naming `bale config init --global` (no request key: bale.toml found; [clipboard] command / [probe] clipboard_command unset)
+[craft] probe skeleton emitted ΓÇö fill the TODO placeholders (what, why, real sections with caps), then paste into chat; no lint runs on a probe ΓÇö the architect audits it by eye (TARBALL.md 4.2)
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA21SS27bMBDd5xRvVxtQHKDIylnZiJEUCOIg8M4o6hE1shhTpEKO4GrXQ/SEPUmH
+smNkkRXBz/sOtyZSLT9hnO3KQLGCCd2Ao41cQZoY+n2jK8P6JOScnpbkGJPduFxgu+kcJIi9h9hW
+n0smspxG8MvrernCcvXw4/lm9XyP0gVzUBHJ3ApryTTW87eE7YVRPYW2JV8V6GJ4YyMIEXsXVLiA
+niPRkJACWHk44kjD1fYcp1arJalGrRj64B8VQy+nCMHjZbF5nCNyy9UA4d8CT631e5zTBV/bvUbX
+NNfXJ+kdJj4o5L3nJDjwMB/ZZhJap2q9r+6+CoEbbDVGyZ+q/vVx1/vEMr2YH98hHdixqElurYj2
+/u/PX9TWubHRzfp+jc6R4Sa4imPC5KhNFjg2Q6H2yCFpZTb4dOrZUJemRcZ6dJQkT1QCjILuoImc
+bvP4Uu6Fzh6yZFajqP1JHgH1lZWUx1sO4EE/wmbxulw8Pc3aCrez79Or/+CDFPBSAgAA
+--- end gzip+base64 ---
+== recording: --light-block-stdin (crafter)
+argv: python3 -I /home/chordsphere/bale/tools/craft_response.py --light-block -
+stdin: /tmp/tmp.7us84LTOtN/specimen.json (1001 bytes, sha256 8a9fa99994237b94e1c9e5b2e3599a93eb232f6f0ba0f840ba0887a35e2f8c9b)
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 722
+stdout sha256: 55c53cfe057b2e5a5cee10b7f6eabbbcb5365e24cc481329b27f19c6f3cebdb8
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+=== LIGHT BEGIN 2026-10-02-twine-take-read-001 ===
+[1] question:     Specimen row 1 ΓÇö does twine take report a probe block's script with its fences stripped?
+    while doing:  Recording fixtures for twine take (specimen only; no answer wanted)
+    would assume: stripped
+    why blocked:  not blocked; a recorded specimen for the parser's tests
+[2] question:     Specimen row 2: is a relay block to planner ever delivered to a worker?
+    while doing:  Recording the routing rule's fixture (specimen only; no answer wanted)
+    would assume: never
+    why blocked:  not blocked; a recorded specimen for the parser's tests
+Reply: answer inline, "as assumed", or "formal".
+=== LIGHT END 2026-10-02-twine-take-read-001 ===
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA62SvU7DMBSF9z7FURZAIijJwNAqQkJUpRLqUNgqBje+pVZdO1w7hG48BE/Ik3DT
+PzFVCOHBf/E93/GJy7LEw3h0/4Tb4Wg8QZEV12mepVmRxtY4SqNaUcqkdJplOcqy7M3yZ7w2FKLx
+ro+uPdZUmTU5sG+R4+vjE9pTwFYBnQKYas8RCjX7OWFufbU6CwgVmzqiNXEJEwMW5CopDFG2a9I3
+vU6+XRpLomjci/CmVHnWMsfCvMeG5fjC80/WeTj48c5uBnAeyoWWGK1ykfTFTtU3VkOF0KypfyTu
+gZudQ9ICdD4eVgO5AG/5pHGkbPFLQq04EMutooQTerPiZE5FHyZs9aza4xA9aqucE6v0Jp0ma2QU
+mHxRYplXxKdD6Yywb2I358aS2Nnn9KdcXOfjH0OZUm03/QPXOCt/7RKJCnuiTi4hlYmUr5VNrnrl
+8YEOJ3e/eZ7fu/CROdICAAA=
+--- end gzip+base64 ---
+stderr bytes: 632
+stderr sha256: 643da8527bb2b45bb3db80aa07bbec63e0552d0786cdec1e63a549f261a45d17
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[craft] light block rendered for 2026-10-02-twine-take-read-001: 2 question(s), within the count of 3 (TARBALL.md 5.10)
+[craft] questions[1] carries options, recommendation, priority, origin ΓÇö the light block renders the four labeled fields only; those keys travel if the packer replies "formal" (--emit-block of this same file)
+[craft] block emitted on stdout ΓÇö end the turn on it; multi-tiered questions (options that need explaining, a why_blocked that needs a paragraph) fail admission however few there are, and that judgment is the worker's. The trail is the eventual response's notes.md, never a thread (TARBALL.md 5.10)
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA21SQW7bMBC89xWLXGIDoiE7SA/NKT3nVORmGMVGXElbU6S6XFn1rY/oC/uSLGWn
+OTQnAjvDmdkh941gqwcI3PUKLyE1RxCKnoQ8tElgV+8+u23t6p3TmSM5xSM5IfSurrdfYAc/J8rK
+Ka7yuoKZtecI2hM0aYoKqYU7WD0/fvv6+PS0GTzcb7b1+tP+6vt2Oe+3B2hQhClDGpdRZUmaNAwW
+B8ugglE4Ceu5Ajs68/n7+8/i9X/8vMzbNAkEfKFQ1mEK3tRjOD8YmjLBkc5GFDxRAG6XKyM2RxJT
+GUPJcmMlDBhuYOUcDazuYpIKmTNkHMyFA72vdCEUrpppipDVp0mXrBZtMdFJYoFYH2CYgrJTXir/
+1wesri0YHxUiGUi/xoAcOXYVIMz9+fviRf6dkw0YUbATHPs1tMgB0A+cs2lBn2Y62XItzSWGEKCQ
+acWrwo/Jd1a3Al/qm5NYF7d5A88ltBS1K2Q6UScMVlQeLSbdZohJKdsbVxal2KAxy0/54P1fARXu
+VV54AgAA
+--- end gzip+base64 ---
+== recording: --emit-block-stdin (crafter)
+argv: python3 -I /home/chordsphere/bale/tools/craft_response.py --emit-block -
+stdin: /tmp/tmp.7us84LTOtN/specimen.json (1001 bytes, sha256 8a9fa99994237b94e1c9e5b2e3599a93eb232f6f0ba0f840ba0887a35e2f8c9b)
+cwd: /home/chordsphere/twine-src
+exit: 0
+stdout bytes: 1618
+stdout sha256: b1730d1a40eb48bf3b60be5fb389c110ee4f0b843fe87e87fa192c6720e2a2d9
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+BALE EXCHANGE BEGIN 2026-10-02-twine-take-read-001
+# bale exchange record ΓÇö session 2026-10-02-twine-take-read-001 ΓÇö round 1 ΓÇö from worker to planner
+# 2 blocking question(s). Planner: answer as an exchange record (from: planner, round 2, answers[] keyed question_round 1) and record it with `bale relay 2026-10-02-twine-take-read-001 <answer.json|->`.
+# Body: the record (exchange-record.schema.json). Trailer: sha256 of the body bytes ΓÇö a mismatch on ingest means a truncated paste; re-request the block rather than reason from it.
+{
+  "record_version": 1,
+  "session_id": "2026-10-02-twine-take-read-001",
+  "round": 1,
+  "from": "worker",
+  "created_at": "2026-10-08T13:35:25+00:00",
+  "questions": [
+    {
+      "question": "Specimen row 1 \u2014 does twine take report a probe block's script with its fences stripped?",
+      "context": "Recording fixtures for twine take (specimen only; no answer wanted)",
+      "default_assumption": "stripped",
+      "why_blocked": "not blocked; a recorded specimen for the parser's tests"
+    },
+    {
+      "question": "Specimen row 2: is a relay block to planner ever delivered to a worker?",
+      "context": "Recording the routing rule's fixture (specimen only; no answer wanted)",
+      "default_assumption": "never",
+      "why_blocked": "not blocked; a recorded specimen for the parser's tests",
+      "options": [
+        "never",
+        "with consent"
+      ],
+      "recommendation": "never",
+      "priority": "batched",
+      "origin": "intent-gap"
+    }
+  ]
+}
+# sha256 4fd1055e652ea529c5173194a773b77e0e31264129f76ff902dd773675c59f19
+BALE EXCHANGE END
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA61V0W7TMBR971dclQc20VRJ2rQ0QyAK1UBCE4I9II2pc5Ob1jSxg+3QVWMSH8EX
+8iVcO0m7CsGQ4CV1r+8959zj62T6/M0MZh9evHp+djqD6ez09RmEfjjyAt/zQ89suEDPsDV6Clnq
++X7QeQALliPgdbJiYomgMJEqhR/fvoNGrbkU9yC4VCUrkUK9zpQsYCPVGhUYCWXOhEBFRCEscpms
+uVjC5wq1IewjfdyHt3VGDEzoDRUxTatfFB1Z3LiF6zWUYa+p0heXsMYtpjvseSPqmDLSFoUb2HCz
+givXtcKcbe/r70lN0P+kpfjqPb3qUytTmW5jMKu9ulauVwf6OllhwVwRtXiuGM9ti3rFwmgEMnPF
+C4KBxdagds4xKLgumElWQLaTT9QIFEj8tGVUJRJmqMGSaYMnxExcrtkay3oLitGafCctlMCIvT4P
+bvqdmw5At5Y3/0KOkUfdGIKeDTdnPecphbp/dqTrKpy7u3pLYivrc68zEiogvXNmDjAfnweDeBDF
+YfTI92Pfr5PbU9OUe0EBgBv3vLNlUd6XmPACqTm5oXn7WIV+MIRUkoNOKVil1HkplSHTSiUXjTUP
+NehE8bIZAG40ZCgSKtSGwiWmz5wSR5lIYfDa6X7nDLNDm/FrUykqyKS6y3akW1FS5NsTELKd5A0j
+mPR4j5tixqrczJnWVVG2TbUC9nmb1XbuVKM7DyENNH9PqKv6DGkSdsROEQ1ByZRGRa3SSBnddXC3
+vb+0M4yBawdvb0U9T/sLDEgzAynmnH6Jm3ZYc83vM87dE1kZu1ZVjqSv8fLfvRNW1n83bocny8Oh
+dMFDTstqJ4pa1yhMtwlf7jAsa0FkKfuN6FJxqbjZ2q2Fvf53R4F2ltxVcTJEGG/JyuZg6XnZuaXX
+UfNWGWZp4EcRjqIQWRROkigYD4LJkI3Hg8V4jD4OgnA0DMJJNh5l2cQP05S2RuMoiSZZMOlMD74f
+s7OXnZ+ZIP2EUgYAAA==
+--- end gzip+base64 ---
+stderr bytes: 317
+stderr sha256: 87c88a3de079ecc5c7fee937d2628a49ade99251fb1662b51afda70ebd63691a
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[craft] clarification manifest normalized to a from: worker record, round 1, 2 question(s)
+[craft] block emitted on stdout ΓÇö hand it to the courier for `bale relay <sid> <file|->`; the trailer is the sha256 of the body bytes, so a truncated paste refuses on ingest instead of being reasoned from (TARBALL.md 5.9.2)
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAAy2PwUoDQRBE7/mKOiawBhKIoIZAPOck3oKQ3p0Z02R3Wnt6kYgHP8Iv9EvsWTxW
+0fW66tgpJXtB15Ny4o6MJWOgzCkWQxYdqOfPGGACQlIZ7vEheokKjZ1oaKAy5oBVgzXeR085YV4W
+s+M/uu2luyAObOYYpxcLMhp+v39wJk+yVbidIzoZlZ2cRHFqqY/+o6crtoXDDtvEffy62Z0epmNT
+cq3gMslypvXmFpIm1Uq4or1aLA1KbW46Zl/nDd6oWAWnscRS+3B+rVs5u0+hEtronp9QkeyJuhrz
+5/3T4/5wWA4Bm+Xdcr2Y/QHEm2zvPQEAAA==
+--- end gzip+base64 ---
+--- section: the scratch repository (every write below stays under it) ---
+scratch repo: git head 6f5d5de on main; files: hello.txt ; no bale.toml
+== recording: pack_goal_--slug-ro_--read-only_--no-readme_--json (packed; scratch; opener key)
+argv: bale pack twine-051-record: the read-only session --slug ro --read-only --no-readme --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 2030
+stdout sha256: 0320baecb3f0e70913d3de98ecdfef6cc50e88133e0f55945add6152da9949ed
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "packed", "sid": "2026-10-08-ro-001", "tarball": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-ro-001.tar.gz", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-ro-001.log", "session_dir": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-ro-001", "context_files": 2, "readme_path": null, "readme_heading": null, "readme_sha256": null, "checkpoint_file_path": null, "checkpoint_file_sha256": null, "branch": "main", "applied_latest": null, "sweep": [], "include_group": null, "opener": "I'm using \"bale\", a CLI that packaged the attached request tarball.\nThis message opens read-only bale session 2026-10-08-ro-001\n(empty write forecast: an orchestration/discussion session \u2014 no changes land from it).\nGoal, verbatim from the request manifest: twine-051-record: the read-only session\nThe docs and tools in the tarball are mine, written for this workflow;\nAGENT.md and the four docs beside it are my instructions for this\nsession. Read manifest.json first, then AGENT.md; AGENT.md says when\nthe other four docs are needed. tools/craft_response.py and\ntools/response_lint.py are stdlib-only formatters with no network\naccess \u2014 conveniences over the docs, which are the contract; read them\nbefore you run them, and a response assembled by hand is just as\nvalid.\nPacked at 2026-10-08T13:35:25+00:00 (UTC).\nbale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.\nIf you need something from me, a fact from my machine or a decision,\nend that turn with the matching block from TARBALL.md (a probe, a\nlight question block, or a clarification response) rather than a\nquestion in prose, which tends to get lost. This is a planner session:\nnothing lands from it, so don't build a response tarball, even an\nempty one. What I need back is your answer in chat and, for each\nsession I ask you to author, a crafter bundle with its bale open line,\nas PLANNER.md describes.\n"}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA5VVTW8bNxC991cMdLGN6stKnAbyyQ2CwIDhBoaKHrqFwOWOtIy55JbkRlGC/ve+
+4e7Kqd1LAH+JHL558+bN+NvEd0n7hidrmrRKP3I1mdIkmkoOVsvVm9nlcrZ8Owt+tlxeyl1SoVTW
+yv0iNa18z3/p4tvXd5vf0v0i6qCSrmeBW7+YI5IXSFH6L4vAf3cc0+wF6hyQ8/1XAbd+/wPAiI6L
+l3ACIkVwjMa7bWXCD2AOr/4HVzC1d4m/pO3OWI5AXeEssKoa3rYq1ThxnbVPhzV+Gbd/cR5rtbp6
+83Ssa9aPrTeuh34G9vz2+esyKKclftIo44SnaltruNpalSD5U2Q8MLf4+Odf+GCctl3F233wXfsU
+41t2nCW7PWuoi+BPxUTEKQCt6N3dLaVaJRK/qD1X+MSkUlLgWdHQZhp8Mi/cpjaRGuiKYBL0SCLD
+zDt7JMGlQXR6oXnhzrlp05EOwSSmnQ+sVUxrUo58QL6Y0EE8XVQm6q5HGdGKbrW8fE3Ok66V23Mk
+q1xFu+AbMukCzD54hYo/M5gm0/Q3UsxYQ6Oc2bHkSwfjeLa8uoRXtA/VeogbyxhySrFMldeRJFXy
+3kYyLgcPgpAKTA3QprmoxE7KQgREOvjwuLP+cF24mw/v7zfzpupxaqm9Cz1yyZhPRgk91BEJIEOn
+RYd4AivcwGlOD6B5qmX+KUKbnQkxTQXY0Zjq+vQXRXUEG1wWTnJ7/AjfMZC8jrniat7XuMAg7dI2
+cGzBgeftUXjjcb4cj7cWFs53eB9TZU3ZqwfODQzEAUlNqqVljpOoUTilNeoYm4kB/MzOsMMheXQu
+ayOkIGdtdJ2x5UxGNSidrnOX5KgpXMliITr6jkKX29JMs8KKRpKkYuSmtLByeaRaLtGZTx3soCDq
+Z2VNBet8zMsStv/OtJvLV+tXV+vV1c/L5Xq5pPPfN+/EZuLxs0iVDGPmh/OcVcPGwkPhDqrItiC/
+670Az6bhEZ0rgj/5q3dMe9VOIVCSEeAQfLi47oMOMpNS2TAro5nHcci0b3c5RJpHEXsfqTDeObZh
+me4dJBs+H+EZjXv0PwhF1kaApoXj7EmkS11wfcskUyPLVPBK6/Vjj7K5efj15u5OTIUq2uBLSVM4
+a/Z1ojxmQi6/mPaJtFXB7IzOg33qywVh0uvccFQOhNNbzBdwI48OwEhVEb6kPSeyHpanvILwBQbY
+AVhvoyrrwkHLTFqWQxy3wxTqwFbuLFHZGfsfgwyDPCWGFdEG6JF3FLozpz9Eltte4BIekaxHGRzl
+sHyDkJXOSvuneVYZGp9mFS9VfMwtAn/VpdoH6UoeL7wuO1dhX2bFTYr99pSVSlY2CqYl0se7m/v7
+9w+ieMX4D2ewL9D5yT8//QuaqWwF7gcAAA==
+--- end gzip+base64 ---
+stderr bytes: 4287
+stderr sha256: b1c36a6b10417025f48c68c06c559f80a9d0ffc9bdd052d75f3c26151e7d07ef
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] tree position: branch main; latest applied none yet
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+[bale] packing without a README (--no-readme)
+[bale] created /tmp/tmp.7us84LTOtN/scratch-repo/.gitignore with '.bale/'.
+[bale] auto-committed the .gitignore change
+[bale] selected 2 files for context/ (13 B, max depth 0)
+[bale] session id: 2026-10-08-ro-001
+[bale] pack clock: 2026-10-08T13:35:25+00:00 (UTC; the sid's date is this instant's date)
+[bale] work_class inferred 'meta' for the read-only session shape (no --work-class given; pass the flag to override)
+[bale] read-only session shape (v0.3.15): recorded write forecast is empty ΓÇö locks nothing (siblings pack freely), may land nothing (the own-forecast drift gate refuses every changes[] path this session ships). Close-out (board 33): the next read-only pack offers to close this session, or run `bale unlock` now
+[bale] provenance: base-drift stamp covers 0 committed file(s) across 0 forecast entries (HEAD bytes; files with no committed base are absent by design)
+[bale] provenance: packer='chordsphere' work_class='meta' bale_version=0.4.51 packed_at=2026-10-08T13:35:25+00:00
+[bale] request manifest schema validation passed
+[bale] wrote /tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-ro-001.tar.gz
+[bale] recorded session scope for 2026-10-08-ro-001: (empty ΓÇö read-only session)
+[bale] open provenance: work_class='meta' packer='chordsphere' recorded at .bale/sessions/2026-10-08-ro-001/provenance.json
+[bale] open provenance: telemetry record opened at claude/telemetry/2026-10-08-ro-001.json (outcome 'opened'; close-time events append to it)
+[bale] opened session 2026-10-08-ro-001 in the registry (lock pointer written)
+
+  hook:   post_pack (global)
+  script: /home/chordsphere/bale/user/scripts/copy-request-to-downloads.sh
+  cwd:    /tmp/tmp.7us84LTOtN/scratch-repo
+  env:    BALE_HOOK=post_pack
+          BALE_SESSION_ID=2026-10-08-ro-001
+          BALE_TARBALL=/tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-ro-001.tar.gz
+          BALE_REPO_ROOT=/tmp/tmp.7us84LTOtN/scratch-repo
+  This script runs as your user. It may write outside the repo,
+  install software, or perform any action its author chose.
+  Inspect the script before approving.
+  default: accept ΓÇö global-layer hook ΓÇö your own script
+  run this hook? [Y/n] 
+[bale] [hook post_pack] declined (stdin closed or interrupted); not invoking.
+
+Open the session: paste the block below into a fresh agent chat,
+unedited, with the request tarball attached.
+
+--8<-- session opener (copy everything between the scissor lines) --8<--
+I'm using "bale", a CLI that packaged the attached request tarball.
+This message opens read-only bale session 2026-10-08-ro-001
+(empty write forecast: an orchestration/discussion session ΓÇö no changes land from it).
+Goal, verbatim from the request manifest: twine-051-record: the read-only session
+The docs and tools in the tarball are mine, written for this workflow;
+AGENT.md and the four docs beside it are my instructions for this
+session. Read manifest.json first, then AGENT.md; AGENT.md says when
+the other four docs are needed. tools/craft_response.py and
+tools/response_lint.py are stdlib-only formatters with no network
+access ΓÇö conveniences over the docs, which are the contract; read them
+before you run them, and a response assembled by hand is just as
+valid.
+Packed at 2026-10-08T13:35:25+00:00 (UTC).
+bale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.
+If you need something from me, a fact from my machine or a decision,
+end that turn with the matching block from TARBALL.md (a probe, a
+light question block, or a clarification response) rather than a
+question in prose, which tends to get lost. This is a planner session:
+nothing lands from it, so don't build a response tarball, even an
+empty one. What I need back is your answer in chat and, for each
+session I ask you to author, a crafter bundle with its bale open line,
+as PLANNER.md describes.
+--8<-- end session opener --8<--
+--- end raw ---
+[raw truncated: 61 lines total, showing 60; decode the gzip+base64 copy for the whole stream]
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+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
+tCy4CpvYfwFT3cbwvxAAAA==
+--- end gzip+base64 ---
+read-only sid: 2026-10-08-ro-001
+[craft] the scoped bundle (crafted in /tmp/tmp.7us84LTOtN/scoped):
+[craft]   [craft] checkpoint naming: no bale.toml found; [validation] base not judged
+[craft]   [craft] member brief: brief.md (sha256 0fb83b3faa61ΓÇª, LF-normalized bytes as written)
+[craft]   [craft] member checkpoint: explicit null (not shipped)
+[craft]   [craft] pack_argv: 9 token(s); pre_answered: 0 intent(s)
+[craft]   [craft] no checkpoint member ΓÇö the bundle is oracle-less; a checkpoint-configured project's replayed pack will refuse it
+[craft]   [craft] wrote /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle (495 bytes) ΓÇö ship the file and the printed line together; the line carries the bundle filename only, so a downloads-dir save is paste-ready
+[craft]   bale open twine-051-scoped.bale-bundle
+scoped bundle: /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle (6ecf00e1361a8a80cf534db55dbb21dd05b9ce0b9e1a5949a9de733dd3373901)
+== recording: open_bundle_--json (opened; scratch)
+argv: bale open /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 2337
+stdout sha256: 838012cf6c7c760f5ff5786c6c9fc0f4cfec4a7f4bf2217a35384464cca930c9
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "opened", "sid": "2026-10-08-sc-002", "tarball": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-sc-002.tar.gz", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-sc-002.log", "session_dir": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-sc-002", "context_files": 1, "readme_path": "/tmp/bale-open-members-am61_6mj/brief.md", "readme_heading": "# Brief \u2014 twine-051-record scoped session", "readme_sha256": "0fb83b3faa61b7efc8df4582953dd39f3e4555068c695b1cba7720f4a4074ab4", "checkpoint_file_path": null, "checkpoint_file_sha256": null, "branch": "main", "applied_latest": null, "sweep": [], "include_group": null, "opener": "I'm using \"bale\", a CLI that packaged the attached request tarball.\nThis message opens bale session 2026-10-08-sc-002.\nGoal, verbatim from the request manifest: twine-051-record: the scoped session\nThe docs and tools in the tarball are mine, written for this workflow;\nAGENT.md and the four docs beside it are my instructions for this\nsession. Read manifest.json first, then AGENT.md, then README.md, my\nbrief for this session; AGENT.md says when the other four docs are\nneeded. tools/craft_response.py and tools/response_lint.py are\nstdlib-only formatters with no network access \u2014 conveniences over the\ndocs, which are the contract; read them before you run them, and a\nresponse assembled by hand is just as valid.\nPacked at 2026-10-08T13:35:25+00:00 (UTC).\nbale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.\nIf you need something from me, a fact from my machine or a decision,\nend that turn with the matching block from TARBALL.md (a probe, a\nlight question block, or a clarification response) rather than a\nquestion in prose, which tends to get lost. This is a worker session:\nwhat I need back is one response tarball carrying the finished work.\n", "bundle": {"path": "/tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle", "sha256": "6ecf00e1361a8a80cf534db55dbb21dd05b9ce0b9e1a5949a9de733dd3373901", "stem": "twine-051-scoped"}, "members": {"brief": "0fb83b3faa61b7efc8df4582953dd39f3e4555068c695b1cba7720f4a4074ab4", "checkpoint": null}, "rehearsal": null, "checkpoint_dry_run": null, "desk": null, "reason": null, "cause": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA61VTY/bNhC991cM3EMS1B+SbflrT5s0CBbYpkWwPVWFQZEji1mJVEkqjhPkv3eG
+ku2km0uAAl57yRm+eRy+mfk8sl2QtsHRDka2RYNqNIaR14o35sl8NUmTSbKZeDlJkjnbgnCFqGu2
+z0LT8t903fnN8v7h9/B25qUTQVYTh62dTckTZxSisB9nDv/p0IfJE9QpQU4Pnxi8tocfACZvP3sK
+xyB8CfReW7NX2v0A5nDqO7iMKa0J+DHsS12jJ9SU9hwK1eC+FaG6xGGoCedz0mBToPMT0azS/ap5
+PyucxnLaxDwPRyv60Sbe/Gd4yXbIu3mSLiEctcFJkqVEUVqnwEtCpZ+e5VcYvhLzbMUQSVlsFsWi
+FGKVFmss5UaVy2wz32YLpRbbcoHLLMuS1UautlmRykKs1/OkXIplsl6KYhnvWaF8bK02/VXPlzNd
+XX/Heok92AsnjIzJaISOJEXb1hrVvhaBJHD19EfElpZ//U0LbWTdKdwfnO3aq0+UZXzCu2cNdJ4y
+BfmIM5wTtIBX93cQKhGgFfJRHCg7oUIQIQjiqWCQHQy6nebmodIeGsogOQOje2C0c1LhqaJy88YK
+4vIBCSPoBkpnmxjmjN4Io0v6Z/fkyXbR79t3Yw4IykoPwhBfa2sP2kTPgScIh9AQ1BiOToeABkrr
+yIO4H617LGt7vMnN7ZvXbx9ITT0OHS9t53rkAqmMEXTooU4UwAfXycDyvoDlZuA0hXekpMtFpu89
+paLUzocxAxs4hxqW717f/vrb67huTrmJsr5SHEBvLqfAixMx55NM09KX+4osUcyNQVSopn0+ZlSb
+Zdg79C3xxWl7uuZqdt7d1yTCaOLzPqhaFxNr6hMzaUgDVHpw1KECY8Fg4MyBkJLYnUuMSvoDGo2G
+NsHSCzO/3DArSn2lZRXzx6S5+p2Q4Qa46HiroSxTJIST7cB18W7NOBIVuTmzBOE9tYGaBFCcoGIr
+peh9R7oRHj6IWiuS2B8kX/IgIV8F+JAudotsN89+SZJdksDzPx9evSBf1uszD4rLKdKj/RhVChN5
+CLJRVrizgC37N5FUJMMheC6AdIyfrEE4iHZM+SEyBtA5617c9E5Hriq+GSsQr6I/F0qkfVdGF347
+8DRJKBQVaPRtkOuzpIwN6xPJS5Kd3t8xRZSagca5wShfChc6Z/oX40gNt2fGK2orH3uUh9t3L2/v
+71lTdIvW2YLD5KbWhypALEcmF0+M+0CyFk6XWopoOT/LC6DuX8UHp5sTwuUslSLhejwLgKpPeZIe
+HDBAbak6IDYR+ohYjQQyJGWXm5i2uz4jBT0qu3GeL3I4l7gUzp34drFwtdGeGxbjUV65bRadUTXP
+5s+jb8bLkzHGzWV27Tz9RhxokwGDm+1lRKxQlkmC6WKVio3YJLLMFktVZJkqinmqVJIVW4lJscVU
+ZNvlVmwVrhc8PhbrxTZJI1rAhrH+G3X0hYzD1IvMY2f4/wfTMCC+xBFIOnde1N8dUcqd9lQSV5tC
+/3hdUSlTp/vqpOg8nsF/+he1pk0RIQkAAA==
+--- end gzip+base64 ---
+stderr bytes: 4562
+stderr sha256: e4b2a2b64409eca88d509ef1d7cce854bd0db91f961410bc766f54e17f643f2b
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] opening planner bundle /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle
+[bale] member brief verified: brief.md (sha256 0fb83b3faa61ΓÇª, LF-normalized)
+[bale] member checkpoint: explicit null (not shipped)
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+[bale] no checkpoint member: skipping the dry-run leg (nothing to prove)
+[bale] replaying pack invocation: bale pack 'twine-051-record: the scoped session' --slug sc --include hello.txt --write hello.txt --expects-probe no --readme-file /tmp/bale-open-members-am61_6mj/brief.md
+[bale] tree position: branch main; latest applied none yet
+[bale] argv-only pack gates passed before any exchange (slug/goal, forecast existence, bundle-file naming, cap values, checkpoint blindness)
+[bale] selected 1 files for context/ (6 B, max depth 0)
+[bale] session id: 2026-10-08-sc-002
+[bale] pack clock: 2026-10-08T13:35:25+00:00 (UTC; the sid's date is this instant's date)
+[bale] forecast-disjointness gate passed (ADR-0015): pack write forecast (hello.txt) is disjoint from 1 open session(s): 2026-10-08-ro-001
+[bale] note: revert/retry/unlock/handoff resolve the session the compatibility pointer names (the most recently opened) while several are open; sid disambiguation for them is deferred (ADR-0006)
+[bale] provenance: base-drift stamp covers 1 committed file(s) across 1 forecast entry (HEAD bytes; files with no committed base are absent by design)
+[bale] provenance: packer='chordsphere' work_class='mixed' bale_version=0.4.51 packed_at=2026-10-08T13:35:25+00:00
+[bale] request manifest schema validation passed
+[bale] wrote /tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-sc-002.tar.gz
+[bale] recorded session scope for 2026-10-08-sc-002: hello.txt
+[bale] open provenance: work_class='mixed' packer='chordsphere' recorded at .bale/sessions/2026-10-08-sc-002/provenance.json
+[bale] open provenance: opened from bundle 'twine-051-scoped' (brief sha256 0fb83b3faa61ΓÇª) ΓÇö stamped as the opened attempt's bundle
+[bale] open provenance: telemetry record opened at claude/telemetry/2026-10-08-sc-002.json (outcome 'opened'; close-time events append to it)
+[bale] opened session 2026-10-08-sc-002 in the registry (lock pointer written)
+
+  hook:   post_pack (global)
+  script: /home/chordsphere/bale/user/scripts/copy-request-to-downloads.sh
+  cwd:    /tmp/tmp.7us84LTOtN/scratch-repo
+  env:    BALE_HOOK=post_pack
+          BALE_SESSION_ID=2026-10-08-sc-002
+          BALE_TARBALL=/tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-sc-002.tar.gz
+          BALE_REPO_ROOT=/tmp/tmp.7us84LTOtN/scratch-repo
+  This script runs as your user. It may write outside the repo,
+  install software, or perform any action its author chose.
+  Inspect the script before approving.
+  default: accept ΓÇö global-layer hook ΓÇö your own script
+  run this hook? [Y/n] 
+[bale] [hook post_pack] declined (stdin closed or interrupted); not invoking.
+
+Open the session: paste the block below into a fresh agent chat,
+unedited, with the request tarball attached.
+
+--8<-- session opener (copy everything between the scissor lines) --8<--
+I'm using "bale", a CLI that packaged the attached request tarball.
+This message opens bale session 2026-10-08-sc-002.
+Goal, verbatim from the request manifest: twine-051-record: the scoped session
+The docs and tools in the tarball are mine, written for this workflow;
+AGENT.md and the four docs beside it are my instructions for this
+session. Read manifest.json first, then AGENT.md, then README.md, my
+brief for this session; AGENT.md says when the other four docs are
+needed. tools/craft_response.py and tools/response_lint.py are
+stdlib-only formatters with no network access ΓÇö conveniences over the
+docs, which are the contract; read them before you run them, and a
+response assembled by hand is just as valid.
+Packed at 2026-10-08T13:35:25+00:00 (UTC).
+bale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.
+If you need something from me, a fact from my machine or a decision,
+end that turn with the matching block from TARBALL.md (a probe, a
+light question block, or a clarification response) rather than a
+question in prose, which tends to get lost. This is a worker session:
+what I need back is one response tarball carrying the finished work.
+--8<-- end session opener --8<--
+--- end raw ---
+[raw truncated: 61 lines total, showing 60; decode the gzip+base64 copy for the whole stream]
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+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
+P8/7LsSClwXbYmD5N4/pMybSEQAA
+--- end gzip+base64 ---
+scoped sid: 2026-10-08-sc-002
+== recording: open_bundle_--json (second-desk; scratch; the same bundle again)
+argv: bale open /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 2316
+stdout sha256: 7629b63b930a99f2e2888e3df7be93810d886d4bd65688578d03cd48f1b66bba
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "second-desk", "sid": "2026-10-08-sc-002", "tarball": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-sc-002.tar.gz", "log": null, "session_dir": null, "context_files": null, "readme_path": null, "readme_heading": null, "readme_sha256": null, "checkpoint_file_path": null, "checkpoint_file_sha256": null, "branch": null, "applied_latest": null, "sweep": null, "include_group": null, "opener": "I'm using \"bale\", a CLI that packaged the attached request tarball.\nThis message opens bale session 2026-10-08-sc-002.\nThis is desk desk-2 of that session: it is already open at another\ndesk, and this chat joins it rather than opening a new one. Name this\nchat 2026-10-08-sc-002@desk-2; the session id stays 2026-10-08-sc-002\nin everything bale reads.\nGoal, verbatim from the request manifest: twine-051-record: the scoped session\nThe docs and tools in the tarball are mine, written for this workflow;\nAGENT.md and the four docs beside it are my instructions for this\nsession. Read manifest.json first, then AGENT.md, then README.md, my\nbrief for this session; AGENT.md says when the other four docs are\nneeded. tools/craft_response.py and tools/response_lint.py are\nstdlib-only formatters with no network access \u2014 conveniences over the\ndocs, which are the contract; read them before you run them, and a\nresponse assembled by hand is just as valid.\nPacked at 2026-10-08T13:35:25+00:00 (UTC).\nbale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.\nIf you need something from me, a fact from my machine or a decision,\nend that turn with the matching block from TARBALL.md (a probe, a\nlight question block, or a clarification response) rather than a\nquestion in prose, which tends to get lost. This is a worker session:\nwhat I need back is one response tarball carrying the finished work.\n", "bundle": {"path": "/tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle", "sha256": "6ecf00e1361a8a80cf534db55dbb21dd05b9ce0b9e1a5949a9de733dd3373901", "stem": "twine-051-scoped"}, "members": {"brief": "0fb83b3faa61b7efc8df4582953dd39f3e4555068c695b1cba7720f4a4074ab4", "checkpoint": null}, "rehearsal": null, "checkpoint_dry_run": null, "desk": "desk-2", "reason": null, "cause": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA3VW227jNhB971cM/LIb1Bf5It/y0nS7WATIpkWQvgkwKHJkM5FIlaTi9S723ztD
+SXEuLZDEITlz5szhzNA/BrYJ0lY42MLAo7RGjRT6x8GQllrx7iyZLUfTZJSsR16OkmTGZ0G4XJQl
+n09CVfPveNX49eLm/s9wO/HSiSAPI4e1nYzJEicUJ7ffJg7/adCH0TvUMUGO998ZvLR7AjZNWTIL
+9F5bs1PanTeJZ8BvYVfoEv1526FQFe5qEQ7vNg/0oc3+3b4/iFm6fAF9QPlYW21a9Ddgb0/feudO
+GPnCXtR1qVHtShEo6xdZHRHr81IbWTYKd3tnmxfbtkaDnPbg+kMFjSf+kA1Yzox0EvDp5hrCQQSo
+hXwUe1S0QhAhCOKpoNMaussaZ+b+oD1UpCgZA6N7YDToRIb3t9L50A+XRfwzmoEt2rid3xZ0YBNR
+sqiniEw0QBhLhFxm2I0IGyZIdpJ9H0hFz45UKmTEgCZ6cpYCDB7BGhzDragwumUm+r3j+FtL6jIm
+32eiFfggTv69eUYBAJ/QnQiUQkUBmLenZL9YQcLTYS6CrqBwtoqwvZSVMLqgf7YQjtrgKEmnVOTS
+OrVtw0vKQPUsWDwEZaVvc7e2pIxNtOwuBYRDqAhqCEenQyDhCutamY7WPRalPV5m5urL59v7caU6
+DZGMGtci50iNiixkhDpRAB9cIwMR8M9gmek4jeGOcn1OZPzgSa1COx+GDGygD9Ut7z5f/fH1c1xX
+p8zkTmNxptiBXj57gWfRj+zJNOP9vyBLFDNjEBWqcavHhEZFEXYOfU18cVyfzlpN+t1dSR0Xj9jf
+B1XqfGRNeWImFRU8OgqqwwGMpcoJrBwIKYkdZM0smS6ARsYT1RYa2gT7FAuOsJgVSX/Q8hD1Y9I8
+XZyQ4TKWBW9VpDJFQjjZBlwTc6vaghaZ6VmC8B6rvKQCyE9w4FOS6KGhuhEenkSpFZXYX9SrZPGq
+ku+n8+083c7SX5NkmyTw8e/7Txdky7X5gVqPp0ekR/sxqqReYR6CzkgVHm5tU3bd1TnBRwFUx/id
+Ogn2oh6SPtyWgM5Zd3HZGh25rTgzrkA8F/25l4jKdRFN+O7A04PRNk+0rZCHUUGKdesTlZekc7p/
+xxRRagYaZgZj+VK40DjT3hhHqvi1iM1YWvnYotxf3f1+dXPDNUVZ1M7mHCYzpd4fAsR2ZHLRY9gG
+kqVwutBSxJP+Wi5eTRhCePalViRcj30BUPcpT6UHewxQWuoO6KefiN1IIP3Iy0yU7bpVJKdLZTPW
++bkc+haXwrkTZxcbVxvteTozHunKD17eGFXyE/xj0D03//Oq8nCZnCdPuxHf11GHwW9L/yYNliiL
+JMHpfDkVa7FOZJHOFypPU5Xns6lSSZpvJCb5Bqci3Sw2YqNwNZ8rNZ+v5ptkGtECVoz1NurgJx1W
+VO7UepF5nAxsmRT5ep7PCyGW03yFhVyrYpGuZ5uUkTfFHBdpmibLtVxu0nwqc7FazZJiIRbJaiHy
+xeDVO9u9hj/ji0117rwo//M9Vu60o5Y4n8XvMdv2cxS/tVA707R74S0aj32AX/4FKswRkAwJAAA=
+--- end gzip+base64 ---
+stderr bytes: 2730
+stderr sha256: 93684b7d2d0463be5cd50f4a08452d7cdd315b0bd1de6d9f3bcce63888e64c20
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] opening planner bundle /tmp/tmp.7us84LTOtN/scoped/twine-051-scoped.bale-bundle
+[bale] second desk: bundle twine-051-scoped.bale-bundle matches the bundle open session 2026-10-08-sc-002 was opened from; recording desk-2 on that session instead of opening a new one (no pre-flight, dry-run, sweep, or replay runs on this path)
+[bale] second desk: desk-2 recorded as an 'opened' attempt (command 'open') on claude/telemetry/2026-10-08-sc-002.json
+[bale] second desk: claude/telemetry/2026-10-08-sc-002.json is untracked (the open-time record stays untracked until the session closes); nothing to sweep
+
+  session id: 2026-10-08-sc-002
+  desk:       desk-2 (2026-10-08-sc-002@desk-2)
+  telemetry:  claude/telemetry/2026-10-08-sc-002.json
+  tarball:    /tmp/tmp.7us84LTOtN/scratch-repo/.bale/outbox/request-2026-10-08-sc-002.tar.gz
+
+Attach the same request tarball to the new chat; this desk joins session 2026-10-08-sc-002 and opens nothing new.
+
+Open the session: paste the block below into a fresh agent chat,
+unedited, with the request tarball attached.
+
+--8<-- session opener (copy everything between the scissor lines) --8<--
+I'm using "bale", a CLI that packaged the attached request tarball.
+This message opens bale session 2026-10-08-sc-002.
+This is desk desk-2 of that session: it is already open at another
+desk, and this chat joins it rather than opening a new one. Name this
+chat 2026-10-08-sc-002@desk-2; the session id stays 2026-10-08-sc-002
+in everything bale reads.
+Goal, verbatim from the request manifest: twine-051-record: the scoped session
+The docs and tools in the tarball are mine, written for this workflow;
+AGENT.md and the four docs beside it are my instructions for this
+session. Read manifest.json first, then AGENT.md, then README.md, my
+brief for this session; AGENT.md says when the other four docs are
+needed. tools/craft_response.py and tools/response_lint.py are
+stdlib-only formatters with no network access ΓÇö conveniences over the
+docs, which are the contract; read them before you run them, and a
+response assembled by hand is just as valid.
+Packed at 2026-10-08T13:35:25+00:00 (UTC).
+bale's dates are UTC and can run a day ahead of this chat's date (a timezone gap, not an error); date what you write from the session id.
+If you need something from me, a fact from my machine or a decision,
+end that turn with the matching block from TARBALL.md (a probe, a
+light question block, or a clarification response) rather than a
+question in prose, which tends to get lost. This is a worker session:
+what I need back is one response tarball carrying the finished work.
+--8<-- end session opener --8<--
+[bale] clipboard: copied the session opener to the clipboard (`clip.exe`, global bale.toml)
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA41W247bNhB951cM8rI2asnOpmkDuw/dpkGwwCYpgu1TUCSUNLaZlUSXpNZRnvoR
+/cJ+Sc+QkvaWBFlgAVmcGR4enjmjd4Wu+S+yB25Nu6NDrduWHRVdW9VMy9Ac5D//ufPPfry4fBNe
+L32J4GoZjqblbPX0cZZe5FIoS3nqXarqubRtRRX7q/VY8lt51OhQ7tlT2PMYL8hQyHtjWzpdnf6U
+PV5lq2fIzlarUzpqH0O4oq2zzYYc9nSVnEW2zU4JaWGvw1TDtD6wrshup1NravmIQKZZa+ngONvW
+ZrcPC6pcn7muXZA/Mh8WZB02AEk94a1PtY2ngw77+RdPPYBIqAAScHVLJwnyCekQuDkEmpW2aTSy
+4srJXCqXte4qXgauueHg+uWD0+cfvW2/uO135hKwd21wurwCtpnQLvtnwTQ8YCYfdH87Ck+mjjc0
+MlrWFo/zDbUWbIDPYBNfStEN7dX64fVhPeFNfwNZswdxv6aVOeKnIyHpexlClnZgqY4bfVnUTqSX
+4XLtMkpyabtQ2E9Lx3937EP2sDRq5rvPSp2FoMt9YkRH3mLGuKewIWsisRJC3CTJyInoo4Uav6Fu
+UYRciJ+oRZVcqTfSFLeuYA0FQtWpb2pbXlHBtT1C69hcozPY70nvuA0RwkJ1UJ8JXC3oaELCfh+2
+jsdCgyqVZc9+ybIJZxSvE80eeuJrdn3CVnDArQ/ASuM9uqVGt/s5pQrq/KShzkvsI+H40QLgnl+c
+pwY9QF/AWMX8cff7sHJ1Kew1gILYgRyp9XUWh5SR89EWtndsYU0mSIiuHcyhT7aDZS3Es1OStYj3
+EW9PWBxuD3nQDmKkXvvQU3J6LaqQNBXTvqbuzZ2mMmPnPWwa095hXQ4voH2uXlpdLwhrhUYLR0e8
+c7ewGLPFw/qWDac2Xw+3JpY8YgBvTJUtfTq3tTVOm653EomDaaMSdOQMvKylrXWJoqN1V1uIcKPO
+Xr54fZk31UAfI6ZzqXDB3lQsHMZKfXRn15UB2/uplhoA5fRWnHs8RbKwrXEeTo26LY07DT/fvjj7
+/dWL+LvpVeEMb2/wDTU3UxK6F3Qf94OC473fggqAqmWGieeJiyU8Yxveo7cOAMs5mmHiaTm+fY8G
+CHEJ6T5UtSky29a94GjE/Z1PLYjB06J/QBrpsgQ2+u+ffwmWfg09cYs3ZK+jyFgJHjC+N7Ad4U3g
+IlIcOmyiFuRVA3axC1NvOxlX8V3SsFYjPgwkz01R49aLnvayCG4+dhALRtW1rg0M4I/k/He0e/n4
+yfrJ0/Xp0x9Wq/VqRbM/L5/PcyVqPEGn6cCRMsLruGWJ3hAQGmtgYz+M4KmbhiSaaZLp81mm8U5j
+5KIBZWSyc9ZhxsSgo/SRHEtUxzc6v2meXJ1vY4RcGXmL+RC7JYY2LMazBVvD7x6aKrHOMuCBkOFe
+qLNQHBWLzULn2huvjN8psfmi2cYil2dvfzu7uBAh4QwHZwvZRcUPCYrtJ8hiwiJtg/HlzNaUOq6M
+NzK/YydaTaloPVT1PN48uq3yMl12HAgjOOQ0Gp2O3Ycao7upyNh5YqPAdUqUUDzpYOzoUjvXxyEu
+jWpa48WFpVw+zgEh5d4sGPx9+BQpa3MorBZXgaGYwdLvpQxjcYql2Qd5zvkTf1jQrraoFc0tD7ap
+5+p/7zlNoKoKAAA=
+--- end gzip+base64 ---
+== recording: open_bundle_--json (open-refused: not-found; scratch; a bundle file that does not exist)
+argv: bale open /tmp/tmp.7us84LTOtN/no-such-twine-051.bale-bundle --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 1
+stdout bytes: 536
+stdout sha256: 31908963df7fa7919ffd37f634a9bbe8866e0346a845894f5845fa7646a30fcf
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "open-refused", "sid": null, "tarball": null, "log": null, "session_dir": null, "context_files": null, "readme_path": null, "readme_heading": null, "readme_sha256": null, "checkpoint_file_path": null, "checkpoint_file_sha256": null, "branch": null, "applied_latest": null, "sweep": null, "include_group": null, "opener": null, "bundle": null, "members": null, "rehearsal": null, "checkpoint_dry_run": null, "desk": null, "reason": "not-found", "cause": "bundle not found: /tmp/tmp.7us84LTOtN/no-such-twine-051.bale-bundle"}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA22Rz04DIRDG7z7FhrO0aqyaPkOjF++EhdldUpghDKQa47vLWhO2Ww+EfL8P5u+X
+oJINBRD7TlAElAmGwmDFbSfY2YqxeF9F1qnX3jfgaWyCgdkRKutSg4Yww0dWg/PADSfQNoCKOk9X
+cKqXw/GK86Qfdk+L0BOYYySH5+irYGt3/btPGs3ivY7RO7DK6wycF12dAGKTDo0vFtSYqCzwPDZY
+tN0XtB6aDhB6SBcDqG0m1v7fim36VKlg8yzw8WIgTLMrkLIcqCabd2V03dpMz9m7ana/5r7b5hDn
+s3ku/PJ4eH/Lr1skycVMMp8cgrzb3W/qckH+lf598wOXqUjVGAIAAA==
+--- end gzip+base64 ---
+stderr bytes: 82
+stderr sha256: 8b84698f329ec410e64a5612c8494524c01f15e955a4d31dce5cf04cd331670c
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] error: bundle not found: /tmp/tmp.7us84LTOtN/no-such-twine-051.bale-bundle
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA4tOSsxJjVVILSrKL7JSSCrNS8lJVcjLL1FIyweyrRT0S3ILQFjPvLTYwsQnxL/E
+Tz8vX7e4NDlDt6Q8My9V18DUUA9kiC5EMxcAne3MDFIAAAA=
+--- end gzip+base64 ---
+[craft] --emit-block exit 0: [craft] clarification manifest normalized to a from: worker record, round 1, 1 question(s)
+the block twine would carry: 964 bytes, sha256 7921f0df07f8e2054238fb0466ec01ffef44fac49be0661025432f1699b77c9c
+== recording: relay_sid_stdin_--json (relayed; scratch; round 1 from worker, the paste block on stdin ΓÇö twine's own argv)
+argv: bale relay 2026-10-08-sc-002 - --json
+stdin: /tmp/tmp.7us84LTOtN/clar/block.txt (964 bytes, sha256 7921f0df07f8e2054238fb0466ec01ffef44fac49be0661025432f1699b77c9c)
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 1384
+stdout sha256: b98fc9c13e4851701c2b1ee55f558c45319c8ed237a3a50ea8885c5329c9d5d0
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "relayed", "sid": "2026-10-08-sc-002", "round": 1, "from": "worker", "awaiting": "planner", "kind": "exchange record", "preserved": ".bale/clarifications/2026-10-08-sc-002/001.json", "block": "BALE EXCHANGE BEGIN 2026-10-08-sc-002\n# bale exchange record \u2014 session 2026-10-08-sc-002 \u2014 round 1 \u2014 from worker to planner\n# 1 blocking question(s). Planner: answer as an exchange record (from: planner, round 2, answers[] keyed question_round 1) and record it with `bale relay 2026-10-08-sc-002 <answer.json|->`.\n# Body: the record (exchange-record.schema.json). Trailer: sha256 of the body bytes \u2014 a mismatch on ingest means a truncated paste; re-request the block rather than reason from it.\n{\n  \"record_version\": 1,\n  \"session_id\": \"2026-10-08-sc-002\",\n  \"round\": 1,\n  \"from\": \"worker\",\n  \"created_at\": \"2026-10-08T13:35:26+00:00\",\n  \"questions\": [\n    {\n      \"question\": \"Which of the two?\",\n      \"context\": \"recording relay - --json in a scratch repository\",\n      \"default_assumption\": \"the first\",\n      \"why_blocked\": \"the brief names both\"\n    }\n  ]\n}\n# sha256 5fbbf2bdd04af3a6d738d1c02af0abe4c9f3bf95e9abed4f3d5f52ef2a7332ad\nBALE EXCHANGE END\n", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-sc-002.log", "clipboard": true, "cause": null, "telemetry": null, "reason": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA21U30/bMBB+319xyl6YRtr8aAt00ybYKjYJdXtA2iSCipM4xCOxO9uhVIz/fXd2
+SoHyUMW+u+/uu++uvg9UZwvV8mAKgeYNW/My2IfAiJIsSZRMwjgKo8PQFGEUJeTTqpPkjfFcadVS
+4ErpG67Jy1ZMWCGvybpsmJTefCMcJuB3Rc3kNQfNC6VdraXmhutb7vyDnDV8WDRMi0oUzAolzXCH
+xjCK4sEfoyTh80YVN4Q9OT6bwez3l2/H89MZnMxOv89hB5rJt0A14AUTyLokikdguDFYdBe4CXDt
+Q7y5kgLg2weroG+ZqsTgmKEW8LfjhlrZM+8G8NOHTIFJs0IUM3jaobNHiaebfPt92WS/R5mLS7jh
+OK3H3Iue2DuMKDdZhIWVsDVcuZbdgF/p7KPP6RT9F366GhD9E1Wup2DrLaMNxdAbBqaoecscCts6
+10w01JapWTKegKocOMc0kK8tNxvFGLTCtMwWNaDOKA/yh5YjB3RZ3UkcO/a1ZMbyD1gcy7kefTqS
+FDTDM+qNdDCAIQE/B2GR+n0mAbLAk1zcolaoTuYW1nv6ES9ESdZsd8uzoI90kj6FUhUP8iN/jCyQ
+BrJeMPsy53mcTtPxNJm8j6JpFD0iNnMzBLggG8C9/zx1+3S/akFyeUntSn3u0/jYQknL7/rKvm/a
+Oj/uEMKQRoRKo76m0E55zZfKCKv0+lmmklesa+yCGdO1y219KlsJbeyz6FW9XriB8HIblmvBK5Cs
+xYnnytZZ4AEP9LnM5AMtV78j4yrPqyQvy2jEqpRNyoP0sIyLKGFVxHI+Ko6qNK+OxvwIb+WoSstx
+NU54lbCDNE1Ymcnn//nZ/Gvm3oRGuQdoaNsl/QYHnTkcnZ3/sPNhr0BICgz9c4PRrzwyA0qCuYpG
+LHPFNL1PuJ6cTKwz9GTKrmnwannDW271emvyW9nfH978B58HsehoBQAA
+--- end gzip+base64 ---
+stderr bytes: 872
+stderr sha256: c9219a9b0b296867ee1e986f1f9413d19e4931459cc8509d5caec64def80c27c
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] relay: session 2026-10-08-sc-002
+[bale] relay: paste block read from <stdin> (trailer verified)
+[bale] relay: exchange record preserved as round 1 at .bale/clarifications/2026-10-08-sc-002/001.json (from worker)
+[bale] relay: session 2026-10-08-sc-002 stays open and suspended ΓÇö no staging, no validation, no commit, no telemetry record
+[bale] clipboard: copied the exchange block to the clipboard (`clip.exe`, global bale.toml)
+
+  [RELAYED] 2026-10-08-sc-002
+  session:   2026-10-08-sc-002
+  ingested:  exchange record from <stdin>
+  preserved: .bale/clarifications/2026-10-08-sc-002/001.json (round 1, from worker)
+  thread:    1 round(s); awaiting planner
+  block:     emitted on stdout for the planner
+
+Next step ΓÇö answer as an exchange record (from: planner, round 2, answers[] keyed question_round 1), then `bale relay 2026-10-08-sc-002 <answer.json|->`.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA5VSS47TQBDd+xRvmUi242SBkBmNhMTsEAt2KIpIxa5kmrS7TXfnJ7HgEJyQk1Dd
+cWaYSViw68+rqvep+Yo0L+BY06mGZ++VNZhVszfFtCqqt4VviqqaZfMXuJ58YKy0bbbyRC3Wzna4
+86FV5h6j4EhpdtizU2vF7fhVOR+bRzIblntjXYvesWe35xbk4ezOtJiCAspYNWk0xTYNBaHmJ1fc
+JlU1Lb95oT1KNA7Wbdm9nvlPafCBTh62ZwOSyX7n5dgKmd8/f8HY+L9RZpPH8560ahORdG1s16mQ
+joE1dxzcaRB1Gd9o1a8subYWdC9mIDzyswNnD4NNr09YjJbxXPKRlzk22kovxH5lsJ0eZxkw//zw
+8f2Xhw+LG2HhorYGbn6LHJYEhdNVFn8nKcinaOr/T2NIMseLWCBS485EbhJzAo38+B3oQCoIM/Sa
+jGEnyOROAoLFaGEMaSzk7C5gbV1y7QLPPvExyCf3KTky/iA7KBtF5kpl2pT6UpoPSzfLhyo/X2DL
+Jxn3fSdGidKvg5hxHmcaLKMZ5926sVJ35zbJhx/F/bLM/gDPWwWDaAMAAA==
+--- end gzip+base64 ---
+== recording: relay_sid_--json (re-emitted; scratch; no input)
+argv: bale relay 2026-10-08-sc-002 --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 1329
+stdout sha256: 600559d6927583dde5c8bcc7111d1707d13f8567d3197e15c489f3ef886d5f1c
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "re-emitted", "sid": "2026-10-08-sc-002", "round": 1, "from": "worker", "awaiting": "planner", "kind": null, "preserved": null, "block": "BALE EXCHANGE BEGIN 2026-10-08-sc-002\n# bale exchange record \u2014 session 2026-10-08-sc-002 \u2014 round 1 \u2014 from worker to planner\n# 1 blocking question(s). Planner: answer as an exchange record (from: planner, round 2, answers[] keyed question_round 1) and record it with `bale relay 2026-10-08-sc-002 <answer.json|->`.\n# Body: the record (exchange-record.schema.json). Trailer: sha256 of the body bytes \u2014 a mismatch on ingest means a truncated paste; re-request the block rather than reason from it.\n{\n  \"record_version\": 1,\n  \"session_id\": \"2026-10-08-sc-002\",\n  \"round\": 1,\n  \"from\": \"worker\",\n  \"created_at\": \"2026-10-08T13:35:26+00:00\",\n  \"questions\": [\n    {\n      \"question\": \"Which of the two?\",\n      \"context\": \"recording relay - --json in a scratch repository\",\n      \"default_assumption\": \"the first\",\n      \"why_blocked\": \"the brief names both\"\n    }\n  ]\n}\n# sha256 5fbbf2bdd04af3a6d738d1c02af0abe4c9f3bf95e9abed4f3d5f52ef2a7332ad\nBALE EXCHANGE END\n", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-sc-002.log", "clipboard": true, "cause": null, "telemetry": null, "reason": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA21U32/TMBB+5684hZchljZN2m4rCLRBNZCmwsMkkJapc+LLYprYxXbWVWP/O+c4
+WTfKQ5T4fnz33XcXPwSqsbmqMZhBoDHEWliLPDiEwAjujHEUT8NRFEbHocnDKIqdT6tGOu+Ivgut
+ahe4UXqF2nnZhgkr5K2zrismpTevRJsjm6qi01qjQX2Hz0xZpfKVSzo7vZjD/OenL6eL8zmczc+/
+LmCPRypfQ8YqBLzPSyZvETTmSnNImzgajcGgMULJ/cQ+oG0CRv3R9QG+CbAKOuKuyghaZtQR/G7Q
+WEI9MG8G8N2HzIBJs6EsZuhrj86BA571eIdd2fiwyzJX17DCLfIn7GVH7A1F8B5FWNgIW8JN27LG
+im3/09l7jzn4ZZT8E364GTj6Z4pvZ2DLHaOeYugNA5OXWLM2i9q61ExUri1TsngyBVW0yRnBQLa1
+aHrFGNTC1MzmJZDOJA/xhxqJA7msbmTOaJdgzYzFd1ScyrU9ejgnKWhG36Q30aEARgT8HIQl6g+p
+BEgDT3J5R1qROmm7dt7TjXgpuLOm+7uaBl1kK+nzVFfFJ/mRP0XmRINYL5n9F/NylMySySyevo2i
+WRQ9ZfRzMy7hytkAHvzrudvD/SiFk8tLajfqYwfjY3MlLd53lX3fbuv8uEMIQzciUpr0Nblulde4
+VkZYpbcvkDgWrKnskhnT1OtdfVe2ENrYF9GbcrtsB4J8F5ZpgQVIVtPEM2XLNPAJj+51ncpHt1zd
+jkyKLCvijPNozIqETflRcsxHeRSzImIZjvOTIsmKkwme0ImPi4RPikmMRcyOkiRmPJUv//n54nMq
+3aVRqfYaGdp67Z7BUWOOxxeX3+xi2CkQOgWGA/dfDCnaDPe2YOBACCuvxDpTTLsrh9YTnYk1Bnc3
+kMUKa7R6uzP5rezOj6/+AsfzP20xBQAA
+--- end gzip+base64 ---
+stderr bytes: 857
+stderr sha256: 30d6b99c5db67b52b98014b16439e8ebc51ab9360de689c389622ab7b4a0d6c6
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] relay: session 2026-10-08-sc-002
+[bale] relay: no file argument ΓÇö re-emitting the thread's latest recorded round (v0.4.22)
+[bale] clipboard: copied the exchange block to the clipboard (`clip.exe`, global bale.toml)
+[bale] relay: exchange record at .bale/clarifications/2026-10-08-sc-002/001.json (round 1, from worker) re-emitted; nothing recorded ΓÇö the thread, the session, and the registry are untouched
+
+  [RE-EMITTED] 2026-10-08-sc-002
+  session:    2026-10-08-sc-002
+  re-emitted: .bale/clarifications/2026-10-08-sc-002/001.json (round 1, from worker)
+  thread:     1 round(s); awaiting planner
+  block:      emitted on stdout for the planner, byte-identical to the original emission
+
+Next step ΓÇö answer as an exchange record (from: planner, round 2, answers[] keyed question_round 1), then `bale relay 2026-10-08-sc-002 <answer.json|->`.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA61SQW7bMBC86xVzqwRIsiwURaEEOdWHHJJDkZth1LS0llnTpENStQ300Ef0hX1J
+V5RsI3WOFSBgpR0OZ2Z3vhKKFrCkxKmCI+ek0SiL8lM2LbLic+bqrCjKaP4Gpw3WUhGEbbsdaY8/
+v35zL6Od9F7qFn5D/FoSzQcHJTw5z/3a2IYaWNPpBvGPIv+Yl2Vy5q6V3K+MsE2F2uwlA3sWOtYb
+oVvCSpl6C2/C3wsW8bKvczrSMkWrDHOh58u92ankH90XskELhEfeAya1ElauZS0823eTG/+Topjm
+3x1HEw/qpynW1uxwMHZLNrmYp+aO0/GbPoSL4T6dayJpqMeoUwg9GLXUSuftiUMldNqbrt5QE0XA
+/Ossmz09vrzMvizeGQ3OXBX4ea9/FVf9J79MOpgJd2I6zDR2yR3EQciwA3sltCbL0DC6AYlRCJja
++cZ0HmtjQwAjPsXq5CmTDe8VC1TnkRsrW6n5mxmC3Sh6pqNnFtqHhIV2B7IQjqubSce9+up6x+Cq
+TMdTbr7Alk6s67XjXWX2b6PvJIxLY9nnNuzRbca4H2hCZD+zh2Ue/QU1hjjHWQMAAA==
+--- end gzip+base64 ---
+== recording: relay_sid_stdin_--json (relay-refused: not-an-object; scratch; stdin neither a paste block nor JSON)
+argv: bale relay 2026-10-08-sc-002 - --json
+stdin: /tmp/tmp.7us84LTOtN/clar/bogus.txt (26 bytes, sha256 530eff6149ab463f29762c9af2155b11218677316d71d0a8ad5cfa937c14852a)
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 1
+stdout bytes: 544
+stdout sha256: 2151ca6880480456eb8bae15ec9dcba57fef01e23192714811185f34d45671da
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "relay-refused", "sid": "2026-10-08-sc-002", "round": null, "from": null, "awaiting": null, "kind": null, "preserved": null, "block": null, "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-sc-002.log", "clipboard": false, "cause": "relay input is neither a BALE EXCHANGE paste block nor valid JSON: Expecting value: line 1 column 1 (char 0). Expected an exchange record, a clarification manifest, or the paste block wrapping either.", "telemetry": "claude/telemetry/2026-10-08-sc-002.json", "reason": "not-an-object"}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA21RTUsDMRC9+yuGPSl0P1pES29VFkVKe9CD19nsbJs2m4RJ0g/E/25Spa3oITDz
+5uO9N/nITPDC9JRNIGNSeMiZuuCozQaQOdkmfFSN7vJhlVfj3Im8qkapxiboVNVBqZh2bPpzhjuU
+XurlGdnIy27L5Ii3dAE1yojNOVUmDWel7216xX1w49vZ28LPSycYvVhFodaURYOKytjtyj8yi7Qk
+7hJK2sYgJ7YOlaOEYTR5Mg1S2+BBOtAk/YoYEB6msxrq98fn6fypBovOExxFgjYMW1SyhZfXxXwC
+9d6SSHYTGmgCSmqCIQijQq9jcC1WyFDdFD+t1AJqoH2E9ZKASRhuB5FTKGTZSYFeGg09atmR8wOI
+hFHVLxE7RmsT57fgIhn1pKgnz4dkLO4KLZUn7J/7rJ3Rx78kTFEc0sbnqHPTrKPM7PPqC4L4xDAg
+AgAA
+--- end gzip+base64 ---
+stderr bytes: 356
+stderr sha256: 07dbaa4a3f2e04929a705c3c2dd4275bd9430c3915c313543c7369fcdfb9836f
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] relay: session 2026-10-08-sc-002
+[bale] error: relay input is neither a BALE EXCHANGE paste block nor valid JSON: Expecting value: line 1 column 1 (char 0). Expected an exchange record, a clarification manifest, or the paste block wrapping either.
+[bale] relay: refusal recorded as a relay-refused attempt at claude/telemetry/2026-10-08-sc-002.json
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA2WQQU/DMAyF7/sVPoK0dFkPCPU2UAVCaBy4IE0cvNTdAqkTOSls/55kLQfEydbz
+k79n7/bo6B2EHJ4biBSj9Qy1rm/UWit9q6JRWteL3eQjES/NZAfLYUxgIzDZdCQBhLvNcwvt2/3j
+ZvvQQsCYCPbOm09gL/CFznbw9PqybaA9BTLJ8qGoIzXgLBOswXg3DpybK3NEAX1dzVbqABnolGU+
+UI5gvHTLzDQOxfbWYCrRB2TbU0xLyMCc6k+Ib8EQCnMKXP2eNZ8v1I8R3by7AGPefxmqy6xIKdEQ
+Uq4FPHa0SuRooCTn1b+3VR/R8+IH7ZWS8WQBAAA=
+--- end gzip+base64 ---
+== recording: relay_sid_stdin_--json (relay-refused: not-open; scratch; a sid not open, the block on stdin)
+argv: bale relay no-such-sid-twine-051 - --json
+stdin: /tmp/tmp.7us84LTOtN/clar/block.txt (964 bytes, sha256 7921f0df07f8e2054238fb0466ec01ffef44fac49be0661025432f1699b77c9c)
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 1
+stdout bytes: 495
+stdout sha256: 7af4cac97afab2acea2020c989b197324a9b497a8e699409f0f40661a8a7c764
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "relay-refused", "sid": "no-such-sid-twine-051", "round": null, "from": null, "awaiting": null, "kind": null, "preserved": null, "block": null, "log": null, "clipboard": false, "cause": "session no-such-sid-twine-051 is not open in the registry \u2014 `bale relay` records rounds in a suspended (open, unbranched) session only. Open sessions: 2026-10-08-ro-001, 2026-10-08-sc-002. A closed session's thread is history; repack to ask again.", "telemetry": null, "reason": "not-open"}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA22RwU7DMAyG7zyF1QsgLVNaAULjxBPwAhzmJt4aNY2rOGGqEO9OAkztgVPkz/7j
+3/ZnwzkZnqg5QBPJ46IinbKQbXbQiLOVB1aSzaBKqNLFBVL6sa35yDnUipC9L+Ep8rRGeEGXXDiv
+ZHTb6jmSUPygDeo9m3ENPW/Exru5Z4y1/IReqDIsTqtDIRHHAf51Ck5KIgHPFMAFSANBpLOTFBd4
+z51uH+DYo6+0LOBYHsPRCvyMJ1WCIFmK3JKFu/rPDnLoIwYzkL2Ha3sOftnDW+3zh+QAne6eVKuV
+flaRldbtbovEFNTt4RWM57L2q/BWis9IaKv7oXjluLwUZzOaERIDygh4Rhf29RCJPE1U5ln3VbTC
+4fd8SVXPzdfNN1HUrszvAQAA
+--- end gzip+base64 ---
+stderr bytes: 264
+stderr sha256: 4dd50c0efb1d5dde0c26bbbdf9803b456fa45144d02dec8c9e953ea46d700993
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] error: session no-such-sid-twine-051 is not open in the registry ΓÇö `bale relay` records rounds in a suspended (open, unbranched) session only. Open sessions: 2026-10-08-ro-001, 2026-10-08-sc-002. A closed session's thread is history; repack to ask again.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA02OTWrDQAyF9z3F2zWBjBkbWkqy6gl6gFLIZEbEQ4wUpDHFuxyiJ+xJKkMIXT34
+pPfzeUoTfYFURfcwMqvCYAk25zFYLaF9V6YQX3pU80ODXIlRGW0kKJ2rNV3we/vBcc1yNKXl6JJF
+i0FlZhf/T7DZ3FuoYLOG7DDzSRPnkcr20S08LR0+1pI7sj2GOLyGPob4FlRCjP3uP7LsaOjwjjyJ
+efzd+Gw+UimVdfroQ0WXgy+7pnxBEyS7IJ1T5e7pD842HDUIAQAA
+--- end gzip+base64 ---
+[craft]   [craft] files/ mirror: 1 file(s); deleted stubs: 0; chmod lines: 0
+[craft]   [craft] wrote manifest.json, apply.sh ΓÇö fill summary, action, reason, validation_will_run, and claims, then run tools/response_lint.py
+[craft]   response-2026-10-08-sc-002/manifest.json
+clean response tarball: /tmp/tmp.7us84LTOtN/clean/clean-response-2026-10-08-sc-002.tar.gz (a03b6c1ab3f168fa73902a35d235110cdc0093b9529b3ce955513b85ee14c38b)
+== recording: apply_--dry-run_--json_tarball (dry-run; scratch; a clean response for the scoped session)
+argv: bale apply --dry-run --json /tmp/tmp.7us84LTOtN/clean/clean-response-2026-10-08-sc-002.tar.gz
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 290
+stdout sha256: 7e7fd743b142148a90b145032709297c8ade1493595a5ba5a2ad8e5933d3cea8
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "dry-run", "sid": "2026-10-08-sc-002", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-sc-002.log", "verdict": null, "merge": null, "telemetry": null, "drift": null, "checkpoint": null, "required_checks": null, "base_drift": null, "archive": null, "sweep": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA2WNQQ6CMBBF956CdG1pJUaJZzC6cU9KO0JjoThtMcR4d1tjAtHFLP77M2+exAYv
+bQfkkBGFE8XQk3VGnFaJFLzY0Q2nvKROUs6L1BnbpI75bkiT74Mrt8fL2Z+Ykyi8bCnCYFleCwMs
+bjv258mTJLpGQKWlj74+GBNBB9jAHD0Y6MDjNCOF+ro4kC3I22B1v2AI96ARVPUp3VzUwkH1IxAo
+Wz0ufroHwPCNr9UbpdUFKyIBAAA=
+--- end gzip+base64 ---
+stderr bytes: 747
+stderr sha256: 24da1657bfc9cf300c8d1109aae85052916932dbddbf47072210a74da777fd82
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] dry-run validating clean-response-2026-10-08-sc-002.tar.gz against session 2026-10-08-sc-002
+[bale] apply.sh and validation.sh syntax checks passed
+[bale] manifest schema validation passed
+[bale] cross-session forecast collision check passed against 1 sibling session(s): 2026-10-08-ro-001
+[bale] file presence, sha256, and path safety verified
+
+  [DRY RUN] 2026-10-08-sc-002
+  summary: a specimen response for the twine-051-record probe: hello.txt rewritten
+  changes: 1 (0 created, 1 modified, 0 deleted)
+
+  would apply:
+    modified  hello.txt
+
+  validation.sh would run:
+    - file syntax
+
+  DRY RUN ΓÇö validated only. No branch, no staging applied to the worktree, no commit.
+
+[bale] dry-run: validated; no git side effects performed
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA21Su27kMAzs9ytYJoBleBdIcPC1V6cIcEWwSMGVaFuIHoaozcap8hH5wvuSo+z1
+JpdcKWqGw+Fwf0BHj2DSpNIxwDM6azDb0IN2hEEl4jEGJrVrdrdq26jmh2KtmmZXZ0x1/wrYow2c
+gYnZxgDfgJv9ooHj6KaaB8BgLkIxlApPIeML6IH0E8OIzGRWmsdgOyoC8u3xE/MLUKfIrNYxuphI
+o9B0dM7Opbn9mXQZewtsD64YPjOv+Lr9bCJFMbFdRTrrCEbZCgVNFfCAu5vbarY0YhYn2FGe4JmS
+7azMtgHY/7p/gPvfd4//WQ0AH73HNLWAwCNp6ynAuvRiAvJAkE82kGputpKHjkm0UjxQCwM5F+v8
+koVySjZnCtJSDxh64la8XTWyFsJMppKXj2aeqoIGDDmS8nWZ8BSPziz5tPKECxA+FAru39AWllzN
+wlHLbpYoC/psG/68va9M6RiDHAHcRTgkDHqoIETgjH1JoExQVHOcXZ9iesqJaMbo6L3N9WYN4nyx
+7UfrnwXWWzkUawio60hnOSZKskUvUfwFjosTRusCAAA=
+--- end gzip+base64 ---
+[craft]   [craft] files/ mirror: 2 file(s); deleted stubs: 0; chmod lines: 0
+[craft]   [craft] wrote manifest.json, apply.sh ΓÇö fill summary, action, reason, validation_will_run, and claims, then run tools/response_lint.py
+[craft]   response-2026-10-08-sc-002/manifest.json
+drifting response tarball: /tmp/tmp.7us84LTOtN/drift/drift-response-2026-10-08-sc-002.tar.gz (d72ff6b8cec29a2e7e07a69cd05514fbc3612dff9d82be0dab014d2e2c788121)
+== recording: apply_--dry-run_--json_tarball (scope-drift-refused; scratch; other.txt beside the forecast's hello.txt)
+argv: bale apply --dry-run --json /tmp/tmp.7us84LTOtN/drift/drift-response-2026-10-08-sc-002.tar.gz
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 1
+stdout bytes: 521
+stdout sha256: 226625c1bfd08134df342813795fdd9dc03664787723525867674a787c068ca0
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "scope-drift-refused", "sid": "2026-10-08-sc-002", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-sc-002.log", "verdict": null, "merge": null, "telemetry": null, "drift": {"out_of_scope_paths": ["other.txt"], "session_scope": ["hello.txt"], "overridden_paths": [], "overridden_path_sources": {}, "remedy": "bale apply 'drift-response-2026-10-08-sc-002.tar.gz' --allow-out-of-scope 'other.txt'"}, "checkpoint": null, "required_checks": null, "base_drift": null, "archive": null, "sweep": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA22QwU7DMBBE73xF5EsuOAkRgopvQHDhhlDk2pvGwsmaXaelRP137NA2lcrBh523
+Gs/sJHAMGnsQT5lgjR6kIdsGSdCODEbcRtmaROuqfpB3laxWkrWsqjoxh5vEytD79IrHkVf3z2+v
+4aVkTSroLjp5LIu1clDGbS6vfIpkEr22QMbqEP2G0bko9EAbWMYADnoItF+kOWscp1SjwbaZKzRe
+hY6j/C4wdEBF+A7iIzUBZovD39bMO3AOzxxjBLLGwLBY/KM3jCNpSHg6REwxlkmpRGqZKe/dPstP
+d2SPA4O8rh0UFZufPJNSxRA7GStIbOUcLsvPyXOR/tAd6E+Pdri4D8HXaAlMM0NewFoxNKfbHDVF
+urPbi3PyDsAfx8PNLz46wa4JAgAA
+--- end gzip+base64 ---
+stderr bytes: 1363
+stderr sha256: deb16ba9bd89454784f85cc3011ac3f27365f58f45888f84b06d3bf4615eea7c
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] dry-run validating drift-response-2026-10-08-sc-002.tar.gz against session 2026-10-08-sc-002
+[bale] apply.sh and validation.sh syntax checks passed
+[bale] manifest schema validation passed
+[bale] cross-session forecast collision check passed against 1 sibling session(s): 2026-10-08-ro-001
+[bale] admission prompt not offered (--dry-run predicts, never admits): the decline default applies to every drifted path
+[bale] [REJECT] own-forecast drift (BALE.md ┬º11 row 22): 1 changes[] path(s) outside session 2026-10-08-sc-002's write forecast ΓÇö other.txt; write forecast: hello.txt
+
+  [SCOPE-DRIFT-REFUSED] 2026-10-08-sc-002
+  past the forecast: other.txt
+  write forecast:    hello.txt
+  dry-run:           a real apply would refuse the same way
+  telemetry:         not recorded (dry-run has no outcome)
+
+The session stays open; nothing was staged or committed. Out-of-forecast work is worker judgment past the ask (ADR-0015): check the response's notes.md for its enumeration, then either:
+  - admit every drifted path deliberately by pasting this line (delete a flag to admit less):
+      bale apply 'drift-response-2026-10-08-sc-002.tar.gz' --allow-out-of-scope 'other.txt'
+  - regenerate the response inside the forecast and re-run `bale apply`,
+  - or reforecast: `bale unlock 2026-10-08-sc-002` and re-pack with a write forecast covering the work.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA41UQW7bMBC8+xV7swOEhm2gRZGc0sQBWhRI4aQnw0BoaSWxoUiBS0VRT31E/9B/
+9Cl9SZeUJaVOClQXQdzd2d2ZobZ7qXEHqWuFqw08Sq1S6ZXJ+UhlXjikyhpCsVqs3orlQizeCUrE
+YrGae+nm+TeQuVSGPBASKWvgReJk2/WQVaXbORUgTTo0siacUGu8fIKkwOSBoJJEmPZlpTQqw9CA
+w6V8VnmUmDhLJPoxMuswkVyWWK1VPIrwh6Jh7CWQ2uuw8KFyRidnz5dwlpdYDkukpeoaVM6WlQdj
+PdgsQ8eYMyF6Iiv+VomnUzD4iC7W+YDsC4QUE+4Y3pmstY/MKCTwFkJy23HPgJX0Rd95u1l/XF/e
+7cA2RgzbxUyYvb/4tJ6XKfz6uVyCsw2sVtxryStLkyNtdxGKVwNbe1Ip/luuKUHjlMeRwd/ff4Dl
+ud3cP/nzo+gZFKi1DaHJBGB7e3nzeS2uNh+u78Rmff3ldn21e8UTEHTwkY0RaWjC4eMu/IyNoDds
+PD88EhxK3dkMGlvrlA+ymjB2IVkiNLLlWo8aS/SuHauDitzJujTI2ItYSOJIoCyxJZ5MJnfFSBx5
+2RLYCs15KC+ChRou4POcQaxj55UsOus4h5vaC5uNsjXWPYCi+GZ3fK3TvETjR1IkPcDs4moTvPeG
+pey8GyL9jZyG2TxSkJ1xge0FaOoSXbwcpyHZAKrA6RlvLToPvuIw9qFW+1CHzNy+jVOEdXgpgujU
+Gacg6yEh0zIPRu3ANJNxEtDDE3x6oH/6n3+PKQghWdVG2I4hSphRmA5OmMbJHeZo4oB/UQB8g4OX
+n7so/l0cRv3ux4nuTyMQ88SeGEzVJdRGWyb3xYz3PVYlOdwwk7z/0d1ILNPZcYVRzfnkD83gOQ5T
+BQAA
+--- end gzip+base64 ---
+[step] made branch bale/2026-10-08-sc-002 by hand (a session that reached HOLD has one)
+== recording: unlock_sid_--json (unlock-refused: hold-branch; scratch)
+argv: bale unlock 2026-10-08-sc-002 --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 1
+stdout bytes: 569
+stdout sha256: b6bd5de4407d3f378daea09b3a9883c4394da7bdd24f805846d0ba1337934cda
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "unlock-refused", "sid": "2026-10-08-sc-002", "log": null, "closure_reason": null, "session_dir_wiped": null, "branch_preserved": false, "telemetry": null, "debris": null, "sweep": null, "reason": "hold-branch", "message": "branch bale/2026-10-08-sc-002 exists \u2014 this session reached HOLD. Use `bale revert 2026-10-08-sc-002` to discard the branch and clear the lock together, or `bale unlock --force` to clear only the lock (the branch would be left in place for you to delete manually).", "open_sessions": ["2026-10-08-ro-001", "2026-10-08-sc-002"]}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA2WRwU7DMAyG7zyF1RNIy+gqhBBnDhyQOHEC1KWJu0akSWUnGxXi3Unaik7a0f7t
+z7/tn8LHoHyPxSMU0VmvvgRhGxl1sYGCjc5CVVb3YleK8kGwEmVZZc36Q9JctDYFynqOhDWhZO/W
+PCOz8a7WhuqTGVCvUkPSqa4eCBnpOCmttIxJCmixx0DjWq2xIcNn4BPisIb/c4vOWy1mdnbZJwPy
+MK03J6GRFm8vNgL8NhwYPmJV7u4gdIZhMQ8JrjrU8Pz68rSFN0bYZ0jKH5ECXLD2EDxow0qSTiSE
+ZbJ0GpRFSVMy3zoVHjAFtAFPC3X+AgjRelI4seYm7+y4dl6fgU8+Wg1NUrANYBwMViqEBIDRx8lN
+umhA6KWL0trxZptv4wd09bJkPu37+aPJp1V2uezy+5+/V3+Gbfi3OQIAAA==
+--- end gzip+base64 ---
+stderr bytes: 314
+stderr sha256: 98198a9917db84acc4d8b901bc57fcaf99a819b58cfd27ea41050a9d41f47e8a
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] unlock: 2026-10-08-sc-002
+[bale] error: branch bale/2026-10-08-sc-002 exists ΓÇö this session reached HOLD. Use `bale revert 2026-10-08-sc-002` to discard the branch and clear the lock together, or `bale unlock --force` to clear only the lock (the branch would be left in place for you to delete manually).
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA2WPsU4DMRBE+3zFlETCibkCodQUFJGoqCKk7NkbzsKxo11f4Do+gi/kS/DdgUBK
+ubMzb2d3LUV+Rp9idq8bNLa5NTfW2DujzljbLHazgUWybNAKJddh1NYXXvB70KL4+vhE6YJCWTXk
+BGFyHXs8PG7vV3hSxn4kVP3MUi6P7lEyfFBH4iuJf89S8nCRSSZxbFyNL1wHuUaWH+r8C4w5ZHE8
+seZQTnH4S179A7/lPnq0dcOHgpBwiuQYFYAh91MbjlwYR0o9xTgsV4tvufz2qDoBAAA=
+--- end gzip+base64 ---
+[step] Deleted branch bale/2026-10-08-sc-002 (was 71404af).
+== recording: unlock_sid_--reason-aborted_--json (unlocked, aborted; scratch; twine kill's own argv)
+argv: bale unlock 2026-10-08-sc-002 --reason aborted --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 489
+stdout sha256: 319fb276ca1f3b5ab1801a680210ea5d2a7bc31ab60ed7251bb15e9b60501b6e
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "unlocked", "sid": "2026-10-08-sc-002", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-sc-002.log", "closure_reason": "aborted", "session_dir_wiped": true, "branch_preserved": false, "telemetry": "claude/telemetry/2026-10-08-sc-002.json", "debris": null, "sweep": {"status": "committed", "detail": "committed 1 file(s) as d6d4c3f", "sha": "d6d4c3f", "files": ["claude/telemetry/2026-10-08-sc-002.json"]}, "reason": null, "message": null, "open_sessions": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA42QTU7DMBCF95zCygokEqehaivOgGDDDqHIsSeNwX/y2FSo6t3xRKGAYMHCC783
+882bOVY+J+ktVLesys54+QqqumYVakVS13abetXW7a5GWbdtR57xe/J4soFes824W989PqR7jjKK
+JKc6QvC8GYQBXqqR/+I0BCksaTzmCH0Egd4RVgw+piUEIGrveqVjf9ABKFKKGYo1ROHk1IcICPFt
+dkZhkKwEBiyk+E40aURWwM/aH0leaHDpUzBEjaXJZWNo+gEglO+xwiRSxhnnrdVpiacgCW1+yGzF
+Rm3gEq+YQKY2ai1vxnmVSVDhN4XqiPn074zPp9J2PtSS0pYbiT18CT6A65fLfW5zuvgAZs98g+kB
+AAA=
+--- end gzip+base64 ---
+stderr bytes: 499
+stderr sha256: c20c85866f6403dbd89c209f52431866198036589654012eb630744ee154855f
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] unlock: 2026-10-08-sc-002
+[bale] compatibility pointer repointed to 2026-10-08-ro-001 (1 session(s) still open)
+[bale] closed session 2026-10-08-sc-002 in the registry
+[bale] wiped /tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-sc-002
+[bale] sweep: committed 1 file(s) as d6d4c3f
+
+  [UNLOCK] 2026-10-08-sc-002
+  lock:      cleared
+  session:   wiped (/tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-sc-002)
+  telemetry: recorded claude/telemetry/2026-10-08-sc-002.json
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA6VQO0/DMBDe8ytuTIY8qUqVlZGqXWCKOrj2lRoc2/JdVPXfY5NQIRUmLFmyzvc9
+h6MweIDJGic/euiabl22TdlsSpJl03TZMC9IN3rB+qiN5it4py1jgIDzSwG7n9jgIraFvAVCIu1s
+TgUQa2PAebTFjdU4iuBl6V4dtAU+Y9R508Th+o27aB9hNY8+3epxos1q+7LnXU0yCJbnMjmrq7Rd
+L+xU/xmOLoi+TxlHzSlNCydtMJkWBGqtVvLhlGUAw+tuu396PvzSE8Dc4NeRBkVAFYeLeJrPpvN/
+uy4iLaPBEWMjfexGuqAiszRiUljfvu6R1Ts5m30CtBE27/MBAAA=
+--- end gzip+base64 ---
+== recording: unlock_sid_--json (unlocked, closed-read-only; scratch; the read-only session, no reason given)
+argv: bale unlock 2026-10-08-ro-001 --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 498
+stdout sha256: be6651120e7e7c06f4b00feb722adb9f5a110adc846a0481cd4af1e53ae6a4ec
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "unlocked", "sid": "2026-10-08-ro-001", "log": "/tmp/tmp.7us84LTOtN/scratch-repo/.bale/logs/2026-10-08-ro-001.log", "closure_reason": "closed-read-only", "session_dir_wiped": true, "branch_preserved": false, "telemetry": "claude/telemetry/2026-10-08-ro-001.json", "debris": null, "sweep": {"status": "committed", "detail": "committed 1 file(s) as a2a4322", "sha": "a2a4322", "files": ["claude/telemetry/2026-10-08-ro-001.json"]}, "reason": null, "message": null, "open_sessions": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA42QzU7DMBCE7zxFlBNIJE5CBRXPgODCDaFoY28bg38ir01VVX13vGkpIDj04INn
+dj+PZ1f6FKW3WN4XZXLGy3dU5XVRklYsdU13W7VN1Syr4Kumadkzfs2eiHbiU98lWi4enp/ioyAZ
+IMqxCjh5UQ9gUORpEn84NUMySxpPKWAfEMg7xrKCKhNAVd6Z7ZwGibR3vdKh3+gJOVsMCbM1BHBy
+7KeAhOFjdlZgiK2IBi3GsD1gISkUJ+2fSG+cIO8pHIKmvOSSMfz6BnHK111JEWKiGeet1TEeylIY
+QZtfctEWK23wkq4KoAI6WNx03fyVEXjwh8JzzHw5O+PrPq+dGjumtLkjWOO34Cd0/bG5r9/sLz4B
+DXvQYvIBAAA=
+--- end gzip+base64 ---
+stderr bytes: 413
+stderr sha256: 3a67defb0070a978697aed381171ab07764d44bdaf025987cd1920ad6d398ecb
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+[bale] unlock: 2026-10-08-ro-001
+[bale] closed session 2026-10-08-ro-001 in the registry
+[bale] wiped /tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-ro-001
+[bale] sweep: committed 1 file(s) as a2a4322
+
+  [UNLOCK] 2026-10-08-ro-001
+  lock:      cleared
+  session:   wiped (/tmp/tmp.7us84LTOtN/scratch-repo/.bale/sessions/2026-10-08-ro-001)
+  telemetry: recorded claude/telemetry/2026-10-08-ro-001.json
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA6VQMQ7CMAzc+wqPMKRJAwLUlREEC0wVQ0gNBNKmilMhfk9KgQWYsOTFvjufr9gr
+iztoa+v0JQcp5IRlgokZ844JkSVFD9DWEZZASGRc/YkDU0M4IXg8Ggr+9uJdTRNpPFRN1+m0pdl4
+uVmHFSftVdAn5rFxPO3Q/KlO/KcNuiI2OWhXVSaEqJzBwVgc0BAUgZJqPJIySQCK7Wq5ni92Xz4C
+6H99lLaoPJZx+DzezXvTg79dD6NsQIsVxkTymI12vozK2qq2RP5efTLTM7k6uQNzN8zEnQEAAA==
+--- end gzip+base64 ---
+== recording: unlock_--json (no-op; scratch; nothing open)
+argv: bale unlock --json
+stdin: /dev/null
+cwd: /tmp/tmp.7us84LTOtN/scratch-repo
+exit: 0
+stdout bytes: 231
+stdout sha256: e7a675b90e559559496927b2de7baad3f31f7d62268991615c3beded8bbe501e
+stdout ends with newline: yes
+--- raw: stdout (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+{"outcome": "no-op", "sid": null, "log": null, "closure_reason": null, "session_dir_wiped": null, "branch_preserved": false, "telemetry": null, "debris": null, "sweep": null, "reason": null, "message": null, "open_sessions": null}
+--- end raw ---
+--- gzip+base64: stdout (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA12OUQ7CMAxD/znF1G+4AJeputaMSmlSJR0TQtydagJ14vPZie2Xk7VFKXDXybFc
+pLrz5CynzrwSdSBZBkQSWxVeEUx46AazLOxTVr/lisP/rIHj3VeFQR+7cwtk6FYDoaDpc1wnzJrt
+ELwBdeB/b+m9YcEQpIL9d80v5n36ADG6ONjnAAAA
+--- end gzip+base64 ---
+stderr bytes: 39
+stderr sha256: 73e52366af85bc078cf566c3a5551e2f920c17a41bec616e956e290ad8cfe0fc
+stderr ends with newline: yes
+--- raw: stderr (verbatim head, between this line and the end marker; the gzip+base64 copy below is the whole stream) ---
+
+  no open session; nothing to unlock.
+--- end raw ---
+--- gzip+base64: stderr (decode with: base64 -d | gunzip) ---
+H4sIAAAAAAAAA+NSUMjLV8gvSM1TKE4tLs7Mz7MGCpRkZOalK5TkK5Tm5eQnZ+txAQAwBq7pJwAA
+AA==
+--- end gzip+base64 ---
+recordings: 24
+scratch removed at exit: yes (/tmp/tmp.7us84LTOtN)
+--- integrity: 1444 lines ---
+=== PROBE END twine-051-record ===

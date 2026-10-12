@@ -1,0 +1,19 @@
+[bale] dry-run validating clean-response-2026-10-08-sc-002.tar.gz against session 2026-10-08-sc-002
+[bale] apply.sh and validation.sh syntax checks passed
+[bale] manifest schema validation passed
+[bale] cross-session forecast collision check passed against 1 sibling session(s): 2026-10-08-ro-001
+[bale] file presence, sha256, and path safety verified
+
+  [DRY RUN] 2026-10-08-sc-002
+  summary: a specimen response for the twine-051-record probe: hello.txt rewritten
+  changes: 1 (0 created, 1 modified, 0 deleted)
+
+  would apply:
+    modified  hello.txt
+
+  validation.sh would run:
+    - file syntax
+
+  DRY RUN — validated only. No branch, no staging applied to the worktree, no commit.
+
+[bale] dry-run: validated; no git side effects performed

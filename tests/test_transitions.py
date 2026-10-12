@@ -147,9 +147,9 @@ class TheTableIsTotal(unittest.TestCase):
                 self.assertEqual(len(row_keys), len(set(row_keys)))
 
     def test_bale_axes_carry_exactly_bales_spellings(self):
-        """The three bale axes' keys are bale 0.4.49's spellings, no more and
-        no fewer, in bale's order — held to the probe's lists, not to the
-        manifest alone."""
+        """The three bale axes' keys are the pinned bale's spellings (0.4.51's,
+        unchanged since 0.4.45), no more and no fewer, in bale's order —
+        held to the probe's lists, not to the manifest alone."""
         table = load()
         for name in BALE_AXES:
             with self.subTest(axis=name):
@@ -166,9 +166,22 @@ class TheTableIsTotal(unittest.TestCase):
         self.assertNotIn(None, load().axis("closure-reason").keys)
         self.assertNotIn("null", load().axis("closure-reason").keys)
 
-    def test_the_table_is_written_against_the_pin(self):
+    def test_the_table_is_written_against_a_version_the_pin_keeps(self):
+        """The table's `written_against` is the bale version its bale axes'
+        keys were spelled for. The pin bump to 0.4.51 (session
+        2026-10-12-twine-pin-051-001) left share/transitions.toml untouched
+        by the request's constraint, so it still says 0.4.49 — and that
+        stays true to what the table keys on: the three vocabularies the pin
+        re-read at 0.4.51 are 0.4.49's value for value (BALE_VOCABULARIES),
+        so the table is total against the pin (the test above) and
+        `twine transitions` reports both versions without gating on them.
+        Rewritten from test_the_table_is_written_against_the_pin, which held
+        them equal; the next table edit restates it (notes.md proposal)."""
         table = load()
-        self.assertEqual((table.written_against, table.pin), (PIN, PIN))
+        self.assertEqual((table.written_against, table.pin), ("0.4.49", PIN))
+        self.assertEqual({axis: v["values"] for axis, v in load_manifest().vocabularies.items()},
+                         BALE_VOCABULARIES)
+        self.assertTrue(table.ok, [p.message for p in table.problems])
 
     def test_no_axis_has_a_catch_all_key(self):
         for axis in load().axes:
@@ -486,7 +499,9 @@ class TheVerb(unittest.TestCase):
             self.assertIsInstance(move["actor"], str, name)
             self.assertIsInstance(move["description"], str, name)
         self.assertEqual([a["name"] for a in obj["axes"]], list(AXES))
-        self.assertEqual((obj["written_against"], obj["pin"]), (PIN, PIN))
+        # The table still says 0.4.49 (untouched at the 0.4.51 pin bump: the
+        # vocabularies did not move); the verb reports both and stays ok.
+        self.assertEqual((obj["written_against"], obj["pin"]), ("0.4.49", PIN))
         self.assertEqual(obj["table"], str(TRANSITIONS_TABLE))
         self.assertNotIn("Traceback", run.stderr)
 

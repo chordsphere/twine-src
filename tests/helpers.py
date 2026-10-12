@@ -52,7 +52,10 @@ stderr. twine's kill keys its hand line on the refusal line's `reason`
 code, not on stderr text, so `unlock_recording` answers stderr empty for
 every recording and derives none; a test that proves stderr passes through
 feeds bytes it names as not bale's (RecordedUnlock's and StubBale's
-`stderr=`).
+`stderr=`). (History since the pin at 0.4.51, below: every recording now
+carries the stderr bale printed beside it, recorded byte-exact, and the
+recording answers it. twine's kill still keys on `reason`, never on stderr
+text, and a test that needs bytes bale never printed still names them.)
 
 Since Arc 1 session 3 (`twine carry bundle`): StubBale also replays an
 `open` recording (`open_stdout=`), and `open_recording(name)` reads the
@@ -67,10 +70,23 @@ replays one for twine's argv, `relay <sid> - --json`, on the named
 assumption that bale reads `-` exactly as it reads the file the recordings
 were made with. StubBale's `relay_stdout` is a recording's file now; the
 crafter's `--emit-block` emission no longer stands in for relay's stdout
-(it stays the `exchange` format's fixture, which `take` reads)."""
+(it stays the `exchange` format's fixture, which `take` reads).
+
+Since session 2026-10-12-twine-pin-051-001 (the pin at 0.4.51): the naming
+rule and the README row shapes live in tests/fixture_rule.py, shared with
+bin/twine-land-recordings (the lander) and re-exported here with PIN as the
+version. Every recording of the pinned version has a `.stderr` sibling and
+an eight-column README row (`recorded_rows`; `recorded_exits` is a view of
+it), and `Recording.stderr` is the sibling's bytes: FixturePlayer answers
+it, `unlock_recording`, `open_recording` and `relay_recording` return it,
+and RecordedUnlock, RecordedRelay and StubBale replay it (`stderr=` still
+overrides with bytes named as not bale's). The relay recordings are of
+twine's own argv, `relay <sid> - --json`, so RecordedRelay's assumption is
+gone; `open_recording` gains the recorded refusal, `open-refused`."""
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -89,8 +105,13 @@ from twine import REPO_ROOT
 from twine.bale import load_manifest
 from twine.cli import Context, main
 
+from tests import fixture_rule
+from tests.fixture_rule import (EMISSION_TOOLS, GROUP_SEP, STDERR_EXT, UNRECORDED, WHERE,
+                                WHERE_ANYWHERE, Role, Row, fixture_key, fixture_stem,
+                                fixture_where, split_group, stderr_relpath)
+
 TWINE = REPO_ROOT / "bin" / "twine"
-PIN = "0.4.49"
+PIN = "0.4.51"
 
 # bale's three closed vocabularies — the oracle the consumption manifest's
 # [[vocabulary]] entries and the transition table's bale axes are held to.
@@ -100,8 +121,13 @@ PIN = "0.4.49"
 # 2026-10-06-continue-twine-002 from bale-src's context tarball (the two
 # schema-homed axes under schema hashes unchanged since 0.4.45;
 # format_apply_json's docstring at bin/bale_report.py line 3040 with the
-# same nine outcomes) and found unchanged, value for value. Never edited to
-# match the manifest: a pin bump re-reads them and says where.
+# same nine outcomes) and found unchanged, value for value; re-read at the
+# pin bump to 0.4.51 by the desk of sitting 2026-10-08-open-arc2-003 from
+# bale-src's context tarball (format_apply_json's docstring at line 3426 of
+# bin/bale_report.py, sha256 1f4f2c75…, the same nine outcomes) with the
+# eight schemas hashed by probe twine-051-record, all unchanged — and found
+# unchanged again. Never edited to match the manifest: a pin bump re-reads
+# them and says where.
 BALE_VOCABULARIES: dict[str, list[str]] = {
     # schemas/telemetry-record.schema.json /properties/outcome (13)
     "telemetry-outcome": ["opened", "applied", "held", "reverted", "rejected",
@@ -190,84 +216,16 @@ class TempRoots:
         self._dir.cleanup()
 
 
-class Role(str):
-    """A per-run argv value's role, standing in for the value in a fixture
-    name (`sid`, `stdin`, `file`, `tarball`, `bundle`, `goal`). A Role is
-    its own `_` group: it is never joined to the flag before it, because
-    it is not that flag's value."""
-
-
-def fixture_key(argv: list[str]) -> list[str]:
-    """The argv after `bale`, normalized for naming a fixture: the values
-    that differ per run are replaced by their roles (fixtures/README.md,
-    "Per-run values"), one rule per verb. `relay <sid> …` keys as relay,
-    sid, then `stdin` for `-` and `file` for any other positional; every
-    positional after `apply` is the tarball; a positional right after
-    `unlock` is the sid (session 5b); every positional after `open` is the
-    bundle and the positional right after `pack` is the goal (session
-    2026-10-07-twine-pin-049-001) — a flag's value (`--slug ro`, `--sid
-    <sid>` on stats) stays. Any other argv is its own key."""
-    argv = [str(a) for a in argv]
-    if argv[:1] == ["relay"] and len(argv) >= 2:
-        key: list[str] = ["relay", Role("sid")]
-        for token in argv[2:]:
-            if token == "-":
-                key.append(Role("stdin"))
-            elif token.startswith("-"):
-                key.append(token)
-            else:
-                key.append(Role("file"))
-        return key
-    if argv[:1] == ["apply"]:
-        return ["apply"] + [t if t.startswith("-") else Role("tarball")
-                            for t in argv[1:]]
-    if argv[:1] == ["unlock"] and len(argv) >= 2 and not argv[1].startswith("-"):
-        # `unlock <sid> --reason aborted --json` (session 5b): the sid is per run.
-        return ["unlock", Role("sid"), *argv[2:]]
-    if argv[:1] == ["open"]:
-        # `open [--check] <bundle> --json`: the bundle file is per run.
-        return ["open"] + [t if t.startswith("-") else Role("bundle")
-                           for t in argv[1:]]
-    if argv[:1] == ["pack"] and len(argv) >= 2 and not argv[1].startswith("-"):
-        # `pack <goal> --slug ro …`: the goal is per run; the flags' values stay.
-        return ["pack", Role("goal"), *argv[2:]]
-    return argv
-
-
-# The directory a recording ran in, as a test names it to fixture_relpath
-# and FixturePlayer, and the `<where>` it lands under (fixtures/README.md).
-WHERE = {"repo": "twine-src", "scratch": "scratch"}
-WHERE_ANYWHERE = "anywhere"
-# The outcome group's separator in a fixture name: between the normalized
-# name and the extension, `+<outcome>` and, where that still collides,
-# `+<reason>` (fixtures/README.md, "Outcome groups").
-GROUP_SEP = "+"
-
-
-def fixture_where(cwd: str) -> str:
-    return WHERE.get(cwd, WHERE_ANYWHERE)
-
-
-def fixture_stem(argv: list[str]) -> tuple[str, str]:
-    """The normalized name and extension of the recording of `argv`: each
-    flag joined to the values that follow it with `-`, a Role a group of
-    its own, the groups joined with `_`; `.json` when --json is among the
-    flags, else `.txt`."""
-    argv = list(argv)
-    key = argv if any(isinstance(t, Role) for t in argv) else fixture_key(argv)
-    groups: list[str] = []
-    for token in key:
-        if token.startswith("-") or not groups or isinstance(token, Role):
-            groups.append(str(token))
-        else:
-            groups[-1] += "-" + token
-    return "_".join(groups), (".json" if "--json" in key else ".txt")
+# The naming rule (Role, fixture_key, fixture_stem, fixture_where,
+# split_group, GROUP_SEP, WHERE) is tests/fixture_rule.py's, imported above;
+# the functions below are its path functions at the pin.
 
 
 def fixture_relpath(argv: list[str], cwd: str, group: str | None = None) -> str:
     """The fixtures/ path a recorded bale output lands at, from the argv
     after `bale`, where it ran and (for an argv recorded with more than one
-    outcome) its outcome group — fixtures/README.md's naming rule:
+    outcome) its outcome group — fixtures/README.md's naming rule, at the
+    pin (fixture_rule.fixture_relpath_at):
 
       fixtures/bale-<pin>/<where>/<verb>_<flag[-value…]>[_…][+<group>].<ext>
 
@@ -278,54 +236,57 @@ def fixture_relpath(argv: list[str], cwd: str, group: str | None = None) -> str:
     outcome group, `<outcome>` or `<outcome>+<reason>`, None for an argv
     recorded once.
     """
-    stem, ext = fixture_stem(argv)
-    tail = f"{GROUP_SEP}{group}" if group else ""
-    return f"fixtures/bale-{PIN}/{fixture_where(cwd)}/{stem}{tail}{ext}"
+    return fixture_rule.fixture_relpath_at(PIN, argv, cwd, group)
 
 
-def split_group(name: str) -> tuple[str, str | None]:
-    """A fixture file name without its extension, split into the
-    normalized name and its outcome group (None when plain)."""
-    stem, sep, group = name.partition(GROUP_SEP)
-    return stem, (group if sep else None)
-
-
-# A fixtures/README.md row for the stdout of a command: file, command, ran
-# in, exit (a number, or `unrecorded`), bytes, sha256.
-EXIT_ROW = re.compile(r"^\| `(?P<file>bale-[^`]+)` \| `[^`]+` \| `[^`]+` "
-                      r"\| (?P<exit>\d+|unrecorded) \| \d+ \| `[0-9a-f]{64}` \|$", re.M)
-UNRECORDED = "unrecorded"
+def recorded_rows() -> dict[str, Row]:
+    """Every recording row of fixtures/README.md, keyed by its fixtures/
+    path: exit (an int, or "unrecorded"), bytes, sha256 and — on the
+    eight-column rows of 0.4.51 on — the `.stderr` sibling's bytes and
+    sha256 (None on the six-column rows of 0.4.45 and 0.4.49, which stay
+    as history). fixture_rule.parse_rows is the parser the lander shares."""
+    text = (REPO_ROOT / "fixtures" / "README.md").read_text(encoding="utf-8")
+    return fixture_rule.parse_rows(text)
 
 
 def recorded_exits() -> dict[str, int | str]:
     """Each recorded output's exit code as fixtures/README.md states it,
-    keyed by its fixtures/ path: an int, or "unrecorded"."""
-    text = (REPO_ROOT / "fixtures" / "README.md").read_text(encoding="utf-8")
-    return {f"fixtures/{m['file']}": (UNRECORDED if m["exit"] == UNRECORDED
-                                      else int(m["exit"]))
-            for m in EXIT_ROW.finditer(text)}
+    keyed by its fixtures/ path: an int, or "unrecorded" — a view of
+    recorded_rows(), kept so the player's callers do not move."""
+    return {path: row.exit for path, row in recorded_rows().items()}
+
+
+def recorded_stderr(relpath: str, row: Row | None = None) -> bytes:
+    """The stderr bale printed beside the recording at `relpath`: its
+    `.stderr` sibling's bytes, held to the README row's stderr bytes and
+    sha256. Raises when the row records no stderr (a six-column row of
+    0.4.45 or 0.4.49), the sibling is missing, or its bytes are not the
+    row's — a stderr is never guessed and never derived."""
+    row = recorded_rows().get(relpath) if row is None else row
+    if row is None:
+        raise AssertionError(f"{relpath} has no fixtures/README.md row")
+    if not row.has_stderr:
+        raise AssertionError(f"{relpath}'s row records no stderr (a recording older than "
+                             "0.4.51); a test that needs one names bytes as not bale's")
+    sibling = REPO_ROOT / stderr_relpath(relpath)
+    if not sibling.is_file():
+        raise AssertionError(f"{relpath}'s stderr sibling is missing at {sibling.name}")
+    data = sibling.read_bytes()
+    if (len(data), hashlib.sha256(data).hexdigest()) != (row.stderr_bytes, row.stderr_sha256):
+        raise AssertionError(f"{sibling.name} is not the bytes its row records")
+    return data
 
 
 # Fixtures that are not the stdout of a `bale` argv (fixtures/README.md,
 # "Emissions and carried pastes"): the crafter's emissions, and pastes of
 # bale output the architect carried. Both land as .txt.
-EMISSION_TOOLS = {"crafter": "tools/craft_response.py"}
 
 
 def emission_relpath(tool: str, argv: list[str]) -> str:
     """fixtures/bale-<pin>/<tool>/<flag[-value…]>[_…].txt for a bale tool
     run with `argv` — fixture_relpath's grouping, with a `-` value (stdin)
     spelled `stdin` so no name carries a bare dash."""
-    if tool not in EMISSION_TOOLS:
-        raise ValueError(f"unknown emitting tool {tool!r}")
-    spelled = ["stdin" if token == "-" else token for token in argv]
-    groups: list[str] = []
-    for token in spelled:
-        if token.startswith("-") or not groups:
-            groups.append(token)
-        else:
-            groups[-1] += "-" + token
-    return f"fixtures/bale-{PIN}/{tool}/{'_'.join(groups)}.txt"
+    return fixture_rule.emission_relpath_at(PIN, tool, argv)
 
 
 def fixtures_version(kind: str) -> str:
@@ -351,9 +312,8 @@ def carried_relpath(kind: str, identity: str, to: str | None = None,
     names, and for a relay block its addressee. `version` is the bale that
     printed the paste — by default the one the manifest's format entry for
     `kind` names (fixtures_version), never the pin by assumption."""
-    tail = f"_to-{to}" if to else ""
     version = fixtures_version(kind) if version is None else version
-    return f"fixtures/bale-{version}/carried/{kind}_{identity}{tail}.txt"
+    return fixture_rule.carried_relpath_at(version, kind, identity, to)
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +328,8 @@ SCAFFOLD_WHAT = "TODO(worker) — what this asks, in one line."
 SCAFFOLD_WHY = "TODO(worker) — the gap this fills, in one line."
 SCAFFOLD_BODY_OPEN = "probe() {\n"
 SCAFFOLD_BODY_CLOSE = "\n}\n"
-# Where the 0.4.49 scaffold's clipboard tail begins: after the
+# Where the scaffold's clipboard tail begins (0.4.49's, byte-identical at
+# 0.4.51): after the
 # `emit_probe_block` call, a comment block and the shell that pipes the
 # block into `bale clipboard --block "probe block"` when a `bale` is on
 # PATH (two `[clipboard]` notices on stderr when none is). The tail is a
@@ -408,7 +369,7 @@ def filled_probe(body: str = 'echo "--- section: shell ---"\necho "bash ok"',
     if not clipboard_tail:
         if text.count(SCAFFOLD_TAIL_OPEN) != 1:
             raise AssertionError("scaffold drifted: the clipboard tail is not where "
-                                 "the 0.4.49 recording has it")
+                                 "the pinned recording has it")
         text = text[:text.index(SCAFFOLD_TAIL_OPEN)]   # ends at `emit_probe_block\n`
     return text
 
@@ -496,11 +457,12 @@ class FixturePlayer:
     replays is visible where it is used, never the player's pick.
 
     The answer is the fixture's bytes on stdout, the exit code its
-    fixtures/README.md row records, and empty stderr (no row records
-    stderr byte-exact, and twine only surfaces it). A row whose exit is
+    fixtures/README.md row records, and on stderr the bytes bale printed
+    beside it — the recording's `.stderr` sibling, held to the row's stderr
+    sha256 (since the pin at 0.4.51; recorded_stderr). A row whose exit is
     `unrecorded` is refused unless the test names the code it assumes in
     `assumed_exits` (fixtures/ path -> code), so an assumption is always
-    visible where it is made (no 0.4.49 row lacks its exit; the rule
+    visible where it is made (no pinned row lacks its exit; the rule
     stays). An argv with no fixture raises — a test must never reach a
     live bale."""
 
@@ -511,7 +473,8 @@ class FixturePlayer:
         self.repo_root = Path(repo_root).resolve()
         self.scratch_root = None if scratch_root is None else Path(scratch_root).resolve()
         self.calls: list[list[str]] = []
-        self.exits = recorded_exits()
+        self.rows = recorded_rows()
+        self.exits = {path: row.exit for path, row in self.rows.items()}
         self.assumed_exits = dict(assumed_exits or {})
         self.select = dict(select or {})
 
@@ -569,7 +532,8 @@ class FixturePlayer:
                     "one names it in assumed_exits")
             code = self.assumed_exits[rel]
         return RunResult(argv=tuple(argv), exit_code=code,
-                         stdout=path.read_bytes(), stderr=b"")
+                         stdout=path.read_bytes(),
+                         stderr=recorded_stderr(rel, self.rows[rel]))
 
 
 class StubBale:
@@ -581,14 +545,18 @@ class StubBale:
     file — relay_recording(...).path), `apply_stdout`,
     `unlock_stdout` (since the pin at 0.4.49, a recording's file —
     unlock_recording(...).path) or `open_stdout` (since Arc 1 session 3, an
-    `open` recording's file) on stdout, `stderr` on stderr, and exits
-    `exit_code`. It lets the CLI run end to end as a subprocess
-    (`--bale-root`) with no bale anywhere; the bytes it replays are a
-    recorded fixture, or bytes the test names as not bale's."""
+    `open` recording's file) on stdout, and exits `exit_code`. On stderr it
+    replays, for the verb it answers, the recording's `.stderr` sibling
+    when that file has one (since the pin at 0.4.51: bale's stderr,
+    recorded byte-exact) — unless `stderr` is given, which replaces it with
+    text the test names as not bale's ("" for none at all). It lets the
+    CLI run end to end as a subprocess (`--bale-root`) with no bale
+    anywhere; the bytes it replays are a recorded fixture, or bytes the
+    test names as not bale's."""
 
     def __init__(self, relay_stdout: Path | None = None,
                  apply_stdout: Path | None = None, exit_code: int = 0,
-                 stderr: str = "", unlock_stdout: Path | None = None,
+                 stderr: str | None = None, unlock_stdout: Path | None = None,
                  open_stdout: Path | None = None) -> None:
         self._dir = tempfile.TemporaryDirectory(prefix="twine-stub-bale-")
         base = Path(self._dir.name)
@@ -610,7 +578,11 @@ class StubBale:
                  f"if [ \"$1\" = relay ]; then cat > {q(str(self.record / 'stdin'))}; fi"]
         for verb, source in replay.items():
             if source is not None:
-                lines.append(f"if [ \"$1\" = {verb} ]; then cat {q(str(source))}; fi")
+                sibling = Path(source).with_suffix(STDERR_EXT)
+                replay_stderr = (f"; cat {q(str(sibling))} >&2"
+                                 if stderr is None and sibling.is_file() else "")
+                lines.append(f"if [ \"$1\" = {verb} ]; then cat {q(str(source))}"
+                             f"{replay_stderr}; fi")
         if stderr:
             lines.append(f"printf '%s' {q(stderr)} >&2")
         lines.append(f"exit {int(exit_code)}")
@@ -713,18 +685,20 @@ class SpendStateDouble:
 
 # ---------------------------------------------------------------------------
 # The unlock recordings (session 2026-10-07-twine-pin-049-001, the pin at
-# 0.4.49). Six `bale unlock … --json` lines were recorded on 2026-10-07 —
-# four in a throwaway repository, two in ~/twine-src (fixtures/README.md,
-# "bale 0.4.49") — and they replace session 5b's doubles, which were built
-# from format_unlock_json's docstring because nothing had been recorded.
-# Every unlock answer a test sees now is one of these recordings' bytes, or
-# bytes a test names as not bale's at all (contract §14.7).
+# 0.4.49; re-recorded at 0.4.51 with their stderr by session
+# 2026-10-12-twine-pin-051-001). Six `bale unlock … --json` lines — four in
+# a throwaway repository, two in ~/twine-src (fixtures/README.md, "bale
+# 0.4.51") — replace session 5b's doubles, which were built from
+# format_unlock_json's docstring because nothing had been recorded. Every
+# unlock answer a test sees now is one of these recordings' bytes (stdout,
+# exit and, since 0.4.51, stderr), or bytes a test names as not bale's at
+# all (contract §14.7).
 # ---------------------------------------------------------------------------
 
-# format_unlock_json's keys at 0.4.49, in the order the recorded lines carry
-# them: the nine of 0.4.45 and the three bale 0.4.47 added for the refusal
-# line (`reason`, `message`, `open_sessions`) — present on every outcome,
-# null where they do not apply.
+# format_unlock_json's keys at 0.4.49 and 0.4.51, in the order the recorded
+# lines carry them: the nine of 0.4.45 and the three bale 0.4.47 added for
+# the refusal line (`reason`, `message`, `open_sessions`) — present on every
+# outcome, null where they do not apply.
 UNLOCK_KEYS = ("outcome", "sid", "log", "closure_reason", "session_dir_wiped",
                "branch_preserved", "telemetry", "debris", "sweep", "reason",
                "message", "open_sessions")
@@ -732,9 +706,9 @@ UNLOCK_REFUSED = "unlock-refused"
 # The sids the recordings name: the scoped session the scratch probe closed
 # `aborted` (and whose HOLD refusal it recorded first), the read-only one it
 # closed without a reason, and the sid that was never open.
-UNLOCK_RECORDED_SID = "2026-10-07-sc-002"
-UNLOCK_RECORDED_READ_ONLY_SID = "2026-10-07-ro-001"
-UNLOCK_RECORDED_ABSENT_SID = "no-such-sid-twine-049"
+UNLOCK_RECORDED_SID = "2026-10-08-sc-002"
+UNLOCK_RECORDED_READ_ONLY_SID = "2026-10-08-ro-001"
+UNLOCK_RECORDED_ABSENT_SID = "no-such-sid-twine-051"
 
 # Each recording by the name the tests call it: where it ran, the argv as
 # recorded (per-run values as their roles) and its outcome group.
@@ -752,8 +726,9 @@ UNLOCK_RECORDINGS: dict[str, tuple[str, list[str], str | None]] = {
 class Recording:
     """One recorded bale output as a test replays it: its fixtures/ path,
     stdout (the file's bytes), the exit its README row records, stderr
-    (empty: no row records stderr, and none is derived) and the line
-    parsed."""
+    (since the pin at 0.4.51, the `.stderr` sibling's bytes, read eagerly
+    when the recording is read and held to the row's stderr sha256 —
+    recorded, never derived) and the line parsed."""
 
     relpath: str
     stdout: bytes
@@ -765,23 +740,37 @@ class Recording:
     def path(self) -> Path:
         return REPO_ROOT / self.relpath
 
+    @property
+    def stderr_path(self) -> Path:
+        return REPO_ROOT / stderr_relpath(self.relpath)
 
-def unlock_recording(name: str) -> Recording:
-    """The 0.4.49 recording of `bale unlock` named `name` (a key of
-    UNLOCK_RECORDINGS). stderr is b"" for every recording, refusals
-    included: nothing was recorded byte-exact and nothing is derived, and
-    twine's kill reads the refusal by its line's `reason`, not by stderr."""
-    where, argv, group = UNLOCK_RECORDINGS[name]
+
+def read_recording(kind: str, name: str, where: str, argv: list[str],
+                   group: str | None) -> Recording:
+    """The pinned recording of `argv` run in `where` with outcome `group`:
+    stdout from the file, the exit and the stderr its README row records
+    (the stderr from the `.stderr` sibling, held to the row). `kind` and
+    `name` only name it in a failure."""
     rel = fixture_relpath(argv, where, group)
     path = REPO_ROOT / rel
     if not path.is_file():
-        raise AssertionError(f"unlock recording {name!r} missing at {rel}")
-    exits = recorded_exits()
-    if rel not in exits or exits[rel] == UNRECORDED:
+        raise AssertionError(f"{kind} recording {name!r} missing at {rel}")
+    row = recorded_rows().get(rel)
+    if row is None or row.exit == UNRECORDED:
         raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
     stdout = path.read_bytes()
-    line = json.loads(stdout)
-    return Recording(rel, stdout, int(exits[rel]), b"", line)
+    return Recording(rel, stdout, int(row.exit), recorded_stderr(rel, row),
+                     json.loads(stdout))
+
+
+def unlock_recording(name: str) -> Recording:
+    """The pinned recording of `bale unlock` named `name` (a key of
+    UNLOCK_RECORDINGS), with its exit and the stderr bale printed beside it
+    — recorded byte-exact since 0.4.51 (every refusal's ends with `[bale]
+    error: <message>`). twine's kill reads the refusal by its line's
+    `reason`, never by stderr; the stderr is what passes through."""
+    where, argv, group = UNLOCK_RECORDINGS[name]
+    return read_recording("unlock", name, where, argv, group)
 
 
 class RecordedUnlock:
@@ -794,13 +783,14 @@ class RecordedUnlock:
     The refusals were recorded under `unlock <sid> --json`, without
     `--reason aborted`; replaying one for twine's argv assumes bale refuses
     before the reason matters — the assumption is this double's, named
-    here and in fixtures/README.md. `stdout` replaces the recording's
-    bytes with bytes that are NOT bale's (an empty stdout, a bare word) to
-    prove what twine refuses; `stderr` likewise answers bytes that are NOT
-    bale's in place of the recording's empty stderr, to prove that stderr
-    passes through and decides nothing; `timed_out` answers as the seam
-    does for a call it killed. It answers only the unlock argv shape and
-    fails the test on anything else."""
+    here and in fixtures/README.md. The recording's stderr (recorded since
+    0.4.51) is replayed with its stdout and exit. `stdout` replaces the
+    recording's bytes with bytes that are NOT bale's (an empty stdout, a
+    bare word) to prove what twine refuses; `stderr` likewise answers bytes
+    that are NOT bale's in place of the recording's stderr, to prove that
+    stderr passes through and decides nothing; `timed_out` answers as the
+    seam does for a call it killed. It answers only the unlock argv shape
+    and fails the test on anything else."""
 
     def __init__(self, recording: str | Recording = "aborted", *,
                  stdout: bytes | None = None, stderr: bytes | None = None,
@@ -860,99 +850,94 @@ class RealGroup:
 
 
 # ---------------------------------------------------------------------------
-# The open recordings (bale 0.4.49; read since Arc 1 session 3, `twine carry
-# bundle`). Three `bale open … --json` lines were recorded on 2026-10-07: the
-# scoped scratch session opened from a crafter bundle (`opened`), the same
-# bundle opened again as desk-2 (`second-desk`), and a throwaway bundle
-# rehearsed with --check in ~/twine-src (`rehearsed`; fixtures/README.md,
-# "bale 0.4.49"). No open refusal is recorded: bale prints nothing on stdout
-# and exits 1 through fail(), and the tests stand in for one with a double
-# named as such.
+# The open recordings (bale 0.4.49, re-recorded at 0.4.51; read since Arc 1
+# session 3, `twine carry bundle`). Four `bale open … --json` lines are
+# recorded at the pin: the scoped scratch session opened from a crafter
+# bundle (`opened`), the same bundle opened again as desk-2 (`second-desk`,
+# whose `tarball` is the outbox path since bale 0.4.50), a bundle file that
+# does not exist (`open-refused`, exit 1, reason `not-found` — since 0.4.50
+# a refusal prints a line too), all three in the scratch repository, and a
+# throwaway bundle rehearsed with --check in ~/twine-src (`rehearsed`;
+# fixtures/README.md, "bale 0.4.51"). A refusal that stops before printing
+# a line (exit 1, nothing on stdout) is no longer what bale's refusal looks
+# like; the tests keep it as a double named as such (OpenDouble), the case
+# of a bale that stopped before writing its line.
 # ---------------------------------------------------------------------------
 
-# format_open_json's 21 keys at 0.4.49, in the order the recorded lines carry
-# them (the brief of session 2026-10-07-twine-carry-bundle-003, §1).
+# format_open_json's 23 keys at 0.4.51, in the order the recorded lines carry
+# them: the 21 of 0.4.49 (the brief of session
+# 2026-10-07-twine-carry-bundle-003, §1) and the two a refusal fills since
+# bale 0.4.50, `reason` (a code from OPEN_REFUSAL_REASONS) and `cause`.
 OPEN_KEYS = ("outcome", "sid", "tarball", "log", "session_dir", "context_files",
              "readme_path", "readme_heading", "readme_sha256", "checkpoint_file_path",
              "checkpoint_file_sha256", "branch", "applied_latest", "sweep",
              "include_group", "opener", "bundle", "members", "rehearsal",
-             "checkpoint_dry_run", "desk")
-OPEN_RECORDED_SID = "2026-10-07-sc-002"
-# The normalized name both open-without---check recordings share, and the
-# group a test selects to replay one of them through FixturePlayer.
+             "checkpoint_dry_run", "desk", "reason", "cause")
+OPEN_RECORDED_SID = "2026-10-08-sc-002"
+# The normalized name the three open-without---check recordings share, and
+# the group a test selects to replay one of them through FixturePlayer.
 OPEN_KEY = "open_bundle_--json"
 OPEN_RECORDINGS: dict[str, tuple[str, list[str], str | None]] = {
     "opened": ("scratch", ["open", Role("bundle"), "--json"], "opened"),
     "second-desk": ("scratch", ["open", Role("bundle"), "--json"], "second-desk"),
+    "open-refused": ("scratch", ["open", Role("bundle"), "--json"], "open-refused"),
     "rehearsed": ("repo", ["open", "--check", Role("bundle"), "--json"], None),
 }
 
 
 def open_recording(name: str) -> Recording:
-    """The 0.4.49 recording of `bale open` named `name` (a key of
+    """The pinned recording of `bale open` named `name` (a key of
     OPEN_RECORDINGS), with the exit its fixtures/README.md row records and
-    an empty stderr (none was recorded; none is derived)."""
+    the stderr bale printed beside it (recorded since 0.4.51)."""
     where, argv, group = OPEN_RECORDINGS[name]
-    rel = fixture_relpath(argv, where, group)
-    path = REPO_ROOT / rel
-    if not path.is_file():
-        raise AssertionError(f"open recording {name!r} missing at {rel}")
-    exits = recorded_exits()
-    if rel not in exits or exits[rel] == UNRECORDED:
-        raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
-    stdout = path.read_bytes()
-    return Recording(rel, stdout, int(exits[rel]), b"", json.loads(stdout))
+    return read_recording("open", name, where, argv, group)
 
 
 # ---------------------------------------------------------------------------
-# The relay recordings (bale 0.4.49; read since session
-# 2026-10-08-twine-carry-exchange-json-001, when `carry exchange` moved onto
-# `bale relay --json`). Four `bale relay … --json` lines were recorded on
-# 2026-10-07 in the scratch repository (fixtures/README.md, "bale 0.4.49"):
-# a clarification manifest relayed as round 1 (`relayed`), the round
-# re-emitted with no input (`re-emitted`), and two refusals — an input that
-# was neither a paste block nor JSON (`ingest`) and a sid not open
-# (`session-gate`). They replace the flagless relay's stand-in (the
-# crafter's --emit-block emission) and the BaleDouble relay answers.
+# The relay recordings (bale 0.4.49, re-recorded at 0.4.51; read since
+# session 2026-10-08-twine-carry-exchange-json-001, when `carry exchange`
+# moved onto `bale relay --json`). Four `bale relay … --json` lines are
+# recorded at the pin in the scratch repository (fixtures/README.md, "bale
+# 0.4.51"), three of them under twine's own argv, `relay <sid> - --json`,
+# the paste block on stdin: a clarification manifest relayed as round 1
+# (`relayed`), stdin that was neither a paste block nor JSON
+# (`not-an-object`) and the block under a sid not open (`not-open`) — the
+# two refusals named by the line's `reason`, which relay lines carry since
+# bale 0.4.50 — and the round re-emitted with no input (`re-emitted`).
+# They replaced the flagless relay's stand-in (the crafter's --emit-block
+# emission) and the BaleDouble relay answers.
 # ---------------------------------------------------------------------------
 
-# format_relay_json's twelve keys at 0.4.49, in the order every recorded
-# line carries them (the brief of session
+# format_relay_json's thirteen keys at 0.4.51, in the order every recorded
+# line carries them: the twelve of 0.4.49 (the brief of session
 # 2026-10-08-twine-carry-exchange-json-001, §1: BALE.md §5.8 and the
-# function's docstring in bin/bale_report.py).
+# function's docstring in bin/bale_report.py) and `reason`, a code from
+# RELAY_REFUSAL_REASONS on a refusal (bale 0.4.50), null otherwise.
 RELAY_KEYS = ("outcome", "sid", "round", "from", "awaiting", "kind", "preserved",
-              "block", "log", "clipboard", "cause", "telemetry")
-# The sid the relayed, re-emitted and ingest-refused lines name (the scoped
-# scratch session), and the one the session-gate refusal names (never open).
-RELAY_RECORDED_SID = "2026-10-07-sc-002"
-RELAY_RECORDED_ABSENT_SID = "no-such-sid-twine-049"
-# The normalized name the three file-argument recordings share, and the
-# group a test selects to replay one through FixturePlayer.
-RELAY_FILE_KEY = "relay_sid_file_--json"
+              "block", "log", "clipboard", "cause", "telemetry", "reason")
+# The sid the relayed, re-emitted and not-an-object lines name (the scoped
+# scratch session), and the one the not-open refusal names (never open).
+RELAY_RECORDED_SID = "2026-10-08-sc-002"
+RELAY_RECORDED_ABSENT_SID = "no-such-sid-twine-051"
+# The normalized name of twine's argv, which the three stdin recordings
+# share, and the group a test selects to replay one through FixturePlayer.
+RELAY_STDIN_KEY = "relay_sid_stdin_--json"
 RELAY_RECORDINGS: dict[str, tuple[str, list[str], str | None]] = {
-    "relayed": ("scratch", ["relay", Role("sid"), Role("file"), "--json"], "relayed"),
+    "relayed": ("scratch", ["relay", Role("sid"), Role("stdin"), "--json"], "relayed"),
     "re-emitted": ("scratch", ["relay", Role("sid"), "--json"], None),
-    "ingest": ("scratch", ["relay", Role("sid"), Role("file"), "--json"],
-               "relay-refused+ingest"),
-    "session-gate": ("scratch", ["relay", Role("sid"), Role("file"), "--json"],
-                     "relay-refused+session-gate"),
+    "not-an-object": ("scratch", ["relay", Role("sid"), Role("stdin"), "--json"],
+                      "relay-refused+not-an-object"),
+    "not-open": ("scratch", ["relay", Role("sid"), Role("stdin"), "--json"],
+                 "relay-refused+not-open"),
 }
 
 
 def relay_recording(name: str) -> Recording:
-    """The 0.4.49 recording of `bale relay … --json` named `name` (a key of
+    """The pinned recording of `bale relay … --json` named `name` (a key of
     RELAY_RECORDINGS), with the exit its fixtures/README.md row records and
-    an empty stderr (none was recorded; none is derived)."""
+    the stderr bale printed beside it (recorded since 0.4.51)."""
     where, argv, group = RELAY_RECORDINGS[name]
-    rel = fixture_relpath(argv, where, group)
-    path = REPO_ROOT / rel
-    if not path.is_file():
-        raise AssertionError(f"relay recording {name!r} missing at {rel}")
-    exits = recorded_exits()
-    if rel not in exits or exits[rel] == UNRECORDED:
-        raise AssertionError(f"{rel} has no recorded exit in fixtures/README.md")
-    stdout = path.read_bytes()
-    return Recording(rel, stdout, int(exits[rel]), b"", json.loads(stdout))
+    return read_recording("relay", name, where, argv, group)
 
 
 def relayed_block() -> str:
@@ -968,7 +953,7 @@ def block_for_sid(sid: str, block: str | None = None) -> str:
     """`block` (default: relayed_block()) with its BEGIN sentinel naming
     `sid` instead. The sha256 trailer covers the body only, never the
     sentinel, so the block stays intact; a test uses it to carry a block
-    whose sid is the one a recording names (the session-gate refusal's)."""
+    whose sid is the one a recording names (the not-open refusal's)."""
     block = relayed_block() if block is None else block
     begin = block.split("\n", 1)[0]
     if not begin.startswith("BALE EXCHANGE BEGIN "):
@@ -978,23 +963,22 @@ def block_for_sid(sid: str, block: str | None = None) -> str:
 
 class RecordedRelay:
     """A run-seam double for `carry exchange` that answers twine's one relay
-    argv, `bale relay <sid> - --json`, with a RECORDING's bytes and exit:
-    by default the `relayed` line (relay_recording("relayed")), else the
-    recording named by `recording`. Records every call.
+    argv, `bale relay <sid> - --json`, with a RECORDING's bytes, exit and
+    stderr: by default the `relayed` line (relay_recording("relayed")),
+    else the recording named by `recording`. Records every call.
 
-    The assumption, named here, in fixtures/README.md and in the consumption
-    manifest: the recordings were made with a file argument (`relay <sid>
-    <file> --json`; the re-emission with none), and they are replayed for
-    twine's `-`. In bale 0.4.49, bin/bale_relay.py `_read_relay_input` reads
-    stdin for `-` and the file otherwise, and nothing downstream of it
-    differs — so a recording answers twine's argv as it answered the file.
-    The `ingest` refusal was bale's answer to an input that was neither a
+    Since the pin at 0.4.51 the recordings are of twine's own argv: three
+    were made as `relay <sid> - --json` with the paste block (or a line that
+    is not one) on stdin, so nothing is assumed about how bale reads `-`.
+    (The 0.4.49 recordings were made with a file and replayed for `-` on an
+    assumption — `_read_relay_input` reads stdin for `-` and the file
+    otherwise — that this double named; the recording retired it.) The
+    `not-an-object` refusal was bale's answer to stdin that was neither a
     paste block nor JSON; replayed for a block twine vouched for, it stands
     for any refusal of what bale ingested. The `re-emitted` line answered
     `relay <sid> --json` with no input at all — an argv twine never builds —
     so replaying it for twine's proves only that twine never accepts a
-    re-emission, not that bale would send one. A recording of `relay <sid>
-    - --json` replaces the assumption.
+    re-emission, not that bale would send one.
 
     Each recording answers for its own sid: a call whose sid is not the one
     the recording's line names fails the test, since bale's `sid` is the
