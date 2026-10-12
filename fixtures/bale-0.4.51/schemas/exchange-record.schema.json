@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/exchange-record.schema.json",
+  "title": "bale exchange record",
+  "description": "Shape of one record in a suspended session's worker<->planner exchange thread (ADR-0017; wire doctrine TARBALL.md section 5.9.2; the relay verb's contract lives in the bale tool's own documentation). One schema for BOTH directions: `from` says which side wrote it. The thread is the ordered NNN.json files under .bale/clarifications/<sid>/, continuing the numbering apply's clarification handler started; a preserved clarification manifest (response_kind 'clarification') reads as a `from: worker` record with `round` = its NNN, so round one needs no migration and no second directory. `bale relay <sid> <file|->` (v0.4.18) validates a record against this schema before preserving it, via validate_exchange_record (bin/bale_validate.py, the per-record library entry point). INTENTIONALLY LOOSE at the envelope, matching telemetry-record.schema.json and escalation-record.schema.json: additionalProperties is true at the top level so the preserved copy's `preserved_at` sidecar key and future additive fields keep validating; what it pins, it pins -- record_version exactly 1, the closed `from` vocabulary (exactly worker | planner), the closed answer `disposition` vocabulary (exactly as-recommended | option | free-text), round >= 1, and the answer row's closed field set. Two rules are enforced in Python because this validator's schema subset cannot express them: at least one of questions[] / answers[] is non-empty (a record may carry both -- a planner answering and asking back in one turn), and created_at parses as ISO 8601 with a UTC offset. questions[] items are the clarification question row BY REFERENCE to response-manifest.schema.json's questions.items (one home; validate_exchange_record delegates that slot to validate_clarification_questions rather than duplicating the row shape here).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "record_version",
+    "session_id",
+    "round",
+    "from",
+    "created_at"
+  ],
+  "properties": {
+    "record_version": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Versioned evolution hook, exactly 1 for this shape. Bump when a change is not purely additive; consumers filter or branch on it."
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The suspended session the record belongs to (full form YYYY-MM-DD-<slug>-NNN). bale relay refuses a record whose session_id is not the <sid> it was invoked against."
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The record's position in the thread: it must equal the next NNN under .bale/clarifications/<sid>/ (bale relay refuses a stale or skipped round). A preserved clarification manifest occupies its NNN as round NNN."
+    },
+    "from": {
+      "type": "string",
+      "enum": ["worker", "planner"],
+      "description": "Which side wrote the record. CLOSED vocabulary (ADR-0017 clause 1's role language: worker = mechanism authority, planner = intent authority; either role may be held by a human or a session, and nothing keys on which). Direction is read from this field, never from a flag. Round one is worker-only: the planner initiates through the request, a bundle, or a HOLD card, never through the thread."
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "When the record was authored, ISO 8601 with a UTC offset (e.g. 2026-08-29T14:03:00+00:00 or ...Z). Distinct from the preserved copy's `preserved_at` sidecar, which bale stamps at write time."
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "$ref": "https://github.com/anthropics/bale/schemas/response-manifest.schema.json#/properties/questions/items"
+      },
+      "description": "Blocking intent-gap questions, each the clarification question row of response-manifest.schema.json's questions.items -- by reference, so the row has one home. Present (possibly empty) on either side; a planner may ask back while answering. Absent reads as empty."
+    },
+    "answers": {
+      "type": "array",
+      "description": "Answers keyed to earlier questions in the thread. Absent reads as empty.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "question_round",
+          "question_index",
+          "answer",
+          "disposition"
+        ],
+        "properties": {
+          "question_round": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The round (NNN) of the record carrying the question answered. Must be an earlier round than this record's; bale relay additionally refuses an answer whose (question_round, question_index) does not resolve to a question in an already-preserved record of that round."
+          },
+          "question_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based index into that round's questions[]."
+          },
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The answer, in one short paragraph or less. Under disposition 'as-recommended' it may simply restate the recommendation or default_assumption that stands; under 'option' it names the option chosen; under 'free-text' it is the answer itself."
+          },
+          "disposition": {
+            "type": "string",
+            "enum": ["as-recommended", "option", "free-text"],
+            "description": "How the answer relates to the question's own candidates. CLOSED vocabulary: as-recommended = the worker's recommendation (or default_assumption) stands; option = one of the question's options[] was chosen; free-text = an answer outside the offered candidates. validate_exchange_record enforces the vocabulary record-wide at any depth, the closed-vocabulary walk precedent."
+          },
+          "amendment_target": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional. Repo-relative path of the doc the answer accretes into -- the escalation record's field with the same meaning (escalation-record.schema.json): an answer that changes doctrine names where the doctrine lives."
+          }
+        }
+      }
+    }
+  }
+}

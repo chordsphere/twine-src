@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/escalation-record.schema.json",
+  "title": "bale escalation record",
+  "description": "Shape of one master-distilled escalation question — the question as the architect will see it, distilled from one or more worker clarification questions. Doctrine home: PLANNER.md section 15 (escalation and the clarification queue); this schema is that section's wire format and restates none of it. Landed schema-first at v0.4.7: no producer exists yet — the harness era writes these; the schema is the contract landing ahead of it, which is the ratified point. INTENTIONALLY LOOSE, matching telemetry-record.schema.json and diagnostics.schema.json: additionalProperties is true at the top level so future additive fields do not reject earlier records; what it pins, it pins — the six-field required core and the closed priority vocabulary (enum exactly blocking | batched), which validate_escalation_record (bin/bale_validate.py, the per-record library entry point) additionally enforces record-wide at any depth, so an invented priority rejects wherever a consumer put it.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "question",
+    "options",
+    "recommendation",
+    "priority",
+    "subsumes",
+    "amendment_target"
+  ],
+  "properties": {
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The distilled question, stated as the architect will see it — answerable in one short paragraph or less."
+    },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Candidate answers, at least one — the asker's read of the choices (PLANNER.md section 15: questions arrive answerable). An escalation with no options is not yet distilled."
+    },
+    "recommendation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The recommended default among the choices, extending the clarification response's load-bearing default_assumption (PLANNER.md section 15) — what makes 'your recommendation is correct' the cheapest possible architect answer. Conventionally one of options[]; not schema-enforced, because a recommendation may carry qualifying prose around its pick."
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["blocking", "batched"],
+      "description": "PLANNER.md section 15's two classes: only critical-path blockers interrupt the architect; everything else batches. The vocabulary is CLOSED — validate_escalation_record enforces the enum record-wide, on a priority key at any depth, not only at this named spot."
+    },
+    "subsumes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Dedup lineage: which worker questions this distillation absorbs, so one architect answer fans back out to every asker (PLANNER.md section 15). Entries are worker-question references (a session ID, or a session ID plus a question index in the producer's own notation). May be empty — a question asked by exactly one worker subsumes nothing — but is always an array: the lineage's shape does not depend on its length."
+    },
+    "amendment_target": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Repo-relative path where the answer accretes — typically the seed document or a decisions ledger beside it — per PLANNER.md section 15's answer-to-amendment contract: answers land in the spec mechanically, never only in chat."
+    },
+    "record_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Versioned evolution hook, the telemetry-record convention: 1 is the launch shape; additive fields do not bump it, shape-breaking changes do. Optional — an absent key reads as 1."
+    },
+    "escalation_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identity for this escalation, assigned by the producer (harness-era). Optional at the schema level — the six-field core is complete without identity for the manual path."
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The distilling session's ID (YYYY-MM-DD-<slug>-NNN per TARBALL.md section 1) — who surfaced this question, as distinct from the worker sessions subsumes[] traces."
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ISO 8601 UTC timestamp of distillation, the telemetry-record convention."
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ISO 8601 UTC timestamp of the last mutation (an answer landing, a status change). Preserved-across-updates semantics belong to created_at."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "answered", "withdrawn"],
+      "description": "Lifecycle position: open (awaiting the architect), answered (answer recorded and bound for amendment_target), withdrawn (overtaken by events — the arc moved past the question before an answer was needed). Closed enum at this named spot; deliberately smaller than the doctrine's full lifecycle, which stays with the harness spec-intake."
+    },
+    "answer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The architect's answer, verbatim, once given. The record carries it for lineage; the amendment into amendment_target is where it becomes spec (PLANNER.md section 15)."
+    }
+  }
+}

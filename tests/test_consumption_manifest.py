@@ -1,7 +1,11 @@
-"""share/bale-consumption.toml (D3, D4) as data a test can walk."""
+"""share/bale-consumption.toml (D3, D4) as data a test can walk. Since session
+2026-10-12-twine-pin-floor-002 `[bale]` carries `floor` and no `pin` (D2 as
+amended), and the schema hashes are the fixtures' (fixtures/bale-<floor>/
+schemas/)."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import tomllib
@@ -12,7 +16,7 @@ from twine.bale import ManifestError, load_manifest
 from twine.registry import load_registry
 
 from tests.fixture_rule import assign_groups
-from tests.helpers import (BALE_VOCABULARIES, GROUP_SEP, OPEN_KEYS, OPEN_RECORDINGS, PIN,
+from tests.helpers import (BALE_VOCABULARIES, GROUP_SEP, OPEN_KEYS, OPEN_RECORDINGS, FLOOR,
                            RELAY_KEYS, RELAY_RECORDINGS, UNLOCK_KEYS, UNLOCK_RECORDINGS, Role,
                            TempRoots, carried_relpath, emission_relpath, fixture_key,
                            fixture_relpath, fixture_stem, open_recording, relay_recording,
@@ -84,11 +88,13 @@ class ManifestParses(unittest.TestCase):
     def test_tomllib_parses_it(self):
         with CONSUMPTION_MANIFEST.open("rb") as fh:
             data = tomllib.load(fh)
-        self.assertEqual(data["bale"]["pin"], PIN)
+        self.assertEqual(data["bale"]["floor"], FLOOR)
+        self.assertNotIn("pin", data["bale"])
+        self.assertEqual(set(data["bale"]), {"floor", "schemas"})
 
     def test_load_manifest(self):
         m = load_manifest()
-        self.assertEqual(m.pin, PIN)
+        self.assertEqual(m.floor, FLOOR)
         self.assertEqual(m.path, CONSUMPTION_MANIFEST)
 
     def test_eight_schemas_with_sha256s(self):
@@ -97,16 +103,29 @@ class ManifestParses(unittest.TestCase):
         for name, digest in m.schemas.items():
             self.assertRegex(digest, SHA256, name)
 
-    def test_the_schema_hashes_are_unchanged_at_the_pin(self):
+    def test_the_schema_hashes_are_unchanged_at_the_floor(self):
         """0.4.51's eight schemas hash to 0.4.45's values — re-hashed by a
-        probe this time, twine-051-record (2026-10-08), where 0.4.49's were
-        the desk's reading of bale-src's context tarball; the header says
-        so."""
+        probe, twine-051-record (2026-10-08), where 0.4.49's were the desk's
+        reading of bale-src's context tarball; the header says so, and since
+        session 2026-10-12-twine-pin-floor-002 it says the hashes are the
+        gate's second half and where the files themselves are. (Was
+        test_the_schema_hashes_are_unchanged_at_the_pin.)"""
         self.assertEqual(load_manifest().schemas, SCHEMA_SHA256)
         text = CONSUMPTION_MANIFEST.read_text(encoding="utf-8")
-        comment = text.split("\n[bale.schemas]\n", 1)[0].rsplit("\npin = ", 1)[1]
+        comment = text.split("\n[bale.schemas]\n", 1)[0].rsplit("\nfloor = ", 1)[1]
         self.assertIn("UNCHANGED at 0.4.51", comment)
         self.assertIn("re-hashed this time\n# by a probe: twine-051-record", comment)
+        self.assertIn("The gate's second half", comment)
+        self.assertIn("fixtures/bale-0.4.51/schemas/", comment)
+
+    def test_the_schema_fixtures_hash_as_the_manifest_says(self):
+        """The eight files under fixtures/bale-<floor>/schemas/ are the
+        manifest's [bale.schemas], file for file and hash for hash — so the
+        stub roots, which install them, are roots the gate admits."""
+        where = REPO_ROOT / "fixtures" / f"bale-{FLOOR}" / "schemas"
+        on_disk = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                   for p in where.iterdir() if p.is_file()}
+        self.assertEqual(on_disk, load_manifest().schemas)
 
 
 class SurfacesAreWalkable(unittest.TestCase):
@@ -128,7 +147,7 @@ class SurfacesAreWalkable(unittest.TestCase):
                 self.assertTrue(required <= set(s), f"missing {required - set(s)}")
                 self.assertIsInstance(s["keys"], list)
                 self.assertTrue(all(isinstance(k, str) for k in s["keys"]))
-                self.assertEqual(s["written_against"], PIN)
+                self.assertEqual(s["written_against"], FLOOR)
 
     def test_bin_version_is_a_surface_read_by_bale_check(self):
         files = [s for s in self.manifest.surfaces if s["kind"] == "file"]
@@ -219,12 +238,12 @@ class SurfacesAreWalkable(unittest.TestCase):
                           "--no-readme", "--json"])
         self.assertEqual(fixture_relpath(["pack", "g", "--slug", "ro", "--read-only",
                                           "--no-readme", "--json"], "scratch"),
-                         f"fixtures/bale-{PIN}/scratch/"
+                         f"fixtures/bale-{FLOOR}/scratch/"
                          "pack_goal_--slug-ro_--read-only_--no-readme_--json.json")
         self.assertEqual(fixture_relpath(["open", "--check", "/b", "--json"], "repo"),
-                         f"fixtures/bale-{PIN}/twine-src/open_--check_bundle_--json.json")
+                         f"fixtures/bale-{FLOOR}/twine-src/open_--check_bundle_--json.json")
         self.assertEqual(fixture_relpath(["open", "/b", "--json"], "scratch", "opened"),
-                         f"fixtures/bale-{PIN}/scratch/open_bundle_--json+opened.json")
+                         f"fixtures/bale-{FLOOR}/scratch/open_bundle_--json+opened.json")
         # A flag-led unlock or pack has no positional to replace.
         self.assertEqual(fixture_key(["pack", "--json"]), ["pack", "--json"])
         self.assertEqual(fixture_key(["unlock", "--integration", "--json"]),
@@ -291,7 +310,7 @@ class SurfacesAreWalkable(unittest.TestCase):
         self.assertIn("UNLOCK_REFUSAL_REASONS", unlock["reasons_home"])
         self.assertNotIn("unlock-reason", self.manifest.vocabularies, "not a table axis")
         self.assertEqual(fixture_relpath(unlock["argv"], unlock["cwd"]),
-                         f"fixtures/bale-{PIN}/scratch/unlock_sid_--reason-aborted_--json.json")
+                         f"fixtures/bale-{FLOOR}/scratch/unlock_sid_--reason-aborted_--json.json")
         self.assertEqual(unlock["fixture"], unlock_recording("aborted").relpath)
         also = {(r["outcome"], r.get("reason")): r["fixture"] for r in unlock["also_recorded"]}
         self.assertEqual(also, {
@@ -425,7 +444,7 @@ class SurfacesAreWalkable(unittest.TestCase):
                     self.assertEqual([(b.kind, b.ok) for b in blocks],
                                      [(s["format"], True)])
                     if path.parent.name == "crafter":
-                        self.assertEqual(s["fixtures_version"], PIN,
+                        self.assertEqual(s["fixtures_version"], FLOOR,
                                          "a crafter emission is re-recorded at the pin")
                         cmd = readme_cmds[rel.removeprefix("fixtures/")]
                         expected = emission_relpath("crafter", cmd.split()[1:])
@@ -448,13 +467,13 @@ class SurfacesAreWalkable(unittest.TestCase):
         paste as its specimen)."""
         by_format = {s["format"]: s for s in self.manifest.surfaces if s["kind"] == "format"}
         self.assertEqual({k: v["fixtures_version"] for k, v in by_format.items()},
-                         {"probe": PIN, "light": PIN, "exchange": PIN,
+                         {"probe": FLOOR, "light": FLOOR, "exchange": FLOOR,
                           "probe-output": "0.4.45", "relay": "0.4.45"})
-        carried = REPO_ROOT / f"fixtures/bale-{PIN}/carried"
+        carried = REPO_ROOT / f"fixtures/bale-{FLOOR}/carried"
         self.assertEqual(sorted(p.name for p in carried.iterdir()),
                          ["probe-output_twine-051-record.txt"])
         named = {rel for s in by_format.values() for rel in s["fixtures"]}
-        self.assertFalse(any(rel.startswith(f"fixtures/bale-{PIN}/carried/") for rel in named))
+        self.assertFalse(any(rel.startswith(f"fixtures/bale-{FLOOR}/carried/") for rel in named))
         self.assertIn("bale-0.4.51/carried/", by_format["probe-output"]["note"])
 
     def test_no_wanted_surface_remains(self):
@@ -568,7 +587,7 @@ class VocabulariesAreWalkable(unittest.TestCase):
             with self.subTest(axis=entry.get("axis")):
                 self.assertTrue(VOCABULARY_REQUIRED <= set(entry),
                                 VOCABULARY_REQUIRED - set(entry))
-                self.assertEqual(entry["written_against"], PIN)
+                self.assertEqual(entry["written_against"], FLOOR)
                 self.assertTrue(entry["read_at"] and entry["note"])
                 for listed in ("values", "also_at", "excluded", "read_by", "read_at"):
                     self.assertIsInstance(entry[listed], list, listed)
@@ -607,7 +626,7 @@ class VocabulariesAreWalkable(unittest.TestCase):
         for entry in self.entries:
             with self.subTest(axis=entry["axis"]):
                 self.assertTrue(entry["read_at"][0].startswith("twine-"))
-                for version in ("0.4.49", PIN):
+                for version in ("0.4.49", FLOOR):
                     self.assertTrue(any("not a probe" in r and version in r
                                         for r in entry["read_at"][1:]), entry["read_at"])
                 if entry["home"].startswith("schemas/"):
@@ -656,6 +675,45 @@ class VocabulariesAreWalkable(unittest.TestCase):
                 self.assertIn(s["vocabulary"], self.manifest.vocabularies)
 
 
+class TheKeysOnTheLine(unittest.TestCase):
+    """Session 2026-10-12-twine-pin-floor-002: every verb that reads a bale
+    --json line checks, on that line, the keys its surface lists
+    (twine.bale.missing_keys_failure). The check is only safe if bale prints
+    every listed key on every outcome — so every recording of the four read
+    surfaces, each outcome recorded, carries every listed key, and the
+    helper finds each surface by the twine verb that reads it."""
+
+    READERS = {"relay": "carry exchange", "apply": "carry response",
+               "open": "carry bundle", "unlock": "kill"}
+
+    def test_each_reader_has_one_surface_with_keys(self):
+        from twine.bale import surface_keys
+        manifest = load_manifest()
+        for verb, reader in self.READERS.items():
+            with self.subTest(verb=verb):
+                keys, found, named = surface_keys(manifest, reader)
+                self.assertEqual(found, verb)
+                self.assertTrue(keys)
+                self.assertTrue(named.startswith(f"the {verb} surface (bale {verb} "), named)
+                entry = next(s for s in manifest.surfaces
+                             if s.get("kind") == "verb" and s.get("verb") == verb
+                             and s.get("read_by"))
+                self.assertEqual(entry["read_by"], [reader])
+
+    def test_every_recording_of_a_read_surface_carries_every_listed_key(self):
+        from twine.bale import missing_keys_failure
+        manifest = load_manifest()
+        for s in manifest.surfaces:
+            if s.get("kind") != "verb" or s.get("verb") not in self.READERS:
+                continue
+            files = [s["fixture"]] + [r["fixture"] for r in s.get("also_recorded", [])]
+            for rel in files:
+                with self.subTest(fixture=rel):
+                    line = json.loads((REPO_ROOT / rel).read_bytes())
+                    self.assertIsNone(missing_keys_failure(
+                        manifest, self.READERS[s["verb"]], line))
+
+
 class ManifestRefusals(unittest.TestCase):
 
     def setUp(self):
@@ -673,14 +731,38 @@ class ManifestRefusals(unittest.TestCase):
         with self.assertRaises(ManifestError):
             load_manifest(p)
 
-    def test_missing_pin(self):
-        p = self.scratch / "nopin.toml"
-        p.write_text("[bale]\n[bale.schemas]\n", encoding="utf-8")
-        with self.assertRaises(ManifestError):
-            load_manifest(p)
+    def test_missing_floor(self):
+        """No floor is refused; so is the retired `pin` in its place, by
+        name, and a floor that is not three dotted integers. (Was
+        test_missing_pin.)"""
+        schemas = '[bale.schemas]\n"a.schema.json" = "' + "0" * 64 + '"\n'
+        for name, bale, says in (("nofloor.toml", "", "floor must be"),
+                                 ("pin.toml", f'pin = "{FLOOR}"\n', "carries `pin`"),
+                                 ("short.toml", 'floor = "0.4"\n', "three dotted integers")):
+            with self.subTest(case=name):
+                p = self.scratch / name
+                p.write_text("[bale]\n" + bale + schemas, encoding="utf-8")
+                with self.assertRaises(ManifestError) as caught:
+                    load_manifest(p)
+                self.assertIn(says, str(caught.exception))
+
+    def test_schemas_must_be_plain_names_and_not_empty(self):
+        """The gate hashes `<root>/schemas/<name>`, so a name with a path
+        separator is refused (never a file outside schemas/), and an empty
+        table is refused (a gate that hashes nothing admits anything)."""
+        for body, says in (('[bale.schemas]\n"../x.json" = "' + "0" * 64 + '"\n',
+                            "not plain file names"),
+                           ("[bale.schemas]\n", "must map file names")):
+            with self.subTest(says=says):
+                p = self.scratch / "schemas.toml"
+                p.write_text(f'[bale]\nfloor = "{FLOOR}"\n' + body, encoding="utf-8")
+                with self.assertRaises(ManifestError) as caught:
+                    load_manifest(p)
+                self.assertIn(says, str(caught.exception))
 
     def test_malformed_vocabularies_refuse_naming_why(self):
-        head = f'[bale]\npin = "{PIN}"\n[bale.schemas]\n'
+        head = (f'[bale]\nfloor = "{FLOOR}"\n[bale.schemas]\n'
+                '"a.schema.json" = "' + "0" * 64 + '"\n')
         cases = {
             "no axis": '[[vocabulary]]\nvalues = ["a"]\nhome = "h"\n',
             "two [[vocabulary]] entries": ('[[vocabulary]]\naxis = "x"\nvalues = ["a"]\nhome = "h"\n'

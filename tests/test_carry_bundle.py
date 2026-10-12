@@ -61,8 +61,8 @@ from twine.commands.carry_bale import BALE_STDOUT_CAP_BYTES
 from twine.commands.carry_bundle import BUNDLE_TIMEOUT_SECONDS
 from twine.process import RunResult
 
-from tests.helpers import (NOT_A_BALE_OUTCOME, OPEN_KEY, OPEN_KEYS, OPEN_RECORDED_SID,
-                           PIN, FixturePlayer, RecordingRunner, Run, StubBale, TempRoots,
+from tests.helpers import (ABOVE, NOT_A_BALE_OUTCOME, OPEN_KEY, OPEN_KEYS, OPEN_RECORDED_SID,
+                           FLOOR, FixturePlayer, RecordingRunner, Run, StubBale, TempRoots,
                            open_recording, run_cli)
 
 # ---------------------------------------------------------------------------
@@ -159,7 +159,8 @@ class Case(unittest.TestCase):
                  state: bool = True, cwd: Path | None = None) -> Run:
         """`twine carry bundle …` in-process, bale reached only through
         `runner`; --cwd the scratch repository and --state-dir this test's
-        unless the test says otherwise; TWINE_BALE_ROOT a root at the pin."""
+        unless the test says otherwise; TWINE_BALE_ROOT a root at the floor,
+        with the eight schemas."""
         # Defaults go first, so a test's `--` (before a dash-led BUNDLE)
         # stays the last option boundary.
         args = list(argv)
@@ -237,11 +238,18 @@ class RefusedBeforeBale(Case):
         run, obj = self.twin(str(self.bundle), "--cwd", str(self.dir / "nope"), runner=runner)
         self.assert_refused(run, obj, runner, "--cwd", "is not a directory")
 
-    def test_no_bale_found_or_not_the_pin_is_refused(self):
+    def test_no_bale_found_or_one_the_gate_refuses_is_refused(self):
+        """Was test_no_bale_found_or_not_the_pin_is_refused: since session
+        2026-10-12-twine-pin-floor-002 the gate refuses a bale below the
+        floor, one whose VERSION cannot be read, and one whose schemas do
+        not hash as pinned."""
         for env, needle in (({}, "no bale install found"),
-                            ({"TWINE_BALE_ROOT": ROOTS.other.as_posix()}, "not the pin"),
+                            ({"TWINE_BALE_ROOT": ROOTS.other.as_posix()},
+                             f"installed {ROOTS.other_version} is below the floor {FLOOR}"),
                             ({"TWINE_BALE_ROOT": ROOTS.absent.as_posix()},
-                             "cannot tell this one's version")):
+                             "bin/VERSION unreadable"),
+                            ({"TWINE_BALE_ROOT": ROOTS.bad_schema.as_posix()},
+                             TempRoots.ALTERED_SCHEMA)):
             with self.subTest(needle=needle):
                 runner = OpenDouble()
                 run, obj = self.twin(str(self.bundle), runner=runner, env=env)
@@ -284,7 +292,7 @@ class RefusedBeforeBale(Case):
         run, obj = self.twin("--cwd", str(self.dir / "nope"), "--", "-x", runner=runner,
                              env={"TWINE_BALE_ROOT": ROOTS.other.as_posix()}, state=False)
         self.assertEqual(len(obj["refusals"]), 4, obj["refusals"])
-        for needle, refusal in zip(("BUNDLE", "--cwd", "not the pin", "state directory"),
+        for needle, refusal in zip(("BUNDLE", "--cwd", "below the floor", "state directory"),
                                    obj["refusals"]):
             self.assertIn(needle, refusal)
         self.assertEqual(runner.calls, [])
@@ -1099,18 +1107,89 @@ class EndToEnd(Case):
         obj = json.loads(run.stdout)
         self.assertEqual(set(obj), TWIN_KEYS)
         self.assertEqual((run.code, obj["ok"], obj["sid"], obj["bale"]["installed"]),
-                         (0, True, SID, PIN))
+                         (0, True, SID, FLOOR))
         self.assertEqual(obj["stderr"], "[bale] stub: not bale\n")
 
-    def test_a_version_other_than_the_pin_is_refused_and_never_run(self):
-        (self.stub.root / "bin" / "VERSION").write_text("0.4.46\n", encoding="utf-8")
+    def test_below_the_floor_is_refused_and_never_run(self):
+        """Was test_a_version_other_than_the_pin_is_refused_and_never_run."""
+        (self.stub.root / "bin" / "VERSION").write_text("0.4.49\n", encoding="utf-8")
         run = run_cli("carry", "bundle", str(self.bundle), "--state-dir", str(self.state),
                       "--json", bale_root=self.stub.root)
         obj = json.loads(run.stdout)
         self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
-        self.assertIn(f"is 0.4.46, not the pin {PIN}", obj["reason"])
+        self.assertIn(f"installed 0.4.49 is below the floor {FLOOR}", obj["reason"])
+        self.assertEqual((obj["bale"]["floor"], obj["bale"]["floor_admits"]), (FLOOR, False))
         self.assertIsNone(self.stub.argv(), "the stub was started")
         self.assertFalse(self.state.exists())
+
+    def test_above_the_floor_is_driven(self):
+        """The stub at 0.4.52, every schema as pinned: opened and recorded."""
+        (self.stub.root / "bin" / "VERSION").write_text(ABOVE + "\n", encoding="utf-8")
+        run = run_cli("carry", "bundle", str(self.bundle), "--cwd", str(self.repo),
+                      "--state-dir", str(self.state), "--json", bale_root=self.stub.root)
+        obj = json.loads(run.stdout)
+        self.assertEqual((run.code, obj["ok"], obj["bale"]["installed"]), (0, True, ABOVE),
+                         obj["reason"])
+        self.assertTrue((self.state / "inflight" / f"{SID}.json").is_file())
+
+    def test_a_schema_that_does_not_hash_as_pinned_is_refused_and_never_run(self):
+        altered = self.stub.root / "schemas" / TempRoots.ALTERED_SCHEMA
+        altered.write_bytes(altered.read_bytes() + b" ")
+        run = run_cli("carry", "bundle", str(self.bundle), "--state-dir", str(self.state),
+                      "--json", bale_root=self.stub.root)
+        obj = json.loads(run.stdout)
+        self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
+        self.assertIn(TempRoots.ALTERED_SCHEMA, obj["reason"])
+        self.assertEqual(obj["bale"]["schemas_match"], False)
+        self.assertIsNone(self.stub.argv(), "the stub was started")
+
+
+# ---------------------------------------------------------------------------
+# The contract on the line: the keys the manifest lists (session
+# 2026-10-12-twine-pin-floor-002)
+# ---------------------------------------------------------------------------
+
+
+class TheKeysOnTheLine(Case):
+    """`carry bundle` checks, on the open line, every key the consumption
+    manifest lists for the open surface (outcome, sid, tarball, opener,
+    desk, bundle): a line with one deleted — absent, not null; edited from a
+    recording, so NOT bale's — is not ok, `ran` true, the reason naming the
+    key and the surface; after an open it says the session may be open, and
+    nothing is recorded. A key the manifest does not list is free."""
+
+    SURFACE = "the open surface (bale open <bundle> --json)"
+
+    def test_an_opened_line_lacking_a_listed_key_is_not_ok_and_not_recorded(self):
+        for key in ("desk", "tarball", "bundle"):
+            with self.subTest(key=key):
+                runner = OpenDouble(stdout=edited_line("opened", drop=key))
+                run, obj = self.twin(str(self.bundle), runner=runner)
+                self.assertEqual((obj["ok"], obj["ran"], obj["outcome"]),
+                                 (False, True, "opened"))
+                self.assertIn(f"bale's open line lacks the key {key!r}, which the "
+                              f"consumption manifest lists for {self.SURFACE}",
+                              obj["reason"])
+                self.assertIn("the session may be open", obj["reason"])
+                self.assertIsNone(obj["record"])
+                self.assertFalse(self.record_file().exists(), "a record was written")
+                self.assertEqual(len(runner.calls), 1)
+
+    def test_a_rehearsed_line_lacking_a_listed_key_is_not_ok(self):
+        """Under --check nothing was opened, so the reason names the key and
+        the surface and says nothing of a session that may be open."""
+        runner = OpenDouble(stdout=edited_line("rehearsed", drop="opener"))
+        _, obj = self.twin(str(self.bundle), "--check", runner=runner, state=False)
+        self.assertEqual((obj["ok"], obj["ran"]), (False, True))
+        self.assertIn(f"lacks the key 'opener', which the consumption manifest lists for "
+                      f"{self.SURFACE}", obj["reason"])
+        self.assertNotIn("may be open", obj["reason"])
+
+    def test_an_extra_key_is_free(self):
+        runner = OpenDouble(stdout=edited_line("opened", a_key_bale_added_later=[1]))
+        _, obj = self.twin(str(self.bundle), runner=runner)
+        self.assertTrue(obj["ok"], obj["reason"])
+        self.assertTrue(self.record_file().is_file())
 
 
 if __name__ == "__main__":

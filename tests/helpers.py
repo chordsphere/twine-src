@@ -74,7 +74,7 @@ crafter's `--emit-block` emission no longer stands in for relay's stdout
 
 Since session 2026-10-12-twine-pin-051-001 (the pin at 0.4.51): the naming
 rule and the README row shapes live in tests/fixture_rule.py, shared with
-bin/twine-land-recordings (the lander) and re-exported here with PIN as the
+bin/twine-land-recordings (the lander) and re-exported here with PIN (now FLOOR) as the
 version. Every recording of the pinned version has a `.stderr` sibling and
 an eight-column README row (`recorded_rows`; `recorded_exits` is a view of
 it), and `Recording.stderr` is the sibling's bytes: FixturePlayer answers
@@ -82,7 +82,20 @@ it, `unlock_recording`, `open_recording` and `relay_recording` return it,
 and RecordedUnlock, RecordedRelay and StubBale replay it (`stderr=` still
 overrides with bytes named as not bale's). The relay recordings are of
 twine's own argv, `relay <sid> - --json`, so RecordedRelay's assumption is
-gone; `open_recording` gains the recorded refusal, `open-refused`."""
+gone; `open_recording` gains the recorded refusal, `open-refused`.
+
+Since session 2026-10-12-twine-pin-floor-002 (D2 a floor): PIN is FLOOR —
+the floor, and still the version of the fixtures directory, which the floor
+names. The gate hashes `<root>/schemas/`, so every stub root carries the
+eight schemas, copied byte-exact from fixtures/bale-<FLOOR>/schemas/
+(`install_schemas`): TempRoots' roots, StubBale's root, and any root a test
+builds by hand. TempRoots gains `above` (0.4.52), `far_above` (0.4.100, so
+a string comparison would get it wrong), `below` (0.4.49), `bad_schema`
+(at the floor, one schema's bytes altered), `no_schemas` (at the floor, no
+schemas/) and `unparsable`; `other` stays — 0.4.46, below the floor, with
+schemas, so what refuses it is the version alone. `drop_key(path, key)`
+gives a recorded line with one key deleted (absent, not null), for the key
+check each reader makes."""
 
 from __future__ import annotations
 
@@ -111,7 +124,15 @@ from tests.fixture_rule import (EMISSION_TOOLS, GROUP_SEP, STDERR_EXT, UNRECORDE
                                 fixture_where, split_group, stderr_relpath)
 
 TWINE = REPO_ROOT / "bin" / "twine"
-PIN = "0.4.51"
+# The floor (share/bale-consumption.toml [bale] floor): the lowest bale twine
+# drives, and the version the recordings were made at, so it names the
+# fixtures directory too. PIN until session 2026-10-12-twine-pin-floor-002.
+FLOOR = "0.4.51"
+# The schema files the gate hashes, as landed under fixtures/ (byte-exact).
+SCHEMA_FIXTURES = REPO_ROOT / "fixtures" / f"bale-{FLOOR}" / "schemas"
+# The operator's install when the floor landed (probe twine-052-delta): above
+# the floor, every schema as pinned, nothing re-recorded.
+ABOVE = "0.4.52"
 
 # bale's three closed vocabularies — the oracle the consumption manifest's
 # [[vocabulary]] entries and the transition table's bale axes are held to.
@@ -195,25 +216,88 @@ def run_inprocess(*argv: str, env: dict[str, str] | None = None,
     return Run(code, out.getvalue(), err.getvalue())
 
 
-class TempRoots:
-    """Three bale install roots under one temp dir: `ok` (bin/VERSION at
-    the pin), `other` (another version), `absent` (no bin/VERSION)."""
+def install_schemas(root: Path, *, alter: str | None = None) -> Path:
+    """Copy the eight schema fixtures into `<root>/schemas/`, byte-exact, so
+    the gate's second half admits `root`; with `alter`, that one file's
+    bytes are changed (a space appended — still JSON, no longer the pinned
+    hash). Returns the schemas directory."""
+    where = root / "schemas"
+    where.mkdir(parents=True, exist_ok=True)
+    names = sorted(p.name for p in SCHEMA_FIXTURES.glob("*.json"))
+    if len(names) != 8:
+        raise AssertionError(f"{SCHEMA_FIXTURES} holds {len(names)} schema files, not 8")
+    if alter is not None and alter not in names:
+        raise AssertionError(f"{alter} is not one of the schema fixtures")
+    for name in names:
+        data = (SCHEMA_FIXTURES / name).read_bytes()
+        (where / name).write_bytes(data + b" " if name == alter else data)
+    return where
 
-    def __init__(self, pin: str = PIN, other: str = "0.4.46") -> None:
+
+def make_root(root: Path, version: str | None, *, schemas: bool = True,
+              alter: str | None = None) -> Path:
+    """A bale install root as the gate reads one: `bin/VERSION` holding
+    `version` and a newline (no file when None), and the schemas unless
+    `schemas` is false (`alter` as install_schemas takes it)."""
+    (root / "bin").mkdir(parents=True, exist_ok=True)
+    if version is not None:
+        (root / "bin" / "VERSION").write_text(version + "\n", encoding="utf-8")
+    if schemas:
+        install_schemas(root, alter=alter)
+    return root
+
+
+class TempRoots:
+    """Bale install roots under one temp dir, each but `absent` and
+    `no_schemas` carrying the eight schemas (install_schemas):
+
+      ok          bin/VERSION at the floor
+      above       0.4.52, the operator's install when the floor landed
+      far_above   0.4.100 — above the floor as a tuple, below it as a string
+      below       0.4.49, below the floor
+      other       0.4.46 (another version, below the floor; kept from the pin)
+      bad_schema  at the floor, ALTERED_SCHEMA's bytes changed
+      no_schemas  at the floor, no schemas/ directory
+      unparsable  bin/VERSION reads `0.4.51-rc1`, not three dotted integers
+      absent      no bin/VERSION and no schemas/
+    """
+
+    ALTERED_SCHEMA = "exchange-record.schema.json"
+    FAR_ABOVE = "0.4.100"
+    BELOW = "0.4.49"
+    UNPARSABLE = "0.4.51-rc1"
+
+    def __init__(self, floor: str = FLOOR, other: str = "0.4.46") -> None:
         self._dir = tempfile.TemporaryDirectory(prefix="twine-roots-")
         base = Path(self._dir.name)
-        self.ok = base / "ok"
-        self.other = base / "other"
+        self.ok = make_root(base / "ok", floor)
+        self.above = make_root(base / "above", ABOVE)
+        self.far_above = make_root(base / "far-above", self.FAR_ABOVE)
+        self.below = make_root(base / "below", self.BELOW)
+        self.other = make_root(base / "other", other)
+        self.bad_schema = make_root(base / "bad-schema", floor, alter=self.ALTERED_SCHEMA)
+        self.no_schemas = make_root(base / "no-schemas", floor, schemas=False)
+        self.unparsable = make_root(base / "unparsable", self.UNPARSABLE)
         self.absent = base / "absent"
-        (self.ok / "bin").mkdir(parents=True)
-        (self.other / "bin").mkdir(parents=True)
         self.absent.mkdir()
-        (self.ok / "bin" / "VERSION").write_text(pin + "\n", encoding="utf-8")
-        (self.other / "bin" / "VERSION").write_text(other + "\n", encoding="utf-8")
         self.other_version = other
 
     def cleanup(self) -> None:
         self._dir.cleanup()
+
+
+def drop_key(source: Path | str | bytes, key: str) -> bytes:
+    """A recorded JSON line with `key` deleted — absent, not null — as one
+    line of bytes with the recording's trailing newline: the line a reader's
+    key check must refuse. Raises when the line has no such key, so a test
+    never deletes what was never there. Named as not bale's by whoever uses
+    it (bale prints every key on every outcome)."""
+    data = source if isinstance(source, bytes) else Path(source).read_bytes()
+    obj = json.loads(data)
+    if key not in obj:
+        raise AssertionError(f"the line has no key {key!r} to delete")
+    del obj[key]
+    return (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
 
 
 # The naming rule (Role, fixture_key, fixture_stem, fixture_where,
@@ -236,7 +320,7 @@ def fixture_relpath(argv: list[str], cwd: str, group: str | None = None) -> str:
     outcome group, `<outcome>` or `<outcome>+<reason>`, None for an argv
     recorded once.
     """
-    return fixture_rule.fixture_relpath_at(PIN, argv, cwd, group)
+    return fixture_rule.fixture_relpath_at(FLOOR, argv, cwd, group)
 
 
 def recorded_rows() -> dict[str, Row]:
@@ -286,7 +370,7 @@ def emission_relpath(tool: str, argv: list[str]) -> str:
     """fixtures/bale-<pin>/<tool>/<flag[-value…]>[_…].txt for a bale tool
     run with `argv` — fixture_relpath's grouping, with a `-` value (stdin)
     spelled `stdin` so no name carries a bare dash."""
-    return fixture_rule.emission_relpath_at(PIN, tool, argv)
+    return fixture_rule.emission_relpath_at(FLOOR, tool, argv)
 
 
 def fixtures_version(kind: str) -> str:
@@ -538,7 +622,9 @@ class FixturePlayer:
 
 class StubBale:
     """A double, not bale: a temp install root whose `bin/bale` is a
-    bash script this class writes, and `bin/VERSION` at the pin. The
+    bash script this class writes, `bin/VERSION` at the floor and the
+    eight schemas (install_schemas; since session
+    2026-10-12-twine-pin-floor-002, so the gate admits it). The
     script records its argv, cwd and (for `relay`) stdin under `record`,
     then replays the bytes of `relay_stdout` (since session
     2026-10-08-twine-carry-exchange-json-001, a `relay --json` recording's
@@ -564,7 +650,7 @@ class StubBale:
         self.record = base / "record"
         (self.root / "bin").mkdir(parents=True)
         self.record.mkdir()
-        (self.root / "bin" / "VERSION").write_text(PIN + "\n", encoding="utf-8")
+        make_root(self.root, FLOOR)
         q = shlex.quote
         replay = {"relay": relay_stdout, "apply": apply_stdout,
                   "unlock": unlock_stdout, "open": open_stdout}

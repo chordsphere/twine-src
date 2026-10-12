@@ -35,7 +35,7 @@ from twine.bale import load_manifest
 from twine.cli import Context, main
 from twine.process import RunError
 
-from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, PIN, Run, TempRoots,
+from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, FLOOR, Run, TempRoots,
                            run_cli)
 
 # ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ class TheTableIsTotal(unittest.TestCase):
         self.assertNotIn(None, load().axis("closure-reason").keys)
         self.assertNotIn("null", load().axis("closure-reason").keys)
 
-    def test_the_table_is_written_against_a_version_the_pin_keeps(self):
+    def test_the_table_is_written_against_a_version_the_floor_keeps(self):
         """The table's `written_against` is the bale version its bale axes'
         keys were spelled for. The pin bump to 0.4.51 (session
         2026-10-12-twine-pin-051-001) left share/transitions.toml untouched
@@ -176,9 +176,13 @@ class TheTableIsTotal(unittest.TestCase):
         so the table is total against the pin (the test above) and
         `twine transitions` reports both versions without gating on them.
         Rewritten from test_the_table_is_written_against_the_pin, which held
-        them equal; the next table edit restates it (notes.md proposal)."""
+        them equal; the next table edit restates it (notes.md proposal).
+        Since session 2026-10-12-twine-pin-floor-002 (renamed from
+        test_the_table_is_written_against_a_version_the_pin_keeps) the
+        manifest's version is the floor, which the table reports as `floor`;
+        the vocabularies did not move, so the table is untouched again."""
         table = load()
-        self.assertEqual((table.written_against, table.pin), ("0.4.49", PIN))
+        self.assertEqual((table.written_against, table.floor), ("0.4.49", FLOOR))
         self.assertEqual({axis: v["values"] for axis, v in load_manifest().vocabularies.items()},
                          BALE_VOCABULARIES)
         self.assertTrue(table.ok, [p.message for p in table.problems])
@@ -330,7 +334,7 @@ class DetectorsFire(unittest.TestCase):
                 [problem] = self.problems(data)
                 self.assertEqual((problem.kind, problem.axis, problem.key),
                                  ("unknown-key", axis, key))
-                self.assertIn(f"bale {PIN}'s spellings", problem.message)
+                self.assertIn(f"bale {FLOOR}'s spellings", problem.message)
 
     def test_a_misspelled_bale_key_is_both_invented_and_missing(self):
         """`no-response` for bale's `no_response`: the row is not bale's
@@ -393,7 +397,7 @@ class DetectorsFire(unittest.TestCase):
         manifest = load_manifest()
         bumped = copy.deepcopy(manifest.vocabularies)
         bumped["telemetry-outcome"]["values"].append("newly-invented-by-bale")
-        manifest = type(manifest)(manifest.path, manifest.pin, manifest.schemas,
+        manifest = type(manifest)(manifest.path, manifest.floor, manifest.schemas,
                                   manifest.surfaces, manifest.data, bumped)
         self.assertEqual([(p.kind, p.axis, p.key) for p in self.problems(raw_table(),
                                                                           manifest)],
@@ -408,7 +412,7 @@ class DetectorsFire(unittest.TestCase):
         vocab["command"] = {"axis": "command", "values": ["apply", "retry"],
                             "home": "schemas/telemetry-record.schema.json"}
         del vocab["closure-reason"]
-        edited = type(manifest)(manifest.path, manifest.pin, manifest.schemas,
+        edited = type(manifest)(manifest.path, manifest.floor, manifest.schemas,
                                 manifest.surfaces, manifest.data, vocab)
         kinds = sorted((p.kind, p.axis) for p in self.problems(raw_table(), edited))
         self.assertIn(("missing-axis", "command"), kinds)
@@ -499,9 +503,12 @@ class TheVerb(unittest.TestCase):
             self.assertIsInstance(move["actor"], str, name)
             self.assertIsInstance(move["description"], str, name)
         self.assertEqual([a["name"] for a in obj["axes"]], list(AXES))
-        # The table still says 0.4.49 (untouched at the 0.4.51 pin bump: the
-        # vocabularies did not move); the verb reports both and stays ok.
-        self.assertEqual((obj["written_against"], obj["pin"]), ("0.4.49", PIN))
+        # The table still says 0.4.49 (untouched at the 0.4.51 pin bump and at
+        # the floor: the vocabularies did not move); the verb reports both and
+        # stays ok. The manifest's version is the floor, reported as `floor`,
+        # and no `pin` key is left (session 2026-10-12-twine-pin-floor-002).
+        self.assertEqual((obj["written_against"], obj["floor"]), ("0.4.49", FLOOR))
+        self.assertNotIn("pin", obj)
         self.assertEqual(obj["table"], str(TRANSITIONS_TABLE))
         self.assertNotIn("Traceback", run.stderr)
 

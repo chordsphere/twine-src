@@ -25,7 +25,10 @@ Arc 1 (the courier) session 1 landed twine's core:
   and `inflight/` are in it, and since 0.11.0 the sids whose in-flight
   records read there and every file in `inflight/` that is not one,
   named; it never creates the directory, and writes nothing),
-  `bale check` (the installed bale's `bin/VERSION` against the pin),
+  `bale check` (the gate, D2: since 0.14.0 a floor — ok when the
+  installed bale's `bin/VERSION` is at or above the floor, `0.4.51`, and
+  every schema the manifest pins is installed under `schemas/` with its
+  sha256; each failing fact named otherwise),
   and `take` (session 2a): read a pasted turn, find each bale shape in
   it — probe, probe output, light block, exchange block, relay block —
   verify its integrity trailer and report, executing nothing.
@@ -42,8 +45,11 @@ Arc 1 (the courier) session 1 landed twine's core:
   `bale apply --dry-run --json` on a response tarball and, on a clean dry
   run, prints the one `bale apply <path>` line for you to run. twine
   never applies anything itself: the merge stays yours. Both drive only
-  the pinned bale: a `bin/VERSION` other than the pin, or one that
-  cannot be read, is refused before bale starts (D2).
+  a bale the gate admits — exactly one `bale check` reports ok; one below
+  the floor, whose `bin/VERSION` cannot be read, or whose schemas do not
+  hash as pinned is refused before bale starts (D2) — and both check, on
+  the line bale answers with, every key the consumption manifest lists
+  for that surface: a line lacking one is not ok, the key named.
 - `carry bundle` (session 3, the last courier row): carries a planner's
   bundle into bale. It runs `bale open <bundle> --json` itself — an open
   merges nothing, and an unwanted session is closed with `bale unlock` —
@@ -57,9 +63,10 @@ Arc 1 (the courier) session 1 landed twine's core:
   names one (bale 0.4.50 on), else the first open's. The record is a cache of what bale printed; nothing removes it
   yet. Without `--check` an open is refused unless a state directory
   resolves (an open that could not be recorded is refused before it
-  happens); same pin gate as the other carry verbs.
+  happens); the same gate and the same key check on bale's line as the
+  other carry verbs.
 - `transitions` (session 4): the transition table (D17), as data in
-  `share/transitions.toml` — the pinned bale's 13 telemetry outcomes, 9
+  `share/transitions.toml` — the 13 telemetry outcomes of the bale at the floor, 9
   closure reasons and the 9 outcomes `bale apply --json` prints, plus
   twine's own stop set for the runtime, each with a move: what happens
   next and who does it (twine, the operator or the planner). No default
@@ -100,11 +107,12 @@ Arc 1 (the courier) session 1 landed twine's core:
   one, because an abort written where the runtime does not look stops
   nothing (`twine status` says which directory twine resolves). Then, only
   when nothing of the session is still running, the **`aborted` closure**:
-  twine runs exactly `bale unlock <sid> --reason aborted --json`, with the
-  pinned bale, once, so the kill leaves a durable record in bale. The abort
+  twine runs exactly `bale unlock <sid> --reason aborted --json`, with a
+  bale the gate admits, once, so the kill leaves a durable record in bale
+  (and checks the line's listed keys, as the carry verbs do). The abort
   and the kill run with any bale or none — a kill-switch must work when
-  the harness is wedged, and an install drifted off the pin is one way it
-  can be; only the closure needs the pin, and without it the kill stops
+  the harness is wedged, and an install the gate refuses is one way it
+  can be; only the closure needs the gate, and without it the kill stops
   there and hands you the unlock line. When it cannot finish, it says where
   it stopped and prints the one line that finishes by hand — the signal for
   every group with survivors, the unlock line, or, for a session that
@@ -112,21 +120,27 @@ Arc 1 (the courier) session 1 landed twine's core:
   never reverts, merges or applies anything. Nothing records a running
   group yet (the runtime is Arc 2's), so today a kill requests the abort
   and closes the session.
-- `share/bale-consumption.toml` — the bale version pin (`0.4.51`, the
-  last exact pin: the next session makes it a floor) and the consumption
-  manifest: the schema hashes, every bale surface twine reads, and the
-  three vocabularies the transition table keys on, as data.
-- `fixtures/` — recorded `bale … --json` outputs from the pinned
+- `share/bale-consumption.toml` — the floor (`0.4.51`: twine drives any
+  bale at or above it whose installed schemas hash as pinned — an exact
+  pin until 0.14.0) and the consumption manifest: the schema hashes, every
+  bale surface twine reads and the keys it reads from each (checked
+  present on every line), and the three vocabularies the transition table
+  keys on, as data. An install that moves without touching a listed key
+  or a pinned schema needs nothing — 0.4.52 was the first, admitted with
+  nothing re-recorded; one that does needs a recording session, which
+  raises the floor (contract §6, §16).
+- `fixtures/` — recorded `bale … --json` outputs from the floor's
   version (twenty-four at 0.4.51, each with the stderr bale printed beside
   it, including every outcome of `bale unlock --json` the kill-switch's
   tests replay, the four `bale open --json` lines `carry bundle`'s tests
   replay and `bale relay <sid> - --json` under twine's own argv), the
   crafter's emissions, and carried pastes of bale output — among them the
-  recorder's paste-back the 0.4.51 recordings were landed from —
+  recorder's paste-back the 0.4.51 recordings were landed from — and the
+  eight `schemas/*.json` the gate hashes, under `fixtures/bale-0.4.51/schemas/`,
   byte-exact; the only bale the tests ever see. Earlier versions'
   recordings stay as history.
 - `bin/twine-record-fixtures` and `bin/twine-land-recordings` — the
-  recorder and the lander a pin bump runs: the probe that records every
+  recorder and the lander a recording session runs: the probe that records every
   bale surface twine reads, stdout and stderr, and the tool that lands its
   paste-back under `fixtures/bale-<version>/` (or, with `--check`, proves
   the tree still holds exactly it). Not twine verbs; contract §16.
@@ -164,7 +178,9 @@ python3 -I -S bin/twine spend check --sid SID --cap USD --model M --input N --ma
 python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill its process groups, close it `aborted`
 ```
 
-A pin bump (contract §16) runs the two maintenance tools beside them:
+A recording session — needed only when an install moves a listed key or
+a pinned schema, and it raises the floor (contract §16) — runs the two
+maintenance tools beside them:
 
 ```
 bin/twine-record-fixtures [SLUG] > paste-back.txt       # in ~/twine-src, the new bale on PATH: record every surface
@@ -196,7 +212,8 @@ python3 -B -m unittest discover -s tests -t .
 
 No network, no bale install, no third-party module (bash is needed —
 `carry probe`'s tests run real probe scripts): `bale check` is
-exercised against temp roots the tests build, and the recorded
+exercised against temp roots the tests build, each carrying the schema
+fixtures so the gate admits it as it admits your install, and the recorded
 outputs under `fixtures/` — with doubles, named as such, for the bale
 outputs nobody has recorded yet — stand in for a live bale. A `bale` on
 your `PATH` is never the one a test runs.

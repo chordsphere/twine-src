@@ -31,8 +31,8 @@ harness itself is wedged". The running total and the cap are session 5a's
      grace, SIGKILL, then a bounded wait until no member is alive — or the
      survivors, named. It is finished only when every one of them is gone.
   3. **The `aborted` closure.** `close_aborted` runs, through the run seam
-     and only with the pinned bale, exactly `bale unlock <sid> --reason
-     aborted --json` (twine.bale.unlock_argv), once, never retried, and
+     and only with a bale the gate admits (D2), exactly `bale unlock <sid>
+     --reason aborted --json` (twine.bale.unlock_argv), once, never retried, and
      reads bale's one JSON line: ok exactly when bale exits 0 and says
      `unlocked` for this sid with closure reason `aborted`. The verb and
      the loop share it; it takes the seam's runner, so tests inject a
@@ -47,12 +47,15 @@ registered while the kill ran is killed too, and only then removes the
 record and attempts the closure. When it cannot finish, its report names
 where it stopped and the one line that finishes by hand (`operator_line`).
 
-The pin gates the closure alone (session 5c, the sitting's correction to
-5b): the abort request and the process kill run with any bale or none —
-D15's kill "must work when the harness itself is wedged", and a bale
-drifted off the pin is one way it can be — while the closure, whose
-vocabulary the pin exists for (D17), is only ever attempted with the pinned
-bale (`close_aborted` checks `Executable.drive_refusal` itself).
+The gate (D2) gates the closure alone (session 5c, the sitting's correction
+to 5b): the abort request and the process kill run with any bale or none —
+D15's kill "must work when the harness itself is wedged", and an install
+the gate refuses is one way it can be — while the closure, whose vocabulary
+the gate exists for (D17), is only ever attempted with a bale the gate
+admits (`close_aborted` checks `Executable.drive_refusal` itself). Until
+session 2026-10-12-twine-pin-floor-002 the gate was an exact pin; it is now
+a floor plus schema hashes, and the unlock line's listed keys are checked
+when it is read.
 
 What it never does: merge, apply or revert anything (T12 — `bale unlock`
 performs no git operation); run any `unlock` argv but the one; retry a
@@ -77,6 +80,7 @@ import errno
 import json
 import logging
 import os
+import re
 import signal
 import time
 from contextlib import contextmanager
@@ -226,8 +230,23 @@ def _write_replacing(path: Path, data: bytes) -> None:
 
 def _temp_name(path: Path) -> Path:
     """A temp file beside `path`, short whatever `path`'s name: a long sid
-    must not fail on the temp file alone."""
+    must not fail on the temp file alone. Its shape is TEMP_NAME's, which
+    is_temp_name tests; the two live together so they cannot drift."""
     return path.with_name(f".twine-{os.getpid()}-{time.monotonic_ns()}.tmp")
+
+
+# The name _temp_name gives: `.twine-<pid>-<monotonic ns>.tmp`.
+TEMP_NAME = re.compile(r"\.twine-\d+-\d+\.tmp")
+
+
+def is_temp_name(name: str) -> bool:
+    """Whether `name` (a bare file name) is one _temp_name could have given:
+    the temp file _write_replacing writes beside a record before renaming
+    it over the record. Exported so a reader that lists a directory —
+    twine.inflight.list_inflight — names such a file without restating the
+    shape (session 2026-10-12-twine-pin-floor-002, status-inflight-004's
+    proposal)."""
+    return TEMP_NAME.fullmatch(name) is not None
 
 
 def _fsync_dir(directory: Path) -> None:
@@ -962,10 +981,16 @@ def _await_members_gone(pgid: int, timeout: float, proc_root: Path) -> list[int]
 # exactly when the line twine read says both; every other reason keeps the
 # unlock line. Twine reads no stderr text: bale's stderr is captured,
 # reported and passed through as evidence, never as a key. twine drives no
-# bale but the pin (Executable.drive_refusal), and the pin prints the line on
-# every refusal, so there is no text fallback.
+# bale the gate refuses (Executable.drive_refusal), and every bale the gate
+# admits prints the line on every refusal, so there is no text fallback.
 UNLOCK_REFUSED_OUTCOME = "unlock-refused"
 HOLD_BRANCH_REASON = "hold-branch"
+# The twine verb the consumption manifest's unlock surface names as its reader
+# (`read_by`), the registered name of `twine kill` (twine/commands/kill.py):
+# bale.missing_keys_failure finds the keys the unlock line owes by it (session
+# 2026-10-12-twine-pin-floor-002). The Arc 2 loop's closure reads the same
+# surface through close_aborted, so the same keys.
+READER = "kill"
 
 
 @dataclass
@@ -973,7 +998,9 @@ class Closure:
     """One run of `bale unlock <sid> --reason aborted --json` and what it
     said. `ok` exactly when bale exited 0 and its stdout is one JSON object
     with `outcome` "unlocked", `sid` the session and `closure_reason`
-    "aborted". Never retried."""
+    "aborted" — and, since session 2026-10-12-twine-pin-floor-002, every key
+    the consumption manifest lists for the unlock surface present. Never
+    retried."""
 
     sid: str
     argv: list[str] | None = None
@@ -1030,9 +1057,9 @@ def close_aborted(run: process.Runner, executable: bale.Executable, sid: str, *,
     """Close `sid` in bale with the closure reason `aborted`: run exactly
     `bale unlock <sid> --reason aborted --json` (bale.unlock_argv) through
     `run`, the seam's runner, in `cwd` — the repo whose session it is —
-    once, and only with the pinned bale: an `executable` whose
+    once, and only with a bale the gate admits: an `executable` whose
     `drive_refusal` is set is a failure here, bale not started (D2), so a
-    caller cannot reach an unpinned bale by forgetting the gate. The caller
+    caller cannot reach a refused bale by forgetting the gate. The caller
     has checked that no member of the session's process group is alive.
 
     Shared by `twine kill` and, when it observes an abort request, the Arc
@@ -1081,21 +1108,24 @@ def close_aborted(run: process.Runner, executable: bale.Executable, sid: str, *,
             f"bale exited {result.exit_code}"
             + (f": {said[-1]}" if said else " with nothing on stderr"))
     if not result.killed:
-        _read_unlock_line(closure)
+        _read_unlock_line(closure, executable.manifest)
     return closure
 
 
-def _read_unlock_line(closure: Closure) -> None:
+def _read_unlock_line(closure: Closure, manifest: bale.Manifest | None) -> None:
     """bale's stdout must be one JSON object saying this sid was unlocked
-    with closure reason `aborted`; whatever it said instead is named. A
-    refusal is such a line too (bale 0.4.47 on): its outcome
-    `unlock-refused` is named with the line's `reason` code beside it.
+    with closure reason `aborted`, carrying every key the manifest lists for
+    the unlock surface (bale.missing_keys_failure, since session
+    2026-10-12-twine-pin-floor-002); whatever it said instead is named, each
+    fault beside the others. A refusal is such a line too (bale 0.4.47 on):
+    its outcome `unlock-refused` is named with the line's `reason` code
+    beside it.
 
     A stdout that is not one JSON object is named, save one case: an empty
     stdout beside a non-zero exit, where the exit entry already says bale
-    failed and there is no line to read. The pin prints its line on every
-    refusal, so that is a bale that stopped before writing one — not the
-    refusal, which is read like any other line."""
+    failed and there is no line to read. Every bale the gate admits prints
+    its line on every refusal, so that is a bale that stopped before writing
+    one — not the refusal, which is read like any other line."""
     try:
         obj = json.loads(closure.stdout)
     except (ValueError, RecursionError):
@@ -1108,6 +1138,9 @@ def _read_unlock_line(closure: Closure) -> None:
                 + (f" (it began {shown[:80]!r})" if shown else " (it was empty)"))
         return
     closure.unlock = obj
+    lacking = bale.missing_keys_failure(manifest, READER, obj)
+    if lacking is not None:
+        closure.failures.append(lacking)
     expected = (("outcome", UNLOCKED_OUTCOME), ("sid", closure.sid),
                 ("closure_reason", bale.UNLOCK_REASON))
     for key, want in expected:
@@ -1343,8 +1376,8 @@ def kill_session(state_dir: Path, sid: str, *, run: process.Runner,
        removed, so a later kill cannot signal a reused number;
     3. close the session in bale `aborted` (close_aborted) — only when the
        abort request stands and no process is alive or none was recorded,
-       and only with the pinned bale: the pin gates this step alone, and
-       close_aborted checks it.
+       and only with a bale the gate admits: the gate (D2) gates this step
+       alone, and close_aborted checks it.
 
     The caller has validated the sid, the state directory, `cwd` and the
     grace. A report the caller started (the verb's, with its locations)

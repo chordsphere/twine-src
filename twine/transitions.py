@@ -12,7 +12,7 @@ Four axes, each a closed set of keys:
   telemetry-outcome  bale's telemetry outcomes  } keys: the consumption
   closure-reason     bale's closure reasons     } manifest's [[vocabulary]]
   apply-outcome      `bale apply --json`'s      } (bale's spellings, read by
-                     outcomes                   }  probe at the pin)
+                     outcomes                   }  probe at the floor)
   stop               twine's API-side stop set — keys declared in the table
 
 The table is ok exactly when every key of every axis has one row and every
@@ -125,7 +125,7 @@ class Table:
 
     path: Path
     written_against: str | None = None
-    pin: str | None = None
+    floor: str | None = None
     axes: list[Axis] = field(default_factory=list)
     moves: dict[str, Move] = field(default_factory=dict)
     rows: list[Row] = field(default_factory=list)
@@ -174,7 +174,7 @@ def load_table(path: Path = TRANSITIONS_TABLE, manifest: Manifest | None = None,
     None, `manifest_error` says why, and each bale axis is reported as
     having no vocabulary. `data`, when given, is used instead of reading
     `path` — how the tests check a table they edited in memory."""
-    table = Table(path=path, pin=None if manifest is None else manifest.pin)
+    table = Table(path=path, floor=None if manifest is None else manifest.floor)
     if data is None:
         try:
             data = read_toml(path)
@@ -328,7 +328,7 @@ def check_total(table: Table) -> None:
             table.problem("unknown-axis", f"row {row.axis!r} {row.key!r}: no axis "
                           f"{row.axis!r} is declared", axis=row.axis, key=row.key)
         elif row.key not in axis.keys:
-            whose = (f"one of bale {table.pin or '(pin unknown)'}'s spellings on "
+            whose = (f"one of bale {table.floor or '(floor unknown)'}'s spellings on "
                      f"{row.axis!r}" if axis.source == SOURCE_BALE
                      else f"a key of twine's {row.axis!r} axis")
             table.problem("unknown-key", f"{row.axis} {row.key!r} is not {whose}",
@@ -389,7 +389,7 @@ def as_json(table: Table) -> dict[str, Any]:
     return {
         "table": str(table.path),
         "written_against": table.written_against,
-        "pin": table.pin,
+        "floor": table.floor,
         "axes": [a.as_json() for a in table.axes],
         "rows": [row_json(table, r) for r in rows],
         "moves": {m.name: {"actor": m.actor, "description": m.description,
@@ -410,7 +410,7 @@ def as_lines(table: Table) -> list[str]:
     lines = [f"transition table {table.path}: {'ok' if table.ok else 'NOT OK'}",
              f"  {len(table.axes)} axes, {keys} keys, {len(table.rows)} rows, "
              f"{len(table.moves)} moves; bale axes spelled for "
-             f"{table.written_against or '(unstated)'}, pin {table.pin or '(unknown)'}"]
+             f"{table.written_against or '(unstated)'}, floor {table.floor or '(unknown)'}"]
     rows = ordered_rows(table)
     width = max((len(r.key) for r in rows), default=0)
     mwidth = max((len(r.move) for r in rows), default=0)

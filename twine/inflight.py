@@ -53,12 +53,12 @@ import hashlib
 import json
 import logging
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from twine.kill import DIR_MODE, RECORD_SUFFIX, _locked, _write_replacing, is_sid, utc_now
+from twine.kill import (DIR_MODE, RECORD_SUFFIX, _locked, _write_replacing, is_sid,
+                        is_temp_name, utc_now)
 
 log = logging.getLogger("twine.inflight")
 
@@ -215,7 +215,9 @@ def _short(value: Any) -> str:
 # renaming it over the record (_temp_name: `.twine-<pid>-<monotonic ns>.tmp`).
 # One seen in `inflight/` is a write in progress or one that did not finish;
 # it is still not a record, so it is still named — this only says which.
-_TEMP_NAME = re.compile(r"\.twine-\d+-\d+\.tmp")
+# The shape is tested by twine.kill.is_temp_name, exported beside _temp_name
+# so this module never restates it (session 2026-10-12-twine-pin-floor-002,
+# status-inflight-004's proposal).
 
 
 @dataclass(frozen=True)
@@ -280,7 +282,7 @@ def _read_entry(state_dir: Path, name: str) -> tuple[str | None, str]:
     """(sid, "") when `name` is a record that reads, else (None, the fault)."""
     shown = _shown(name)
     if not name.endswith(RECORD_SUFFIX):
-        if _TEMP_NAME.fullmatch(name):
+        if is_temp_name(name):
             return None, (f"{shown} is not an in-flight record: it is the temp file of a "
                           "record write still in progress, or of one that did not finish")
         return None, (f"{shown} is not an in-flight record: its name is not "

@@ -25,24 +25,27 @@ project's inventory.
   reader needs the one-paragraph picture; the seed wins on any detail.
 
 ## Schemas & data contracts
-- `../share/bale-consumption.toml` — the bale version pin and the
-  consumption manifest (D3, D4): the installed schema hashes, one
+- `../share/bale-consumption.toml` — the floor (D2 as amended: twine
+  drives any bale at or above it whose installed schemas hash as pinned)
+  and the consumption manifest (D3, D4): the installed schema hashes (the
+  gate's second half), one
   `[[surface]]` per bale surface twine reads — files, verbs (with every
   further recorded outcome of a verb as `also_recorded`), and the text
   formats `take` parses, each naming the version that emitted its
   fixtures — `[[wanted]]`, a shape kept in the header for a surface a
-  later session needs and the pin lacks (none at 0.4.51: the three the
+  later session needs and the bale at the floor lacks (none at 0.4.51: the three the
   0.4.45 manifest carried are surfaces now), and `[[vocabulary]]` for
   bale's three closed vocabularies the transition table keys on
   (telemetry outcomes, closure reasons, `bale apply --json` outcomes).
-  Pinned at 0.4.51, the last exact pin (the next session makes it a
-  floor). Pull when a session reads a new bale surface or bumps the pin;
-  the header comment spells the entry shapes.
+  `[bale] floor = "0.4.51"` since session `2026-10-12-twine-pin-floor-002`
+  (an exact `pin` before); each surface's `keys` are checked present on
+  the line its reader reads. Pull when a session reads a new bale surface
+  or raises the floor; the header comment spells the entry shapes.
 - `../share/transitions.toml` — the transition table (D17): four axes
   (the three bale vocabularies and twine's stop set), one row per key,
   each naming a declared move with its actor (twine, operator or
   planner); no default case. Pull when a session dispatches on an
-  outcome or a stop, adds a stop, or bumps the pin; the header comment
+  outcome or a stop, adds a stop, or raises the floor; the header comment
   spells the shape and `twine transitions` checks it is total.
 
 - `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`,
@@ -87,21 +90,24 @@ project's inventory.
   the run seam (`Context.run`, the signature later carry verbs build
   on, its group wait and its spawn hook), §11 — the bale hand-offs
   (`carry exchange`, `carry response`),
-  how bale is found and the pin gate, T12's one `apply` argv —
+  how bale is found and the gate (a floor plus schema hashes, and the
+  key check on each line), T12's one `apply` argv —
   §12, `transitions` (the table's axes, its ok rule and the problems
   that name a fault), and §13, `spend totals` and `spend check` (the cost
   spine: the usage record, the state directory, prices as operator data,
   the hard cap's pre-call check and its refusals, `stop` `cap-reached` and
   `cap-unchecked`), §14, `kill` (the kill-switch: the between-calls abort,
   the running record with its `groups` and the process-level kill of every
-  one of them, the pin gating the closure alone, the one `unlock` argv and
+  one of them, the gate gating the closure alone, the one `unlock` argv and
   the `aborted` closure, the recorded unlock lines the tests replay since
   the pin at 0.4.49, their stderr since 0.4.51), §15, `carry bundle` (the
   courier opens a bundle with the one `open` argv, never retried; the
   opener on stdout; the in-flight record and the tarball a second desk
   needs; the four recorded open lines the tests replay, a refusal among
-  them), §16, recording a pin (the recorder, the lander and the bump
-  procedure), the manifest and fixture shapes (per-run fixture names, by
+  them), §16, recording a version (the recorder, the lander and the
+  procedure that raises the floor), the manifest and fixture shapes (§5
+  the gate, §6 the floor, the key check and when a moved install needs a
+  recording) (per-run fixture names, by
   role; outcome groups; stderr siblings), how the tests run. Default inclusion for any session
   that adds a verb, runs a subprocess, routes a courier's block, or
   touches spend, the kill-switch or the in-flight record.
@@ -115,12 +121,16 @@ project's inventory.
   captured (no 0.4.49 or 0.4.51 row) — and, since 0.4.51, the stderr each
   recording printed: a `.stderr` sibling per file and two more columns
   per row; a version's recordings come from one carried paste-back, the
-  recorder's, which lands under its `carried/` as their source. One
+  recorder's, which lands under its `carried/` as their source. Since
+  session `2026-10-12-twine-pin-floor-002` the floor names the directory
+  the tests replay, and the eight installed schemas the gate hashes sit
+  under it in `schemas/`, byte-exact, with a `| file | bytes | sha256 |`
+  table of their own (not recordings: the lander leaves them alone). One
   section per bale version, earlier sections kept as history. Pull when
   recording or reading a fixture.
 
 ## Tools
-- `../bin/twine-record-fixtures` — the recorder: the probe a pin bump
+- `../bin/twine-record-fixtures` — the recorder: the probe a recording session
   runs in `~/twine-src` with the new bale on PATH, recording every bale
   surface twine reads, stdout and stderr, with a gzip+base64 copy of
   each stream; `[SLUG]`, default `twine-record-<installed version>`.
@@ -130,4 +140,5 @@ project's inventory.
   siblings, the paste) and prints the README rows and manifest lines, or
   with `--check` writes nothing and exits 0 exactly when the tree holds
   what the paste derives. Its naming rule is `../tests/fixture_rule.py`,
-  shared with the tests. Pull both when bumping the pin.
+  shared with the tests; `--check` leaves the floor's `schemas/` alone.
+  Pull both when raising the floor.

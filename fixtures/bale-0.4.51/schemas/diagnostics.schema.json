@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/anthropics/bale/schemas/diagnostics.schema.json",
+  "title": "bale bailout diagnostics",
+  "description": "Shape of response-NNN/diagnostics.json (bailout responses only) per TARBALL.md section 5.8. INTENTIONALLY LOOSE: additionalProperties is true at the top level so future fields can be added without breaking earlier aggregation across sessions. The required keys below are the universal envelope; the values inside (tool_calls_summary keys, what_would_save_next_time strings) are deliberately freeform.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "session_id",
+    "bail_trigger",
+    "bail_narrative",
+    "context_loaded",
+    "exploration_paths",
+    "tool_calls_summary",
+    "what_would_save_next_time"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The bailing session's ID. Matches the manifest's session_id field."
+    },
+    "bail_trigger": {
+      "type": "string",
+      "enum": [
+        "reading-path-inflation",
+        "mid-build-budget-panic",
+        "other"
+      ],
+      "description": "Per AGENT.md section 11.3. The first two are worker-detected; 'other' covers architect-requested bailouts with specifics in bail_narrative."
+    },
+    "bail_narrative": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One paragraph: what was noticed, when, why bailing beat pushing through. Searchable across sessions when bail_trigger's enum is too coarse."
+    },
+    "context_loaded": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["path", "verdict", "note"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "verdict": {
+            "type": "string",
+            "enum": ["necessary", "wasted", "partial"]
+          },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "exploration_paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["what", "verdict", "note"],
+        "properties": {
+          "what": { "type": "string", "minLength": 1 },
+          "verdict": {
+            "type": "string",
+            "enum": ["productive", "dead_end", "inconclusive"]
+          },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "tool_calls_summary": {
+      "type": "object",
+      "description": "Map of tool name to call count. Keys are freeform tool names; values are non-negative counts.",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "what_would_save_next_time": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Concrete prescriptions for the next session. Overlaps with handoff.md's 'What I learned' by design."
+    }
+  }
+}

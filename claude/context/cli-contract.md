@@ -32,8 +32,14 @@
 > stderr siblings, the relay row recorded and the carried source paste,
 > §8's lines on the two tools, §10.3, §11.3, §11.4, §12.2, §12.4, §14.5,
 > §14.7, §15.4 and §15.6 on what is recorded at 0.4.51, and §16, the
-> recorder and the lander); a later session that changes a line changes it
-> here in the same response.
+> recorder and the lander) and by `2026-10-12-twine-pin-floor-002` (D2 a
+> floor, as amended at the sitting `2026-10-08-open-arc2-003`: §2's `bale
+> check` line, §4's `floor`, §5, §6's `floor`, key check and bump
+> procedure, §7's schemas, §8's roots and `status`, §11.1's gate and the
+> key check in §11.2, §11.3, §14.5 and §15.4, §11.4, §14.7 and §15.6 on the
+> edited lines, §12's `floor`, §14.1, §14.2, §14.8, §15.2 and §16's
+> procedure); a later session that changes a line changes it here in the
+> same response.
 
 ## 1. The entrypoint
 
@@ -65,7 +71,10 @@
   `Command` refuses at load.
 - Verb names are the full space-joined path: `"bale check"`. The JSON
   `command` key carries the same string.
-- Verbs today: `commands`, `status`, `bale check`, `take`, the
+- Verbs today: `commands`, `status`, `bale check` (the gate, D2: since
+  session `2026-10-12-twine-pin-floor-002` a **floor** — any bale at or
+  above it whose installed schemas hash as the manifest pins them — where
+  it was an exact pin; §5), `take`, the
   `carry` group — `carry probe` (`twine/commands/carry.py`), `carry
   exchange` and `carry response` (`twine/commands/carry_bale.py`), `carry
   bundle` (`twine/commands/carry_bundle.py`, §15) —
@@ -112,7 +121,7 @@ session 3's):
 | `repo_root` | the repository root, located from the package |
 | `consumption_manifest` | absolute path of `share/bale-consumption.toml` |
 | `fixtures` | absolute path of `fixtures/`; `fixtures_present` says whether it exists |
-| `pin` | the manifest's `[bale] pin`, or null when the manifest is unusable |
+| `floor` | the manifest's `[bale] floor` (since session `2026-10-12-twine-pin-floor-002`; `pin` before, and no `pin` key now), or null when the manifest is unusable |
 | `bale` | the `bale check` result object (§5), or null when the manifest is unusable |
 | `state_dir` | the directory `spend.resolve_state_dir` resolves (§13.2's rules: `--state-dir`, else `$TWINE_STATE_DIR`, else XDG, else `$HOME`), as a string; `null` when none resolves (session 5c) |
 | `state_dir_source` | `"--state-dir"`, `"TWINE_STATE_DIR"`, `"XDG_STATE_HOME"` or `"HOME"`; `null` when none resolves |
@@ -124,9 +133,10 @@ session 3's):
 | `ok_reason` | why `ok` is what it is |
 
 `ok` is true when twine itself is intact — the manifest parses and its
-pin resolves — regardless of whether a bale install is present; the
-bale result rides inside, and a mismatch there leaves `status` at exit
-0. An unusable manifest is `ok` false, exit 1 (the state keys ride on
+floor resolves (`ok_reason` "manifest parses and the floor resolves") —
+regardless of whether a bale install is present; the bale result rides
+inside, and a bale the gate refuses there leaves `status` at exit 0.
+Human mode prints `floor: <version>` and the check's verdict line. An unusable manifest is `ok` false, exit 1 (the state keys ride on
 that path too).
 
 `--state-dir DIR` is the same argument the spend verbs and `kill` take,
@@ -180,26 +190,60 @@ line each. The reading is `twine.inflight.list_inflight` (§15.7).
 
 ## 5. `twine bale check [--json] [--bale-root DIR]` (D2)
 
+The gate. Since session `2026-10-12-twine-pin-floor-002` (D2 as amended
+at the sitting `2026-10-08-open-arc2-003`) it is a **floor** plus the
+manifest's schema hashes, where it was an exact pin: twine drives any bale
+at or above the floor whose installed schemas hash as the manifest pins
+them. The floor is the version the recordings were made at, raised only
+by a recording session (§6, §16).
+
 - Resolves the install root, first rule that answers: `--bale-root`,
   else the environment variable `TWINE_BALE_ROOT`, else `command -v
   bale` followed to its real path and up to the directory holding
   `bin/` (`~/.local/bin/bale` → `~/bale/bin/bale` → `~/bale`).
-- Reads `<root>/bin/VERSION`, strips it, compares it to the pin.
-- JSON: `pin`, `installed` (null when unreadable), `root` (null when
+- Reads `<root>/bin/VERSION`, strips it, and parses it as **three dotted
+  integers** (no leading zero, no suffix: `0.4.51-rc1` does not parse);
+  compares it to the manifest's `[bale] floor` **as a tuple** — `0.4.100`
+  is above `0.4.51`, though a string comparison says otherwise.
+- Hashes, with sha256, every file `[bale.schemas]` names under
+  `<root>/schemas/`. A file `[bale.schemas]` does not name is free.
+- **ok**, exit 0, exactly when the root resolves, `bin/VERSION` reads and
+  parses, compares at or above the floor, and every named schema exists
+  under `<root>/schemas/` with that hash. Otherwise not ok, exit 1, one
+  JSON line, no traceback, the reason naming **each failing fact at once**,
+  `; `-joined, in this order: no install found (alone); `bin/VERSION`
+  unreadable or empty, or `<path> reads '<text>', which is not a version
+  of three dotted integers`, or `installed <v> is below the floor
+  <floor>`; then `no schemas/ directory at <root>/schemas`, or `schemas
+  missing from schemas/: <names>` and `schemas that do not hash as the
+  manifest pins them: <names>`. ok's reason: `installed <v> is at or above
+  the floor <floor>, and all 8 schemas hash as the manifest pins them`.
+- JSON: `floor`, `installed` (null when unreadable), `root` (null when
   no install was found), `source` (`"--bale-root"`, `"TWINE_BALE_ROOT"`,
-  `"PATH"`, or null), `ok`, `reason`.
-- An install at the pinned version: exit 0, `ok` true. A different
-  version, a root with no readable `bin/VERSION`, or no install found:
-  exit 1, one JSON line, `ok` false, no traceback.
+  `"PATH"`, or null), `schemas`, `ok`, `reason` — **no `pin` key**.
+  `schemas` is null when no install was found, else an object: `dir`
+  (`<root>/schemas`), `present` (whether it is a directory), `ok`,
+  `checked` (every named file found and hashed, matching or not, sorted),
+  `mismatched` and `missing` (sorted; with no `schemas/`, every named file
+  is missing and the reason says so once).
+- Human mode: `floor: <floor> (twine drives this bale or any above it)`,
+  `installed:`, `root:`, `schemas: all 8 hash as the manifest pins them`
+  or `schemas: NOT OK — <the schema facts>`, then `check: ok — …` or
+  `check: FAIL — <reason>`.
 
 ## 6. The consumption manifest (D3, D4)
 
-`share/bale-consumption.toml`, parsed by `tomllib`: `[bale] pin` —
-`0.4.51` since session `2026-10-12-twine-pin-051-001`, the last exact pin
-(the session after it, `twine-pin-floor`, makes it a floor plus this file's
-key-and-schema contract) — a `[bale.schemas]` table of the eight installed
-schema files to their sha256 (unchanged from 0.4.45 through 0.4.51, hashed
-at 0.4.51 by a probe; the header says who hashed them and when), one `[[surface]]` per bale surface twine reads (the file
+`share/bale-consumption.toml`, parsed by `tomllib`: `[bale] floor` —
+`0.4.51`, the version the recordings were made at (session
+`2026-10-12-twine-pin-floor-002` made it a floor; until then the key was
+`pin`, an exact version — `0.4.51` since session
+`2026-10-12-twine-pin-051-001`, the last exact pin — and `load_manifest`
+now refuses a `[bale]` that still carries `pin`, by name) — a
+`[bale.schemas]` table of the eight installed schema files to their sha256
+(unchanged from 0.4.45 through 0.4.51, hashed at 0.4.51 by a probe; the
+header says who hashed them and when; the files themselves are
+`fixtures/bale-0.4.51/schemas/`, §7), which is **the gate's second half**
+(§5), one `[[surface]]` per bale surface twine reads (the file
 `bin/VERSION` and each recorded `--json` verb: `kind`, `verb`, `flags`,
 `argv`, `cwd`, `stdout`, `keys` — the JSON keys twine reads, `[]`
 where none yet — `key_owner`, `read_by`, `fixture`, `written_against`;
@@ -221,12 +265,14 @@ table axis — the unlock refusal's five reason codes (§14.5) and, since
 relay `reason` — it dispatches on `outcome` and quotes `cause`, §11.2);
 and, `kind = "format"`, each text format `take` parses out of a paste:
 `format`, `locator`, `home`, `emitted_by`, `fixtures`, `fixtures_version`
-— the bale version that emitted those files: the pin for a crafter
-emission, re-recorded at every pin; the version that printed a carried
-paste, which stays under that version's directory (§7) — `keys`,
+— the bale version that emitted those files: for a crafter emission the
+version its last recording was made at (the floor's), re-recorded when the
+crafter's sha256 moves (§7; "at every pin" until the floor); the version
+that printed a carried paste, which stays under that version's directory
+(§7) — `keys`,
 `read_by`, `written_against`),
-`[[wanted]]` for a surface a later session needs that the pinned bale
-lacks — none at 0.4.49 or 0.4.51 (`bale open --json`, `bale relay --json` and the
+`[[wanted]]` for a surface a later session needs that the bale at the
+floor lacks — none at 0.4.49 or 0.4.51 (`bale open --json`, `bale relay --json` and the
 reason-coded `bale unlock --json` refusal the 0.4.45 manifest wanted
 landed in bale 0.4.47–0.4.48 and are surfaces); the shape stays in the
 header for the next gap — and
@@ -241,8 +287,8 @@ Three are recorded for 0.4.51, unchanged from 0.4.45 value for value:
 `telemetry-outcome` (13), `closure-reason` (9) and `apply-outcome` (9,
 `format_apply_json`'s docstring, at `bin/bale_report.py` line 3426 of
 0.4.51 — line 3040 of 0.4.49); a verb surface whose key takes one of them names it as
-`vocabulary` (`apply`'s `outcome` is `apply-outcome`). A pin bump
-re-reads them — by probe, or, as the bumps to 0.4.49 and 0.4.51 did, from
+`vocabulary` (`apply`'s `outcome` is `apply-outcome`). A recording
+session (a pin bump, until the floor) re-reads them — by probe, or, as the bumps to 0.4.49 and 0.4.51 did, from
 bale-src's context tarball, `read_at` saying which and that it was not a
 probe (at 0.4.51 the schema homes' hashes were a probe's, `twine-051-record`)
 — and diffs them as data (D4). The 0.4.51 lines, beside 0.4.49's: `open
@@ -263,7 +309,45 @@ is a recorded surface read by nothing yet. The
 file's header comment spells the entry shapes;
 `tests/test_consumption_manifest.py` walks them. `twine.bale.load_manifest`
 refuses a `[[vocabulary]]` entry without an axis or a home, a second
-entry for one axis, or values that are empty or repeat.
+entry for one axis, or values that are empty or repeat; and (since session
+`2026-10-12-twine-pin-floor-002`) a `[bale]` without a `floor` of three
+dotted integers, one still carrying `pin`, an empty `[bale.schemas]` (a
+gate that hashed nothing would admit anything), and a schema name that is
+not a plain file name under `schemas/`.
+
+**The keys on the line** (same session; D2 as amended). Every verb that
+reads a bale `--json` line checks, **on that line**, that each key the
+manifest lists for the surface it reads (`keys`, found by the reader's
+name in `read_by`) is present: `carry exchange` on the relay line (§11.2),
+`carry response` on the apply line (§11.3), `carry bundle` on the open
+line (§15.4), `kill` on the unlock line (§14.5). Presence is all it asks —
+a key whose value is null is present, since bale prints every key on every
+outcome (every recorded line of the four surfaces carries every listed
+key, and a test walks them) — and a key the manifest does not list is
+free. A line lacking one is not ok, `ran` true, the reason `bale's <verb>
+line lacks the key(s) '<k>'[, …], which the consumption manifest lists for
+the <verb> surface (bale <argv>); existing keys are never removed, so this
+bale is not the contract twine reads`, appended beside whatever else the
+line fails. One helper, `twine.bale.missing_keys_failure`, called from the
+four readers. The two schema-homed vocabularies are held fixed by the
+gate (their schema's hash is pinned in `[bale.schemas]`); the one homed in
+`bin/bale_report.py` (`apply-outcome`) is held by twine naming an outcome
+it does not know (§11.3), which it always has.
+
+**Moving the install under the floor** (the bump procedure, same session).
+An install that moves without touching a key this file lists or a schema
+it pins **needs nothing**: the gate admits it, the key check passes, and
+nothing is re-recorded — 0.4.52 was the first (probe `twine-052-delta`,
+2026-10-12: `bin/bale`, `bale_report.py`, `bale_relay.py`, `bale_open.py`
+and all eight schemas byte-identical to 0.4.51's; only the crafter moved).
+An install that touches one — a schema's hash, a listed key, or a
+vocabulary twine dispatches on — **needs a recording session** (§16): the
+recordings are re-made at the new version, the vocabularies re-read, the
+fixtures land under `fixtures/bale-<new>/`, and the session **raises the
+floor** to that version. Until it lands, the gate refuses an install whose
+schemas moved, and the key check refuses a line that lost a listed key —
+named, never a surprise (D17). The floor is never raised without a
+recording, and never lowered.
 
 ## 7. Fixtures
 
@@ -280,9 +364,24 @@ assigned by the same collision rule. `<where>` is `twine-src/` (the packing repo
 0.4.49, `scratch/` — a throwaway repository a probe created and removed,
 where the verbs that write (pack, open, relay, unlock, apply) were
 recorded; its facts are in the README's section. Every `.json` fixture is
-one object line with a trailing newline. The tests read the pinned
-version's directory (`PIN`); earlier versions' directories and README
-sections stay as history.
+one object line with a trailing newline. The tests read the floor's
+directory (`FLOOR` in `tests/helpers.py`, `PIN` until session
+`2026-10-12-twine-pin-floor-002`: the floor is the version the recordings
+were made at, so it names the directory); earlier versions' directories
+and README sections stay as history.
+
+**The schemas** (same session). The eight files the gate hashes (§5)
+land byte-exact under the floor's directory, `fixtures/bale-0.4.51/schemas/<name>.json`,
+named as installed — from the operator's `bale-src` context tarball of
+2026-10-07 at 0.4.51, every hash equal to the manifest's and to the
+operator's 0.4.52 install's. They are not recordings: no argv printed
+them, they have no stderr sibling, the lander neither derives nor checks
+them (`tests/fixture_rule.py` `SCHEMAS_WHERE`, §16), and the README lists
+them in a table of their own (`| file | bytes | sha256 |`), which
+`tests/test_fixtures.py` holds to the files and to `[bale.schemas]`. Every
+stub install root the tests build copies them (`tests/helpers.py`
+`install_schemas`), so the gate admits a stub exactly as it admits the
+operator's install.
 
 A **per-run value** — a session id read out of a block, a tarball's
 path, a bundle file, a pack's goal — never enters a name: `fixture_key(argv)`
@@ -322,12 +421,15 @@ not bale's.
 
 A fixture that is not a bale argv's stdout keeps the version directory:
 a crafter emission is `fixtures/bale-<version>/crafter/<flag[-value…]>[_…].txt`
-(`-` spelled `stdin`; `emission_relpath(tool, argv)`, at the pin), and an
+(`-` spelled `stdin`; `emission_relpath(tool, argv)`, at the floor;
+re-recorded when the crafter's sha256 moves — the recorder prints it — not
+at every version: 0.4.52's crafter, `c167f5b5…`, moved, and its probe
+scaffold is a specimen for a later session, not a gate), and an
 architect-carried paste of bale output is
 `fixtures/bale-<version>/carried/<kind>_<identity>[_to-<addressee>].txt`
 (`carried_relpath(kind, identity, to)`, whose version is the one the
 manifest's format entry names as `fixtures_version` — a paste stays under
-the version that printed it across a pin bump, never copied), landed
+the version that printed it when the floor moves, never copied), landed
 CRLF→LF with both hashes in the README. Since 0.4.51 a version's
 `carried/` also holds the **source of its recordings**: the recorder's
 paste-back, `probe-output_<slug>.txt`, landed the same way, from which the
@@ -351,14 +453,18 @@ player, a double that replays a recording (`RecordedUnlock`,
 temp root (`tests/helpers.py` `StubBale`, passed as `--bale-root`). `bash` is required: `carry probe`'s tests run real probe scripts,
 each derived from the crafter's recorded scaffold by filling its
 placeholders mechanically (`tests/helpers.py` `filled_probe`). `bale check` is tested against temp roots the tests build
-(`bin/VERSION` at the pin, at another version, and absent), never a
+(`tests/helpers.py` `TempRoots`, each carrying the eight schema fixtures
+unless it says otherwise: `bin/VERSION` at the floor, above it (0.4.52),
+far above it (0.4.100), below it (0.4.49 and 0.4.46), unparsable, absent;
+at the floor with one schema altered, and with no `schemas/`), never a
 real install, and every CLI subprocess runs with `TWINE_BALE_ROOT`
 pinned to a temp directory so a bale on `PATH` cannot leak into a
 verdict. The probe the tests run ends before the recorded scaffold's
 clipboard tail (§10.3), which would hand the block to a `bale` on PATH;
 the one test that keeps the tail builds the PATH it runs under. The
 spend verbs (§13), `kill` (§14) and `carry bundle` (§15) read and write
-only temp state directories the tests build, never the real default
+only temp state directories the tests build, and `status` (§4) reads only
+such directories, never the real default
 (§13.9, §14.8, §15.7); no test runs a real `bale unlock`, `bale open` or
 `bale relay` — the kill's tests replay the recorded unlock lines (§14.7),
 `carry bundle`'s the recorded open lines (§15.6), and `carry exchange`'s
@@ -675,23 +781,34 @@ check` resolves it (§5): `--bale-root DIR`, else `TWINE_BALE_ROOT`, else
 `command -v bale` followed to its real path and up. No root found is a
 refusal; so, since session 5b, is a current directory that no longer
 exists when `--cwd` is not given; a root with no runnable `bin/bale` is learned by starting it,
-also a refusal (`ran` false). The installed `bin/VERSION` is reported
-beside the pin in `bale` (`executable`, `root`, `source`, `installed`,
-`pin`, `pin_matches`).
+also a refusal (`ran` false). What is known of the install is reported
+in `bale`: `executable`, `root`, `source`, `installed`, `floor`,
+`floor_admits` (whether `installed` is at or above the floor, compared as a
+tuple; null when either is unknown or does not parse) and `schemas_match`
+(whether every schema the manifest pins is installed with its hash; null
+when the gate never looked) — `pin` and `pin_matches` until session
+`2026-10-12-twine-pin-floor-002`, and neither key now.
 
-**The pin gates** (D2; decided by session
-`2026-10-03-twine-transitions-004`, superseding carry-bale-002's
-report-only reading). Both verbs refuse, before bale is started, a bale
-whose `bin/VERSION` is not the pin, one whose `bin/VERSION` cannot be
-read, and any bale when the pin itself is unknown: `ok` false, `ran`
-false, exit 1, the reason in `refusals` beside any other
-(`twine.bale.Executable.drive_refusal`). The transition table (§12)
-keys on the pinned version's outcome and closure vocabularies; a bale of
-another version may answer in a spelling the table has no move for,
-which is the surprise D17 rules out. Upgrading is a pin bump — a
-session that re-reads the vocabularies (§6) — never ambient. There is
-no override flag. `bale check` and `status` are unchanged: they report
-the mismatch; they drive nothing.
+**The gate** (D2; decided by session `2026-10-03-twine-transitions-004`,
+superseding carry-bale-002's report-only reading; a floor since session
+`2026-10-12-twine-pin-floor-002`, D2 as amended at the sitting
+`2026-10-08-open-arc2-003`, where it was an exact pin). Both verbs drive
+exactly the installs `bale check` admits (§5) and refuse every other
+before bale is started: one below the floor, one whose `bin/VERSION`
+cannot be read or does not parse as three dotted integers, one whose
+installed schemas are missing or do not hash as `[bale.schemas]` pins
+them, and any bale when the floor itself is unknown (the manifest
+unusable) — `ok` false, `ran` false, exit 1, the reason, in the floor's
+words, in `refusals` beside any other (`twine.bale.Executable.drive_refusal`,
+which reads `bale check`'s own verdict, so the two cannot disagree). The
+transition table (§12) keys on bale's outcome and closure vocabularies:
+the floor is the version they were read at, the schema hashes hold the
+two schema-homed ones fixed above it, and the key check on each line
+(§6) catches a listed key gone. A bale the gate refuses may answer in a
+spelling the table has no move for, which is the surprise D17 rules out.
+Raising the floor is a recording session (§6, §16) — never ambient. There
+is no override flag. `bale check` and `status` report the verdict; they
+drive nothing.
 
 bale runs in `--cwd DIR` (default: the current
 directory — the repo whose session the block or tarball belongs to),
@@ -731,7 +848,10 @@ reaches twine's stderr, and the JSON `stderr`.
   byte-identical to what the flagless form printed, and its `sid` is the
   argument as given.
 - **ok** exactly when bale exits 0 and its stdout is one JSON object
-  whose `outcome` is `"relayed"`, whose `sid` is the block's sid, and
+  carrying every key the manifest lists for the relay surface (`outcome`,
+  `sid`, `block`, `cause`; §6's key check, since session
+  `2026-10-12-twine-pin-floor-002`), whose `outcome` is `"relayed"`, whose
+  `sid` is the block's sid, and
   whose `block` is a non-empty string that twine can **vouch for** —
   the block bale hands back is the one the courier carries next, so it is
   held to what twine asked of the block it carried in (since session
@@ -749,7 +869,8 @@ reaches twine's stderr, and the JSON `stderr`.
   that it timed out or was capped); on `relay-refused`, bale's `cause`,
   quoted whole — the only account of why; twine names it and never
   dispatches on its wording, which bale documents as its stderr text and
-  free to change; an outcome other than `relayed` — `re-emitted` named as
+  free to change; a listed key absent from the line (§6, the key and the
+  surface named); an outcome other than `relayed` — `re-emitted` named as
   having recorded nothing (twine always passes the block, so it should
   never see one), any other value named as one twine does not know; a
   `sid` that is not the block's; a `block` that is null, not a string, or
@@ -815,9 +936,12 @@ the line that applies it. **It never applies anything** (T12).
   refusal is surfaced, never admitted. The path is absolute, so it can
   never read as a flag.
 - **ok** exactly when bale exits 0 and its stdout is one JSON object
-  whose `outcome` is `"dry-run"`. Otherwise not ok, exit 1, the reason
-  naming what bale said — its exit status, its outcome, or that its
-  stdout was not one JSON object — bale's stderr surfaced; no traceback.
+  carrying the key the manifest lists for the apply surface (`outcome`;
+  §6's key check, since session `2026-10-12-twine-pin-floor-002`) whose
+  `outcome` is `"dry-run"`. Otherwise not ok, exit 1, the reason naming
+  what bale said — its exit status, a listed key absent (named, with the
+  surface), its outcome, or that its stdout was not one JSON object —
+  bale's stderr surfaced; no traceback.
   Under `--dry-run` bale 0.4.51 documents three answers
   (`format_apply_json`'s docstring, unchanged since 0.4.45): `dry-run`
   with exit 0; `scope-drift-refused`, `required-check-refused` or
@@ -896,7 +1020,15 @@ blocks in one string, prose or a blank line around the block, no block,
 the crafter's light block, the block naming another sid — and blocks
 `tests/test_carry_bale.py` builds by hand for `no-body` and
 `body-not-json`, each named as not bale's; one is replayed end to end
-through `StubBale`. For the dry run, the other two
+through `StubBale`. So is every line that lacks a key the manifest lists
+(since session `2026-10-12-twine-pin-floor-002`, §6's key check; bale
+prints every key on every outcome, so no recording shows one): the relayed
+recording with one listed key deleted — absent, not null — each of
+`outcome`, `sid`, `block` and `cause`, and two at once, one replayed end to
+end through `StubBale`; the recorded dry run with `outcome` deleted; and,
+to prove an extra key is free, each with a key bale never printed added —
+`tests/helpers.py` `drop_key`, every such line named as not bale's. For
+the dry run, the other two
 `*-refused` outcomes, every HOLD, non-zero exit and timeout are doubles
 in the tests, named as such, never a file under `fixtures/`; a
 recording replaces one. The doubles speak bale's spellings (since session
@@ -932,8 +1064,8 @@ Four axes, rendered in this order:
 
 | axis | keys | source |
 |---|---|---|
-| `telemetry-outcome` | the pinned bale's 13 telemetry outcomes (0.4.51's; unchanged since 0.4.45) | §6 `[[vocabulary]]` |
-| `closure-reason` | the pinned bale's 9 closure reasons (0.4.51's; unchanged since 0.4.45; `null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
+| `telemetry-outcome` | the 13 telemetry outcomes of the bale at the floor (0.4.51's; unchanged since 0.4.45, and held fixed above the floor by the schema's pinned hash) | §6 `[[vocabulary]]` |
+| `closure-reason` | the 9 closure reasons of the bale at the floor (0.4.51's; unchanged since 0.4.45, held as above; `null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
 | `apply-outcome` | the 9 outcomes `bale apply --json` prints | §6 `[[vocabulary]]` |
 | `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `cap-reached`, `killed`, `cap-unchecked` (13; the last added by session 5b) | the table's `keys` |
 
@@ -965,7 +1097,7 @@ line, no traceback, and each fault a problem naming what is at fault:
 |---|---|
 | `missing-row` | the axis and key with no row |
 | `duplicate-row` | the axis and key with more than one |
-| `unknown-key` | a row's axis and key that is not one of the axis's keys — on a bale axis, "not one of bale <pin>'s spellings" |
+| `unknown-key` | a row's axis and key that is not one of the axis's keys — on a bale axis, "not one of bale <floor>'s spellings" |
 | `unknown-axis` | a row's axis no `[axis.*]` declares |
 | `undeclared-move` | the row's axis and key, and the move it names |
 | `malformed-move` | a move without exactly one actor of the three, or without a description: it is not declared |
@@ -988,8 +1120,10 @@ One line (§3), `command` `"transitions"`. Fixed names:
 
 And beside them: `table` (the file read), `written_against` (the bale
 version the table's bale axes are spelled for — still `0.4.49` at the
-0.4.51 pin, since the table was left untouched when the vocabularies did
-not move; reported beside `pin`, never gated on), `pin` (the manifest's),
+0.4.51 floor, since the table was left untouched when the vocabularies did
+not move; reported beside `floor`, never gated on), `floor` (the
+manifest's; `pin` until session `2026-10-12-twine-pin-floor-002`, and no
+`pin` key now),
 `axes` (each `name`, `source`, `home`, `means`, `keys`), `counts`
 (`axes`, `keys`, `rows`, `moves`), `unused_moves` (declared moves no row
 names — reported, not a fault).
@@ -1323,15 +1457,18 @@ signal sent, no bale started:
 - `--grace` is not a finite, non-negative number of seconds of at most 600
   (a named refusal, not a usage error).
 
-A bale that is absent, unreadable or not the pin is **not a refusal**
-(session 5c, the sitting's correction to 5b, on the worker's reading of
-D15: the kill must work when the harness itself is wedged, and a bale
-install drifted off the pin is one of the ways it can be; the pin exists
-for the closure's vocabulary, D17, not for the signal). The bale is still
-located first, so the `bale` object reports what was found on every path,
-but `refusals` stays empty on its account: the abort request is written
-and the recorded groups are signalled and waited for, exactly as with the
-pin. **The pin gates the closure alone** — `close_aborted` checks
+A bale that is absent, unreadable or one the gate refuses (§11.1: below
+the floor, a version that does not parse, schemas that do not hash as
+pinned; not the pin, until session `2026-10-12-twine-pin-floor-002`) is
+**not a refusal** (session 5c, the sitting's correction to 5b, on the
+worker's reading of D15: the kill must work when the harness itself is
+wedged, and an install the gate refuses is one of the ways it can be; the
+gate exists for the closure's vocabulary, D17, not for the signal). The
+bale is still located first, so the `bale` object reports what was found
+on every path, but `refusals` stays empty on its account: the abort
+request is written and the recorded groups are signalled and waited for,
+exactly as with an admitted bale. **The gate gates the closure alone** —
+`close_aborted` checks
 `Executable.drive_refusal` itself and fails without starting bale (§14.5)
 — so such a kill ends `stopped_at` `"closure"`, `closed` false, `ok` false,
 exit 1, with the drive refusal in `reason` and the unlock line as
@@ -1361,7 +1498,7 @@ A missing SID is argparse's usage error (exit 2, nothing on stdout, §3).
    request still lands), never a guess at a pgid.
 3. **Close the session in bale with `aborted`** (§14.5) — only when the
    abort request stands and no process of any recorded group is alive (or
-   none was recorded), and only with the pinned bale (§14.1). **No closure
+   none was recorded), and only with a bale the gate admits (§14.1). **No closure
    is attempted while a member of a killed group is alive**: a record that
    says `aborted` while the worker's shell still runs is the mystery D15
    forbids.
@@ -1377,7 +1514,7 @@ names the first step that did not complete — `abort`, `process` or
 | `process`, the record malformed — on the first read, or on the re-read | `null` — no one line finishes it safely: the record names no group (or a group registered meanwhile may be unknown), and the reason says to find and stop the session's runtime before closing it |
 | `abort` (the request could not be written), no group alive | the unlock line; the reason says the abort request is missing |
 | `closure`, bale refused because the session reached HOLD (its line's `outcome` is `unlock-refused` and its `reason` is `hold-branch`) | `bale revert <sid>` — bale's own remedy, which touches git and so stays the operator's; **twine never runs `revert`** |
-| `closure`, any other refusal, a timeout, a line that was not the close, or a bale that is absent or not the pin | `bale unlock <sid> --reason aborted` (run in the repo whose session it is) |
+| `closure`, any other refusal, a timeout, a line that was not the close (one lacking a listed key among them), or a bale that is absent or that the gate refuses | `bale unlock <sid> --reason aborted` (run in the repo whose session it is) |
 | nothing (ok), or `refused` | `null` — nothing is left, or nothing was done: fix the named fault and run `twine kill` again |
 
 Requesting the abort is idempotent. Running `twine kill` again after a
@@ -1542,12 +1679,13 @@ outside this record, as it is outside the runner's reach.
 
 ### 14.5 The closure: `bale unlock <sid> --reason aborted --json`
 
-Run through the seam (§10.6), with the pinned bale (§11.1), in `--cwd`
-(default: the current directory — the repo whose session SID is), with
-twine's environment, stdin `/dev/null`, a 120-second timeout and a 1 MiB
-stdout cap, and only with the pinned bale: `close_aborted` checks the pin
-itself (`Executable.drive_refusal`) and fails without starting a bale that
-is not the pin, so the loop cannot reach one by forgetting the gate. **This
+Run through the seam (§10.6), with a bale the gate admits (§11.1), in
+`--cwd` (default: the current directory — the repo whose session SID is),
+with twine's environment, stdin `/dev/null`, a 120-second timeout and a 1
+MiB stdout cap, and only with a bale the gate admits: `close_aborted`
+checks the gate itself (`Executable.drive_refusal`) and fails without
+starting a bale it refuses — below the floor, or schemas that do not hash
+as pinned — so the loop cannot reach one by forgetting the gate. **This
 is the only `unlock` argv twine builds**
 (`twine.bale.unlock_argv`; a test asserts no other code builds one): the
 sid always explicit — `bale unlock` with no sid closes whichever one session
@@ -1556,7 +1694,12 @@ is open — the reason always `aborted` — without it bale infers
 a HOLD branch, never another flag, and **never a retry**. `bale unlock`
 performs no git operation and merges nothing (T12 is untouched).
 
-**ok** exactly when bale exits 0 and its stdout is one JSON object whose
+**ok** exactly when bale exits 0 and its stdout is one JSON object carrying
+every key the manifest lists for the unlock surface (`outcome`, `sid`,
+`closure_reason`, `telemetry`, `reason`, `message`, `open_sessions`; §6's
+key check, since session `2026-10-12-twine-pin-floor-002` — a line lacking
+one is not ok, `ran` true, the key and the surface named beside whatever
+else the line fails, and the hand line chosen as below) whose
 `outcome` is `"unlocked"`, whose `sid` is SID and whose `closure_reason` is
 `"aborted"`; its `telemetry` (the closure record's repo-relative path, or
 null) is reported. Otherwise not ok: bale's exit, its stderr and what its
@@ -1579,8 +1722,9 @@ other reason, any other line or none (since session
 `2026-10-07-twine-kill-reason-002`; before it the HOLD refusal was told by
 the text `branch bale/<sid> exists` on stderr). bale's stderr is still
 captured, reported (`stderr`, `stderr_truncated`) and passed through —
-evidence, never a key. twine drives no bale but the pin, which prints the
-line on every refusal, so there is no text fallback. A closure that timed
+evidence, never a key. twine drives no bale the gate refuses, and every
+bale it admits prints the line on every refusal, so there is no text
+fallback. A closure that timed
 out may or may not have closed the session; the reason says so, and `bale
 status` is how to tell.
 
@@ -1659,7 +1803,12 @@ the line's `reason` (§14.5), and the recorded HOLD stderr — which carries
 the text the hand line was once keyed on — changes nothing. A test that
 proves stderr passes through and decides nothing may still feed bytes it
 names as not bale's (`RecordedUnlock(stderr=…)`, `StubBale(stderr=…)`, an
-empty stderr among them), as `RecordedUnlock(stdout=…)` does for stdout.
+empty stderr among them), as `RecordedUnlock(stdout=…)` does for stdout —
+which, since session `2026-10-12-twine-pin-floor-002`, also feeds the
+key check (§14.5) the recorded close and the HOLD refusal with one listed
+key deleted (`tests/helpers.py` `drop_key`), and the close with a key bale
+never printed added, each named as not bale's: no recording lacks a listed
+key, since bale prints every key on every outcome.
 One fact the tests name where they use it: the refusals were recorded under
 `unlock <sid> --json`, without `--reason aborted`, and are replayed for
 twine's argv on the assumption that bale refuses before the reason
@@ -1696,8 +1845,9 @@ names with the runtime's first. `ProcessStep` carries `runtime` (the
 runtime's `GroupStep`) and `groups` (the additional groups' steps, in
 signalling order); its `dead`, `survivors`, `error` and `alive_groups` are
 the whole's. `close_aborted` takes the seam's runner, so the tests inject a
-double, and the executable as `locate_executable` found it, whose pin it
-checks — the one place the pin is checked (§14.1); the caller has checked
+double, and the executable as `locate_executable` found it, whose gate
+verdict it checks — the one place the kill checks the gate (§14.1); the
+caller has checked
 that no member of any group is alive. `KillReport.as_json()` is the verb's
 payload; a test asserts the verb's JSON equals the function's. Neither
 module spawns a process or reaches a network: bale runs through the runner
@@ -1747,8 +1897,10 @@ false, exit 1, **bale not started**, nothing written:
   name begins with `-` is fine: it is passed by its absolute path;
 - `--cwd` is not a directory, or, without `--cwd`, the current directory no
   longer exists;
-- no bale is found or startable, or its `bin/VERSION` is not the pin
-  (§11.1, unchanged);
+- no bale is found or startable, or the gate refuses it — below the
+  floor, a `bin/VERSION` that cannot be read or does not parse, schemas
+  that do not hash as pinned (§11.1; an exact pin until session
+  `2026-10-12-twine-pin-floor-002`);
 - **without `--check` only:** no state directory resolves (§13.2's rules
   and refusals, `no-state-dir` and `bad-argument`, as `twine spend` and
   `twine kill` resolve it), or the one that resolves exists and is not a
@@ -1785,7 +1937,10 @@ false, exit 1, **bale not started**, nothing written:
 
 ### 15.4 ok, and the in-flight record
 
-**ok** exactly when bale exits 0 and its stdout is one JSON object whose
+**ok** exactly when bale exits 0 and its stdout is one JSON object
+carrying every key the manifest lists for the open surface (`outcome`,
+`sid`, `tarball`, `opener`, `desk`, `bundle`; §6's key check, since session
+`2026-10-12-twine-pin-floor-002`) whose
 `outcome` is `"opened"` or `"second-desk"` (without `--check`) or
 `"rehearsed"` (with it), and, for the first two, whose `sid` is a string
 twine accepts as a sid (`twine.kill.is_sid`, §14.1's rule) and whose
@@ -1794,7 +1949,10 @@ naming what bale said instead — its exit (`bale exited N`), the outcome it
 gave and the one the mode wanted (`bale reported outcome 'rehearsed'; an
 open wants 'opened' or 'second-desk'`, `…; --check wants 'rehearsed'`), a
 missing sid or opener (`bale's opened line has no sid twine accepts`, `…
-has no opener`), a stdout that is not one JSON object, or a line carrying
+has no opener`), a listed key absent from the line (named with the surface;
+after `opened` or `second-desk` the reason adds that the session may be
+open — `bale status` in `--cwd` says which — since no record is written
+for a line twine did not accept), a stdout that is not one JSON object, or a line carrying
 text that is not UTF-8 (a lone-surrogate escape, as a path with non-UTF-8
 bytes prints: twine can neither print nor record it as bale's, so `open`
 shows `?` in its place, `stdout` keeps the raw line, and the reason says
@@ -1927,7 +2085,10 @@ nothing-on-stdout case — bale's refusal at 0.4.49 (BALE.md §6.7 then:
 (`OpenDouble` in `tests/test_carry_bundle.py`), now the case of a bale
 that stopped before writing its line, as do a timeout, a capped stdout, a
 line with an outcome no bale emits (`NOT_A_BALE_OUTCOME`) and a recorded
-line with its `sid`, `opener` or `tarball` edited.
+line with its `sid`, `opener` or `tarball` edited — and, since session
+`2026-10-12-twine-pin-floor-002`, the `opened` and `rehearsed` lines with
+one listed key deleted, and the `opened` line with a key bale never
+printed added (§6's key check), each named as not bale's.
 
 ### 15.7 One function, two faces
 
@@ -1974,17 +2135,20 @@ directory is a temporary one; the in-process runs carry an environment
 with no state variables, so a verb without `--state-dir` refuses rather
 than touch the real default.
 
-## 16. Recording a pin: the recorder and the lander
+## 16. Recording a version (raising the floor): the recorder and the lander
 
-Since session `2026-10-12-twine-pin-051-001` a pin bump is mechanical: one
-probe records every bale surface twine reads, and one tool lands what it
-printed. Neither is a twine verb — they are maintenance tools under `bin/`,
-run by the operator and the worker of a pin bump — and neither changes
-what any verb does.
+Since session `2026-10-12-twine-pin-051-001` a recording session is
+mechanical: one probe records every bale surface twine reads, and one tool
+lands what it printed. Neither is a twine verb — they are maintenance tools
+under `bin/`, run by the operator and the worker of a recording session (a
+pin bump, until session `2026-10-12-twine-pin-floor-002` made the gate a
+floor; under the floor a recording session is needed only when an install
+moves a listed key, a pinned schema or a vocabulary, §6, and it raises the
+floor) — and neither changes what any verb does.
 
 **`bin/twine-record-fixtures [SLUG]`** — the recorder: a bash probe (its
 header `# PROBE twine-record-fixtures: …`, so `take` reads it as one), run
-from `~/twine-src` with the to-be-pinned bale on PATH, whose paste-back is
+from `~/twine-src` with the bale to be recorded on PATH, whose paste-back is
 one `=== PROBE BEGIN <slug> ===` … `=== PROBE END <slug> ===` block with
 the integrity trailer. `SLUG` defaults to `twine-record-<installed
 bin/VERSION>`; anything but lowercase letters, digits, `.` and `-` is
@@ -2037,17 +2201,23 @@ script is in). Then:
   around them the worker's to write.
 - **with `--check`** it writes nothing and exits 0 exactly when every
   derived file is in the tree byte-exact, no other file sits under
-  `fixtures/bale-<V>/`, `fixtures/README.md` carries each derived row
+  `fixtures/bale-<V>/` — its `schemas/` subdirectory aside (since session
+  `2026-10-12-twine-pin-floor-002`: the installed schemas the gate hashes,
+  §7, which no recording derives and `tests/test_fixtures.py` holds to
+  their own rows) — `fixtures/README.md` carries each derived row
   exactly, and the carried row carries the paste's line endings, bytes and
   hashes (for the landed LF paste, the CRLF form it arrived in: every LF
   turned back into CRLF); otherwise exit 1, naming the first difference.
   Exit 2 is a usage error or a paste that cannot be read.
 
-**The bump procedure**, the session that moves the pin:
+**The recording procedure**, the session that raises the floor (§6 says
+when one is needed; until session `2026-10-12-twine-pin-floor-002`, the
+session that moved the pin):
 
 1. The operator runs the recorder from `~/twine-src` with the new bale on
    PATH — `bin/twine-record-fixtures > <slug>.txt` — and attaches the
-   paste-back to the pin-bump worker's chat.
+   paste-back to the recording worker's chat, with the new version's
+   eight `schemas/*.json` when their hashes moved.
 2. The worker runs the lander on the attachment, which lands the
    recordings, the siblings and the paste under `fixtures/bale-<V>/` and
    prints the rows and the manifest lines.
@@ -2056,10 +2226,12 @@ script is in). Then:
    and each surface's `fixture` and `also_recorded` in
    `share/bale-consumption.toml` — the surface's `fixture` the recording of
    twine's own argv.
-4. The worker bumps `[bale] pin` and every `written_against`, re-reads the
-   vocabularies (a probe, or bale-src's context tarball, `read_at` saying
-   which) and moves `PIN` in `tests/helpers.py` and whatever the
-   recordings' facts move in the tests and this contract.
+4. The worker raises `[bale] floor` to `<V>` and every `written_against`,
+   lands the version's schemas byte-exact under `fixtures/bale-<V>/schemas/`
+   (with their README table) and sets `[bale.schemas]` to their hashes,
+   re-reads the vocabularies (a probe, or bale-src's context tarball,
+   `read_at` saying which) and moves `FLOOR` in `tests/helpers.py` and
+   whatever the recordings' facts move in the tests and this contract.
 5. The suite runs, and `bin/twine-land-recordings --check
    fixtures/bale-<V>/carried/probe-output_<slug>.txt` exits 0 from the tree
    root — the session's `validation.sh` runs it, and the checkpoint may.

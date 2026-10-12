@@ -31,7 +31,12 @@ here), and then:
                     worker to place (nothing else in the tree is edited);
   with --check      writes nothing, and exits 0 exactly when every
                     derived file is in the tree byte-exact, no other file
-                    sits under fixtures/bale-<V>/, and fixtures/README.md
+                    sits under fixtures/bale-<V>/ (its schemas/
+                    subdirectory aside: the installed schemas the gate
+                    hashes, landed there byte-exact since session
+                    2026-10-12-twine-pin-floor-002, which no recording
+                    derives — tests/test_fixtures.py holds them to their
+                    own rows), and fixtures/README.md
                     carries each derived row exactly (the carried row by
                     its bytes and hashes); otherwise exit 1 naming the
                     first difference.
@@ -466,8 +471,13 @@ def check(paste: Paste, version: str, tree: Path) -> None:
                           f"{hashlib.sha256(have).hexdigest()}; the paste: {len(data)}, "
                           f"{hashlib.sha256(data).hexdigest()})")
     directory = tree / "fixtures" / f"bale-{version}"
+    # The schemas the gate hashes sit beside the recordings under the floor's
+    # directory but are not the recorder's: they are landed byte-exact on
+    # their own and held to their own rows, so the paste derives none of them.
+    schemas = rule.schemas_relpath_at(version) + "/"
     extra = sorted(p.relative_to(tree).as_posix() for p in directory.rglob("*")
-                   if p.is_file() and p.relative_to(tree).as_posix() not in files)
+                   if p.is_file() and p.relative_to(tree).as_posix() not in files
+                   and not p.relative_to(tree).as_posix().startswith(schemas))
     if extra:
         raise Refusal(f"{extra[0]} is under fixtures/bale-{version}/ but the paste does not "
                       "derive it")

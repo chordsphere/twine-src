@@ -1,6 +1,9 @@
 """`twine status`: twine's own facts; ok is about twine, not bale — nor,
 since session 5c, about whether its state directory resolves or exists, nor,
-since session twine-status-inflight (0.11.0), about what `inflight/` holds."""
+since session twine-status-inflight (0.11.0), about what `inflight/` holds.
+Since session 2026-10-12-twine-pin-floor-002, `floor` replaces `pin` (null
+when the manifest is unusable) and `bale` is `bale check`'s object, the
+schema verdict included."""
 
 from __future__ import annotations
 
@@ -15,7 +18,7 @@ from unittest import mock
 
 from twine import CONSUMPTION_MANIFEST, FIXTURES_DIR, __version__, inflight
 
-from tests.helpers import PIN, TempRoots, run_cli, run_inprocess
+from tests.helpers import ABOVE, FLOOR, TempRoots, run_cli, run_inprocess
 
 
 class Status(unittest.TestCase):
@@ -37,12 +40,30 @@ class Status(unittest.TestCase):
         self.assertEqual(run.code, 0)
         self.assertEqual(obj["version"], __version__)
         self.assertEqual(obj["python"], platform.python_version())
-        self.assertEqual(obj["pin"], PIN)
+        self.assertEqual(obj["floor"], FLOOR)
+        self.assertNotIn("pin", obj)
+        self.assertEqual(obj["ok_reason"], "manifest parses and the floor resolves")
         self.assertEqual(Path(obj["consumption_manifest"]), CONSUMPTION_MANIFEST)
         self.assertEqual(Path(obj["fixtures"]), FIXTURES_DIR)
         self.assertTrue(obj["fixtures_present"])
         self.assertEqual(obj["bale"]["ok"], True)
-        self.assertEqual(obj["bale"]["installed"], PIN)
+        self.assertEqual(obj["bale"]["installed"], FLOOR)
+        self.assertEqual(set(obj["bale"]), {"floor", "installed", "root", "source",
+                                            "schemas", "ok", "reason"})
+        self.assertEqual((obj["bale"]["floor"], obj["bale"]["schemas"]["ok"]), (FLOOR, True))
+
+    def test_a_bale_above_the_floor_is_ok_inside(self):
+        """0.4.52, the operator's install when the floor landed, with every
+        schema as pinned: the check inside says ok."""
+        obj = json.loads(run_cli("status", "--json", bale_root=self.roots.above).stdout)
+        self.assertEqual((obj["ok"], obj["bale"]["ok"], obj["bale"]["installed"]),
+                         (True, True, ABOVE))
+
+    def test_a_bad_schema_rides_inside_and_status_stays_ok(self):
+        run = run_cli("status", "--json", bale_root=self.roots.bad_schema)
+        obj = json.loads(run.stdout)
+        self.assertEqual((run.code, obj["ok"], obj["bale"]["ok"]), (0, True, False))
+        self.assertEqual(obj["bale"]["schemas"]["mismatched"], [TempRoots.ALTERED_SCHEMA])
 
     def test_bale_mismatch_rides_inside_and_status_stays_ok(self):
         run = run_cli("status", "--json", bale_root=self.roots.other)
@@ -56,6 +77,8 @@ class Status(unittest.TestCase):
         obj = json.loads(run.stdout)
         self.assertEqual((run.code, obj["ok"]), (1, False))
         self.assertIsNone(obj["bale"])
+        self.assertIsNone(obj["floor"])
+        self.assertNotIn("pin", obj)
         self.assertIn("unusable", obj["ok_reason"])
 
     def test_human_rendering(self):
@@ -64,6 +87,8 @@ class Status(unittest.TestCase):
         self.assertEqual(run.stdout.split("\n")[0], f"twine {__version__}")
         self.assertIn(str(CONSUMPTION_MANIFEST), run.stdout)
         self.assertIn(str(FIXTURES_DIR), run.stdout)
+        self.assertIn(f"floor:                {FLOOR}", run.stdout)
+        self.assertNotIn("pin:", run.stdout)
 
 
 STATE_KEYS = ("state_dir", "state_dir_source", "state_dir_reason", "state_dir_exists",
@@ -366,6 +391,23 @@ class InflightRecords(unittest.TestCase):
                          [".twine-123-456.tmp is not an in-flight record: it is the temp file "
                           "of a record write still in progress, or of one that did not "
                           "finish"])
+
+    def test_the_temp_name_is_kills_exported_test_never_a_copy(self):
+        """Session 2026-10-12-twine-pin-floor-002 (status-inflight-004's
+        proposal): twine.kill exports is_temp_name beside _temp_name, and
+        twine.inflight uses it instead of restating the shape — so a name
+        _temp_name gives is one is_temp_name accepts, and inflight keeps no
+        regex of its own."""
+        from twine import kill
+        given = kill._temp_name(self.state / "inflight" / f"{SID}.json").name
+        self.assertTrue(kill.is_temp_name(given), given)
+        self.assertTrue(kill.is_temp_name(".twine-123-456.tmp"))
+        for name in (f"{SID}.json", ".twine-x-456.tmp", "twine-1-2.tmp", ".twine-1-2.tmp.json",
+                     ".twine-1-2.tmpx", ""):
+            with self.subTest(name=name):
+                self.assertFalse(kill.is_temp_name(name))
+        self.assertIs(inflight.is_temp_name, kill.is_temp_name)
+        self.assertFalse(hasattr(inflight, "_TEMP_NAME"))
 
     def test_names_that_cannot_be_printed_are_shown_as_their_repr_and_never_a_traceback(self):
         """A newline, or bytes that are not UTF-8, in a file name: both
