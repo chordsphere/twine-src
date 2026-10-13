@@ -1,0 +1,178 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-13-twine-seed-tidy9-005",
+  "created_at": "2026-10-13T15:01:00+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-13T15:01:00+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "twine-seed.md"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-13-twine-seed-tidy9-005.log",
+      "bundle": {
+        "stem": "2026-10-13-twine-seed-tidy9",
+        "brief_sha256": "bc4b9aaeefd7fdd35644e3b131a3b2bc7dccdc9b9d5379ea5a2764aecb588987",
+        "checkpoint_sha256": "bb48f9f3e7f14dd482a3568a6e716998990a203c6e140e92b0674322e70c5894",
+        "manifest_sha256": "39cdbfb7eb0027598fef402406c188c44de135bd1d8e0647d2f779e03981befb"
+      },
+      "provenance": {
+        "work_class": "contract-doc",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-13T15:01:00+00:00"
+      }
+    },
+    {
+      "at": "2026-10-13T15:08:02+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-13-twine-seed-tidy9-005.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "twine-seed.md landed: eight blocks verbatim at anchors, 1698 lines, reversal gives base": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine-seed.md sha256 is the landed hash": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION untouched (0.19.0)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "python3 -I -B -m unittest discover -s tests -t .": {
+            "value": "pass",
+            "claim_basis": "predicted"
+          }
+        },
+        "claim_verdict": {},
+        "reconciliation_parsed": false,
+        "validation_will_run": [
+          "twine-seed.md landed: eight blocks verbatim at anchors, 1698 lines, reversal gives base",
+          "twine-seed.md sha256 is the landed hash",
+          "HEAD:twine-seed.md is the base (afbc1bee...)",
+          "VERSION untouched (0.19.0)",
+          "python3 -I -B -m unittest discover -s tests -t ."
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "twine-seed.md"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "twine-seed.md"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "f41c405455a0f1eda48c48c6bf47a5bcd3cb08213ece2a1270c4799f479c65e7",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "contract-doc",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-13-twine-seed-tidy9-005.sh",
+              "sha256": "bb48f9f3e7f14dd482a3568a6e716998990a203c6e140e92b0674322e70c5894"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-13T15:01:00+00:00",
+            "base_files": {
+              "twine-seed.md": "afbc1bee9ac96435dfc0f36c4baeb406064c23f80c5eda9185291ec5a7d8cb45"
+            },
+            "model_identity": "anthropic:unknown"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "The suite claim is predicted: tests/ is not shipped, and per the brief only test_spend.py's no-prices scan reads the seed and no block carries a [model.\"...\"] table."
+          ],
+          "judgment_calls": [
+            "Blocks were sliced from the brief's fences by script and the result matched the brief's stated landed hash and line count, so no reflow or judgment on wording was needed.",
+            "validation.sh pins each fence's sha256 and checks anchors by unique line text rather than by base line numbers, since it runs on the landed tree."
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md",
+            "README.md",
+            "TARBALL.md"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-13-twine-seed-tidy9-005.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-13-twine-seed-tidy9-005.sh",
+          "sha256": "bb48f9f3e7f14dd482a3568a6e716998990a203c6e140e92b0674322e70c5894"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-13T15:08:02+00:00",
+  "outcome": "applied"
+}
