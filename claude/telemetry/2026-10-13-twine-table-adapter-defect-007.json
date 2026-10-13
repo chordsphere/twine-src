@@ -1,0 +1,367 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-13-twine-table-adapter-defect-007",
+  "created_at": "2026-10-13T16:19:36+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-13T16:19:36+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "share/transitions.toml",
+        "tests",
+        "twine/commands/run.py",
+        "twine/commands/transitions.py",
+        "twine/kill.py",
+        "twine/runtime/boundary.py",
+        "twine/runtime/loop.py",
+        "twine/spend.py",
+        "twine/transitions.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-13-twine-table-adapter-defect-007.log",
+      "bundle": {
+        "stem": "2026-10-13-twine-table-adapter-defect",
+        "brief_sha256": "3bd3374c137348080a0fb9204262544e57de46f2fa4d87d697d9b52d2e83fdda",
+        "checkpoint_sha256": "2be7a8616502c4958a5f866754a57748e38f09d317be751333cf29f7d7d9103b",
+        "manifest_sha256": "f3ffc00f0346e739f288717630f29c49750e213f7dfbf1b11f08eb5947efee6a"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-13T16:19:36+00:00"
+      }
+    },
+    {
+      "at": "2026-10-13T16:51:22+00:00",
+      "outcome": "opened",
+      "command": "open",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "share/transitions.toml",
+        "tests",
+        "twine/commands/run.py",
+        "twine/commands/transitions.py",
+        "twine/kill.py",
+        "twine/runtime/boundary.py",
+        "twine/runtime/loop.py",
+        "twine/spend.py",
+        "twine/transitions.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-13-twine-table-adapter-defect-007.log",
+      "bundle": {
+        "stem": "2026-10-13-twine-table-adapter-defect",
+        "brief_sha256": "3bd3374c137348080a0fb9204262544e57de46f2fa4d87d697d9b52d2e83fdda",
+        "checkpoint_sha256": "2be7a8616502c4958a5f866754a57748e38f09d317be751333cf29f7d7d9103b",
+        "manifest_sha256": "f3ffc00f0346e739f288717630f29c49750e213f7dfbf1b11f08eb5947efee6a"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-13T16:19:36+00:00"
+      },
+      "desk": "desk-2"
+    },
+    {
+      "at": "2026-10-13T17:25:47+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-13-twine-table-adapter-defect-007.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "transition table facts: adapter-defect key, loop key, row, fix-adapter, continue-turn description": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine transitions --json is ok": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "no stop key spelled under twine/runtime/": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "the loop reads adapter-defect from one spelling and the table's row": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "test suite (python3 -I -B -m unittest discover -s tests -t .), at least 1027 tests": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is 0.20.0": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "docs reconciled with the loop (runtime-contract \u00a71.6 and \u00a77.4, cli-contract \u00a712 and \u00a718, the table header)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "untouched: fixtures/, twine-seed.md, bin/twine, share/bale-consumption.toml": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "transition table facts: adapter-defect key, loop key, row, fix-adapter, continue-turn description": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine transitions --json is ok": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "no stop key spelled under twine/runtime/": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "the loop reads adapter-defect from one spelling and the table's row": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "test suite (python3 -I -B -m unittest discover -s tests -t .), at least 1027 tests": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is 0.20.0": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "docs reconciled with the loop (runtime-contract \u00a71.6 and \u00a77.4, cli-contract \u00a712 and \u00a718, the table header)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "untouched: fixtures/, twine-seed.md, bin/twine, share/bale-consumption.toml": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "transition table facts: adapter-defect key, loop key, row, fix-adapter, continue-turn description",
+          "twine transitions --json is ok",
+          "no stop key spelled under twine/runtime/",
+          "the loop reads adapter-defect from one spelling and the table's row",
+          "test suite (python3 -I -B -m unittest discover -s tests -t .), at least 1027 tests",
+          "VERSION is 0.20.0",
+          "docs reconciled with the loop (runtime-contract \u00a71.6 and \u00a77.4, cli-contract \u00a712 and \u00a718, the table header)",
+          "untouched: fixtures/, twine-seed.md, bin/twine, share/bale-consumption.toml"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "share/transitions.toml",
+        "tests",
+        "twine/commands/run.py",
+        "twine/commands/transitions.py",
+        "twine/kill.py",
+        "twine/runtime/boundary.py",
+        "twine/runtime/loop.py",
+        "twine/spend.py",
+        "twine/transitions.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "share/transitions.toml",
+        "tests/test_run.py",
+        "tests/test_runtime.py",
+        "tests/test_spend.py",
+        "tests/test_transitions.py",
+        "twine/runtime/boundary.py",
+        "twine/runtime/loop.py",
+        "twine/transitions.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "f41c405455a0f1eda48c48c6bf47a5bcd3cb08213ece2a1270c4799f479c65e7",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-13-twine-table-adapter-defect-007.sh",
+              "sha256": "2be7a8616502c4958a5f866754a57748e38f09d317be751333cf29f7d7d9103b"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-13T16:19:36+00:00",
+            "base_files": {
+              "VERSION": "06c53dd4f22b2e0038ca2bb9af32cc1ab7e69898d99cc3bfa22bd965f21aac8f",
+              "claude/INDEX.md": "549482c9daf473b34db6a2af873f9df532ead734e00e60fcdef7afeb3ada4644",
+              "claude/context/cli-contract.md": "93e180c8bbc45708ce3c043d031ed17d4798196e3be5b5b2f144e6332f3db561",
+              "claude/context/runtime-contract.md": "1eb874be769b167f016b8829fa20e498411e7f3b7ff72e9cabe51371c6214336",
+              "share/transitions.toml": "39e484adcccf89748f95033844dc73a9840d51cf391f0a6b52b430384b8f8a08",
+              "tests/__init__.py": "da9ec3674b853000d66df5ad9a760a6e427d7937e243a83b5c94a5488306b597",
+              "tests/fixture_rule.py": "6b2c4973f0691cefc118becb828b8a17a9bc1a6d1d3ddbde8fc345c422d120da",
+              "tests/helpers.py": "c45d9c018d88533d6f45e22a5647a58d204c1534e6591ff50880097285aafb84",
+              "tests/test_anthropic.py": "d433455d83241a572ed7809353a4326dde69a916eb9f2dd75a028211d15b433d",
+              "tests/test_anthropic_live.py": "2492d048ed4eeed3865685d1501314242f00f08a7505a38f0cf22ecc01f2b506",
+              "tests/test_bale_check.py": "3cdc0df367c834478f35a8b13890796384780190c5dff5d03fe9d613ec5c74d9",
+              "tests/test_carry.py": "cbe14252ae6f7e84f4c5f8b57258d0933aad532ad2ed9ded9a0c711a35ab8f04",
+              "tests/test_carry_bale.py": "d3eee8f8dbd700a484fc0e7e1f96d716f1e16a32003314ba8a20e8a7a7ed2de3",
+              "tests/test_carry_bundle.py": "d8f933cc28b8e286b7dc8c9b0a80cb316d3fad5b8d2c047b139b1ad7cbe43996",
+              "tests/test_consumption_manifest.py": "74a89398ff9134624c6dee7265e910f280e8eafc801dbcff1303c6397aadccfe",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "f6de88313563db773e97073a294b26b724f85485c10964a69d15556264a0ba76",
+              "tests/test_json_discipline.py": "482c914c8e712d6aa2345b1a34dde3d09b60552884d912a66921031014ae8340",
+              "tests/test_kill.py": "7493780e5f77f8ebf0585889ca663d1688ad661f7c8b2c2740f6c989b5a0dc26",
+              "tests/test_process.py": "1d28dbe63393504cddb9c497d306d6009cea3676a8ee6f217575ba61f0ac3d71",
+              "tests/test_provider_lander.py": "c7b75241bb219d27bab8a35e60956e0141ebb50dc86e93ce2b936dc8b87224fc",
+              "tests/test_recordings.py": "f60db5c3184de02345bd270ee9b8a7ff1a73271a381f7976a115027da2079d7e",
+              "tests/test_registry.py": "ca0a0b761f2d7a1e5a760f288f9930ec0f933ad8b9394684901981b60029d043",
+              "tests/test_run.py": "c5a99475c0aeb3c819a60878c9c14faa0461e99ec05c5a7782e9493f0c2defe7",
+              "tests/test_runtime.py": "d6e0e2e96d8881dd2e1f5bb571416aa6a920be4c819165d0aaf4e8c37ee589cc",
+              "tests/test_runtime_tools.py": "c36e93187684b6d905b167bd77ddc90edb1901401a8c99609a4bc3106d98abbb",
+              "tests/test_spend.py": "688356c3a095921296cb711c4f317dbcffd991c104224edc70e17444817d0e07",
+              "tests/test_status.py": "d043912d644406ac9111d2f25c3bf7f9bf4be9022654dd0b682bca93309f09f7",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "d44bf005021ea95c35d22fb5b15f920b6b3ebf67cf0fb17b10736dc8b47a0305",
+              "twine/commands/run.py": "c6fd60f57ed70511f552f86522580e6559dc29b5eb00f41dc5102f08f705ccdd",
+              "twine/commands/transitions.py": "3378746b2609874c84df206a4b8527016d19a2d58851d4494de9982669646174",
+              "twine/kill.py": "77668bd3b36f35a27c2bc7912de8701b1cdbe7752a9851b8bec228c212c4bc76",
+              "twine/runtime/boundary.py": "dcf374b9f02b0187e8eceb2d3f5d58e06bf5272e6771582b0da9a405ba2370c0",
+              "twine/runtime/loop.py": "257f2ce8d46ec872c09ff0ed92dee5e1776258dd126a6da7205d3bd3e49956f3",
+              "twine/spend.py": "a8e4154434bf3acccd5f9a27d10151d81372f3911cbf9e46980e6a6fe70d7d7a",
+              "twine/transitions.py": "9456ff9278a3252338becb98ed2b5bffb939f72b95e92c99885cb9c028669c43"
+            },
+            "model_identity": "anthropic:unknown"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "adapter-defect is appended last in the stop axis's keys and in loop_keys (the brief left the order to me)",
+            "an adapter's exception of any type, not only the three the brief names, is an adapter defect \u2014 the loop already caught Exception on that path",
+            "twine-seed.md is absent from context, so its 'untouched' check is the manifest's changes[] rather than a hash"
+          ],
+          "judgment_calls": [
+            "the key's one spelling lives in twine.transitions as STOP_ADAPTER_DEFECT (not under twine/runtime/, and not spend.py or kill.py, which belong to the cost spine and the kill-switch)",
+            "MoveBook.faults also refuses a table lacking any of the loop's four keys as loop_keys with a declared-move row \u2014 beyond the brief, flagged in notes.md and cheap to drop",
+            "the project README.md's stale 'fifteen keys / three loop_keys' sentence is left alone (outside the forecast) and proposed in notes.md",
+            "cli-contract.md's '46 rows over 27 moves' sentence is updated to 47 and 28 although the brief did not list it, because the table's counts changed"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "AGENT.md (whole core, META through 11.2)",
+            "README.md (the session brief)",
+            "TARBALL.md sections 5, 7 and 10.1",
+            "claude/context/runtime-contract.md sections 1.5, 1.6, 7.4, 7.7 (read through the brief's quotation of it, then the file for the edits)",
+            "claude/context/cli-contract.md sections 12, 18.2 to 18.5 (the passages that count the stop axis)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-13-twine-table-adapter-defect-007.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-13-twine-table-adapter-defect-007.sh",
+          "sha256": "2be7a8616502c4958a5f866754a57748e38f09d317be751333cf29f7d7d9103b"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-13T17:25:47+00:00",
+  "outcome": "applied"
+}
