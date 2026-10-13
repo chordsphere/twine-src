@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Blind checkpoint — twine-src session `twine-runtime-window` (Arc 2 R5:
 # window accounting and cold resume), authored at sitting
-# 2026-10-13-open-milestone-2-006, v1.
+# 2026-10-13-open-milestone-2-006, v2 — the HOLD of 2026-10-13: v1's request
+# fixture carried no crafter, which the brief's clarification form needs
+# (the tarball is written through request/tools/craft_response.py); v2's
+# request carries the crafter copy the tree holds. Nothing else changed.
 #
 # Outcome contracts only (PLANNER.md §4), graded through the verbs'
 # surfaces — `twine run`, `twine resume`, `twine runtime list` — with
@@ -293,13 +296,30 @@ def write_stub_bale(base: Path, request_tarball: Path) -> tuple[Path, Path]:
     return root, calls
 
 
+def crafter_copies() -> dict[str, bytes]:
+    """The request-carried tools a worker's cage holds (bale's crafter and
+    lint), taken from the copy the tree keeps for its own tests — any path
+    under tests/ named craft_response.py / response_lint.py. The brief pins
+    that escalate's clarification form writes its tarball through the
+    request-carried crafter, so the oracle's request must carry one; a tree
+    with no copy fails this probe by name."""
+    out: dict[str, bytes] = {}
+    for name in ("craft_response.py", "response_lint.py"):
+        found = sorted(p for p in (ROOT / "tests").rglob(name) if p.is_file())
+        if found:
+            out[name] = found[0].read_bytes()
+    return out
+
+
 def write_request(base: Path) -> Path:
     tarball = base / "request-oracle.tar.gz"
     manifest = json.dumps({"session_id": "2026-10-08-sc-002", "goal": "the oracle's request"})
+    members = [("request-001/manifest.json", manifest.encode("utf-8"))]
+    members += [(f"request-001/tools/{name}", data) for name, data in crafter_copies().items()]
     with tarfile.open(tarball, "w:gz") as tf:
-        data = manifest.encode("utf-8")
-        info = tarfile.TarInfo("request-001/manifest.json"); info.size = len(data)
-        tf.addfile(info, io.BytesIO(data))
+        for name, data in members:
+            info = tarfile.TarInfo(name); info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
     return tarball
 
 
@@ -376,6 +396,10 @@ for p in resume_problems(twin1, twin2, transcript_lines(state, sid)):
     failures.append(f"resume: {p}")
 
 # (d) the clarification form of escalate: a tarball the courier dry-runs.
+if "craft_response.py" not in crafter_copies():
+    failures.append("clarification: the tree holds no craft_response.py under tests/ for the "
+                    "oracle's request to carry (the brief's clarification form writes its "
+                    "tarball through the request-carried crafter)")
 twin, state, repo, calls = run_case(
     "clarify", [tool_turn("escalate", {"questions": [QUESTION], "blocking": True}, 10)])
 manifest = None
