@@ -9,22 +9,33 @@
 # Landed by session 2026-10-03-twine-transitions-004 against bale 0.4.45;
 # moved to bale 0.4.49 by session 2026-10-07-twine-pin-049-001, which
 # re-read the three vocabularies (consumption manifest) and found every
-# axis unchanged — no row here gained or lost a key.
+# axis unchanged — no row here gained or lost a key. Session
+# 2026-10-13-twine-runtime-anthropic-002 (Arc 2 R2) set `written_against` to
+# the floor, 0.4.51 — the version the bale axes' vocabularies were last
+# re-read at (pin-051), unchanged value for value since 0.4.45 — gave the
+# stop axis its two provider keys (`request-refused`, `provider-error`) and
+# its `loop_keys`, and wrote the first provider's mapping (Anthropic) as
+# [[mapping]] rows at the foot of the file.
 # twine/transitions.py loads and checks it; `twine transitions [--json]`
 # renders it; tests/test_transitions.py fails by name on any key without a
 # row. The table reads no bale install: its three bale axes take their
 # keys from the [[vocabulary]] entries of share/bale-consumption.toml
-# (twine's own record of bale's spellings, read by probe at the pin), and
+# (twine's own record of bale's spellings, read by probe at the floor), and
 # its fourth axis, `stop`, is twine's own vocabulary, declared here.
 #
 # Shape:
 #   [table]          written_against: the bale version the bale axes' keys
-#                    are spelled for (equal to the manifest's pin)
+#                    are spelled for (the manifest's floor: the version the
+#                    vocabularies were re-read at)
 #   [axis.<name>]    one per axis, in rendering order (`order`):
 #                    source  "bale" — the keys are the consumption manifest's
 #                                     [[vocabulary]] entry with this axis;
 #                            "twine" — the keys are `keys`, below
 #                    keys    (source = "twine" only) the vocabulary, in order
+#                    loop_keys  (the `stop` axis only) the keys the loop
+#                            produces and no model adapter may: a subset of
+#                            `keys`; the boundary refuses a turn an adapter
+#                            stops with one of them
 #                    means   what a key on this axis names
 #   [move.<name>]    one per move:
 #                    actor        exactly one of "twine", "operator", "planner"
@@ -36,13 +47,35 @@
 #                    grounds      where the move comes from (a ruling, a doc)
 #   [[row]]          one per (axis, key): axis, key, move, and `means` — what
 #                    that key names, in a phrase.
+#   [[mapping]]      a provider's word onto the stop axis — the only place a
+#                    provider's word becomes twine's (runtime-contract §1.5):
+#                    provider  the adapter's provider ("anthropic")
+#                    on        what the word is: "stop_reason" (the message's
+#                              stop_reason), "error_type" (an error body's or
+#                              an SSE error event's error.type), "status" (an
+#                              HTTP status, three digits), or "condition" — a
+#                              condition twine names itself because the
+#                              provider has no word for it (a socket timeout, a
+#                              connection error, a stream cut short, an SSE
+#                              error of a type no row lists, a stop_reason or
+#                              an HTTP status no row lists, a body that is not
+#                              the documented shape); every provider maps
+#                              every condition
+#                    word      the provider's spelling, verbatim
+#                    stop      a key of the stop axis, never one of its
+#                              loop_keys — or, instead of `stop`,
+#                    continues = true: the turn goes on (it asked for tools)
+#                    means     what the word names, in a phrase
+#                    One mapping per (provider, on, word); `twine transitions`
+#                    names every fault, and the adapter refuses to start on a
+#                    table whose mapping for its provider has one.
 #
 # A pin bump re-reads the vocabularies into the manifest; a key bale adds
 # then has no row here, and `twine transitions` says so by name until one
 # is written (D4's mechanical diff, carried through to the moves).
 
 [table]
-written_against = "0.4.49"
+written_against = "0.4.51"
 
 # ---------------------------------------------------------------------------
 # Axes
@@ -66,8 +99,9 @@ means = "the outcome `bale apply --json` prints — what twine meets through `ca
 [axis.stop]
 order = 4
 source = "twine"
-means = "how a worker turn stops on the API side of twine's runtime (Arc 2), in twine's own names: each model adapter maps its provider's stop reasons onto these when the loop is built, verified against the SDK then, never named here from memory"
-keys = ["end-turn", "max-tokens", "model-refusal", "window-exhausted", "rate-limited", "overloaded", "network-failure", "timeout", "tool-error", "malformed-shape", "cap-reached", "killed", "cap-unchecked"]
+means = "how a worker turn stops on the API side of twine's runtime (Arc 2), in twine's own names: each model adapter's provider words map onto these through the [[mapping]] rows below (Anthropic's verified against the wire the architect recorded on 2026-10-13), never named in code"
+keys = ["end-turn", "max-tokens", "model-refusal", "window-exhausted", "rate-limited", "overloaded", "network-failure", "timeout", "tool-error", "malformed-shape", "request-refused", "provider-error", "cap-reached", "killed", "cap-unchecked"]
+loop_keys = ["cap-reached", "cap-unchecked", "killed"]
 
 # ---------------------------------------------------------------------------
 # Moves
@@ -157,6 +191,11 @@ actor = "operator"
 description = "The pre-call check could not run, so the call was not made and nothing was spent; the operator fixes the fault the refusal names — writes the missing price row, repairs the named stream line, names a state directory — and resumes the session, never by raising the cap."
 grounds = "D15 (refuse loudly, never degrade silently); session 2026-10-03-twine-cost-spine-005's Proposal 'A stop key for a cap that cannot be checked', ratified at sitting 2026-10-03-continue-twine-006 (ruling 4)"
 
+[move.fix-request]
+actor = "operator"
+description = "The provider refused the request itself — its shape, the credentials, the account or the model named — so nothing is retried; the operator is told the provider's error type and message and fixes the request or the credentials before the session is resumed or closed."
+grounds = "Arc 2 R2's brief (e): HTTP 400, 401, 402, 403, 404, 409 and 413 — twine's request or credentials are wrong, nothing is retried"
+
 # --- the planner's: a decision about the work ---
 
 [move.revert-and-repack]
@@ -210,7 +249,7 @@ description = "The planner splits the goal at a seam and packs the first piece, 
 grounds = "AGENT.md §11.2 and §11.5; D17's annotation (exhaustion is an outcome, not a background event)"
 
 # ---------------------------------------------------------------------------
-# Rows — telemetry-outcome (bale 0.4.49, 13; unchanged since 0.4.45)
+# Rows — telemetry-outcome (bale 0.4.51, the floor, 13; unchanged since 0.4.45)
 # ---------------------------------------------------------------------------
 
 [[row]]
@@ -292,7 +331,7 @@ move = "re-carry-exchange"
 means = "`bale relay` exited non-zero; no round was recorded"
 
 # ---------------------------------------------------------------------------
-# Rows — closure-reason (bale 0.4.49, 9, unchanged since 0.4.45; null is "not closed", not a key)
+# Rows — closure-reason (bale 0.4.51, the floor, 9, unchanged since 0.4.45; null is "not closed", not a key)
 # ---------------------------------------------------------------------------
 
 [[row]]
@@ -350,7 +389,7 @@ move = "release-to-planner"
 means = "the session was killed (the kill-switch's closure, D15)"
 
 # ---------------------------------------------------------------------------
-# Rows — apply-outcome (bale 0.4.49, 9; unchanged since 0.4.45)
+# Rows — apply-outcome (bale 0.4.51, the floor, 9; unchanged since 0.4.45)
 # ---------------------------------------------------------------------------
 
 [[row]]
@@ -408,7 +447,7 @@ move = "repack-on-new-base"
 means = "the base-drift gate refused (exit 1, session open; also under --dry-run)"
 
 # ---------------------------------------------------------------------------
-# Rows — stop (twine's own, 13)
+# Rows — stop (twine's own, 15)
 # ---------------------------------------------------------------------------
 
 [[row]]
@@ -469,7 +508,19 @@ means = "a tool the model called failed (§4.3 provider axis)"
 axis = "stop"
 key = "malformed-shape"
 move = "respawn-from-request"
-means = "the turn's output fails the strict parser: a malformed shape (§4.3; §4.2's text tool protocol)"
+means = "the turn's output fails the strict parser: a malformed shape (§4.3; §4.2's text tool protocol) — or, since Arc 2 R2, a provider's answer in a shape twine never asked for (an unlisted stop_reason or HTTP status, a body that is not the documented message)"
+
+[[row]]
+axis = "stop"
+key = "request-refused"
+move = "fix-request"
+means = "the provider refused the request itself — its shape, the credentials, billing, permission, the model, a conflict or the size (HTTP 400, 401, 402, 403, 404, 409, 413); nothing is retried (Arc 2 R2)"
+
+[[row]]
+axis = "stop"
+key = "provider-error"
+move = "retry-with-backoff"
+means = "the provider failed on its own side (HTTP 500 api_error), retried with backoff like an overload (Arc 2 R2)"
 
 [[row]]
 axis = "stop"
@@ -488,3 +539,273 @@ axis = "stop"
 key = "cap-unchecked"
 move = "fix-and-resume"
 means = "the cost spine's pre-call check could not run — an unpriced model, a malformed or unreadable stream, an absent or malformed price file, no state directory, a bad argument — so the call was not made (D15; added by session 5b)"
+
+# ---------------------------------------------------------------------------
+# Mappings — Anthropic's words onto the stop axis (Arc 2 R2; the Messages
+# API as recorded on 2026-10-13: fixtures/anthropic/, runtime-contract §5).
+# Read by twine.transitions.provider_mapping("anthropic"); the adapter's
+# stop_key and error_key look words up here and spell no stop key in code.
+# An HTTP error's status decides its key (the error_type rows are for SSE
+# error events, which arrive inside a 200); the error.type and its message
+# are kept in the turn's reason, never dispatched on.
+# ---------------------------------------------------------------------------
+
+# --- stop_reason ---
+
+[[mapping]]
+provider = "anthropic"
+on = "stop_reason"
+word = "end_turn"
+stop = "end-turn"
+means = "the model finished its turn"
+
+[[mapping]]
+provider = "anthropic"
+on = "stop_reason"
+word = "tool_use"
+continues = true
+means = "the model asked for tools: the turn goes on with their results"
+
+[[mapping]]
+provider = "anthropic"
+on = "stop_reason"
+word = "max_tokens"
+stop = "max-tokens"
+means = "the output reached max_tokens"
+
+[[mapping]]
+provider = "anthropic"
+on = "stop_reason"
+word = "refusal"
+stop = "model-refusal"
+means = "the model or its classifier refused (an HTTP 200; stop_details kept in the reason)"
+
+[[mapping]]
+provider = "anthropic"
+on = "stop_reason"
+word = "model_context_window_exceeded"
+stop = "window-exhausted"
+means = "the context window ran out"
+
+[[mapping]]
+provider = "anthropic"
+on = "stop_reason"
+word = "stop_sequence"
+stop = "malformed-shape"
+means = "a stop sequence matched — twine sends none, so a shape it never asked for"
+
+[[mapping]]
+provider = "anthropic"
+on = "stop_reason"
+word = "pause_turn"
+stop = "malformed-shape"
+means = "a server tool paused the turn — twine offers no server tools, so a shape it never asked for"
+
+# --- status ---
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "400"
+stop = "request-refused"
+means = "invalid_request_error: the request is malformed"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "401"
+stop = "request-refused"
+means = "authentication_error: the key is wrong"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "402"
+stop = "request-refused"
+means = "billing_error: the account cannot pay"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "403"
+stop = "request-refused"
+means = "permission_error: the key may not do this"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "404"
+stop = "request-refused"
+means = "not_found_error: the model or the path does not exist"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "409"
+stop = "request-refused"
+means = "conflict_error"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "413"
+stop = "request-refused"
+means = "request_too_large"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "429"
+stop = "rate-limited"
+means = "rate_limit_error; retry-after when the header is sent"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "500"
+stop = "provider-error"
+means = "api_error: the provider's own failure"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "504"
+stop = "timeout"
+means = "timeout_error: the provider timed out"
+
+[[mapping]]
+provider = "anthropic"
+on = "status"
+word = "529"
+stop = "overloaded"
+means = "overloaded_error"
+
+# --- error_type ---
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "invalid_request_error"
+stop = "request-refused"
+means = "the request is malformed (an SSE error event, or an error body read without its status)"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "authentication_error"
+stop = "request-refused"
+means = "the key is wrong"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "billing_error"
+stop = "request-refused"
+means = "the account cannot pay"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "permission_error"
+stop = "request-refused"
+means = "the key may not do this"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "not_found_error"
+stop = "request-refused"
+means = "the model or the path does not exist"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "conflict_error"
+stop = "request-refused"
+means = "a conflict"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "request_too_large"
+stop = "request-refused"
+means = "the request is too large"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "rate_limit_error"
+stop = "rate-limited"
+means = "rate limited"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "api_error"
+stop = "provider-error"
+means = "the provider's own failure"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "timeout_error"
+stop = "timeout"
+means = "the provider timed out"
+
+[[mapping]]
+provider = "anthropic"
+on = "error_type"
+word = "overloaded_error"
+stop = "overloaded"
+means = "the provider is overloaded"
+
+# --- condition ---
+
+[[mapping]]
+provider = "anthropic"
+on = "condition"
+word = "socket-timeout"
+stop = "timeout"
+means = "the socket timed out before the provider answered, or mid-stream"
+
+[[mapping]]
+provider = "anthropic"
+on = "condition"
+word = "connection-error"
+stop = "network-failure"
+means = "the connection failed: refused, reset, a TLS error, a broken HTTP exchange"
+
+[[mapping]]
+provider = "anthropic"
+on = "condition"
+word = "stream-cut"
+stop = "network-failure"
+means = "the event stream ended before message_stop"
+
+[[mapping]]
+provider = "anthropic"
+on = "condition"
+word = "unclassified-stream-error"
+stop = "network-failure"
+means = "an SSE error event whose error.type no error_type row lists"
+
+[[mapping]]
+provider = "anthropic"
+on = "condition"
+word = "unlisted-stop-reason"
+stop = "malformed-shape"
+means = "a stop_reason no stop_reason row lists — a shape twine never asked for; the reason names the word"
+
+[[mapping]]
+provider = "anthropic"
+on = "condition"
+word = "unlisted-status"
+stop = "malformed-shape"
+means = "an HTTP status no status row lists; the reason names the status, never a guess at a nearer key"
+
+[[mapping]]
+provider = "anthropic"
+on = "condition"
+word = "malformed-body"
+stop = "malformed-shape"
+means = "a 200 whose body is not JSON or SSE, or not the documented shape: a message without content, stop_reason or usage, a content block of an unknown type, a usage the mapping refuses"

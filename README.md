@@ -77,7 +77,15 @@ Arc 1 (the courier) session 1 landed twine's core:
   next and who does it (twine, the operator or the planner). No default
   case. `twine transitions` renders it and is ok only when every key of
   every axis has a row and every row's move is declared; it reads no
-  bale install.
+  bale install. Since Arc 2 R2 (0.17.0) the stop set has fifteen keys —
+  `request-refused` (the provider refused the request; the operator fixes
+  it, nothing is retried) and `provider-error` (retried with backoff) are
+  new — and names its three `loop_keys` (`cap-reached`, `cap-unchecked`,
+  `killed`: the loop's, never an adapter's); the table's
+  `written_against` is the floor; and the table carries the first
+  provider's mapping — every Anthropic stop reason, HTTP status and error
+  type, and the conditions no provider word names, each onto a stop key —
+  as `[[mapping]]` rows the adapter reads.
 - `spend totals` and `spend check` (session 5a): the cost spine (D15).
   Twine's usage record is an append-only stream,
   `spend.jsonl` in twine's state directory (`--state-dir`, else
@@ -125,13 +133,13 @@ Arc 1 (the courier) session 1 landed twine's core:
   never reverts, merges or applies anything. Nothing records a running
   group yet (the runtime is Arc 2's), so today a kill requests the abort
   and closes the session.
-- `runtime list` and `runtime show` (Arc 2 R1, 0.16.0): the runtime's
+- `runtime list` and `runtime show` (Arc 2 R1, 0.16.0; R2, 0.17.0): the runtime's
   first foundations, under `twine/runtime/`. Every runtime operation is a
   named **capability** with a declared contract — one module per
   capability under `twine/runtime/capabilities/`, listed by
   `twine/runtime/capabilities.toml` — eight of them: `tool-calling`,
-  `thinking` and `usage-accounting` *implemented*, `prompt-caching`,
-  `window-accounting`, `streaming`, `sandboxing` and `suspend-resume`
+  `thinking`, `usage-accounting`, `prompt-caching` and `streaming`
+  *implemented*, `window-accounting`, `sandboxing` and `suspend-resume`
   *declared* (their contracts written, nothing implementing them yet).
   `twine runtime list` renders the registry and is ok only when the
   declaration and the directory agree by name and every entry loads — a
@@ -141,15 +149,22 @@ Arc 1 (the courier) session 1 landed twine's core:
   model adapter implements — tool calls, thinking fixed at spawn, usage as
   the cost spine's five token classes, and a stop that is always a key of
   the transition table's `stop` axis, read from the table and spelled
-  nowhere else. One adapter is registered, `fake`: a scripted transport
-  the tests drive and nothing else does. And the first provider usage
-  mapping, `from_anthropic`, held to the Messages API `usage` object the
-  architect recorded on 2026-10-08 (`fixtures/anthropic/`). Nothing calls
-  a model yet: nothing reaches a network or reads a key. R2 adds the
-  Anthropic adapter (the SDK an optional extra inside it, and the key),
-  R3 the canonical tools and the sandbox their calls run in, and R4 the
-  loop — `twine run <bundle>` — which appends each call's usage to the
-  spend stream and checks the cap before the next. The contract is
+  nowhere else (and never one of the loop's keys). Two adapters are
+  registered: `fake`, a scripted transport the tests drive and nothing
+  else does, and since R2 **`anthropic`** — the Messages API over the
+  standard library (no SDK), through a transport seam the tests feed
+  recorded bytes and, in use, `twine/runtime/transport.py`, the only place
+  twine opens a socket. It reads `ANTHROPIC_API_KEY` from the environment
+  it is given and puts it in the `x-api-key` header and nowhere else;
+  builds each request with three prompt-cache breakpoints; reads JSON and
+  streamed answers alike; and maps every stop reason and error through the
+  transition table's rows. It is held to fifteen exchanges the architect
+  recorded on 2026-10-13 (`fixtures/anthropic/`), and `from_anthropic`, the
+  usage mapping, to those and to the 2026-10-08 usage object. Nothing calls
+  a model on its own yet: R3 adds the canonical tools and the sandbox their
+  calls run in, and R4 the loop — `twine run <bundle>` — which retries with
+  backoff, appends each call's usage to the spend stream and checks the cap
+  before the next. The contract is
   [`claude/context/runtime-contract.md`](claude/context/runtime-contract.md).
 - `share/bale-consumption.toml` — the floor (`0.4.51`: twine drives any
   bale at or above it whose installed schemas hash as pinned — an exact
@@ -170,13 +185,20 @@ Arc 1 (the courier) session 1 landed twine's core:
   eight `schemas/*.json` the gate hashes, under `fixtures/bale-0.4.51/schemas/`,
   byte-exact; the only bale the tests ever see. Earlier versions'
   recordings stay as history. Since Arc 2 R1, `fixtures/anthropic/` holds
-  provider recordings under a rule of their own — the one so far the
-  Messages API `usage` object `from_anthropic` is held to.
+  provider recordings under a rule of their own — the Messages API `usage`
+  object `from_anthropic` is held to, and since R2 the wire of 2026-10-13:
+  fifteen requests and responses (four of them streams), each with a meta
+  file, and the probe's paste-back they were landed from.
 - `bin/twine-record-fixtures` and `bin/twine-land-recordings` — the
   recorder and the lander a recording session runs: the probe that records every
   bale surface twine reads, stdout and stderr, and the tool that lands its
   paste-back under `fixtures/bale-<version>/` (or, with `--check`, proves
   the tree still holds exactly it). Not twine verbs; contract §16.
+- `bin/twine-land-provider-recordings` (Arc 2 R2) — their sibling for a
+  model provider's wire: lands a provider-recording probe's paste-back
+  under `fixtures/anthropic/` (or, with `--check`, proves the tree and
+  `fixtures/README.md`'s rows still hold exactly it).
+  `runtime-contract.md` §5.9.
 - `tests/` — the stdlib `unittest` suite.
 
 Stdlib only; python 3.11 or newer. The courier reads (`take`), runs a
@@ -188,8 +210,8 @@ way a runtime turn will stop. The cost spine records spend, totals it and
 checks the hard cap before a call, and the kill-switch can stop a session
 from outside and close it `aborted`; nothing makes a call yet. twine does
 not yet dispatch on the table. The runtime (Arc 2) has its capability
-registry, its adapter boundary and a fake adapter for the tests; no model
-adapter, sandbox or loop yet.
+registry, its adapter boundary, a fake adapter for the tests and the
+Anthropic adapter; no sandbox or loop yet.
 
 ## Running it
 
@@ -222,6 +244,7 @@ maintenance tools beside them:
 bin/twine-record-fixtures [SLUG] > paste-back.txt       # in ~/twine-src, the new bale on PATH: record every surface
 python3 -I -S -B bin/twine-land-recordings paste-back.txt          # land it under fixtures/bale-<version>/, print the rows
 python3 -I -S -B bin/twine-land-recordings fixtures/bale-0.4.51/carried/probe-output_twine-051-record.txt --check
+python3 -I -S -B bin/twine-land-provider-recordings fixtures/anthropic/carried/twine-anthropic-record-2026-10-13.txt --check
 ```
 
 `-I -S` (isolated, no site-packages) is how the entrypoint is meant to
@@ -252,7 +275,14 @@ exercised against temp roots the tests build, each carrying the schema
 fixtures so the gate admits it as it admits your install, and the recorded
 outputs under `fixtures/` — with doubles, named as such, for the bale
 outputs nobody has recorded yet — stand in for a live bale. A `bale` on
-your `PATH` is never the one a test runs.
+your `PATH` is never the one a test runs. Nor does a test reach a model:
+the Anthropic adapter's tests replay the recordings under
+`fixtures/anthropic/`. The one live call is a smoke test you run by hand,
+skipped unless both gates are open:
+
+```
+TWINE_LIVE_SMOKE=1 ANTHROPIC_API_KEY=… python3 -B -m unittest discover -s tests -t . -p test_anthropic_live.py -v
+```
 
 ## Where things are
 

@@ -52,6 +52,13 @@ PINNED_STOPS = ["end-turn", "max-tokens", "model-refusal", "window-exhausted",
 # one session 5b added: cap-unchecked, the pre-call check that could not
 # run (cost-spine-005's Proposal, ratified at continue-twine-006).
 ADDED_STOPS = ["cap-reached", "killed", "cap-unchecked"]
+# The two provider keys Arc 2 R2 added (its brief (e), (f)), placed after the
+# ten so the provider's keys sit together and the loop's stay last.
+R2_STOPS = ["request-refused", "provider-error"]
+# The stop axis in the table's order since R2.
+STOPS = PINNED_STOPS + R2_STOPS + ADDED_STOPS
+# The keys the loop produces and no adapter may (R1's Proposal 3, accepted).
+LOOP_KEYS = ["cap-reached", "cap-unchecked", "killed"]
 
 
 def raw_table() -> dict:
@@ -166,9 +173,12 @@ class TheTableIsTotal(unittest.TestCase):
         self.assertNotIn(None, load().axis("closure-reason").keys)
         self.assertNotIn("null", load().axis("closure-reason").keys)
 
-    def test_the_table_is_written_against_a_version_the_floor_keeps(self):
+    def test_the_table_is_written_against_the_floor(self):
         """The table's `written_against` is the bale version its bale axes'
-        keys were spelled for. The pin bump to 0.4.51 (session
+        keys were spelled for — since Arc 2 R2 the manifest's floor, 0.4.51,
+        the version the vocabularies were last re-read at (pin-051), and the
+        table's header comment says floor, not pin. History: the pin bump to
+        0.4.51 (session
         2026-10-12-twine-pin-051-001) left share/transitions.toml untouched
         by the request's constraint, so it still says 0.4.49 — and that
         stays true to what the table keys on: the three vocabularies the pin
@@ -180,9 +190,15 @@ class TheTableIsTotal(unittest.TestCase):
         Since session 2026-10-12-twine-pin-floor-002 (renamed from
         test_the_table_is_written_against_a_version_the_pin_keeps) the
         manifest's version is the floor, which the table reports as `floor`;
-        the vocabularies did not move, so the table is untouched again."""
+        the vocabularies did not move, so the table is untouched again. R2
+        (renamed from test_the_table_is_written_against_a_version_the_floor_
+        keeps) owned the table and restated it at the floor."""
         table = load()
-        self.assertEqual((table.written_against, table.floor), ("0.4.49", FLOOR))
+        self.assertEqual((table.written_against, table.floor), (FLOOR, FLOOR))
+        self.assertEqual(FLOOR, "0.4.51")
+        header = TRANSITIONS_TABLE.read_text(encoding="utf-8").split("\n[table]\n", 1)[0]
+        self.assertNotIn("equal to the manifest's pin", header)
+        self.assertIn("the manifest's floor", header)
         self.assertEqual({axis: v["values"] for axis, v in load_manifest().vocabularies.items()},
                          BALE_VOCABULARIES)
         self.assertTrue(table.ok, [p.message for p in table.problems])
@@ -248,10 +264,23 @@ class TheMoves(unittest.TestCase):
                 with self.subTest(move=move.name):
                     self.assertNotEqual(move.actor, "twine", move.description)
 
-    def test_the_stop_set_is_the_brief_s_ten_plus_the_three_added(self):
+    def test_the_stop_set_is_the_brief_s_ten_plus_r2_s_two_plus_the_three_added(self):
         stop = list(self.table.axis("stop").keys)
-        self.assertEqual(stop, PINNED_STOPS + ADDED_STOPS)
+        self.assertEqual(stop, STOPS)
         self.assertEqual(self.table.axis("stop").source, "twine")
+        self.assertEqual(list(self.table.axis("stop").loop_keys), LOOP_KEYS)
+
+    def test_the_two_provider_keys_and_their_moves(self):
+        """R2 (f): request-refused is fix-request, the operator's (nothing is
+        retried); provider-error is retry-with-backoff, like an overload."""
+        self.assertEqual(self.rows[("stop", "request-refused")], "fix-request")
+        self.assertEqual(self.rows[("stop", "provider-error")], "retry-with-backoff")
+        move = self.table.moves["fix-request"]
+        self.assertEqual(move.actor, "operator")
+        self.assertIn("nothing is retried", move.description)
+        for key in R2_STOPS:
+            row = next(r for r in self.table.rows if (r.axis, r.key) == ("stop", key))
+            self.assertTrue(row.means.strip(), key)
 
     def test_a_kill_closes_aborted_and_aborted_has_its_own_move(self):
         """D15: a kill leaves an aborted closure; the closure then has a row."""
@@ -318,7 +347,7 @@ class DetectorsFire(unittest.TestCase):
         del data["move"]["retry-with-backoff"]
         named = {p.key for p in self.problems(data) if p.kind == "undeclared-move"}
         self.assertEqual(named, {"rate-limited", "overloaded", "network-failure",
-                                 "timeout"})
+                                 "timeout", "provider-error"})
 
     def test_an_invented_key_on_a_bale_axis_is_named(self):
         """The two spellings carry-bale-002's doubles invented, `refused`
@@ -436,6 +465,180 @@ class DetectorsFire(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 4b. loop_keys and the provider mappings (Arc 2 R2)
+# ---------------------------------------------------------------------------
+
+# Every Anthropic word the brief's mapping table (e) names, with its key —
+# the test's own copy, checked against the table, never derived from it.
+ANTHROPIC_WORDS = {
+    ("stop_reason", "end_turn"): "end-turn",
+    ("stop_reason", "tool_use"): None,
+    ("stop_reason", "max_tokens"): "max-tokens",
+    ("stop_reason", "refusal"): "model-refusal",
+    ("stop_reason", "model_context_window_exceeded"): "window-exhausted",
+    ("stop_reason", "stop_sequence"): "malformed-shape",
+    ("stop_reason", "pause_turn"): "malformed-shape",
+    **{("status", s): "request-refused" for s in ("400", "401", "402", "403", "404", "409",
+                                                    "413")},
+    ("status", "429"): "rate-limited",
+    ("status", "529"): "overloaded",
+    ("status", "500"): "provider-error",
+    ("status", "504"): "timeout",
+    **{("error_type", e): "request-refused"
+       for e in ("invalid_request_error", "authentication_error", "billing_error",
+                 "permission_error", "not_found_error", "conflict_error",
+                 "request_too_large")},
+    ("error_type", "rate_limit_error"): "rate-limited",
+    ("error_type", "overloaded_error"): "overloaded",
+    ("error_type", "api_error"): "provider-error",
+    ("error_type", "timeout_error"): "timeout",
+    ("condition", "socket-timeout"): "timeout",
+    ("condition", "connection-error"): "network-failure",
+    ("condition", "stream-cut"): "network-failure",
+    ("condition", "unclassified-stream-error"): "network-failure",
+    ("condition", "unlisted-stop-reason"): "malformed-shape",
+    ("condition", "unlisted-status"): "malformed-shape",
+    ("condition", "malformed-body"): "malformed-shape",
+}
+
+
+def mapping_of(data: dict, on: str, word: str) -> dict:
+    return next(m for m in data["mapping"] if (m["on"], m["word"]) == (on, word))
+
+
+class LoopKeysAndMappings(unittest.TestCase):
+
+    def test_loop_keys_are_the_loops_three_read_from_the_table(self):
+        with TRANSITIONS_TABLE.open("rb") as fh:
+            raw = tomllib.load(fh)["axis"]["stop"]["loop_keys"]
+        self.assertEqual(raw, LOOP_KEYS)
+        self.assertEqual(list(transitions.loop_keys()), LOOP_KEYS)
+        self.assertLessEqual(set(transitions.loop_keys()), set(transitions.stop_keys()))
+
+    def test_loop_keys_refuses_a_table_without_them_as_stop_keys_refuses(self):
+        """R1's Proposal 3: loop_keys() refuses a table that lacks them, as
+        stop_keys() refuses a table without the axis — and both refuse the
+        same unusable tables."""
+        text = TRANSITIONS_TABLE.read_text(encoding="utf-8")
+        cases = {
+            "no-loop-keys": re.sub(r"\nloop_keys = \[[^\]]*\]\n", "\n", text),
+            "a-stray-loop-key": text.replace('loop_keys = ["cap-reached"',
+                                             'loop_keys = ["halted", "cap-reached"'),
+            "not-a-list": re.sub(r"\nloop_keys = \[[^\]]*\]\n", '\nloop_keys = "killed"\n',
+                                 text),
+            "no-axis": text.replace("[axis.stop]", "[axis.halt]"),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, body in cases.items():
+                with self.subTest(case=name):
+                    self.assertNotEqual(body, text)
+                    path = Path(tmp) / f"{name}.toml"
+                    path.write_text(body, encoding="utf-8")
+                    with self.assertRaises(transitions.TableError) as caught:
+                        transitions.loop_keys(path)
+                    self.assertIn("stop", str(caught.exception))
+            # A stray or malformed loop_keys is also a problem the verb names.
+            for name in ("a-stray-loop-key", "not-a-list"):
+                data = tomllib.loads(cases[name])
+                problems = load(data).problems
+                self.assertIn(("malformed-axis", "stop"),
+                              [(p.kind, p.axis) for p in problems], name)
+
+    def test_a_bale_axis_declares_no_loop_keys(self):
+        data = raw_table()
+        data["axis"]["closure-reason"]["loop_keys"] = ["aborted"]
+        self.assertIn(("malformed-axis", "closure-reason"),
+                      [(p.kind, p.axis) for p in load(data).problems])
+
+    def test_the_anthropic_mapping_is_the_brief_s_table(self):
+        mapping = transitions.provider_mapping("anthropic")
+        got = {(m.on, m.word): m.stop for m in mapping.rows}
+        self.assertEqual(got, ANTHROPIC_WORDS)
+        self.assertEqual(set(mapping.words("condition")), set(transitions.CONDITIONS))
+        for m in mapping.rows:
+            with self.subTest(on=m.on, word=m.word):
+                self.assertTrue(m.means.strip())
+
+    def test_no_mapping_lands_on_a_loop_key_and_every_one_has_a_row(self):
+        table = load()
+        rows = {(r.axis, r.key) for r in table.rows}
+        for m in table.mappings:
+            if m.stop is not None:
+                self.assertNotIn(m.stop, LOOP_KEYS)
+                self.assertIn(("stop", m.stop), rows)
+
+    def test_no_condition_is_a_stop_key(self):
+        """A condition names what happened; the mapping names what it means.
+        Spelled as a stop key, the adapter would spell one in code."""
+        self.assertFalse(set(transitions.CONDITIONS) & set(transitions.stop_keys()))
+
+    def test_the_detectors_fire(self):
+        cases = {
+            "unknown-stop": lambda d: mapping_of(d, "status", "429").update(stop="slowed"),
+            "loop-key-mapped": lambda d: mapping_of(d, "status", "529").update(stop="killed"),
+            "duplicate-mapping": lambda d: d["mapping"].append(
+                dict(mapping_of(d, "status", "500"))),
+            "missing-mapping": lambda d: d["mapping"].remove(
+                mapping_of(d, "condition", "stream-cut")),
+            "malformed-mapping": lambda d: mapping_of(d, "status", "504").update(
+                continues=True),
+        }
+        for kind, edit in cases.items():
+            with self.subTest(kind=kind):
+                data = raw_table()
+                edit(data)
+                problems = load(data).problems
+                self.assertEqual([p.kind for p in problems], [kind],
+                                 [p.message for p in problems])
+                self.assertEqual(problems[0].provider, "anthropic")
+                path = write_table(Path(self._tmp()), data)
+                with self.assertRaises(transitions.TableError) as caught:
+                    transitions.provider_mapping("anthropic", path)
+                self.assertIn("anthropic", str(caught.exception))
+
+    def test_malformed_mapping_shapes_are_each_named(self):
+        bad = [
+            {"provider": "anthropic", "on": "header", "word": "x", "stop": "timeout"},
+            {"provider": "anthropic", "on": "status", "word": "5xx", "stop": "timeout"},
+            {"provider": "anthropic", "on": "condition", "word": "gremlins",
+             "stop": "timeout"},
+            {"provider": "anthropic", "on": "stop_reason", "word": "x"},
+            {"provider": "anthropic", "on": "stop_reason", "word": "x", "stop": "timeout",
+             "continues": True},
+            {"provider": "anthropic", "on": "stop_reason", "word": "x", "stop": "timeout",
+             "weight": 1},
+            {"on": "stop_reason", "word": "x", "stop": "timeout"},
+        ]
+        for entry in bad:
+            with self.subTest(entry=entry):
+                data = raw_table()
+                data["mapping"].append(entry)
+                kinds = [p.kind for p in load(data).problems]
+                self.assertEqual(kinds, ["malformed-mapping"])
+
+    def test_provider_mapping_refuses_a_provider_the_table_does_not_map(self):
+        with self.assertRaises(transitions.TableError) as caught:
+            transitions.provider_mapping("openai")
+        self.assertIn("openai", str(caught.exception))
+
+    def test_a_table_without_mappings_is_still_total(self):
+        """The mappings are beside the rows, not rows: a table with none is
+        ok, and only provider_mapping refuses it."""
+        data = raw_table()
+        del data["mapping"]
+        table = load(data)
+        self.assertTrue(table.ok, [p.message for p in table.problems])
+        path = write_table(Path(self._tmp()), data)
+        with self.assertRaises(transitions.TableError):
+            transitions.provider_mapping("anthropic", path)
+
+    def _tmp(self) -> str:
+        tmp = tempfile.TemporaryDirectory(prefix="twine-mappings-")
+        self.addCleanup(tmp.cleanup)
+        return tmp.name
+
+
+# ---------------------------------------------------------------------------
 # 5. `twine transitions`, the verb
 # ---------------------------------------------------------------------------
 
@@ -472,6 +675,8 @@ def write_table(directory: Path, data: dict) -> Path:
             out += ["", f"[{group}.{json.dumps(name)}]", *scalars(spec)]
     for row in data.get("row", []):
         out += ["", "[[row]]", *scalars(row)]
+    for mapping in data.get("mapping", []):
+        out += ["", "[[mapping]]", *scalars(mapping)]
     path = directory / "transitions.toml"
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
     with path.open("rb") as fh:
@@ -493,8 +698,8 @@ class TheVerb(unittest.TestCase):
         obj = one_line(self, run.stdout)
         self.assertEqual((run.code, obj["ok"], obj["reason"], obj["problems"]),
                          (0, True, None, []))
-        self.assertEqual(len(obj["rows"]), 13 + 9 + 9 + 13)
-        self.assertEqual(obj["counts"]["rows"], 44)
+        self.assertEqual(len(obj["rows"]), 13 + 9 + 9 + 15)
+        self.assertEqual(obj["counts"]["rows"], 46)
         for row in obj["rows"]:
             for key in ("axis", "key", "move"):
                 self.assertIsInstance(row[key], str, row)
@@ -503,11 +708,17 @@ class TheVerb(unittest.TestCase):
             self.assertIsInstance(move["actor"], str, name)
             self.assertIsInstance(move["description"], str, name)
         self.assertEqual([a["name"] for a in obj["axes"]], list(AXES))
-        # The table still says 0.4.49 (untouched at the 0.4.51 pin bump and at
-        # the floor: the vocabularies did not move); the verb reports both and
-        # stays ok. The manifest's version is the floor, reported as `floor`,
-        # and no `pin` key is left (session 2026-10-12-twine-pin-floor-002).
-        self.assertEqual((obj["written_against"], obj["floor"]), ("0.4.49", FLOOR))
+        # The table says the floor since Arc 2 R2 (0.4.49 until then: untouched
+        # at the 0.4.51 pin bump and at the floor); the verb reports both. The
+        # manifest's version is the floor, reported as `floor`, and no `pin`
+        # key is left (session 2026-10-12-twine-pin-floor-002).
+        self.assertEqual((obj["written_against"], obj["floor"]), (FLOOR, FLOOR))
+        stop_axis = obj["axes"][-1]
+        self.assertEqual((stop_axis["name"], stop_axis["loop_keys"]), ("stop", LOOP_KEYS))
+        self.assertEqual(obj["counts"]["mappings"], len(obj["mappings"]))
+        for m in obj["mappings"]:
+            self.assertEqual(set(m), {"provider", "on", "word", "stop", "continues",
+                                      "means", "move"})
         self.assertNotIn("pin", obj)
         self.assertEqual(obj["table"], str(TRANSITIONS_TABLE))
         self.assertNotIn("Traceback", run.stderr)
@@ -515,7 +726,7 @@ class TheVerb(unittest.TestCase):
     def test_rows_render_in_axis_then_vocabulary_order(self):
         obj = one_line(self, run_cli("transitions", "--json").stdout)
         expected = [(a, k) for a in BALE_AXES for k in BALE_VOCABULARIES[a]]
-        expected += [("stop", k) for k in PINNED_STOPS + ADDED_STOPS]
+        expected += [("stop", k) for k in STOPS]
         self.assertEqual([(r["axis"], r["key"]) for r in obj["rows"]], expected)
 
     def test_human_mode_prints_every_row_and_move(self):

@@ -1,0 +1,501 @@
+#!/usr/bin/env python3
+"""twine-land-provider-recordings — land a provider's wire recordings from
+one paste-back.
+
+    bin/twine-land-provider-recordings PASTE [--check] [--tree DIR]
+
+The sibling of bin/twine-land-recordings (bale's recordings, contract §16):
+that one lands what a bale install printed, this one lands what a model
+provider's API answered. PASTE is the paste-back of a provider-recording
+probe — the first is `twine-anthropic-record`, run by the architect on
+2026-10-13 with his own key (claude/context/runtime-contract.md §5.9) —
+one `=== PROBE BEGIN <slug> ===` block holding an `environment` section
+(`date-utc:`, …) and, per recording:
+
+    == rec <name>: <METHOD> <path> status <N> seconds <S>[ note <text>]
+    header <name>: <value>                    (one line per header kept)
+    request-sha256: <hex> bytes <n>           } only when a body was sent
+    request-b64gz: <gzip+base64 of the body>  }
+    response-sha256: <hex> bytes <n>
+    response-b64gz: <gzip+base64 of the body>
+    response-summary: …  response-events: …  (read by no one: a courtesy
+                                              for the eye, not the bytes)
+
+and the `--- integrity: N lines ---` trailer counting the lines between
+the BEGIN line and itself. CRLF line endings (a chat transport's) are
+folded to LF first; nothing else is changed.
+
+The lander refuses — exit 1, one stderr line naming the recording — unless
+the trailer counts the block, every recording's streams decode to the byte
+count and sha256 printed beside them, its name is a plain lowercase word
+(`[a-z0-9_]+`) used once, and its `content-type` header names a body the
+lander knows how to file. It derives, under fixtures/<provider>/ (the
+provider is `anthropic`: the only one recorded):
+
+  <name>.request.json    the request body, when the recording carries one
+  <name>.response.json   the response body when its content-type is
+                         application/json
+  <name>.response.sse    … or text/event-stream
+  <name>.meta.json       one JSON object, one line: method, path, status,
+                         headers (as printed, in order), request_sha256,
+                         response_sha256, recorded_at (the paste's
+                         date-utc) — and beside them name, seconds, note,
+                         request_bytes, response_bytes, request_file,
+                         response_file, probe
+  carried/<slug>-<YYYY-MM-DD>.txt   the paste itself, LF, the date from
+                         date-utc
+
+and then:
+
+  without --check   writes every derived file — refusing to replace a file
+                    that holds other bytes (a recording is never edited; a
+                    new day is new files) — and prints on stdout the
+                    fixtures/README.md rows for the worker to place: one
+                    `| file | bytes | sha256 |` row per file, and the
+                    carried paste's row with the bytes as received;
+  with --check      writes nothing, and exits 0 exactly when every derived
+                    file is in the tree byte-exact and fixtures/README.md
+                    carries each derived file's row exactly (the carried
+                    row's received cells too); otherwise exit 1 naming the
+                    first difference. Files under fixtures/<provider>/ the
+                    paste does not derive (R1's usage recording, a later
+                    probe's) are left alone: another paste is their source.
+
+The bodies land as the wire carried them — no newline added, no
+reformatting — so a reader replaying them reads what the provider sent
+(the SSE recordings' `data:` lines keep their trailing spaces). The key
+the probe sent is in no recording: the probe printed `key: set
+(environment)` and never the value, and the one recording made with a
+bogus key (`error_401`) carries `sk-ant-not-a-key` in nothing it landed.
+
+--tree names the repository to land in or check (default: the one this
+script is in). Exit 2 on a usage error or a paste that cannot be read at
+all. stdlib only; runs under `python3 -I -S -B`; imports nothing from
+twine. Landed by session 2026-10-13-twine-runtime-anthropic-002 (Arc 2 R2).
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import binascii
+import gzip
+import hashlib
+import json
+import os
+import re
+import sys
+import zlib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+REPO_ROOT = Path(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+PROG = "twine-land-provider-recordings"
+# The one provider recorded so far. A second provider's probe would name
+# its own directory; until one exists, the lander files under this one.
+PROVIDER = "anthropic"
+
+BEGIN = re.compile(r"^=== PROBE BEGIN (?P<slug>[A-Za-z0-9._-]+) ===$")
+END = "=== PROBE END {slug} ==="
+TRAILER = re.compile(r"^--- integrity: (?P<n>\d+) lines ---$")
+SECTION = re.compile(r"^--- section: (?P<name>.+) ---$")
+REC = re.compile(r"^== rec (?P<name>\S+): (?P<method>[A-Z]+) (?P<path>/\S*) "
+                 r"status (?P<status>\d{3}) seconds (?P<seconds>\d+(?:\.\d+)?)"
+                 r"(?: note (?P<note>.*))?$")
+NAME = re.compile(r"^[a-z0-9_]+$")
+HEADER = re.compile(r"^header (?P<name>[A-Za-z0-9-]+): (?P<value>.*)$")
+DIGEST = re.compile(r"^(?P<which>request|response)-sha256: (?P<sha>[0-9a-f]{64}) "
+                    r"bytes (?P<bytes>\d+)$")
+COPY = re.compile(r"^(?P<which>request|response)-b64gz: (?P<data>\S+)$")
+COURTESY = ("response-summary: ", "response-events: ")
+DATE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}Z$")
+# The response bodies the lander knows how to file, by the media type of
+# their content-type header (parameters such as charset ignored).
+EXTENSIONS = {"application/json": ".json", "text/event-stream": ".sse"}
+
+ROW_HEADER = "| file | bytes | sha256 |\n|---|---|---|"
+CARRIED_HEADER = "| file | bytes | sha256 | as received |\n|---|---|---|---|"
+ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| (?P<bytes>\d+) \| `(?P<sha>[0-9a-f]{64})` \|"
+                 r"(?: (?P<ending>LF|CRLF) (?P<rbytes>\d+) `(?P<rsha>[0-9a-f]{64})` \|)?$",
+                 re.M)
+
+
+class Refusal(Exception):
+    """The paste, or the tree under --check, is not what the lander can
+    stand behind; the message names the first thing that differs."""
+
+
+@dataclass
+class Recording:
+    """One `== rec` block of the paste, decoded and verified."""
+
+    name: str
+    method: str
+    path: str
+    status: int
+    seconds: str
+    note: str | None
+    headers: dict[str, str] = field(default_factory=dict)
+    request: bytes | None = None
+    response: bytes = b""
+
+    @property
+    def content_type(self) -> str:
+        return self.headers.get("content-type", "")
+
+    @property
+    def extension(self) -> str:
+        media = self.content_type.split(";", 1)[0].strip().lower()
+        ext = EXTENSIONS.get(media)
+        if ext is None:
+            raise Refusal(f"recording {self.name}: content-type {self.content_type!r} is "
+                          f"none of {', '.join(EXTENSIONS)}; the lander cannot file it")
+        return ext
+
+
+@dataclass
+class Paste:
+    slug: str
+    lf_bytes: bytes
+    received_crlf: bool
+    environment: dict[str, str]
+    recordings: list[Recording]
+    counted: int
+
+    @property
+    def date(self) -> str:
+        return DATE.match(self.environment["date-utc"])["date"]  # type: ignore[index]
+
+
+# ---------------------------------------------------------------------------
+# Reading the paste
+# ---------------------------------------------------------------------------
+
+
+def fold(raw: bytes) -> tuple[bytes, bool]:
+    """The paste with CRLF folded to LF, and whether every line arrived
+    CRLF (a paste mixing the two lands as LF and reports LF)."""
+    lf = raw.replace(b"\r\n", b"\n")
+    crlf = b"\r\n" in raw and lf.count(b"\n") == raw.count(b"\r\n")
+    return lf, crlf
+
+
+def decode_copy(name: str, which: str, data: str, size: int, sha: str) -> bytes:
+    """One gzip+base64 copy decoded and held to its printed bytes and sha256."""
+    try:
+        body = gzip.decompress(base64.b64decode(data, validate=True))
+    except (ValueError, binascii.Error, OSError, EOFError, zlib.error) as exc:
+        raise Refusal(f"recording {name}: the {which} copy does not decode: {exc}") from None
+    if len(body) != size:
+        raise Refusal(f"recording {name}: the {which} decodes to {len(body)} bytes; the "
+                      f"paste printed {size}")
+    got = hashlib.sha256(body).hexdigest()
+    if got != sha:
+        raise Refusal(f"recording {name}: the {which} decodes to sha256 {got}; the paste "
+                      f"printed {sha}")
+    return body
+
+
+def read_recording(m: re.Match, lines: list[str]) -> Recording:
+    """A recording from its `== rec` header match and the lines up to the
+    next header or section."""
+    name = m["name"]
+    if not NAME.match(name):
+        raise Refusal(f"recording {name!r}: a name must be lowercase letters, digits and "
+                      "underscores (it becomes a file name)")
+    rec = Recording(name, m["method"], m["path"], int(m["status"]), m["seconds"], m["note"])
+    digests: dict[str, tuple[int, str]] = {}
+    copies: dict[str, str] = {}
+    for line in lines:
+        if h := HEADER.match(line):
+            key = h["name"].lower()
+            if key in rec.headers:
+                raise Refusal(f"recording {name}: header {key!r} is printed twice")
+            rec.headers[key] = h["value"]
+        elif d := DIGEST.match(line):
+            if d["which"] in digests:
+                raise Refusal(f"recording {name}: two {d['which']}-sha256 lines")
+            digests[d["which"]] = (int(d["bytes"]), d["sha"])
+        elif c := COPY.match(line):
+            if c["which"] in copies:
+                raise Refusal(f"recording {name}: two {c['which']}-b64gz lines")
+            copies[c["which"]] = c["data"]
+        elif line.startswith(COURTESY):
+            continue
+        else:
+            raise Refusal(f"recording {name}: a line the lander does not know: {line[:80]!r}")
+    for which in ("request", "response"):
+        if (which in digests) != (which in copies):
+            raise Refusal(f"recording {name}: a {which} sha256 line without its copy, or "
+                          "a copy without its sha256 line")
+    if "response" not in copies:
+        raise Refusal(f"recording {name}: no response copy")
+    if "content-type" not in rec.headers:
+        raise Refusal(f"recording {name}: no content-type header, so the response cannot "
+                      "be filed")
+    for which in ("request", "response"):
+        if which in copies:
+            size, sha = digests[which]
+            body = decode_copy(name, which, copies[which], size, sha)
+            setattr(rec, which, body)
+    _ = rec.extension  # refuses, here, a content-type the lander cannot file
+    return rec
+
+
+def read_paste(raw: bytes) -> Paste:
+    """Parse and verify a provider-recording paste-back. Raises Refusal."""
+    lf, crlf = fold(raw)
+    try:
+        text = lf.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise Refusal(f"the paste is not UTF-8: {exc}") from None
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    begins = [n for n, line in enumerate(lines) if BEGIN.match(line)]
+    if len(begins) != 1:
+        raise Refusal(f"the paste holds {len(begins)} PROBE BEGIN lines; the lander reads one")
+    start = begins[0]
+    slug = BEGIN.match(lines[start])["slug"]  # type: ignore[index]
+    try:
+        end = lines.index(END.format(slug=slug), start + 1)
+    except ValueError:
+        raise Refusal(f"no `{END.format(slug=slug)}` line closes the block") from None
+    inner = lines[start + 1:end]
+    if not inner or not TRAILER.match(inner[-1]):
+        raise Refusal("the block's last inner line is not the integrity trailer")
+    counted = int(TRAILER.match(inner[-1])["n"])  # type: ignore[index]
+    body = inner[:-1]
+    if counted != len(body):
+        raise Refusal(f"the trailer counts {counted} lines; the block carries {len(body)} "
+                      "(a truncated or edited paste)")
+
+    environment: dict[str, str] = {}
+    section = None
+    for line in body:
+        if s := SECTION.match(line):
+            section = s["name"]
+            continue
+        if section == "environment":
+            key, sep, value = line.partition(": ")
+            if sep:
+                environment.setdefault(key, value)
+    if "date-utc" not in environment or not DATE.match(environment["date-utc"]):
+        raise Refusal("the environment section has no `date-utc: YYYY-MM-DDTHH:MM:SSZ` line")
+
+    recordings: list[Recording] = []
+    i = 0
+    while i < len(body):
+        m = REC.match(body[i])
+        if not m:
+            if body[i].startswith("== rec "):
+                raise Refusal(f"a recording header the lander cannot read: {body[i][:80]!r}")
+            i += 1
+            continue
+        j = i + 1
+        while j < len(body) and not body[j].startswith("== rec ") and not SECTION.match(body[j]):
+            j += 1
+        recordings.append(read_recording(m, body[i + 1:j]))
+        i = j
+    if not recordings:
+        raise Refusal("the paste carries no `== rec` recording")
+    seen: set[str] = set()
+    for rec in recordings:
+        if rec.name in seen:
+            raise Refusal(f"recording {rec.name} appears twice")
+        seen.add(rec.name)
+    return Paste(slug, lf, crlf, environment, recordings, counted)
+
+
+# ---------------------------------------------------------------------------
+# What a paste derives
+# ---------------------------------------------------------------------------
+
+
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def rel_for(rec: Recording, part: str) -> str:
+    """A recording's file, relative to fixtures/."""
+    if part == "request":
+        return f"{PROVIDER}/{rec.name}.request.json"
+    if part == "response":
+        return f"{PROVIDER}/{rec.name}.response{rec.extension}"
+    return f"{PROVIDER}/{rec.name}.meta.json"
+
+
+def carried_rel(paste: Paste) -> str:
+    return f"{PROVIDER}/carried/{paste.slug}-{paste.date}.txt"
+
+
+def meta_for(paste: Paste, rec: Recording) -> bytes:
+    """The meta file: one JSON object on one line, its newline. The pinned
+    keys first (method, path, status, headers, request_sha256,
+    response_sha256, recorded_at), then the lander's own."""
+    obj = {
+        "method": rec.method,
+        "path": rec.path,
+        "status": rec.status,
+        "headers": dict(rec.headers),
+        "request_sha256": None if rec.request is None else sha(rec.request),
+        "response_sha256": sha(rec.response),
+        "recorded_at": paste.environment["date-utc"],
+        "name": rec.name,
+        "seconds": float(rec.seconds),
+        "note": rec.note,
+        "request_bytes": None if rec.request is None else len(rec.request),
+        "response_bytes": len(rec.response),
+        "request_file": None if rec.request is None else rel_for(rec, "request"),
+        "response_file": rel_for(rec, "response"),
+        "probe": paste.slug,
+    }
+    return (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def files_for(paste: Paste) -> dict[str, bytes]:
+    """Every derived file, relative to fixtures/, in recording order (the
+    request, the response, the meta), the carried paste last."""
+    files: dict[str, bytes] = {}
+    for rec in paste.recordings:
+        if rec.request is not None:
+            files[rel_for(rec, "request")] = rec.request
+        files[rel_for(rec, "response")] = rec.response
+        files[rel_for(rec, "meta")] = meta_for(paste, rec)
+    files[carried_rel(paste)] = paste.lf_bytes
+    return files
+
+
+def received_bytes(paste: Paste) -> tuple[str, bytes]:
+    """The paste as it arrived: CRLF when it did (or, checking a landed LF
+    copy, every LF turned back into CRLF — what a chat transport delivers),
+    else LF."""
+    if paste.received_crlf:
+        return "CRLF", paste.lf_bytes.replace(b"\n", b"\r\n")
+    return "LF", paste.lf_bytes
+
+
+def format_row(rel: str, data: bytes) -> str:
+    return f"| `{rel}` | {len(data)} | `{sha(data)}` |"
+
+
+def format_carried_row(rel: str, data: bytes, ending: str, received: bytes) -> str:
+    return (f"| `{rel}` | {len(data)} | `{sha(data)}` | {ending} {len(received)} "
+            f"`{sha(received)}` |")
+
+
+# ---------------------------------------------------------------------------
+# Landing and checking
+# ---------------------------------------------------------------------------
+
+
+def land(paste: Paste, tree: Path, out) -> None:
+    files = files_for(paste)
+    root = tree / "fixtures"
+    for rel, data in files.items():
+        path = root / rel
+        if path.exists() and (not path.is_file() or path.read_bytes() != data):
+            raise Refusal(f"fixtures/{rel} exists with other bytes; a recording is never "
+                          "replaced (a new day is new files)")
+    written = 0
+    for rel, data in files.items():
+        path = root / rel
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            written += 1
+    print(f"# landed {len(files)} files under fixtures/{PROVIDER}/ from probe {paste.slug} "
+          f"({written} written, {len(files) - written} already byte-exact): "
+          f"{len(paste.recordings)} recordings and the paste", file=out)
+    print("\n# fixtures/README.md, Provider recordings: one row per recording file", file=out)
+    print(ROW_HEADER, file=out)
+    carried = carried_rel(paste)
+    for rel, data in files.items():
+        if rel != carried:
+            print(format_row(rel, data), file=out)
+    print("\n# fixtures/README.md, Provider recordings: the carried paste's row", file=out)
+    print(CARRIED_HEADER, file=out)
+    ending, received = received_bytes(paste)
+    print(format_carried_row(carried, paste.lf_bytes, ending, received), file=out)
+
+
+def check(paste: Paste, tree: Path) -> None:
+    files = files_for(paste)
+    root = tree / "fixtures"
+    for rel, data in files.items():
+        path = root / rel
+        if not path.is_file():
+            raise Refusal(f"fixtures/{rel} is not in the tree")
+        have = path.read_bytes()
+        if have != data:
+            raise Refusal(f"fixtures/{rel} differs from the paste's bytes ({len(have)} bytes, "
+                          f"sha256 {sha(have)}; the paste: {len(data)}, {sha(data)})")
+    readme = root / "README.md"
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise Refusal(f"fixtures/README.md cannot be read: {exc}") from None
+    rows: dict[str, re.Match] = {}
+    for m in ROW.finditer(text):
+        if m["file"] in rows:
+            raise Refusal(f"fixtures/README.md has two rows for {m['file']}")
+        rows[m["file"]] = m
+    carried = carried_rel(paste)
+    for rel, data in files.items():
+        m = rows.get(rel)
+        if m is None:
+            raise Refusal(f"fixtures/README.md has no row for {rel}")
+        if (int(m["bytes"]), m["sha"]) != (len(data), sha(data)):
+            raise Refusal(f"fixtures/README.md's row for {rel} reads {m['bytes']} "
+                          f"{m['sha']}; the paste gives {len(data)} {sha(data)}")
+        if rel == carried:
+            if m["ending"] is None:
+                raise Refusal(f"fixtures/README.md's row for {rel} does not say how the "
+                              "paste was received")
+            if paste.received_crlf or m["ending"] == "CRLF":
+                received = paste.lf_bytes.replace(b"\n", b"\r\n")
+                want = ("CRLF", len(received), sha(received))
+            else:
+                want = ("LF", len(data), sha(data))
+            got = (m["ending"], int(m["rbytes"]), m["rsha"])
+            if got != want:
+                raise Refusal(f"fixtures/README.md's row for {rel} says it was received "
+                              f"as {got}; the paste gives {want}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog=PROG,
+        description="Land (or --check) a provider's wire recordings from one "
+                    "provider-recording paste-back (runtime-contract §5.9).")
+    parser.add_argument("paste", help="the probe's paste-back (CRLF or LF)")
+    parser.add_argument("--check", action="store_true",
+                        help="write nothing; exit 0 exactly when the tree already holds "
+                             "what the paste derives")
+    parser.add_argument("--tree", type=Path, default=REPO_ROOT,
+                        help="the repository to land in or check (default: this script's)")
+    args = parser.parse_args(argv)
+    try:
+        raw = Path(args.paste).read_bytes()
+    except OSError as exc:
+        print(f"{PROG}: cannot read {args.paste}: {exc.strerror or exc}", file=sys.stderr)
+        return 2
+    try:
+        paste = read_paste(raw)
+        if args.check:
+            check(paste, args.tree)
+            print(f"{PROG}: ok — fixtures/{PROVIDER}/ holds the {len(paste.recordings)} "
+                  f"recordings of probe {paste.slug} and the paste, byte-exact, and "
+                  "fixtures/README.md's rows match", file=sys.stderr)
+        else:
+            land(paste, args.tree, sys.stdout)
+    except Refusal as exc:
+        print(f"{PROG}: NOT OK — {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

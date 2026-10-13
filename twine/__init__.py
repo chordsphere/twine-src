@@ -22,7 +22,10 @@ Modules:
             group to the kill-switch's record; tests inject a double
   transitions  the transition table (D17): share/transitions.toml loaded
             and checked total — every key of every axis one row, every
-            row's move declared; pure, reads no bale install
+            row's move declared — with the stop axis's loop keys and, since
+            Arc 2 R2, each provider's words mapped onto the stop axis
+            ([[mapping]], read by provider_mapping); pure, reads no bale
+            install
   spend     the cost spine (D15, session 5a): the usage record and its
             append-only stream (<state-dir>/spend.jsonl), the operator's
             prices (twine ships none), the running totals and the hard
@@ -44,16 +47,21 @@ Modules:
             module per capability under capabilities/ (each a CONTRACT),
             parity by name — the adapter boundary (boundary.py: the
             Adapter interface, the Turn, the stop set read from the
-            transition table's `stop` axis), the registered adapters
-            under adapters/ (at R1 only `fake`, the scripted transport
-            the tests drive) and from_anthropic, the first provider usage
-            mapping; rendered by `twine runtime list` and `show`; reaches
-            no network and reads no key
+            transition table's `stop` axis, the loop's keys refused), the
+            registered adapters under adapters/ — `fake`, the scripted
+            transport the tests drive, and since R2 `anthropic`, the
+            Messages API — and from_anthropic (usage.py), the first
+            provider usage mapping; rendered by `twine runtime list` and
+            `show`. One module reaches a network: runtime/transport.py, the
+            real transport the Anthropic adapter is handed when the tests
+            do not hand it theirs; the adapter reads its key from the
+            environment mapping it is given
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py, carry_bale.py
             and carry_bundle.py)
 
-Stdlib only (T9). Nothing here imports from bale's bin/, office's lib/
+Stdlib only (T9) — the `anthropic` SDK included: no module imports it.
+Nothing here imports from bale's bin/, office's lib/
 or tedder-src (T10); the `bale` executable is driven only through its
 non-interactive paths, and this package reads files it leaves on disk.
 """

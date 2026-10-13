@@ -9,9 +9,12 @@ What this module is, and what it is not:
     history and nothing else" — names this file.
   - It **never sees a provider's usage shape.** It consumes twine's own
     record, in twine's own five token classes. Mapping a provider's usage
-    onto the record is the model adapter's job (Arc 2), verified against a
-    recording when one exists; none exists yet (the gated probe
-    `twine-usage-record` is what will record one).
+    onto the record is the model adapter's job (Arc 2): Anthropic's is
+    `from_anthropic` (twine/runtime/usage.py), held to the usage object the
+    architect recorded on 2026-10-08 and to the fifteen Messages API
+    exchanges recorded on 2026-10-13 (fixtures/anthropic/), and the
+    Anthropic adapter (Arc 2 R2) calls it on every turn — so what reaches
+    the boundary, and later this stream, is already twine's record.
   - It **ships no prices.** Prices are operator data, a TOML file the
     operator writes (`<state-dir>/prices.toml`, or `--prices PATH`). A model
     with no price row is a refusal naming it — never a zero, a guess or a

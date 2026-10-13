@@ -1,6 +1,8 @@
 """prompt-caching — declared at Arc 2 R1; implemented by the Anthropic
-adapter (R2). Its contract is CONTRACT below (claude/context/
-runtime-contract.md §2); nothing implements it yet."""
+adapter at R2 (`anthropic`: three cache breakpoints on every request — the
+system block, the last tool, the last content block of the last message —
+claude/context/runtime-contract.md §5.3). Its contract is CONTRACT below
+(runtime-contract §2)."""
 
 from __future__ import annotations
 
@@ -28,6 +30,9 @@ CONTRACT = Contract(
         "cache reads and writes are first-class rows in the cost accounting (D12), "
         "priced at the operator's cache_read and cache_write prices",
     ),
-    lands="declared at R1; R2 (the Anthropic adapter) implements it",
+    lands=("declared at R1; implemented at R2 by the Anthropic adapter: "
+           "cache_control on the system block, the last tool and the last content "
+           "block of the last message, held to the cache_write and cache_read "
+           "recordings of 2026-10-13"),
     grounds=("D12", "D11", "twine-seed.md §4.1", "twine-seed.md §4.3"),
 )

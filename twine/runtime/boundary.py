@@ -1,6 +1,6 @@
-"""The adapter boundary (twine-seed.md T6, Q-3; proposed at Arc 2 R1 —
-claude/context/runtime-contract.md §1 is its contract, awaiting the
-architect's ratification).
+"""The adapter boundary (twine-seed.md T6, Q-3; proposed at Arc 2 R1 and
+ratified as written on 2026-10-12 — claude/context/runtime-contract.md §1
+is its contract).
 
 A model adapter implements `Adapter`: one call in, one `Turn` out. The
 boundary (`Boundary`) wraps an adapter and holds every turn to the
@@ -22,7 +22,10 @@ abstracts:
                 axis, read through twine.transitions.stop_keys — the one
                 spelling. The adapter's own mapping is the only place a
                 provider's stop word becomes twine's: the boundary
-                translates nothing, and refuses a stop the axis lacks.
+                translates nothing, and refuses a stop the axis lacks —
+                and, since Arc 2 R2, a stop the axis lists among its
+                `loop_keys` (twine.transitions.loop_keys): those are the
+                loop's to produce, never an adapter's.
 
 A boundary refusal is a BoundaryError naming the adapter, the call and
 every fault. It is an adapter defect, not a model outcome: what the loop
@@ -48,7 +51,7 @@ from twine.runtime.contract import NAME_PATTERN
 from twine.runtime.terms import (NATIVE, TEXT, TOOL_PROTOCOLS, ThinkingSettings, ToolCall,
                                  ToolSpec, token_faults, tool_call_faults)
 from twine.spend import Tokens
-from twine.transitions import TableError, stop_keys
+from twine.transitions import TableError, loop_keys, stop_keys
 
 log = logging.getLogger("twine.runtime.boundary")
 
@@ -94,8 +97,8 @@ class SpawnSettings:
             faults.append(f"max_tokens must be a positive integer, not {self.max_tokens!r}")
         if not isinstance(self.thinking, ThinkingSettings):
             faults.append("thinking must be a ThinkingSettings")
-        elif (self.thinking.enabled and type(self.max_tokens) is int
-              and self.thinking.budget_tokens >= self.max_tokens):  # type: ignore[operator]
+        elif (self.thinking.budget_tokens is not None and type(self.max_tokens) is int
+              and self.thinking.budget_tokens >= self.max_tokens):
             faults.append(f"the thinking budget ({self.thinking.budget_tokens}) must be "
                           f"below max_tokens ({self.max_tokens})")
         if faults:
@@ -128,6 +131,20 @@ class Turn:
     usage       the call's tokens, the five classes
     provider_stop  the provider's own stop word, as the adapter received
                 it, for diagnosis only: nothing dispatches on it
+
+    Added at Arc 2 R2, each defaulting so an adapter that has none of them
+    (the fake) is unchanged:
+
+    content     the assistant's content blocks exactly as the provider
+                would want them back — what the next request's assistant
+                turn carries (D12: append-only; a provider may reject a
+                modified or dropped thinking block); () when none
+    retry_after seconds the provider asked to wait before a retry (a
+                `retry-after` header), or None
+    request_id  the provider's id for the call, for diagnosis, or None
+    reason      a sentence saying why the turn stopped, when the stop is
+                not a plain end (a refusal quotes the provider's error type
+                and message whole); None otherwise
     """
 
     text: str
@@ -136,6 +153,10 @@ class Turn:
     stop: str | None
     usage: Tokens
     provider_stop: str | None = None
+    content: tuple[Mapping[str, Any], ...] = ()
+    retry_after: float | None = None
+    request_id: str | None = None
+    reason: str | None = None
 
     @property
     def continues(self) -> bool:
@@ -146,7 +167,10 @@ class Turn:
         return {"text": self.text, "thinking": self.thinking,
                 "tool_calls": [c.as_json() for c in self.tool_calls],
                 "stop": self.stop, "usage": self.usage.as_json(),
-                "provider_stop": self.provider_stop}
+                "provider_stop": self.provider_stop,
+                "content": [dict(block) for block in self.content],
+                "retry_after": self.retry_after, "request_id": self.request_id,
+                "reason": self.reason}
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +271,10 @@ class Boundary:
             raise BoundaryError(name, faults)
         try:
             self.stop_set: tuple[str, ...] = stop_keys(table)
+            # The stops the loop produces and no adapter may (the cost
+            # spine's, the kill-switch's): read from the table, never
+            # spelled here (Arc 2 R2; R1 §1.5 recorded the gap as a defect).
+            self.loop_set: tuple[str, ...] = loop_keys(table)
         except TableError as exc:
             raise BoundaryError(name, [f"cannot read the stop set: {exc}"]) from exc
         self.adapter = adapter
@@ -307,12 +335,28 @@ class Boundary:
                 found.append(f"stop {turn.stop!r} is not a key of the stop axis "
                              f"({', '.join(self.stop_set)}); the adapter maps its "
                              "provider's stop words, the boundary translates nothing")
+            elif turn.stop in self.loop_set:
+                found.append(f"stop {turn.stop!r} is one of the axis's loop keys "
+                             f"({', '.join(self.loop_set)}): the loop produces it, and "
+                             "an adapter's mapping never may")
             if turn.tool_calls:
                 found.append(f"asks for {len(turn.tool_calls)} tool call(s) and stops "
                              f"({turn.stop!r}); a turn does one or the other")
         found += token_faults(turn.usage)
         if turn.provider_stop is not None and not isinstance(turn.provider_stop, str):
             found.append("provider_stop must be a string or None")
+        if not isinstance(turn.content, tuple) or not all(
+                isinstance(block, Mapping) for block in turn.content):
+            found.append("content must be a tuple of content blocks (objects)")
+        retry = turn.retry_after
+        if retry is not None and (isinstance(retry, bool) or not isinstance(retry, (int, float))
+                                  or retry < 0):
+            found.append(f"retry_after must be a non-negative number of seconds or None, "
+                         f"not {retry!r}")
+        for name in ("request_id", "reason"):
+            value = getattr(turn, name)
+            if value is not None and not isinstance(value, str):
+                found.append(f"{name} must be a string or None")
         return found
 
 

@@ -22,7 +22,11 @@ hashing to the received bytes.
 bale's: `fixtures/bale-<version>/` and its naming rule. A model provider's
 recorded output sits in a sibling directory named for the provider,
 `fixtures/anthropic/`, under a rule of its own — the last section of this
-file, "Provider recordings".
+file, "Provider recordings". Since session
+`2026-10-13-twine-runtime-anthropic-002` (Arc 2 R2) that directory also
+holds the wire itself — fifteen request/response pairs the architect
+recorded on 2026-10-13 — landed by their own lander,
+`bin/twine-land-provider-recordings`, beside `bin/twine-land-recordings`.
 
 **The floor, and what it means here** (since session
 `2026-10-12-twine-pin-floor-002`, D2 as amended at the sitting
@@ -541,21 +545,59 @@ stderr: file, bytes, sha256.
 
 ## Provider recordings
 
-**The rule.** A provider recording is the `usage` object — or, in a later
-session, a whole response — that a named model of a named provider
-returned on a named day, landed as one JSON object on one line with its
-trailing newline, under `fixtures/<provider>/`, named
-`<api>-<what>-<YYYY-MM-DD>.json`. It is never hand-written and never
-edited; a recording of a new model or a new day is a new file beside the
-old ones. The bale naming rule (`fixtures/bale-<version>/…`, argvs named
-by role, outcome groups, `.stderr` siblings) is bale's and does not apply
-here: no bale argv printed these, and `tests/fixture_rule.py`,
+**The rule.** A provider recording is what a named model of a named
+provider returned on a named day, under `fixtures/<provider>/`, never
+hand-written and never edited; a recording of a new model or a new day is
+a new file beside the old ones. It comes in two kinds:
+
+- **A carried emission** (R1's): the `usage` object of one response,
+  landed as one JSON object on one line with its trailing newline, named
+  `<api>-<what>-<YYYY-MM-DD>.json`.
+- **A wire capture** (since Arc 2 R2): the bytes of one HTTP exchange as
+  the provider sent them — no newline added, nothing re-serialized, the
+  SSE streams' `data:` payloads with the padding spaces inside them —
+  landed by `bin/twine-land-provider-recordings` from a provider-recording
+  probe's paste-back, which lands under `fixtures/<provider>/carried/` as
+  their source (every CRLF turned into LF, nothing else changed). Per
+  recording `<name>`: `<name>.request.json` (the body sent, when one
+  was), `<name>.response.json` or `<name>.response.sse` (by the recorded
+  `content-type`), and `<name>.meta.json` — one JSON object on one line
+  with its newline: `method`, `path`, `status`, `headers` (as the probe
+  printed them, in order), `request_sha256`, `response_sha256`,
+  `recorded_at` (the paste's `date-utc`), and beside them `name`,
+  `seconds`, `note`, `request_bytes`, `response_bytes`, `request_file`,
+  `response_file` and `probe`.
+
+The bale naming rule (`fixtures/bale-<version>/…`, argvs named by role,
+outcome groups, `.stderr` siblings) is bale's and does not apply here: no
+bale argv printed these, and `tests/fixture_rule.py`,
 `tests/test_fixtures.py` and `bin/twine-land-recordings` walk
-`fixtures/bale-*/` only, so they neither derive nor check this directory
-(they already did; nothing in them moved). `tests/test_runtime.py` holds
-each file here to its row below — bytes and sha256 — and to being one JSON
-object line. Twine's tests never reach the provider (T8): these files are
-the only provider output the suite ever sees.
+`fixtures/bale-*/` only, so they neither derive nor check this directory.
+`tests/test_runtime.py` holds each file here to its row below — bytes and
+sha256 — and the carried emission and the meta files to being one JSON
+object line; `tests/test_anthropic.py` holds the wire captures to the
+hashes their session's brief pinned and replays them through the
+Anthropic adapter's readers; `tests/test_provider_lander.py` runs the
+lander. Twine's tests never reach the provider (T8): these files are the
+only provider output the suite ever sees, and no key is in any of them.
+
+**The lander**, `bin/twine-land-provider-recordings PASTE [--check] [--tree
+DIR]`: reads a provider-recording paste-back (`=== PROBE BEGIN <slug> ===`,
+an `environment` section with `date-utc:`, per recording a `== rec <name>:
+<METHOD> <path> status <N> seconds <S>[ note …]` header, its `header` lines,
+`request-sha256`/`request-b64gz` when a body was sent, and
+`response-sha256`/`response-b64gz`; the `--- integrity: N lines ---`
+trailer), refuses — exit 1, naming the recording — unless the trailer
+counts the block and every gzip+base64 copy decodes to the byte count and
+sha256 printed beside it, and derives the files above plus the paste at
+`carried/<slug>-<YYYY-MM-DD>.txt`. Without `--check` it writes them
+(never replacing a file that holds other bytes) and prints this section's
+rows for the worker to place; with `--check` it writes nothing and exits 0
+exactly when every derived file is in the tree byte-exact and this file
+carries each one's row exactly (the carried paste's received cells too).
+Files the paste does not derive — the 2026-10-08 usage object, a later
+probe's — are left alone. Exit 2 on a usage error or an unreadable paste.
+stdlib only; runs under `python3 -I -S -B`.
 
 **`anthropic/messages-usage-2026-10-08.json`** — the `usage` object of
 one Anthropic Messages API response, from the architect's own `curl` to
@@ -576,3 +618,77 @@ mapping (claude/context/runtime-contract.md §4).
 | file | bytes | sha256 |
 |---|---|---|
 | `anthropic/messages-usage-2026-10-08.json` | 293 | `98137f648aa03f5c73628db77527df11b7f0d3222067f499e6b7573521f2b094` |
+
+**The wire of 2026-10-13** (session `2026-10-13-twine-runtime-anthropic-002`,
+Arc 2 R2). Probe `twine-anthropic-record`, run by the architect at
+2026-10-13T00:43:12Z with his own key against `claude-haiku-5-5` (Python
+3.12.3; every call `max_tokens` ≤ 2048), fifteen recordings:
+`models` (`GET /v1/models`: per model `max_input_tokens`, `max_tokens`,
+`capabilities.thinking.types` — `enabled` refused by every 5.x model,
+`disabled` by Sonnet 5.5, Opus 5.5 and the Fable models); `text` and
+`text_stream` (`end_turn`, one text block); `max_tokens` and
+`max_tokens_stream`; `tool_use` and `tool_use_stream` (a `tool_use` block
+with `caller`; streamed, four `input_json_delta` pieces); `tool_result` and
+`tool_result_error` (the round trip, the second with `is_error: true`);
+`thinking_stream` (adaptive thinking: an empty `thinking_delta`, a
+`signature_delta`, usage `output_tokens` 33 with `thinking_tokens` 30);
+`cache_write` and `cache_read` (`cache_control` on the system block: 2556
+tokens written, then read); and three refusals, `error_401` (a bogus key,
+`sk-ant-not-a-key`, sent in a header the probe did not print), `error_404_model`
+and `error_400`. The paste reached this repository in that session's
+request brief (its appendix), inside a fence, and was landed by slicing
+the fence's 201 lines in code — nothing retyped — to the bytes and hash the
+brief pins (received as CRLF, as the row says), then landed from it by the
+lander; the brief's §3 table pins every recording's hash, and
+`tests/test_anthropic.py` holds them to it.
+
+| file | bytes | sha256 |
+|---|---|---|
+| `anthropic/models.response.json` | 14233 | `d744304435f479b8350556098dbf9cc5c3a4d94814351dfdcc073623d4afce13` |
+| `anthropic/models.meta.json` | 505 | `d5344bbe5f2c73e63111e6c909044082f01d4ca68129e1e29635f73cf383309f` |
+| `anthropic/text.request.json` | 192 | `f874bb9125f432e6a5aa5ebd4964125d6792872d100c919fc775e1c10828f1a1` |
+| `anthropic/text.response.json` | 527 | `b9330f4527da18c36006c76905134be6ead1bd61980a17d02dcf117c823c11a3` |
+| `anthropic/text.meta.json` | 895 | `004df2ef01b21e5d2fbcad502e5693bd5ae3b67e3ac50cd21996b2b2c3e4b8a3` |
+| `anthropic/text_stream.request.json` | 208 | `7364a117e4583cff95db45733fc2a7ac9fec66e9b9355f66cfb8ec61a7b14467` |
+| `anthropic/text_stream.response.sse` | 1258 | `ff21be177393814ab673b742cb0ea22ad80d22f9ee6ac68d84c681a49fd141b5` |
+| `anthropic/text_stream.meta.json` | 932 | `561a5ef16c9cfd93f7f0b0f47ff5eec66becf250caff65aba8b6ffc1e5081b15` |
+| `anthropic/max_tokens.request.json` | 191 | `4a8c485ec97d5179a2a481ed4cdc4f3e1b5e3da0c7db11bdde1b6c8160c35029` |
+| `anthropic/max_tokens.response.json` | 536 | `258f687adf36abbd828b39bc886ab360f1677fbb957eb378f0ec3f28e7de25fd` |
+| `anthropic/max_tokens.meta.json` | 941 | `79824d306bd63b0a640f60a3bd76b103ce9ca9bd038ce46a335181882e056361` |
+| `anthropic/max_tokens_stream.request.json` | 207 | `3b828585dec98edf6c557a8f72ca8f0736339de31aca71e6753ab5c6cd15e5e0` |
+| `anthropic/max_tokens_stream.response.sse` | 1266 | `5b74e39103d928b54390010db3f80b5643fc19326987d4861be9d1a213b659bc` |
+| `anthropic/max_tokens_stream.meta.json` | 950 | `6c731348d5a0a6a1f44030900f7b101f3b917b4c981327bb7743503a39b7d678` |
+| `anthropic/tool_use.request.json` | 526 | `e35be61c7d9347e59825ddb4267a5f4cd7bf213272ae4f48dd20d201cf0f1a36` |
+| `anthropic/tool_use.response.json` | 631 | `712d0ac17cd9439f426b00300a68e8c8eef10834c7fecbc1607c09b8830e89ee` |
+| `anthropic/tool_use.meta.json` | 933 | `1ac6ba57d21e1934b710018be0bfd72172684d1ed6aa003066ed40dea0797c8e` |
+| `anthropic/tool_use_stream.request.json` | 542 | `45665e3e977936e29f4e51e9e5a2a6efc7ee559eba3d757b1aa4939107b0a5bd` |
+| `anthropic/tool_use_stream.response.sse` | 1795 | `9a0ee0617a853e634650710792baef74c067e0566ee666b1e1cf5cd945d396d7` |
+| `anthropic/tool_use_stream.meta.json` | 944 | `be6507a1dadfd8ae4d7f2cb9ac0e02133d9b9bd914de19562a3ac478ec87f10f` |
+| `anthropic/tool_result.request.json` | 855 | `d5d067e11a7eee68deb08a87242adbbdd59b9ba58e346a82fe1def0deff0d8a0` |
+| `anthropic/tool_result.response.json` | 552 | `3090a163575dedb1158041ef1507946ee8777f8e9e141996bf2ddc4515905785` |
+| `anthropic/tool_result.meta.json` | 946 | `452708d1eb2a972d27ca432f83c681a8cabfe5cfc0c0794ffabe2b7696de8486` |
+| `anthropic/tool_result_error.request.json` | 878 | `ebc86720085f5a219382d1a1c56d49c609376b8c1e0b6bc48488245433ae7e21` |
+| `anthropic/tool_result_error.response.json` | 642 | `248e6b96cd39b32725d7de3dad99cd737ba120382b2901edbc0463efc0eb5137` |
+| `anthropic/tool_result_error.meta.json` | 965 | `d75676984fce1d8bc6975e330a7d8a5d2a77fdc070da3b3511e36352df78e488` |
+| `anthropic/thinking_stream.request.json` | 279 | `1b46a648951e2c91bdb2d3cde8f00e3c6381a2f647f56cdfeba9c31ed4a02606` |
+| `anthropic/thinking_stream.response.sse` | 2566 | `2c159fc05ba61367ab9c0f52346a7d75787783bc22f5c25d35e1af27bb831988` |
+| `anthropic/thinking_stream.meta.json` | 1003 | `978946deeea8d6bb56d22c7dc20640e18f943f9fa563ebe91bf4a5bfd34a87ae` |
+| `anthropic/cache_write.request.json` | 6772 | `eef65b5ead7166b24c483142a365762133a3d5c551d7c1e4af355f73cbf1a6d0` |
+| `anthropic/cache_write.response.json` | 530 | `b857ef93e7081d52231d0d7e2bd51b9d715d0aa25a35d3deb5d306a904469f51` |
+| `anthropic/cache_write.meta.json` | 954 | `5d7637a28ab40eeca8ee9dcfd94db96ca0554d177a5940dddeee76755d153bd0` |
+| `anthropic/cache_read.request.json` | 6772 | `9b0521f6aea591eb5436d770cfcf0329bc92807a74ac9167d60c5bb9b8fbe460` |
+| `anthropic/cache_read.response.json` | 527 | `ad4dafd70c4656126f0d2416e880ecef05add216f508e718615e6d0e883b7ff0` |
+| `anthropic/cache_read.meta.json` | 947 | `5a4f858358814f404a9ec30f62a139d0544b43089e3409e1cfcb4a995e0283e9` |
+| `anthropic/error_401.request.json` | 95 | `088074b66073201ecd0f9b33719bbe75d12a7e902cd4a7f63a5968ccae7ed15f` |
+| `anthropic/error_401.response.json` | 130 | `822bfc574d1a7489ef21c556d4dcd30c4aaa7ab4be7b00d275a1fbd74800b661` |
+| `anthropic/error_401.meta.json` | 620 | `9f898cfb54c18b358d753ae578ad7b67f2ec38b8fb36c51ae593bc9dd219092d` |
+| `anthropic/error_404_model.request.json` | 97 | `cce91afb6514cbc46fcb0b44dcd346dd8f4422a951b331ae7d455835d2acf801` |
+| `anthropic/error_404_model.response.json` | 133 | `ed007a184db21677ff8ee6621308461008e960182b70f75313e48ef9cf3bf174` |
+| `anthropic/error_404_model.meta.json` | 633 | `6f4f8bdd88e267023f86da7942c15f348ab2b21f847000a9f5fac47cbd3a6863` |
+| `anthropic/error_400.request.json` | 46 | `2050f12e5179384323c5c6304369a047c9e4b9932002b706a3c89b7876f1a5c3` |
+| `anthropic/error_400.response.json` | 138 | `5c8bd802a47e72312fddd1dd662e8258e30edeb0dd3d7d630d07bfbf71313dc7` |
+| `anthropic/error_400.meta.json` | 634 | `007d22f88f64466d90582252d639c9dca313d69b196412560ba287d5eb568d5f` |
+
+| file | bytes | sha256 | as received |
+|---|---|---|---|
+| `anthropic/carried/twine-anthropic-record-2026-10-13.txt` | 29039 | `4d1bfd63ef6746546c13962aad08f3ee726e4d81284b69cb21ea4a1bbd5da92d` | CRLF 29240 `41e8fe662769eb260af3e43d0615ba97dfdae3a58727d1a978dcc40273903d02` |

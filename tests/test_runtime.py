@@ -3,6 +3,13 @@ the adapter boundary and its one stop spelling, the fake transport adapter
 driven through it, the Anthropic usage mapping onto the five token classes,
 and the two verbs, `twine runtime list` and `twine runtime show`.
 
+Arc 2 R2 (session 2026-10-13-twine-runtime-anthropic-002) moved what R1's
+facts became: `anthropic` registered beside `fake`, prompt-caching and
+streaming implemented, the boundary refusing the loop's keys, from_anthropic
+living in twine.runtime.usage (re-exported), null cache counts read as 0,
+and the provider directory holding the wire recordings of 2026-10-13. The
+Anthropic adapter's own tests are tests/test_anthropic.py.
+
 No test here reaches a network, reads a key or imports a provider SDK
 (T8): the model is the fake adapter, and the provider's usage is the
 architect's recording under fixtures/anthropic/.
@@ -57,6 +64,9 @@ THE_EIGHT = ["tool-calling", "thinking", "prompt-caching", "window-accounting",
              "streaming", "sandboxing", "suspend-resume", "usage-accounting"]
 # The three the fake adapter implements — the `implemented` ones at R1.
 THE_THREE = {"tool-calling", "thinking", "usage-accounting"}
+# What the Anthropic adapter implements (R2): the three, prompt caching and
+# streaming — the `implemented` ones since R2.
+ANTHROPIC_FIVE = THE_THREE | {"prompt-caching", "streaming"}
 
 RECORDING = FIXTURES_DIR / "anthropic" / "messages-usage-2026-10-08.json"
 RECORDING_BYTES = 293
@@ -152,15 +162,18 @@ class TheDeclaration(unittest.TestCase):
             with self.subTest(capability=entry["name"]):
                 self.assertIn(entry["status"], STATUSES)
 
-    def test_three_implemented_five_declared(self):
+    def test_five_implemented_three_declared(self):
+        """R1 had three implemented (the fake's) and five declared; R2's
+        adapter implements prompt-caching and streaming too."""
         statuses = {e["name"]: e["status"] for e in toml_entries()}
-        self.assertEqual({n for n, s in statuses.items() if s == "implemented"}, THE_THREE)
+        self.assertEqual({n for n, s in statuses.items() if s == "implemented"},
+                         ANTHROPIC_FIVE)
         self.assertEqual({n for n, s in statuses.items() if s == "declared"},
-                         set(THE_EIGHT) - THE_THREE)
+                         set(THE_EIGHT) - ANTHROPIC_FIVE)
 
-    def test_the_declared_five_have_their_contracts_written(self):
+    def test_the_declared_three_have_their_contracts_written(self):
         registry = load_runtime_registry()
-        for name in set(THE_EIGHT) - THE_THREE:
+        for name in set(THE_EIGHT) - ANTHROPIC_FIVE:
             with self.subTest(capability=name):
                 contract = registry.get(name).contract
                 self.assertTrue(contract.purpose.strip())
@@ -191,9 +204,11 @@ class MalformedDeclarationRefusesLoudly(unittest.TestCase):
             self.assertIn(fragment, str(caught.exception))
 
     def test_a_status_outside_the_three(self):
-        self.copy.edit_declaration('name = "streaming"\nmodule = "twine.runtime.capabilities.streaming"\nstatus = "declared"',
-                                   'name = "streaming"\nmodule = "twine.runtime.capabilities.streaming"\nstatus = "beta"')
-        self.assertRefused("'streaming'", "'beta'", "declared, implemented, experimental")
+        # window-accounting: still declared at R2 (streaming, R1's example,
+        # is implemented now).
+        self.copy.edit_declaration('name = "window-accounting"\nmodule = "twine.runtime.capabilities.window_accounting"\nstatus = "declared"',
+                                   'name = "window-accounting"\nmodule = "twine.runtime.capabilities.window_accounting"\nstatus = "beta"')
+        self.assertRefused("'window-accounting'", "'beta'", "declared, implemented, experimental")
 
     def test_a_missing_key(self):
         self.copy.edit_declaration('module = "twine.runtime.capabilities.thinking"\n', "")
@@ -348,12 +363,20 @@ class ParityDetectors(unittest.TestCase):
         self.assertEqual(self.kinds(self.copy.load()), {"status-mismatch": ["thinking"]})
 
     def test_an_implemented_capability_no_adapter_implements(self):
-        self.copy.edit_declaration('module = "twine.runtime.capabilities.streaming"\nstatus = "declared"',
-                                   'module = "twine.runtime.capabilities.streaming"\nstatus = "implemented"')
+        self.copy.edit_declaration('module = "twine.runtime.capabilities.window_accounting"\nstatus = "declared"',
+                                   'module = "twine.runtime.capabilities.window_accounting"\nstatus = "implemented"')
+        self.assertEqual(self.kinds(self.copy.load()),
+                         {"status-mismatch": ["window-accounting"]})
+
+    def test_a_declared_capability_only_anthropic_implements(self):
+        """R2: streaming is the Anthropic adapter's alone; declared, it is
+        a mismatch naming it."""
+        self.copy.edit_declaration('module = "twine.runtime.capabilities.streaming"\nstatus = "implemented"',
+                                   'module = "twine.runtime.capabilities.streaming"\nstatus = "declared"')
         self.assertEqual(self.kinds(self.copy.load()), {"status-mismatch": ["streaming"]})
 
     def test_experimental_is_listed_with_or_without_an_adapter(self):
-        self.copy.edit_declaration('module = "twine.runtime.capabilities.streaming"\nstatus = "declared"',
+        self.copy.edit_declaration('module = "twine.runtime.capabilities.streaming"\nstatus = "implemented"',
                                    'module = "twine.runtime.capabilities.streaming"\nstatus = "experimental"')
         self.copy.edit_declaration('module = "twine.runtime.capabilities.thinking"\nstatus = "implemented"',
                                    'module = "twine.runtime.capabilities.thinking"\nstatus = "experimental"')
@@ -363,14 +386,15 @@ class ParityDetectors(unittest.TestCase):
 
     def test_an_adapter_implementing_an_undeclared_capability(self):
         """Removing a declared capability the fake implements leaves the
-        fake naming one nobody declares — and the module a stray."""
+        fake naming one nobody declares — and the module a stray. Since R2
+        the Anthropic adapter implements it too, and is named beside."""
         text = self.copy.declaration.read_text(encoding="utf-8")
         head, rest = text.split('[[capability]]\nname = "thinking"', 1)
         rest = rest.split("[[capability]]", 1)[1]
         self.copy.declaration.write_text(head + "[[capability]]" + rest, encoding="utf-8")
         kinds = self.kinds(self.copy.load())
         self.assertEqual(kinds, {"stray-module": ["thinking"],
-                                 "unknown-capability": ["fake"]})
+                                 "unknown-capability": ["anthropic", "fake"]})
 
 
 # ---------------------------------------------------------------------------
@@ -444,8 +468,10 @@ class FromAnthropic(unittest.TestCase):
     def test_a_negative_or_non_integer_count_raises(self):
         paths = [("input_tokens",), ("output_tokens",), ("cache_read_input_tokens",),
                  ("cache_creation_input_tokens",), ("output_tokens_details", "thinking_tokens")]
+        nullable = {("cache_read_input_tokens",), ("cache_creation_input_tokens",)}
         for path in paths:
-            for bad in (-1, 1.0, "4", True, None, [4]):
+            # Null cache counts read as absent since R2 (the next test).
+            for bad in (-1, 1.0, "4", True, [4]) + (() if path in nullable else (None,)):
                 with self.subTest(path=path, value=bad):
                     u = recorded_usage()
                     target = u
@@ -455,6 +481,24 @@ class FromAnthropic(unittest.TestCase):
                     with self.assertRaises(UsageMappingError) as caught:
                         from_anthropic(u)
                     self.assertIn(path[-1], str(caught.exception))
+
+    def test_null_cache_counts_read_as_absent(self):
+        """Arc 2 R2, brief §5 item 4: the SDK (anthropic 1.13.0,
+        types/usage.py and types/message_delta_usage.py) types both cache
+        counts Optional[int] = None, so null is a value the provider may send
+        and reads as absent — 0. The other counts stay refused when null."""
+        u = recorded_usage()
+        u["cache_read_input_tokens"] = None
+        u["cache_creation_input_tokens"] = None
+        t = from_anthropic(u)
+        self.assertEqual((t.cache_read, t.cache_write), (0, 0))
+        self.assertEqual((t.input, t.output), (18, 4))
+        for key in ("input_tokens", "output_tokens"):
+            with self.subTest(null=key):
+                u = recorded_usage()
+                u[key] = None
+                with self.assertRaises(UsageMappingError):
+                    from_anthropic(u)
 
     def test_a_raise_is_a_value_error(self):
         self.assertTrue(issubclass(UsageMappingError, ValueError))
@@ -486,11 +530,16 @@ class FromAnthropic(unittest.TestCase):
         self.assertEqual(u, before)
 
     def test_exported_by_the_module_the_declaration_names(self):
+        """The declaration's module exports it; since R2 the code lives in
+        twine.runtime.usage — not a capability module, so the Anthropic
+        adapter can import it — and the export is the same object."""
         module = {e["name"]: e["module"] for e in toml_entries()}["usage-accounting"]
         self.assertEqual(module, "twine.runtime.capabilities.usage_accounting")
         self.assertIs(importlib.import_module(module).from_anthropic, from_anthropic)
-        self.assertEqual(from_anthropic.__module__,
-                      "twine.runtime.capabilities.usage_accounting")
+        self.assertIs(importlib.import_module(module).UsageMappingError, UsageMappingError)
+        self.assertEqual(from_anthropic.__module__, "twine.runtime.usage")
+        self.assertIs(importlib.import_module("twine.runtime.usage").from_anthropic,
+                      from_anthropic)
 
 
 # ---------------------------------------------------------------------------
@@ -583,11 +632,60 @@ class FakeThroughTheBoundary(unittest.TestCase):
         self.assertEqual(b.adapter.requests[0].tools, (READ_FILE,))
         self.assertEqual(b.adapter.remaining, 0)
 
-    def test_every_stop_on_the_axis_passes(self):
+    def test_every_stop_on_the_axis_passes_but_the_loops(self):
+        """Every key of the axis passes from an adapter — except the axis's
+        loop_keys (Arc 2 R2): the loop produces those, and the boundary
+        refuses an adapter whose mapping produces one, naming it."""
+        loop = transitions.loop_keys()
+        self.assertEqual(set(loop), {"cap-reached", "cap-unchecked", "killed"})
         for key in transitions.stop_keys():
             with self.subTest(stop=key):
-                turn = boundary([dict(FINAL_TURN, stop=key)]).call(request())
-                self.assertEqual(turn.stop, key)
+                if key in loop:
+                    with self.assertRaises(BoundaryError) as caught:
+                        boundary([dict(FINAL_TURN, stop=key)]).call(request())
+                    self.assertIn(repr(key), str(caught.exception))
+                    self.assertIn("loop key", str(caught.exception))
+                else:
+                    turn = boundary([dict(FINAL_TURN, stop=key)]).call(request())
+                    self.assertEqual(turn.stop, key)
+
+    def test_the_boundary_reads_the_loop_keys_from_the_table(self):
+        b = boundary([FINAL_TURN])
+        self.assertEqual(b.loop_set, transitions.loop_keys())
+        with tempfile.TemporaryDirectory() as tmp:
+            text = TRANSITIONS_TABLE.read_text(encoding="utf-8")
+            body = re.sub(r"\nloop_keys = \[[^\]]*\]\n", "\n", text)
+            self.assertNotEqual(body, text)
+            path = Path(tmp) / "no-loop-keys.toml"
+            path.write_text(body, encoding="utf-8")
+            with self.assertRaises(transitions.TableError):
+                transitions.loop_keys(path)
+            with self.assertRaises(BoundaryError) as caught:
+                boundary([FINAL_TURN], table=path)
+            self.assertIn("loop_keys", str(caught.exception))
+
+    def test_the_new_turn_fields_default_and_are_checked(self):
+        """R2 added content, retry_after, request_id and reason to Turn,
+        each defaulting so the fake is unchanged; the boundary checks their
+        types."""
+        turn = boundary([FINAL_TURN]).call(request())
+        self.assertEqual((turn.content, turn.retry_after, turn.request_id, turn.reason),
+                         ((), None, None, None))
+        self.assertEqual(set(turn.as_json()),
+                         {"text", "thinking", "tool_calls", "stop", "usage", "provider_stop",
+                          "content", "retry_after", "request_id", "reason"})
+        b = boundary([FINAL_TURN])
+        good = Turn("ok", None, (), "end-turn", Tokens(1, 1, None, 0, 0))
+        self.assertEqual(b.turn_faults(good), [])
+        for bad, needle in ((dataclasses.replace(good, content=[{"type": "text"}]), "content"),
+                            (dataclasses.replace(good, content=("x",)), "content"),
+                            (dataclasses.replace(good, retry_after=-1), "retry_after"),
+                            (dataclasses.replace(good, retry_after=True), "retry_after"),
+                            (dataclasses.replace(good, request_id=7), "request_id"),
+                            (dataclasses.replace(good, reason=b"x"), "reason")):
+            with self.subTest(needle=needle, value=bad):
+                faults = b.turn_faults(bad)
+                self.assertTrue(any(needle in f for f in faults), faults)
 
     def test_a_stop_not_on_the_axis_is_refused(self):
         """A provider's word scripted where twine's belongs: the fake maps
@@ -681,10 +779,23 @@ class SpawnTimeConstants(unittest.TestCase):
 
     def test_the_thinking_settings_refuse_incoherence(self):
         for kwargs in ({"enabled": True}, {"enabled": True, "budget_tokens": 0},
-                       {"enabled": False, "budget_tokens": 100}, {"enabled": 1}):
+                       {"enabled": False, "budget_tokens": 100}, {"enabled": 1},
+                       {"enabled": False, "adaptive": True},
+                       {"enabled": True, "budget_tokens": 100, "adaptive": True},
+                       {"enabled": True, "adaptive": 1}):
             with self.subTest(**kwargs):
                 with self.assertRaises(ThinkingSettingsError):
                     ThinkingSettings(**kwargs)
+
+    def test_adaptive_thinking_is_on_without_a_budget(self):
+        """R2: Anthropic's `{"type": "adaptive"}` — thinking on, no budget."""
+        adaptive = ThinkingSettings(enabled=True, adaptive=True)
+        self.assertEqual(adaptive.as_json(),
+                         {"enabled": True, "budget_tokens": None, "adaptive": True})
+        settings = SpawnSettings(model="m", max_tokens=10, thinking=adaptive)
+        self.assertTrue(settings.thinking.enabled)
+        self.assertEqual(THINKING_OFF.as_json(),
+                         {"enabled": False, "budget_tokens": None, "adaptive": False})
 
     def test_the_spawn_settings_refuse_incoherence(self):
         for kwargs in ({"model": "", "max_tokens": 10, "thinking": THINKING_OFF},
@@ -759,14 +870,16 @@ class FakeScripts(unittest.TestCase):
             FakeScript.from_data([FINAL_TURN, dict(FINAL_TURN, colour="blue")])
 
     def test_the_fake_is_registered_and_implements_the_three(self):
+        """And, since R2, `anthropic` beside it, implementing five."""
         self.assertEqual(FakeAdapter.name, "fake")
         self.assertEqual(FakeAdapter.implements, frozenset(THE_THREE))
         registry = load_runtime_registry()
-        self.assertEqual([a.name for a in registry.adapters], ["fake"])
+        self.assertEqual([a.name for a in registry.adapters], ["anthropic", "fake"])
         for name in THE_EIGHT:
             with self.subTest(capability=name):
-                self.assertEqual(registry.get(name).adapters,
-                                 ["fake"] if name in THE_THREE else [])
+                want = (["anthropic"] if name in ANTHROPIC_FIVE else []) + (
+                    ["fake"] if name in THE_THREE else [])
+                self.assertEqual(registry.get(name).adapters, want)
 
     def test_nothing_in_twine_drives_the_fake(self):
         """T8: the tests drive it, and nothing else does — no module under
@@ -797,12 +910,16 @@ class RuntimeList(unittest.TestCase):
                 self.assertTrue(row["module"].startswith("twine.runtime.capabilities."))
                 self.assertTrue(row["summary"])
                 self.assertEqual(row["status"],
-                                 "implemented" if row["name"] in THE_THREE else "declared")
+                                 "implemented" if row["name"] in ANTHROPIC_FIVE else "declared")
         self.assertEqual(obj["adapters"], [{
+            "name": "anthropic",
+            "implements": ["tool-calling", "thinking", "prompt-caching", "streaming",
+                           "usage-accounting"],
+            "tool_protocol": "native", "module": "twine.runtime.adapters.anthropic"}, {
             "name": "fake", "implements": ["tool-calling", "thinking", "usage-accounting"],
             "tool_protocol": "native", "module": "twine.runtime.adapters.fake"}])
-        self.assertEqual(obj["counts"], {"capabilities": 8, "declared": 5, "implemented": 3,
-                                         "experimental": 0, "adapters": 1})
+        self.assertEqual(obj["counts"], {"capabilities": 8, "declared": 3, "implemented": 5,
+                                         "experimental": 0, "adapters": 2})
         self.assertEqual(obj["statuses"], list(STATUSES))
         self.assertEqual((obj["problems"], obj["reason"]), ([], None))
         self.assertNotIn("Traceback", run.stderr)
@@ -1100,16 +1217,39 @@ def runtime_sources() -> list[Path]:
 
 
 class NoNetworkNoKey(unittest.TestCase):
+    """Since Arc 2 R2 one module under twine/runtime/ reaches a network:
+    twine/runtime/transport.py, the real transport, the only place twine
+    opens a socket — and it reaches it through http.client and ssl alone.
+    Every other module is held to R1's line; no module imports a provider
+    SDK, a process-spawning module or `os`, and none reads the process
+    environment (the Anthropic adapter reads its key from the mapping it is
+    given)."""
 
     FORBIDDEN = {"anthropic", "openai", "urllib", "urllib.request", "http", "http.client",
                  "socket", "ssl", "requests", "httpx", "aiohttp", "asyncio", "subprocess",
                  "multiprocessing", "os"}
+    TRANSPORT = "twine/runtime/transport.py"
+    # What the transport may import to open its socket: http.client and ssl,
+    # and urllib.parse to split the URL (it parses; it opens nothing).
+    TRANSPORT_REACHES = {"http", "http.client", "ssl", "urllib", "urllib.parse"}
 
     def test_no_runtime_module_imports_anything_that_reaches_out(self):
         for path in runtime_sources():
-            with self.subTest(file=path.relative_to(REPO_ROOT).as_posix()):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            allowed = self.TRANSPORT_REACHES if rel == self.TRANSPORT else set()
+            with self.subTest(file=rel):
                 found = imported_names(path) & self.FORBIDDEN
-                self.assertEqual(found, set())
+                self.assertEqual(found - allowed, set())
+
+    def test_the_transport_is_the_one_module_that_reaches_out(self):
+        reaching = sorted(p.relative_to(REPO_ROOT).as_posix()
+                          for p in (REPO_ROOT / "twine").rglob("*.py")
+                          if imported_names(p) & {"socket", "ssl", "http", "http.client",
+                                                  "urllib.request", "anthropic", "requests",
+                                                  "httpx", "aiohttp"})
+        self.assertEqual(reaching, [self.TRANSPORT])
+        self.assertEqual(imported_names(REPO_ROOT / self.TRANSPORT) & self.FORBIDDEN,
+                         self.TRANSPORT_REACHES & self.FORBIDDEN)
 
     def test_no_runtime_module_reads_the_environment(self):
         """No key is read: nothing under twine/runtime/ touches the
@@ -1160,7 +1300,14 @@ class ProviderRecordings(unittest.TestCase):
                 self.assertEqual(rows[name]["sha"], hashlib.sha256(data).hexdigest())
 
     def test_every_provider_recording_is_one_json_object(self):
+        """R1's rule for a carried emission (the usage object) and the
+        lander's meta files: one JSON object, one line, its newline. The wire
+        captures of 2026-10-13 (`*.request.json`, `*.response.json`) are the
+        provider's bytes, no newline added — tests/test_anthropic.py holds
+        them to the brief's hashes and to being JSON."""
         for path in sorted((FIXTURES_DIR / "anthropic").rglob("*.json")):
+            if path.name.endswith((".request.json", ".response.json")):
+                continue
             with self.subTest(fixture=path.name):
                 data = path.read_bytes()
                 self.assertEqual(data.count(b"\n"), 1)
