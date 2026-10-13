@@ -930,6 +930,12 @@ optimizing.
 the fourth runtime concern (§4.3): a worker blocked on a clarification
 has its transcript persisted append-only and re-warms on the answer.]
 
+[2026-10-13-twine-runtime-window-009: landed — a suspended session goes
+cold and `twine resume` re-warms it from its transcript with the
+planner's answer appended; the re-warm cost is the twin's `rewarm`, the
+resumed run's first call's usage in the five classes; holding hot stays
+the effort machinery's later knob.]
+
 **D24 — Stack lean: Python backend, thin web frontend.** Held
 loosely as mechanism-authority territory: same language as bale,
 official SDK, bale internals readable by harness sessions without
@@ -1002,6 +1008,12 @@ reworded:
   window runs thin so AGENT.md §11's bail-to-handoff fires, and
   treats exhaustion as an outcome with a move. Twine also owes
   bale-src an AGENT.md §11.7 surface row (D21's annotation).
+
+  [2026-10-13-twine-runtime-window-009: landed — counted from each
+  call's usage, warned as the last line of every tool result at 80%, and
+  exhausted as `window-exhausted` → `split-goal` before the call past it
+  (runtime-contract.md §7.4).]
+
 - **Turn-end detection and shape classification.** On claude.ai a
   human reads the turn; in twine, `end_turn` with no tool call ends
   it, and the courier classifies the final text as one of the four
@@ -1013,6 +1025,12 @@ reworded:
 - **Suspension and cold resume** (D23): a worker blocked on a
   clarification has its transcript persisted append-only and
   re-warms on the answer.
+
+  [2026-10-13-twine-runtime-window-009: landed — `escalate`'s
+  clarification form suspends a run on a response tarball, and `twine
+  resume` re-warms the transcript on the answer (runtime-contract.md
+  §6.6, §7.9).]
+
 - **The transition table grows a provider axis**: rate limit and
   overload (retry with backoff), network failure, `max_tokens`,
   model refusal (the 45-arc specimen), tool error (returned as a
@@ -1034,6 +1052,13 @@ above). Neither is this session's or this repository's to land.
 are now due — the bale-src `AGENT.md` §11.7 surface row for twine-hosted
 API workers, and nisaba-src's `nisaba-seed.md` §3.3 annotation; the
 desk's to send.]
+
+[2026-10-13-open-milestone-2-006: both sent on 2026-10-13 — nisaba-src's
+annotation landed as session `2026-10-13-nisaba-runtime-face-001`
+(beneath its §3.3, recording the runtime face built); bale-src's §11.7
+row is item 1 of the sitting bundle `twine-obligations-desk` authored
+for its desk, with R5's warning and `twine resume` in its material —
+that desk's to land.]
 
 ### 4.5 Effort (T11, directed)
 
@@ -1385,6 +1410,29 @@ removed and the sandbox home kept; otherwise both are kept. `VERSION`
 0.19.0. With R1–R4 landed, the first milestone of the Arc 2 cut is
 reached: the worker side of the courier is twine's.]
 
+[2026-10-13-twine-runtime-window-009: R5 landed — window accounting and
+cold resume (D23). The window: `twine run --window N` fixes its size, or
+the adapter states it at spawn (`Adapter.context_window()`, a
+`WindowStatement`; the Anthropic adapter's one `GET /v1/models`, its
+model's `max_input_tokens`; the fake's unknown — counted, never warned
+or stopped on); after each call `used` = the call's `input + cache_read
++ cache_write`, one `window` transcript line per call; at 80% the run is
+warned and every tool result the model reads ends with the warning line,
+never the transcript's `tool-result` line; at 100% the next call is not
+made — `stopped`, `window-exhausted`, `split-goal`, before the cap
+check; the cap check prices the count plus what was appended since. Cold
+resume: `twine resume SID --cap USD --answer FILE|-` rebuilds the
+conversation from the transcript's `request` lines, appends the answer
+as one user message and runs the loop again under the same sid in the
+same sandbox home with the transcript's spawn-time constants, no `bale
+open`; the twin's `rewarm` is the first call's usage. `escalate` gained
+its clarification form (`blocking: true`): bale's request-carried
+crafter and lint in the cage, the response tarball in the home, `carry
+response` on it, the run `suspended` on its apply line.
+`window-accounting` and `suspend-resume` `implemented`, by the runtime
+(`twine/runtime/window.py`, `twine/runtime/resume.py`). `VERSION`
+0.22.0.]
+
 ### 5.3 Arc 3 — the scheduler
 
 Over office 0.5.0's drafting-table: it reads a ratified
@@ -1505,6 +1553,11 @@ are twine's own.
   `turn`, `tool-call`, `tool-result`, `move`, `retry`, `abort`,
   `adapter-error`, `run-end`), its `seq` continuing across runs
   (runtime-contract.md §7.6).]
+
+  [2026-10-13-twine-runtime-window-009: the transcript gained the line
+  kind `window` (each call's counted window) and is now what `twine
+  resume` rebuilds a conversation from, its last `request` line `sent:
+  false` whenever a run ends with messages never sent.]
 
 - **TQ-2 — The capability registry's file shape.** Recommend one
   Python module per capability carrying a declared contract object,
