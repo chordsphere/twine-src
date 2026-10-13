@@ -889,14 +889,20 @@ Exactly one tool leaves the cage, and the declaration says so. **`probe`**
 (D13: it "closes the paste-back hop") runs a probe block against **the real
 repository** — the sandbox's `repo`, its working directory — and returns the
 paste-back. It reuses `twine carry probe`'s machinery
-(`twine/commands/carry.py`), not a copy of it: the block found by
+(`twine/probing.py` — a module that is neither a command nor the CLI, so
+nothing under `twine/runtime/` imports `twine.cli` or a `twine.commands`
+module; the helpers lived in `twine/commands/carry.py` until session
+`2026-10-13-twine-housekeeping-probe-008`), not a copy of it: the block found by
 `twine.shapes` (exactly one probe block, `choose_block`), held to the same
 readiness rules (`check_block_ready` — intact, no unfilled `TODO(worker)`, a
 `# Read-only:` header line; split out of `check_ready` at R3), run by
 `run_probe` (bash through the seam, `carry probe`'s 300-second timeout, at
 most the sandbox's maximum, and its 256 KiB cap) and verified by
 `verify_output` (exactly one intact `probe-output` block of the probe's
-slug). `content` is that block — BEGIN through END, the paste that closes
+slug). `run_probe` takes a seam — the run seam, `which`, `env` and `info` —
+not a `Context`: the tool builds a `probing.Seam` over the sandbox's runner,
+the cage's `PATH` and the cage's environment, and logs the lines it collects.
+`content` is that block — BEGIN through END, the paste that closes
 the hop — and a test reads it back with `twine.shapes`.
 
 It runs through the sandbox's **unwrapped** runner, not the cage's: the

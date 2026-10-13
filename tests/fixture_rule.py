@@ -22,6 +22,7 @@ explicitly; tests/helpers.py's wrappers pass FLOOR (PIN until session
 from __future__ import annotations
 
 import re
+import shlex
 from dataclasses import dataclass
 
 # The outcome group's separator in a fixture name: between the normalized
@@ -170,13 +171,36 @@ def stderr_relpath(relpath: str) -> str:
     return base + STDERR_EXT
 
 
+def echoed_tokens(command: str) -> list[str]:
+    """The tokens of a command as the recorder echoed it, in either form.
+
+    The recorder's `argv:` line is shell-quoted since session
+    2026-10-13-twine-housekeeping-probe-008 (`printf ' %q'`), so a token
+    that carries a space — pack's goal — is one token once `shlex.split`
+    has read it. The landed pastes (bale 0.4.51's and earlier) are the old
+    form, `argv: $*`: tokens joined by single spaces with no quoting. The
+    same `shlex.split` reads that form too, because no token of a landed
+    paste carries a quote, a backslash or a `#` (tests/test_recordings.py
+    holds it for every carried paste in the tree), and a README row's
+    command cell, which is the old form always. A quote left open raises
+    ValueError rather than reading as something else."""
+    try:
+        return shlex.split(command)
+    except ValueError as exc:
+        raise ValueError(f"cannot read the quoting of {command!r}: {exc}") from None
+
+
 def echoed_argv(command: str) -> list[str]:
-    """The argv after `bale` from a command as the recorder echoed it
-    (`argv: $*`, so the quoting is gone) or as a README row writes it,
-    `bale` included. A token never carries a space except `pack`'s goal,
-    the one positional that does: everything between `pack` and its first
-    flag is the goal. Any other verb splits on single spaces."""
-    tokens = command.split(" ")
+    """The argv after `bale` from a command as the recorder echoed it —
+    shell-quoted (`printf '%q'`), or the older `argv: $*` with the quoting
+    gone — or as a README row writes it (the old form), `bale` included.
+    Tokens come from `echoed_tokens`. In the quoted form pack's goal is one
+    token already; in the old form it is spread over several, since the one
+    positional that carries spaces is pack's goal: everything between `pack`
+    and its first flag is the goal, joined with single spaces — a rule that
+    leaves the quoted form's single token as it is, so both forms give the
+    same argv. Any other verb's tokens stand as read."""
+    tokens = echoed_tokens(command)
     if tokens[:1] != ["bale"]:
         raise ValueError(f"not a bale command: {command!r}")
     argv = tokens[1:]

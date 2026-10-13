@@ -595,7 +595,17 @@ The courier runs a probe — only with the operator's explicit consent,
 given per invocation as `--run`. The verb is
 `twine/commands/carry.py` (the `carry` family); it reads through
 `twine.shapes` (§9) and runs through the seam (§10.6). It calls no bale
-verb.
+verb. The machinery the verb shares with the runtime's `probe` tool
+(runtime-contract.md §6.5) — the limits (300-second timeout, 256 KiB
+stdout cap), the `Outcome`, `choose_block`, `check_block_ready`,
+`run_probe` and `verify_output` — lives in `twine/probing.py`, not in a
+command module, so that nothing under `twine/runtime/` imports a command
+module or `twine.cli` (a test walks the imports). `carry.py` calls those
+functions from there, and keeps importing the names back, so what this
+section pins is unchanged. `run_probe` takes a *seam* — the run seam
+(§10.6), `which`, `env` and `info`, the four members of a `Context` it
+uses — not a `Context`: `carry probe` hands it its own, the tool a
+`probing.Seam` that collects the informational lines for its log.
 
 ### 10.1 Finding the block
 
@@ -2350,7 +2360,11 @@ block to `bale clipboard`, as any probe built on the crafter's scaffold
 does). Per recording it prints a `== recording: <label> (<annotation>)`
 header — the annotation naming where it ran (`repo`, `scratch`, `anywhere`
 or `crafter`) and, for a JSON line, the outcome expected — then `argv:`
-(echoed, so unquoted), `stdin:`, `cwd:`, `exit:`, and for each of stdout
+(echoed shell-quoted, `printf ' %q'`, since session
+`2026-10-13-twine-housekeeping-probe-008`: a token with a space — `pack`'s
+goal — is one token, backslash-escaped, with no trailing space; the pastes
+landed before then are the older `argv: $*`, unquoted), `stdin:`, `cwd:`,
+`exit:`, and for each of stdout
 and stderr the byte count, the sha256, whether it ends with a newline, a
 raw head (60 lines at most, for a reader) and a **gzip+base64 copy of the
 whole stream** — the copy is what crosses a clipboard intact; the raw
@@ -2368,8 +2382,12 @@ place, a `repo` recording ran in the paste's `cwd` and a `scratch` one
 under its scratch directory. It derives every recording's path by §7's
 rule — imported from `tests/fixture_rule.py`, the module
 `tests/helpers.py` re-exports, never re-derived: `<where>` from the
-annotation, the argv from the echoed command (`pack`'s goal is everything
-before its first flag), the outcome group from the collision rule over the
+annotation, the argv from the echoed command (`shlex.split` reads both the
+quoted form and the older unquoted one, since no landed token carries a
+quote, a backslash or a `#`; then `pack`'s goal is everything before its
+first flag, joined by single spaces, which leaves the quoted form's one token
+as it is — the README's command cell is that unquoted form whichever the
+recorder echoed), the outcome group from the collision rule over the
 whole paste, using each line's `outcome` and `reason` (a collision the
 lines cannot tell apart is a refusal: a tag is a README's to assign) — and
 the `.stderr` sibling beside each. `V` defaults to the paste's `install

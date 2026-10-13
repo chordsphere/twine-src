@@ -122,7 +122,8 @@ project's inventory.
   (a `to: planner` block never reaches a worker), `carry probe` (its
   refusals, `--run`, the output cap, `confined: false`, its keys) and
   the run seam (`Context.run`, the signature later carry verbs build
-  on, its group wait and its spawn hook), §11 — the bale hand-offs
+  on, its group wait and its spawn hook; the probe machinery itself is
+  `../twine/probing.py`, shared with the runtime's `probe` tool), §11 — the bale hand-offs
   (`carry exchange`, `carry response`),
   how bale is found and the gate (a floor plus schema hashes, and the
   key check on each line), T12's one `apply` argv —
@@ -209,8 +210,9 @@ project's inventory.
 - `../bin/twine-record-fixtures` — the recorder: the probe a recording session
   runs in `~/twine-src` with the new bale on PATH, recording every bale
   surface twine reads, stdout and stderr, with a gzip+base64 copy of
-  each stream; `[SLUG]`, default `twine-record-<installed version>`.
-  `context/cli-contract.md` §16.
+  each stream; `[SLUG]`, default `twine-record-<installed version>`; its
+  `argv:` lines are shell-quoted since 0.21.0 (the lander reads that form and
+  the older unquoted one). `context/cli-contract.md` §16.
 - `../bin/twine-land-recordings` — the lander: lands a recorder
   paste-back under `fixtures/bale-<version>/` (recordings, `.stderr`
   siblings, the paste) and prints the README rows and manifest lines, or
