@@ -1,0 +1,64 @@
+# twine/runtime/tools.toml — the canonical tool surface's declaration
+# (twine-seed.md T6, §4.2; Arc 2 R3, claude/context/runtime-contract.md §6).
+#
+# The seven tools T6 names, declared the way the capabilities are
+# (capabilities.toml): this file lists every tool, twine/runtime/tools/ holds
+# one module per tool exposing a module-level TOOL, and the two are held to
+# each other by name. No tool without its entry here, and no entry without
+# its module: `twine runtime tools` reports a stray module and a missing one
+# by name (NOT OK, exit 1), and tests/test_runtime_tools.py fails on either.
+#
+# One [[tool]] per tool, exactly these three keys:
+#
+#   name         the tool's name as the model is offered it: lowercase words
+#                joined by `_`. The module's TOOL.spec.name spells it the same.
+#   module       the module, dotted, directly under twine.runtime.tools
+#                (`twine.runtime.tools.read_file` is the file
+#                twine/runtime/tools/read_file.py).
+#   leaves_cage  whether the tool reaches past the sandbox home. Exactly one
+#                does: `probe`, which by D13 runs a read-only block against the
+#                real repository and returns the paste that closes the hop. It
+#                is declared here, where a reviewer reads it, and the module's
+#                TOOL says the same or the registry names a cage-mismatch.
+#
+# The order is the order every renderer lists and the loop offers the tools.
+# What a tool takes and returns is its module's TOOL (its ToolSpec's input
+# schema, its pinned result keys), never this file. A malformed entry — a
+# missing or unknown key, a bad name, a module not directly under
+# twine.runtime.tools, a leaves_cage that is not a boolean, a name or module
+# declared twice — refuses the whole declaration, loudly, naming the entry.
+
+[[tool]]
+name = "shell"
+module = "twine.runtime.tools.shell"
+leaves_cage = false
+
+[[tool]]
+name = "read_file"
+module = "twine.runtime.tools.read_file"
+leaves_cage = false
+
+[[tool]]
+name = "write_file"
+module = "twine.runtime.tools.write_file"
+leaves_cage = false
+
+[[tool]]
+name = "list_dir"
+module = "twine.runtime.tools.list_dir"
+leaves_cage = false
+
+[[tool]]
+name = "probe"
+module = "twine.runtime.tools.probe"
+leaves_cage = true
+
+[[tool]]
+name = "escalate"
+module = "twine.runtime.tools.escalate"
+leaves_cage = false
+
+[[tool]]
+name = "deliver"
+module = "twine.runtime.tools.deliver"
+leaves_cage = false

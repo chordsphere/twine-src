@@ -65,7 +65,7 @@ COMMANDS = (
         description="Render share/transitions.toml: four axes — bale's telemetry "
                     "outcomes, closure reasons and `bale apply --json` outcomes "
                     "(the consumption manifest's [[vocabulary]] entries, bale's "
-                    "spellings at the pin) and twine's own stop set — one row per "
+                    "spellings at the floor) and twine's own stop set — one row per "
                     "key, each naming a declared move and who performs it. ok when "
                     "every key of every axis has one row and every row's move is "
                     "declared; otherwise exit 1, naming each axis and key or move "

@@ -35,4 +35,7 @@ Layout (CODE.md §13): one file per subject —
   test_recordings.py         the recorder and the lander (bin/twine-record-
                              fixtures, bin/twine-land-recordings) and the rule
                              they share
+  test_runtime_tools.py      the canonical tools, the sandbox they run in and
+                             the kill-switch hook (Arc 2 R3): real processes,
+                             no model, no network
 """

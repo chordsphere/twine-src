@@ -5,22 +5,27 @@
 > twine's. The sibling of `cli-contract.md`, which stays the verbs'
 > (`twine runtime list` and `show` are its §17). Each line here is
 > asserted by a test under `tests/` (`tests/test_runtime.py`,
-> `tests/test_anthropic.py`) and by the landing session's `validation.sh`.
-> Landed by session `2026-10-12-twine-runtime-registry-007` (Arc 2 R1);
-> §1 (Q-3) and §2 (TQ-2) were ratified as written on 2026-10-12. §5 and the
-> lines of §1–§4 that say "R2" are session
-> `2026-10-13-twine-runtime-anthropic-002`'s (Arc 2 R2), awaiting review. A
+> `tests/test_anthropic.py`, `tests/test_runtime_tools.py`) and by the
+> landing session's `validation.sh`. Landed by session
+> `2026-10-12-twine-runtime-registry-007` (Arc 2 R1); §1 (Q-3) and §2 (TQ-2)
+> were ratified as written on 2026-10-12. §5 and the lines of §1–§4 that say
+> "R2" are session `2026-10-13-twine-runtime-anthropic-002`'s (Arc 2 R2). §6
+> and the lines of §2 that say "R3" are session
+> `2026-10-13-twine-runtime-tools-003`'s (Arc 2 R3), awaiting review. A
 > later session that changes a line changes it here in the same response.
 
-What exists after R2, and what does not: the registry, the boundary, the
-fake adapter, `from_anthropic`, and the Anthropic adapter (§5) — the first
+What exists after R3, and what does not: the registry, the boundary, the
+fake adapter, `from_anthropic`, the Anthropic adapter (§5) — the first
 code under `twine/` that reaches a network (through one module,
 `twine/runtime/transport.py`) and reads a key (from the environment mapping
-it is given). Nothing calls a model on its own: no loop exists to call
-it, and nothing appends to the spend stream. R2 does **not** use the
-`anthropic` SDK (§5.1). R3 adds the canonical tools and the sandbox, R4 the
-loop (`twine run <bundle>`), R5 window accounting's counting and cold
-resume, R6 the text tool protocol's wire and the OpenAI-compatible adapter.
+it is given) — and since R3 the seven canonical tools and the per-sid
+sandbox they run in (§6), the first code under `twine/runtime/` that starts
+a process (through the run seam it is handed). Nothing calls a model on its
+own: no loop exists to call it or to run the tools it asks for, and nothing
+appends to the spend stream. R2 does **not** use the `anthropic` SDK
+(§5.1). R4 adds the loop (`twine run <bundle>`), R5 window accounting's
+counting, the clarification response and cold resume, R6 the text tool
+protocol's wire and the OpenAI-compatible adapter.
 
 ## 1. The adapter boundary (Q-3; ratified 2026-10-12)
 
@@ -214,6 +219,20 @@ operation is a named capability with a declared contract.
   (which Arc 2 session implements it, and what exists now) and `grounds`
   (the seed entries it derives from). Every field non-empty. Data, not a
   docstring, so `show` renders it and a test checks it whole.
+- **The runtime's own capabilities** (R3). A capability the runtime
+  implements itself, never an adapter — `sandboxing`: the cage is the
+  runtime's, and an adapter must never run a tool — carries a fifth,
+  optional key, `implemented_by`: the runtime module that implements it,
+  dotted, directly under `twine.runtime` and not one of its packages
+  (`capabilities`, `adapters`, `tools`); anything else refuses the
+  declaration. That module lists the capability in a module-level
+  `IMPLEMENTS` tuple, as an adapter lists its set (`twine.runtime.sandbox`:
+  `IMPLEMENTS = ("sandboxing",)`). `runtime list` prints it in each row as
+  `implemented_by` (`null` for the rest). Why a key and not the loop as a
+  pseudo-adapter: an adapter must implement the boundary's three and
+  answer `call`, which a sandbox cannot, and a pseudo-adapter would put
+  every runtime capability under a name `runtime list` prints beside
+  `anthropic` and `fake` as if it were one.
 - **The adapters** declare which capabilities they implement — not the
   capabilities which adapters implement them. §4.1 reads both ways ("an
   adapter is a chosen set of them"); this side is chosen because the code
@@ -242,6 +261,7 @@ a problem naming what is at fault:
 | `malformed-adapter` | an adapter class the boundary cannot host (§1.1's attributes) |
 | `duplicate-adapter` | two adapters under one name |
 | `unknown-capability` | an adapter implementing a capability the declaration does not list |
+| `missing-implementer` | (R3) an `implemented_by` module that does not import, or whose `IMPLEMENTS` does not list the capability |
 
 A **malformed declaration** — unreadable, not TOML, no entries, a
 top-level key other than `capability`, an entry with a missing or unknown
@@ -257,25 +277,33 @@ A closed set of three:
 
 | status | means | held to |
 |---|---|---|
-| `declared` | the contract is written; nothing implements it yet | no registered adapter implements it |
-| `implemented` | at least one registered adapter implements it | at least one does |
+| `declared` | the contract is written; nothing implements it yet | no registered adapter implements it, and it has no `implemented_by` |
+| `implemented` | at least one registered adapter implements it — or, for a runtime capability, its `implemented_by` module does | at least one does; for a runtime capability, the module imports and lists it |
 | `experimental` | listed, never silently absent (§4.1) | either — the marker says the contract may still move |
 
-### 2.4 The eight, at R2
+The status check is held, not loosened, for a runtime capability (R3):
+`implemented` with an `implemented_by` that does not stand behind it is a
+`missing-implementer` and a `status-mismatch`; `declared` beside an
+`implemented_by` is a `status-mismatch`; and an adapter claiming a
+capability that carries `implemented_by` is a `status-mismatch` naming it —
+an adapter never implements a runtime capability.
+
+### 2.4 The eight, at R3
 
 | capability | status | module (under `twine.runtime.capabilities.`) | lands |
 |---|---|---|---|
-| `tool-calling` | implemented (`anthropic`, `fake`) | `tool_calling` | R2 Anthropic `tool_use` (landed); R3 the canonical tools; R6 the text protocol |
+| `tool-calling` | implemented (`anthropic`, `fake`) | `tool_calling` | R2 Anthropic `tool_use` (landed); R3 the canonical tools (landed: §6 — the tools are the runtime's, the status the adapters'); R6 the text protocol |
 | `thinking` | implemented (`anthropic`, `fake`) | `thinking` | R2 Anthropic's parameter and blocks (landed) |
 | `prompt-caching` | implemented (`anthropic`) | `prompt_caching` | R2 (landed: §5.3) |
 | `window-accounting` | declared | `window_accounting` | R5 |
 | `streaming` | implemented (`anthropic`) | `streaming` | R2 (landed: §5.4) |
-| `sandboxing` | declared | `sandboxing` | R3 |
+| `sandboxing` | implemented (the runtime: `implemented_by` `twine.runtime.sandbox`) | `sandboxing` | R3 (landed: §6) |
 | `suspend-resume` | declared | `suspend_resume` | after R4, with R5's cold resume |
 | `usage-accounting` | implemented (`anthropic`, `fake`) | `usage_accounting` | R2 calls `from_anthropic` (landed); R4 appends |
 
 At R1 three were implemented (the fake's) and five declared; R2 moved
-`prompt-caching` and `streaming`.
+`prompt-caching` and `streaming`; R3 moved `sandboxing`, implemented by the
+runtime itself (§2.1).
 
 Each declared capability's contract is written from the seed's §4.1 and
 §4.3 so that the session implementing it implements a declaration rather
@@ -650,3 +678,257 @@ under `fixtures/anthropic/`; `--check` verifies a landed tree and its
 and the boundary — skipped unless `TWINE_LIVE_SMOKE=1` **and**
 `ANTHROPIC_API_KEY` is set. It never runs under bale (network off, T8); the
 architect runs it by hand.
+
+## 6. The tools and the sandbox (Arc 2 R3)
+
+The canonical tool surface (T6, §4.2 of the seed) and the cage the
+workers' tools run in (§4.3, "Sandbox"). The code is
+`twine/runtime/tooling.py` (what a tool and a result are, the declaration
+and its parity, the argument check, `run_tool`), `twine/runtime/tools.toml`
+and `twine/runtime/tools/` (the seven), and `twine/runtime/sandbox.py`; the
+verb is `twine runtime tools` (cli-contract §17.6); the tests are
+`tests/test_runtime_tools.py`, real processes throughout and no model. Nothing
+calls a tool but the tests until the loop (R4).
+
+### 6.1 The declaration, and parity by name
+
+`twine/runtime/tools.toml` declares the tools the way `capabilities.toml`
+declares the capabilities (§2): one `[[tool]]` per tool, exactly three keys
+— `name` (lowercase words joined by `_`, as the model is offered it),
+`module` (dotted, directly under `twine.runtime.tools`), `leaves_cage` (a
+boolean) — in the order every renderer lists them and the loop offers them.
+Each module under `twine/runtime/tools/` exposes a module-level **`TOOL`**
+(`twine.runtime.tooling.Tool`): its `spec` (R1's `ToolSpec` — `name`,
+`description`, `input_schema`), `leaves_cage`, its `result_keys` (§6.2),
+the `error_defaults` an error result carries for them, and its executor.
+Why a declaration beside `TOOL` rather than a `TOOLS` tuple per module
+discovered like `COMMANDS`: parity needs two sides — a discovered tuple is
+its own declaration and could never be found missing — and what leaves the
+cage is the one fact a reviewer must read without opening code, so it is
+declared where the reviewer reads, and the registry holds the module's
+`TOOL` to it.
+
+The registry (`load_tool_registry`) is ok exactly when every one of these
+holds; each failure is a problem naming what is at fault:
+
+| kind | names |
+|---|---|
+| `stray-module` | a module under `twine/runtime/tools/` the declaration does not list — by its module name |
+| `missing-module` | a declared tool whose module is absent — by the tool |
+| `unloadable-module` | a declared module that raises on import, with the exception |
+| `no-tool` | a module without a `TOOL`, or whose `TOOL` is not a `Tool` |
+| `tool-mismatch` | a `TOOL` whose spec names another tool than its entry |
+| `malformed-tool` | a `TOOL` not whole: an empty description, an input schema outside the subset (§6.2), result keys that repeat a base key, `error_defaults` not covering exactly the result keys |
+| `cage-mismatch` | a `TOOL.leaves_cage` that disagrees with the declaration |
+
+A malformed declaration (unreadable, not TOML, no `[[tool]]`, a top-level
+key other than `tool`, an entry with a missing or unknown key, a bad name, a
+module not directly under `twine.runtime.tools`, a `leaves_cage` that is not
+a boolean, a name or module declared twice) is refused (`DeclarationError`,
+every bad entry named), as §2.2's is. The registry reaches the modules by its
+own guarded import, so a missing one is a named problem and never an import
+failure that takes a verb down.
+
+### 6.2 The seven, their inputs and their results
+
+Every input schema is JSON Schema with `type: object` and
+`additionalProperties: false`, written in a **subset** `tooling.py` checks
+without a dependency (T9): `type` (object, string, integer, number, boolean,
+array), `properties`, `required`, `additionalProperties: false`, `items`,
+`minItems`, `maxItems`, `minLength`, `exclusiveMinimum`, `description`. A
+schema using anything else is a `malformed-tool`, so no call is waved
+through a keyword nobody checks. Every spec passes R2's `tool_dict` and
+`build_request` unchanged (a test sends all seven).
+
+| tool | input | leaves the cage |
+|---|---|---|
+| `shell` | `command` (string, run by `bash -c`); optional `timeout` (seconds, > 0, capped by the sandbox's maximum, which is also the default) | no |
+| `read_file` | `path` | no |
+| `write_file` | `path`, `content` (UTF-8 text; parents created; an existing file replaced, a directory refused) | no |
+| `list_dir` | `path` (default `.`, the home) | no |
+| `probe` | `block` (a probe block in bale's shape — the fence included — as text) | **yes** (§6.5) |
+| `escalate` | `questions`: one to three objects, each `question`, `while_doing`, `would_assume`, `why_blocked` (non-empty strings, one line each) | no (§6.6) |
+| `deliver` | `tarball` (a path inside the home) | no |
+
+Every tool returns a **`ToolResult`**; `as_json()` is `name`, `content` (a
+string: what the model reads back), `is_error` (a boolean), then the tool's
+pinned keys, in this order:
+
+| tool | beyond `name`, `content`, `is_error` |
+|---|---|
+| `shell` | `exit_code` (int, or `null` when killed), `stdout`, `stderr` (decoded UTF-8, an undecodable byte replaced by U+FFFD), `timed_out`, `stdout_capped`, `duration_seconds` (`null` when nothing ran) |
+| `read_file` | `path` (as resolved, relative to the home), `size` (bytes) |
+| `write_file` | `path`, `size` (bytes written) |
+| `list_dir` | `path`, `entries` — `[{name, kind, size}]`, sorted by name; `kind` from the entry itself, never followed: `file`, `dir`, `link` or `other`; `size` a file's bytes, `null` for the rest |
+| `probe` | `slug`, `leaves_cage` (always `true`), `exit_code`, `lines` (the integrity trailer's count) |
+| `escalate` | `kind` (`"light"`), `suspend` (`true`; `false` on an error), `questions` (the count) |
+| `deliver` | `delivered` (`true`; `false` on an error), `path`, `size`, `sha256` |
+
+An error result carries the same keys, those the tool could not know `null`
+(`entries` `[]`). A call that reached no tool — an unknown name, a tool that
+cannot load — carries the three base keys alone.
+
+**A tool error is a result, never an exception** (§4.3 of the seed: "tool
+error (returned as a result, never a crash)"). `run_tool(sandbox, name,
+arguments) -> ToolResult` never raises: an unknown name (the result names
+the seven), arguments the schema refuses (each fault named: a missing
+argument, an unknown one, a wrong type, a bound), a path outside the cage, a
+missing file, non-UTF-8 bytes, a file over the read cap, a timeout, the
+stdout cap, a spawn the kill-switch cannot stand behind, a tool that raised
+(logged with its traceback; the result names the exception) — each is
+`is_error: true` with a sentence naming the fault. **A command that exits
+non-zero is not a tool error**: `shell`'s result carries the exit code,
+stdout and stderr, and `is_error` is false. The loop (R4) hands `content`
+and `is_error` to the adapter's `tool_result` block (§5.6) as they are.
+
+**`shell`'s `content`**: stdout as it was; then, when there is any, stderr
+under a `[stderr]` line; then one bracketed line saying how it ended —
+`[exit N]`, `[exit -N: killed by SIGNAME]`, `[killed: timed out after Ts; the
+command and its children were stopped]` or `[killed: stdout passed 262144
+bytes; …]` — and `[stderr cut at 65536 bytes]` when the seam truncated it.
+Nothing dropped up to the caps, nothing added but those markers. Stdout is
+capped at **262144 bytes (256 KiB)**, `carry probe`'s cap (cli-contract
+§10.3); `read_file` refuses a file over the same 256 KiB (read it in parts
+with `shell`). Both caps are R3's choice, not the brief's.
+
+### 6.3 The sandbox and the cage
+
+`Sandbox.create(state_dir, sid, *, repo, run=twine.process.run_process,
+env=None, max_timeout=600)` makes one sandbox per sid. Its **home** is
+`<state-dir>/sandbox/<sid>/home/`, created mode 0700 with `tmp/` inside it,
+and reused when it exists (a session's files survive its runs). Refused at
+creation (`SandboxError`): a sid twine would not name a file by
+(`twine.kill.is_sid`), a `repo` that is not a directory, a `max_timeout`
+that is not a positive finite number, a home that cannot be made, an `env`
+that does not map names to strings, and a running record that cannot be
+read (§6.7).
+
+**The cage rules** (`Sandbox.resolve`), every file tool's path through them:
+the path is a non-empty string relative to the home; **an absolute path** is
+refused (one pointing inside the home too — the tools speak relative
+paths); **a `..` component** is refused wherever it stands; and the path is
+resolved, symlinks followed, and **refused when it lands outside the home**
+— a symlink pointing out, a symlinked directory leading out. Each refusal is
+a tool error naming the cage (the home's path). A symlink that stays inside
+is followed, and the result reports the resolved path. A NUL byte is
+refused. A residual, named: the check and the open are two steps, so a
+process racing them could swap a component for a symlink in between; the
+only process in the cage that could is the worker's own `shell`, which is
+not path-confined anyway (below).
+
+**What is confined, and what is not.** The file tools are path-confined.
+`shell` runs **with the home as its working directory** but is not confined
+to it: at R3 there is no mount namespace, so a command can `cd /` and read or
+write whatever the operator's user can. What confines `shell` is the
+environment (§6.4) and the network (§6.4), the timeout and the stdout cap,
+and the kill (§6.7). A mount namespace with bind mounts is the honest next
+step and is not R3's.
+
+### 6.4 The environment, the network rule and `confines`
+
+**The environment** is minimal: `PATH`, `HOME` (the home), `TMPDIR` (its
+`tmp/`) and `LANG`, and nothing else the sandbox was not told to pass. By
+default `PATH` and `LANG` are inherited **by name only**, through
+`twine.process.inherited_environment` (no module under `twine/runtime/`
+touches the process environment, a test holds it); when unset they fall
+back to `/usr/local/bin:/usr/bin:/bin` and `C.UTF-8`. `env=` replaces the
+inherited pair with what the caller passes; `HOME` and `TMPDIR` are always
+the sandbox's. **`ANTHROPIC_API_KEY` never reaches the cage**: it is never
+inherited, and when a caller passes it, it is dropped and the drop logged
+(by name, never the value). A test sets a sentinel key in the parent and
+runs `env` in the cage.
+
+**The network rule.** At creation the sandbox runs `unshare -rn true`
+through the run seam (registered like any spawn, §6.7). When it exits 0 the
+network can be turned off here: every argv the sandbox's runner runs is
+wrapped `unshare -rn -- <argv>` (a new user namespace, so no privilege is
+needed, mapping the operator to root inside it; a new network namespace with
+only a loopback, down), and the sandbox reports **`network: "off"`**. When
+it cannot start (no `unshare`), exits otherwise (no unprivileged user or
+network namespaces) or times out, the sandbox reports **`network:
+"unconfined"`** and the reason. `-rn` alone at R3 (decision 4 of the brief):
+`-m` without bind mounts confines nothing, and `-p` needs `--fork` and a
+`/proc` remount — and makes the pid the hook registers the outer `unshare`
+rather than the command; both belong with the mount namespace.
+
+**`confines`** — cli-contract §10.5's switch, made: the sandbox's runner,
+`SandboxRunner`, a wrapper around the runner the sandbox was handed (the
+default one unless a test hands its own), declares `confines` **true
+exactly when the network is off**; the sandbox reads it back through
+`twine.process.runner_confines` and nothing else sets it.
+
+**`Sandbox.as_json()`**: `sid`, `home`, `repo`, `network`, `confines`,
+`max_timeout`, and `reason` when the network is unconfined (absent when it
+is off).
+
+### 6.5 What leaves the cage, and why: `probe`
+
+Exactly one tool leaves the cage, and the declaration says so. **`probe`**
+(D13: it "closes the paste-back hop") runs a probe block against **the real
+repository** — the sandbox's `repo`, its working directory — and returns the
+paste-back. It reuses `twine carry probe`'s machinery
+(`twine/commands/carry.py`), not a copy of it: the block found by
+`twine.shapes` (exactly one probe block, `choose_block`), held to the same
+readiness rules (`check_block_ready` — intact, no unfilled `TODO(worker)`, a
+`# Read-only:` header line; split out of `check_ready` at R3), run by
+`run_probe` (bash through the seam, `carry probe`'s 300-second timeout, at
+most the sandbox's maximum, and its 256 KiB cap) and verified by
+`verify_output` (exactly one intact `probe-output` block of the probe's
+slug). `content` is that block — BEGIN through END, the paste that closes
+the hop — and a test reads it back with `twine.shapes`.
+
+It runs through the sandbox's **unwrapped** runner, not the cage's: the
+network and the filesystem are the operator's, as §10.5 says of `carry
+probe`. Confinement is the read-only declaration's and the operator's; R3
+does not pretend otherwise, and says `leaves_cage: true` on every result. Two
+things it does that `carry probe` does not: the script gets **the cage's
+minimal environment**, so it never sees `ANTHROPIC_API_KEY` or anything
+else of the operator's (a model-authored script that could print the key
+into its paste-back must not have it); and its process group is registered
+with the kill-switch (§6.7).
+
+### 6.6 `escalate` and `deliver`
+
+**`escalate`** wraps bale's shape, never a fork (D13 as annotated): the light
+question block (TARBALL.md §5.10) — `=== LIGHT BEGIN <sid> ===`, per
+question the four-label rows (`[n] question:`, `while doing:`, `would
+assume:`, `why blocked:`), `Reply: answer inline, "as assumed", or
+"formal".`, `=== LIGHT END <sid> ===`, the sid the sandbox's. Before it is
+returned it is read back with `twine.shapes`: exactly one `light` block,
+intact, for the sid, its rows the ones given — or the call is an error. One
+to three questions (admission is a count); a fourth, none, a field empty or
+not one line is an error. The result is the block as `content`, `kind:
+"light"` and `suspend: true` — the loop stops the worker's turn and carries
+the block. The blocking form, the clarification response with cold resume,
+is R5's; `kind` is declared now so R5 adds a value, not a shape.
+
+**`deliver`** names the response tarball the courier will carry: the path
+through the cage rules, a regular file, readable; the result is
+`delivered: true`, `path` (inside the home), `size` and `sha256`. Running
+`carry response` on it is the loop's (R4).
+
+### 6.7 The kill-switch hook
+
+Everything the sandbox starts — `shell`, `probe`, and the detection at
+creation — goes through `Sandbox.spawn`, the composition cli-contract §14.4
+prescribes for the loop:
+
+- when **a running record for the sid exists**, the seam is handed
+  `on_spawn=lambda pid: register_group(state_dir, sid, pid)`, so the tool's
+  group is in the record before the child does anything (§10.6); when the
+  run returns with `group_survivors` empty, `clear_group(state_dir, sid,
+  pid)` forgets it, so a long session's record stays what is alive. A run
+  that returns survivors leaves its entry for `twine kill`, logged;
+- **without a record** (the loop registers itself first, R4; a test, or the
+  architect at a terminal, has none) the run proceeds unregistered and that
+  is logged — never refused;
+- a record that **cannot be read** refuses the spawn — a tool error (a
+  `SandboxError` at creation), nothing started: a group the kill could not
+  find must not start. A hook that cannot register (`register_group`
+  refusing) is the seam's case: it kills the child before it runs and
+  re-raises, and the tool returns an error naming it. A clear that fails is
+  logged; the record is a cache, and `twine kill` finds the group dead.
+
+Under `unshare -rn` without `--fork` the wrapped command replaces `unshare`
+in place, so the pid the hook registers is the command's own (a test reads
+`$$` back).

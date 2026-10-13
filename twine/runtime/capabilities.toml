@@ -2,7 +2,9 @@
 # (twine-seed.md T7, §4.1; the file shape is TQ-2's, proposed at Arc 2 R1,
 # session 2026-10-12-twine-runtime-registry-007, ratified as written on
 # 2026-10-12). Arc 2 R2 moved prompt-caching and streaming to implemented:
-# the Anthropic adapter implements them.
+# the Anthropic adapter implements them. Arc 2 R3 moved sandboxing to
+# implemented — by the runtime itself (twine/runtime/sandbox.py), through the
+# optional `implemented_by` key below.
 #
 # The runtime applies N5's registry rule to itself: every runtime operation
 # is a named capability with a declared contract, one module per capability
@@ -11,7 +13,7 @@
 # list` reports each stray module and each missing module by name (NOT OK,
 # exit 1), and tests/test_runtime.py fails on either by name.
 #
-# One [[capability]] per capability, exactly these four keys:
+# One [[capability]] per capability, these four keys always:
 #
 #   name     the capability's name: lowercase words joined by hyphens. The
 #            module's CONTRACT.capability must spell it the same.
@@ -30,13 +32,26 @@
 #            `implemented` one no adapter claims, is a status-mismatch.
 #   summary  one line, what `twine runtime list` prints.
 #
+# and one more only where it applies (Arc 2 R3):
+#
+#   implemented_by  the runtime module that implements the capability itself,
+#            dotted, directly under twine.runtime (not one of its packages) —
+#            for a capability that is the runtime's and never an adapter's:
+#            `sandboxing`, the cage the tools run in. That module lists the
+#            capability in its IMPLEMENTS tuple, as an adapter lists its set.
+#            The status is held to it as it is to the adapters: `implemented`
+#            needs the module to import and list the capability (else a
+#            missing-implementer); `declared` beside it is a status-mismatch;
+#            and an adapter claiming a runtime capability is a status-mismatch.
+#
 # Which adapters implement a capability is never written here: each adapter
 # declares the set it implements (§4.1, "an adapter is a chosen set of
 # them"), and the registry derives every capability's `adapters` from those
 # sets. The capability's meaning is its module's CONTRACT, never this file.
 #
 # A malformed entry — a missing or unknown key, a bad name, a status outside
-# the three, a module not directly under twine.runtime.capabilities, a name
+# the three, a module not directly under twine.runtime.capabilities, an
+# implemented_by that is not a module directly under twine.runtime, a name
 # or module declared twice — refuses the whole declaration, loudly, naming
 # the entry.
 
@@ -73,8 +88,9 @@ summary = "a call's text and thinking delivered as it is produced, the finished 
 [[capability]]
 name = "sandboxing"
 module = "twine.runtime.capabilities.sandboxing"
-status = "declared"
+status = "implemented"
 summary = "the cage the worker's tools run in: a per-sid home, network off, unshare where available (§4.3)"
+implemented_by = "twine.runtime.sandbox"
 
 [[capability]]
 name = "suspend-resume"
