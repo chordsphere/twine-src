@@ -28,10 +28,12 @@ abstracts:
                 loop's to produce, never an adapter's.
 
 A boundary refusal is a BoundaryError naming the adapter, the call and
-every fault. It is an adapter defect, not a model outcome. Since R4 the
-loop ends the run `stopped` on one, naming it, with no stop key and no move
-(runtime-contract.md §7.4: the table has no row for an adapter defect yet,
-and R4 adds none — proposed for review).
+every fault. It is an adapter defect, not a model outcome. The loop ends the
+run `stopped` on one with the stop key `adapter-defect` — a loop key of the
+table, the same word the boundary refuses an adapter's turn for stopping with
+— and the operator's move of its row, `fix-adapter` (runtime-contract.md §1.6
+and §7.4). The boundary itself spells neither: it learns the key only through
+the table's `loop_keys`.
 
 Nothing here reaches a network, reads a key or imports outside the
 stdlib and twine.

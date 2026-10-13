@@ -481,6 +481,16 @@ def load_mappings(table: Table, raw: Any) -> None:
 
 # The axis whose keys are twine's API-side stop set.
 STOP_AXIS = "stop"
+# The loop's fourth own stop key (session 2026-10-13-twine-table-adapter-
+# defect-007): a boundary refusal or an adapter that raised, ended `stopped`
+# by twine.runtime.loop with the operator's move `fix-adapter`. Its one
+# spelling in code, beside the others the loop reports: cap-reached and
+# cap-unchecked are twine.spend's (STOP_CAP_*), killed is twine.kill's
+# (STOP_KILLED). It lives here and not in twine/runtime/ because no module
+# under twine/runtime/ may spell a stop key (tests/test_runtime.py); the
+# boundary learns the key only through the table's `loop_keys`, and the
+# table's row for it is checked by MoveBook.faults and by tests/test_run.py.
+STOP_ADAPTER_DEFECT = "adapter-defect"
 # The problems that make an axis's own keys untrustworthy. Other problems
 # (a bale axis without its vocabulary, a missing row elsewhere) say
 # nothing about the stop axis's keys and do not stop them being read.

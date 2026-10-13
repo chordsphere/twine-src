@@ -1105,14 +1105,14 @@ Four axes, rendered in this order:
 | `telemetry-outcome` | the 13 telemetry outcomes of the bale at the floor (0.4.51's; unchanged since 0.4.45, and held fixed above the floor by the schema's pinned hash) | §6 `[[vocabulary]]` |
 | `closure-reason` | the 9 closure reasons of the bale at the floor (0.4.51's; unchanged since 0.4.45, held as above; `null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
 | `apply-outcome` | the 9 outcomes `bale apply --json` prints | §6 `[[vocabulary]]` |
-| `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `request-refused`, `provider-error`, `cap-reached`, `killed`, `cap-unchecked` (15; `cap-unchecked` added by session 5b, `request-refused` and `provider-error` by Arc 2 R2); its `loop_keys` are `cap-reached`, `cap-unchecked`, `killed` | the table's `keys` |
+| `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `request-refused`, `provider-error`, `cap-reached`, `killed`, `cap-unchecked`, `adapter-defect` (16; `cap-unchecked` added by session 5b, `request-refused` and `provider-error` by Arc 2 R2, `adapter-defect` by session 2026-10-13-twine-table-adapter-defect-007); its `loop_keys` are `cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` | the table's `keys` |
 
 A bale axis takes its keys from the manifest's vocabulary of the same
 name and never declares its own, so its keys are exactly bale's
 spellings, no more and no fewer. The stop names are twine's. Since Arc 2
 R2 the stop axis also declares **`loop_keys`** — the keys the loop
-produces (the cost spine's, the kill-switch's) and no model adapter may, a
-subset of `keys`, on a twine axis only — read through
+produces (the cost spine's, the kill-switch's, and an adapter defect's)
+and no model adapter may, a subset of `keys`, on a twine axis only — read through
 `twine.transitions.loop_keys()`, which refuses a table without them as
 `stop_keys()` refuses a table without the axis; the runtime boundary
 refuses a turn an adapter stops with one (`runtime-contract.md` §1.5).
@@ -1151,7 +1151,17 @@ provider refused the request itself (its shape, the credentials, billing,
 permission, the model, a conflict, the size: HTTP 400, 401, 402, 403, 404,
 409, 413), so nothing is retried and the operator is told — and
 `provider-error` (HTTP 500 `api_error`) is `retry-with-backoff`, like an
-overload. The table has 46 rows over 27 moves, and 36 mappings.
+overload. The loop's fourth key, `adapter-defect` (session
+2026-10-13-twine-table-adapter-defect-007), has the operator's move
+**`fix-adapter`**: the adapter broke the boundary's contract or raised on a
+call — twine's own defect, never a model outcome, nothing of that call in
+the spend stream — so the operator fixes the adapter and runs the session
+again on the same bundle, or respawns it from the request; the planner is
+not asked (§18.5; `runtime-contract.md` §1.6). The same session reconciled
+`continue-turn`'s description with the loop: at most three continuations in a
+row, past which the run stops with the stop the turn carried, `max-tokens`,
+for the planner to read. The table has 47 rows over 28 moves, and 36
+mappings.
 
 `[table] written_against` is the bale version the bale axes' keys are
 spelled for: since Arc 2 R2 **the manifest's floor**, `0.4.51` — the
@@ -2610,9 +2620,11 @@ call its model; `--cap` not a number of dollars; `--max-tokens` or
 `--max-turns` not positive; an empty `--prices`; no state directory
 resolving (§13.2), or one that exists and is not a directory; a tool
 registry that is not ok (§17.6); a transition table the loop cannot stand
-on (not total, or not declaring a move the loop performs:
+on (not total; not declaring a move the loop performs:
 `classify-final-text`, `continue-turn`, `retry-with-backoff`,
-`return-tool-error`). A missing `--cap` or `BUNDLE` is argparse's usage
+`return-tool-error`; or not declaring a stop key the loop reports itself —
+`cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` — among the stop
+axis's `loop_keys` with a row whose move is declared). A missing `--cap` or `BUNDLE` is argparse's usage
 error (exit 2, nothing on stdout, §3).
 
 And after the open, still before the first model call — the session is
@@ -2642,8 +2654,9 @@ adapter behind the boundary; the transcript; the in-flight record's
 outcome is exit 1. The outcomes (`runtime-contract.md` §7.7): `delivered`,
 `suspended`, `ended`, `stopped`, `killed`, `cap-reached`, `cap-unchecked`,
 `refused`. Reaching `--max-turns` is `ended` with `shape` `"max-turns"` and
-a `reason` saying so: a limit twine imposes on itself is not a stop key,
-and the table stays as R2 left it.
+a `reason` saying so: a limit twine imposes on itself is not a stop key.
+A boundary refusal and an adapter that raises are `stopped` with the stop
+`adapter-defect` (§12), the move `fix-adapter` and the actor `operator`.
 
 ### 18.5 The JSON twin
 
@@ -2653,7 +2666,7 @@ and the table stays as R2 left it.
 |---|---|
 | `sid` | from the open line; null when the open refused (or was not reached) |
 | `outcome` | one of the eight |
-| `stop` | the last stop key, or null (`delivered`, `suspended`, `ended` when the text was prose or twine's limit stopped it, `refused`, an adapter defect) |
+| `stop` | the last stop key, or null (`delivered`, `suspended`, `ended` when the text was prose or twine's limit stopped it, `refused`); an adapter defect is `adapter-defect`, never null |
 | `move` | the table's move for what ended the run — the `stop` row's, or after a dry run the `apply-outcome` row's (`operator-applies` on `delivered`, `admit-or-return` on a `scope-drift-refused` dry run, …) — or null |
 | `shape` | on `ended`: the final text's shape (`prose`, …) or `max-turns`; else null |
 | `reason` | why, when not `delivered`; null otherwise |
@@ -2719,8 +2732,10 @@ with zero turns; each retryable stop retried with the scripted
 `retry_after` and stopped after five; `max-tokens` continued and then
 stopped; `request-refused`, `model-refusal`, `window-exhausted` and
 `malformed-shape` stopped with the table's move named; `--max-turns`; a
-dry run refused; a failed tool returned; an adapter defect and a script
-that runs out; the transcript's lines and their order, appended across
+dry run refused; a failed tool returned; an adapter defect (stop
+`adapter-defect`, move `fix-adapter`, the operator's) and a script that
+runs out (the same), and an adapter that raises; the transcript's `move` line
+after the `adapter-error` line; the transcript's lines and their order, appended across
 runs; a sentinel `ANTHROPIC_API_KEY` in no file under the state directory
 and in no environment bale saw; the spend stream gaining one record per
 call with the right classes and `served_sid` null; the in-flight record's

@@ -152,8 +152,10 @@ three are capabilities (§2) every adapter behind the boundary implements
   `StopReason` literal (`anthropic` 1.13.0, read from its wheel: `end_turn`,
   `max_tokens`, `stop_sequence`, `tool_use`, `pause_turn`, `refusal`,
   `model_context_window_exceeded`) — the seven the mapping rows list.
-- `cap-reached`, `cap-unchecked` and `killed` are keys of the axis that
-  the loop, not a provider, produces (the cost spine, the kill-switch).
+- `cap-reached`, `cap-unchecked`, `killed` and `adapter-defect` are keys of
+  the axis that the loop, not a provider, produces (the cost spine, the
+  kill-switch, and — since the adapter-defect session — an adapter that broke
+  the boundary's contract or raised, §1.6).
   Since R2 the table says so itself — `[axis.stop] loop_keys`, read
   through `twine.transitions.loop_keys()`, which refuses a table without
   them as `stop_keys()` refuses one without the axis — and **the boundary
@@ -175,11 +177,20 @@ three are capabilities (§2) every adapter behind the boundary implements
 
 A boundary refusal is a `BoundaryError` naming the adapter, the call
 number and every fault (`faults`). It is an adapter defect, never a model
-outcome. R1 said what the loop does with one "will be a row of the
-transition table"; R4's brief forbade new rows, so the loop (§7.4) ends the
-run `stopped` on one — no stop key, no move, the refusal quoted in the
-reason — as it does when an adapter raises. A row for it is proposed for
-review. The boundary never retries, repairs or translates a turn.
+outcome. R1 promised that what the loop does with one "will be a row of the
+transition table"; R4's brief forbade new rows, so for a while the loop ended
+the run `stopped` on one carrying neither a stop key nor a move. The row is now the
+table's: **`adapter-defect`**, a loop key of the `stop` axis (§1.5) — the
+loop reports it and no adapter may produce it — whose move is the operator's
+**`fix-adapter`** (ruled at sitting 2026-10-13-open-milestone-2-006; not
+`respawn-from-request`, whose actor is the planner and whose premise is a
+malformed *response* — an adapter defect is twine's own bug and the planner
+has nothing to decide about it). The loop (§7.4) ends the run `stopped` with
+that stop, move and actor on a boundary refusal and on an adapter that
+raises alike, the refusal or the exception quoted in the reason; nothing of
+that call is in the spend stream. The boundary never retries, repairs or
+translates a turn, and spells neither the key nor the move: it learns the
+key only through the table's `loop_keys`.
 
 ## 2. The capability registry (TQ-2; ratified 2026-10-12)
 
@@ -1072,7 +1083,7 @@ before the next begins** (§7.6):
 2. **twine's own limit**: when `--max-turns` calls have been made, the loop
    stops before the next one (decision 4) — outcome `ended`, `shape`
    `"max-turns"`, no stop key: a limit twine imposes on itself is not a key
-   of the axis, and the table stays as R2 left it.
+   of the axis.
 3. **The pre-call check** (`spend.check_call`, §13.8) with the cap, the
    model, the input estimate (§7.5) and `max_tokens`: `cap-reached` and
    `cap-unchecked` are outcomes of the same name, stop the same key, the
@@ -1085,8 +1096,13 @@ before the next begins** (§7.6):
    stream refuses ends the run `stopped`: the loop does not spend what it
    cannot count. A `BoundaryError`, or an adapter that raises (the fake's
    script running out, an unreadable usage, an edited conversation), ends
-   the run `stopped` with no stop key and no move — an adapter defect, not a
-   model outcome (§1.6).
+   the run `stopped` with the stop **`adapter-defect`**, the move
+   `fix-adapter` and the actor `operator` — an adapter defect, not a model
+   outcome (§1.6). The transcript's `adapter-error` line is followed by a
+   `move` line for it, as every other stop gets one, and the spend stream is
+   untouched: no turn, no record. (`twine run` refuses before it opens
+   anything on a table that does not declare `adapter-defect` among the
+   `stop` axis's `loop_keys` with a row, as for every key the loop reports.)
 5. **The move**, by the transition table — the `stop` axis row's move, read
    through `MoveBook`, never a second dispatch table:
 
@@ -1097,14 +1113,15 @@ before the next begins** (§7.6):
 | `max-tokens` | `continue-turn` | the partial content kept as an assistant turn, then a user turn: a `tool_result` "not run" for any `tool_use` block the partial turn holds (the API refuses one left unanswered), then the request to continue (decision 3: ending on a user turn needs no prefill, which not every model allows). At most 3 continuations in a row, then `stopped` |
 | `rate-limited`, `overloaded`, `provider-error`, `network-failure`, `timeout` | `retry-with-backoff` | the same call again after `Turn.retry_after` seconds when the provider named them, else 2, 4, 8, 16, 32; at most 5 retries of one call, then `stopped`, the stop and the attempts in `reason`. The wait sleeps a second at a time and checks the abort file between: an abort meanwhile is `killed` |
 | `request-refused`, `model-refusal`, `window-exhausted`, `malformed-shape`, `tool-error` | `fix-request`, `reword-brief`, `split-goal`, `respawn-from-request`, `return-tool-error` | **`stopped`**, the stop key and `Turn.reason` carried, the move and its actor named for whoever performs it |
-| `cap-reached`, `cap-unchecked`, `killed` | `stop-at-cap`, `fix-and-resume`, `close-aborted` | never from an adapter (the boundary refuses them, §1.5): the loop's own, steps 1 and 3 |
+| `cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` | `stop-at-cap`, `fix-and-resume`, `close-aborted`, `fix-adapter` | never from an adapter (the boundary refuses them, §1.5): the loop's own, steps 1, 3 and 4 (`adapter-defect` ends the run `stopped`; the other three are outcomes of their own name) |
 
 A `tool-error` stop on the API side — a provider saying a tool failed — is
 `stopped` like the refusals: the loop's own `return-tool-error` is the
 tool-result path in the first row. The `continue-turn` move's description
-in the table says that past the bound "the turn stops as malformed-shape";
-R4's brief says `stopped`, and the loop reports the stop the turn carried,
-`max-tokens` (flagged for review).
+in the table says what the loop does: at most three continuations in a row,
+past which the run stops `stopped` with the stop the turn carried,
+`max-tokens`, for the planner to read (the table was reconciled with the loop
+at the adapter-defect session; `Loop.continue_turn` did not change).
 
 ### 7.5 The input estimate
 
@@ -1153,7 +1170,7 @@ record are what the cap and the kill stand on).
 | `delivered` | `deliver` named a tarball and `carry response` (`check_response`, the function: `bale apply --dry-run --json <path>`, §11.3) ran clean. The move is the `apply-outcome` row's for `dry-run`, `operator-applies` |
 | `suspended` | `escalate`, or an intact light block for this sid in the final text |
 | `ended` | the final text was prose or another shape (the worker finished without delivering — the planner's to read), or twine's turn limit (`shape` `max-turns`) |
-| `stopped` | a stop whose move is not the loop's, a bound reached (retries, continuations), the dry run not clean (its outcome's `apply-outcome` row names the move — `admit-or-return`, `return-to-worker`, `repack-on-new-base` — which is the operator's or the planner's; the loop reports it), an adapter defect |
+| `stopped` | a stop whose move is not the loop's, a bound reached (retries, continuations), the dry run not clean (its outcome's `apply-outcome` row names the move — `admit-or-return`, `return-to-worker`, `repack-on-new-base` — which is the operator's or the planner's; the loop reports it), an adapter defect (stop `adapter-defect`, move `fix-adapter`, the operator's) |
 | `killed`, `cap-reached`, `cap-unchecked` | the loop's own stops, before a call |
 | `refused` | the verb refused before the first model call |
 

@@ -15,7 +15,11 @@
 # re-read at (pin-051), unchanged value for value since 0.4.45 — gave the
 # stop axis its two provider keys (`request-refused`, `provider-error`) and
 # its `loop_keys`, and wrote the first provider's mapping (Anthropic) as
-# [[mapping]] rows at the foot of the file.
+# [[mapping]] rows at the foot of the file. Session
+# 2026-10-13-twine-table-adapter-defect-007 gave the loop its fourth key,
+# `adapter-defect` (a boundary refusal or an adapter that raised: twine's own
+# defect, its move the operator's `fix-adapter`), and reconciled
+# `continue-turn`'s description with the loop that performs it.
 # twine/transitions.py loads and checks it; `twine transitions [--json]`
 # renders it; tests/test_transitions.py fails by name on any key without a
 # row. The table reads no bale install: its three bale axes take their
@@ -33,9 +37,13 @@
 #                            "twine" — the keys are `keys`, below
 #                    keys    (source = "twine" only) the vocabulary, in order
 #                    loop_keys  (the `stop` axis only) the keys the loop
-#                            produces and no model adapter may: a subset of
-#                            `keys`; the boundary refuses a turn an adapter
-#                            stops with one of them
+#                            produces and no model adapter may — the four it
+#                            reports itself: `cap-reached` and `cap-unchecked`
+#                            (the pre-call check refused the call), `killed`
+#                            (the abort file) and `adapter-defect` (the
+#                            adapter broke the boundary's contract or raised):
+#                            a subset of `keys`; the boundary refuses a turn
+#                            an adapter stops with one of them
 #                    means   what a key on this axis names
 #   [move.<name>]    one per move:
 #                    actor        exactly one of "twine", "operator", "planner"
@@ -100,8 +108,8 @@ means = "the outcome `bale apply --json` prints — what twine meets through `ca
 order = 4
 source = "twine"
 means = "how a worker turn stops on the API side of twine's runtime (Arc 2), in twine's own names: each model adapter's provider words map onto these through the [[mapping]] rows below (Anthropic's verified against the wire the architect recorded on 2026-10-13), never named in code"
-keys = ["end-turn", "max-tokens", "model-refusal", "window-exhausted", "rate-limited", "overloaded", "network-failure", "timeout", "tool-error", "malformed-shape", "request-refused", "provider-error", "cap-reached", "killed", "cap-unchecked"]
-loop_keys = ["cap-reached", "cap-unchecked", "killed"]
+keys = ["end-turn", "max-tokens", "model-refusal", "window-exhausted", "rate-limited", "overloaded", "network-failure", "timeout", "tool-error", "malformed-shape", "request-refused", "provider-error", "cap-reached", "killed", "cap-unchecked", "adapter-defect"]
+loop_keys = ["cap-reached", "cap-unchecked", "killed", "adapter-defect"]
 
 # ---------------------------------------------------------------------------
 # Moves
@@ -141,7 +149,7 @@ grounds = "twine-seed.md §4.3, turn-end detection and shape classification"
 
 [move.continue-turn]
 actor = "twine"
-description = "Twine continues the cut-off turn in a further call that carries what was written so far, counted against the window and the cap and bounded like every retry; past the bound the turn stops as malformed-shape."
+description = "Twine continues the cut-off turn in a further call that carries what was written so far, counted against the window and the cap; at most three continuations in a row, past which the run stops with the stop the turn carried, max-tokens, for the planner to read."
 grounds = "twine-seed.md §4.3, provider axis (max_tokens); PLANNER.md §16, bounded retries"
 
 [move.retry-with-backoff]
@@ -195,6 +203,11 @@ grounds = "D15 (refuse loudly, never degrade silently); session 2026-10-03-twine
 actor = "operator"
 description = "The provider refused the request itself — its shape, the credentials, the account or the model named — so nothing is retried; the operator is told the provider's error type and message and fixes the request or the credentials before the session is resumed or closed."
 grounds = "Arc 2 R2's brief (e): HTTP 400, 401, 402, 403, 404, 409 and 413 — twine's request or credentials are wrong, nothing is retried"
+
+[move.fix-adapter]
+actor = "operator"
+description = "The adapter broke the boundary's contract or raised on a call — twine's own defect, never a model outcome, and nothing of that call is in the spend stream — so the operator fixes the adapter and runs the session again on the same bundle (a second desk), or respawns it from the request; the planner is not asked."
+grounds = "runtime-contract.md §1.6 (R1's promise of a row); session 2026-10-13-twine-runtime-run-004's Proposal 1; ruled at sitting 2026-10-13-open-milestone-2-006"
 
 # --- the planner's: a decision about the work ---
 
@@ -539,6 +552,12 @@ axis = "stop"
 key = "cap-unchecked"
 move = "fix-and-resume"
 means = "the cost spine's pre-call check could not run — an unpriced model, a malformed or unreadable stream, an absent or malformed price file, no state directory, a bad argument — so the call was not made (D15; added by session 5b)"
+
+[[row]]
+axis = "stop"
+key = "adapter-defect"
+move = "fix-adapter"
+means = "the adapter broke the boundary's contract (a refused turn) or raised on a call — twine's own defect, never a model outcome, so no adapter's mapping may produce it (the loop reports it; added by session 2026-10-13-twine-table-adapter-defect-007)"
 
 # ---------------------------------------------------------------------------
 # Mappings — Anthropic's words onto the stop axis (Arc 2 R2; the Messages

@@ -35,8 +35,8 @@ The loop composes what R1–R3 built and Arc 1's spine:
                the next begins
 
 Nothing here spells a stop key (the one spelling is the table's; tests walk
-twine/runtime/ for it): the loop's own three outcomes that are stop keys
-come from twine.spend and twine.kill. Nothing here imports a process or
+twine/runtime/ for it): the loop's own four keys come from twine.spend,
+twine.kill and twine.transitions. Nothing here imports a process or
 network module or reads the process environment; tools spawn through the
 sandbox, the model is reached through the boundary.
 
@@ -71,7 +71,7 @@ from twine.runtime.sandbox import Sandbox
 from twine.runtime.terms import ToolSpec
 from twine.runtime.tooling import ToolRegistry, ToolResult, plain, run_tool
 from twine.transcript import Transcript, TranscriptError
-from twine.transitions import STOP_AXIS, Move, Table
+from twine.transitions import STOP_ADAPTER_DEFECT, STOP_AXIS, Move, Table
 
 log = logging.getLogger("twine.runtime.loop")
 
@@ -81,7 +81,9 @@ log = logging.getLogger("twine.runtime.loop")
 
 # How a run ends (cli-contract.md §18's `outcome`). Three are the loop's own
 # stop keys and are taken from the modules that define them, never spelled
-# here: the kill-switch's and the cost spine's two.
+# here: the kill-switch's and the cost spine's two. A fourth loop key,
+# `adapter-defect`, ends the run `stopped` (it has no outcome of its own) and
+# comes from twine.transitions.
 DELIVERED = "delivered"
 SUSPENDED = "suspended"
 ENDED = "ended"
@@ -89,6 +91,7 @@ STOPPED = "stopped"
 KILLED = kill.STOP_KILLED
 CAP_REACHED = spend.STOP_CAP_REACHED
 CAP_UNCHECKED = spend.STOP_CAP_UNCHECKED
+ADAPTER_DEFECT = STOP_ADAPTER_DEFECT
 REFUSED = "refused"
 OUTCOMES = (DELIVERED, SUSPENDED, ENDED, STOPPED, KILLED, CAP_REACHED, CAP_UNCHECKED,
             REFUSED)
@@ -103,6 +106,9 @@ MOVE_CONTINUE = "continue-turn"
 MOVE_RETRY = "retry-with-backoff"
 MOVE_TOOL_ERROR = "return-tool-error"
 PERFORMED_MOVES = (MOVE_CLASSIFY, MOVE_CONTINUE, MOVE_RETRY, MOVE_TOOL_ERROR)
+# The stop keys the loop reports itself (the table's `loop_keys`): the table
+# must declare each, with a row whose move is declared.
+LOOP_STOP_KEYS = (CAP_REACHED, CAP_UNCHECKED, KILLED, ADAPTER_DEFECT)
 # The table's axis whose row names the move after a dry run (§11.3).
 APPLY_AXIS = "apply-outcome"
 
@@ -438,8 +444,20 @@ class MoveBook:
             if name not in self.table.moves:
                 found.append(f"the loop performs the move {name!r}, which the table "
                              "does not declare")
-        if self.table.axis(STOP_AXIS) is None:
+        axis = self.table.axis(STOP_AXIS)
+        if axis is None:
             found.append(f"the table has no {STOP_AXIS!r} axis")
+        else:
+            # The loop reports each of its own keys itself and names the move
+            # of its row; a table without the key, or without its row, would
+            # leave a stop with no move (D17).
+            for key in LOOP_STOP_KEYS:
+                if key not in (axis.loop_keys or ()):
+                    found.append(f"the loop reports the stop {key!r}, which the {STOP_AXIS} "
+                                 "axis does not declare among its loop_keys")
+                elif self.stop_move(key) is None:
+                    found.append(f"the loop reports the stop {key!r}, which has no row "
+                                 "with a declared move")
         return found
 
     def _row(self, axis: str, key: str | None) -> Move | None:
@@ -641,11 +659,23 @@ class Loop:
                         reason=f"the abort request {path} stands (observed {when}); the "
                                "loop stops and leaves the closure to `twine kill`")
 
+    def adapter_defect(self, n: int, reason: str) -> LoopResult:
+        """End `stopped` on an adapter defect: the loop's own stop key, the
+        move of its row (`fix-adapter`, the operator's) and a `move` line
+        after the `adapter-error` line, as every other stop gets one."""
+        move = self.moves.stop_move(ADAPTER_DEFECT)
+        self.log_line("move", call=n, stop=ADAPTER_DEFECT,
+                      move=None if move is None else move.name,
+                      actor=None if move is None else move.actor,
+                      did="stopped the run")
+        return self.end(STOPPED, stop=ADAPTER_DEFECT, move=move, reason=reason)
+
     def call(self, n: int) -> Turn | LoopResult:
         """One call through the boundary, its request and turn logged and
         its usage appended to the spend stream. A boundary refusal or an
-        adapter's own failure ends the run `stopped` — an adapter defect, no
-        stop key and no move (the table has no row for one at R4)."""
+        adapter's own failure ends the run `stopped` — an adapter defect: stop
+        `adapter-defect`, the table's move `fix-adapter` (the operator's), the
+        spend stream untouched (no turn, no record)."""
         s = self.settings
         appended = self.messages[self._logged_upto:]
         self.log_line("request", call=n, messages_total=len(self.messages),
@@ -659,8 +689,8 @@ class Loop:
             self.result.turns = n
             self.log_line("adapter-error", call=n, error=type(exc).__name__,
                           faults=exc.faults, message=str(exc))
-            return self.end(STOPPED, reason=f"the adapter broke the boundary's contract "
-                                            f"(an adapter defect, not a model outcome): {exc}")
+            return self.adapter_defect(n, f"the adapter broke the boundary's contract "
+                                          f"(an adapter defect, not a model outcome): {exc}")
         except Exception as exc:   # the adapter's own fault: named, never a crash
             self.result.turns = n
             # A handled failure prints no traceback (cli-contract.md §3); it is
@@ -669,10 +699,10 @@ class Loop:
             log.debug("call %d: the adapter's traceback", n, exc_info=True)
             self.log_line("adapter-error", call=n, error=type(exc).__name__,
                           message=str(exc))
-            return self.end(STOPPED, reason=f"the adapter failed on call {n} "
-                                            f"({type(exc).__name__}: {exc}); whatever the "
-                                            "provider billed for it is not in the spend "
-                                            "stream")
+            return self.adapter_defect(n, f"the adapter failed on call {n} "
+                                          f"({type(exc).__name__}: {exc}); whatever the "
+                                          "provider billed for it is not in the spend "
+                                          "stream")
         self.result.turns = n
         try:
             extra: dict[str, Any] = {"call": n, "stop": turn.stop,
@@ -941,8 +971,8 @@ def run_cost(records: Sequence[spend.UsageRecord], prices_path: Path) -> Decimal
     return total
 
 
-__all__ = ["CAP_REACHED", "CAP_UNCHECKED", "DELIVERED", "Delivery", "ENDED", "KILLED",
-           "Loop", "LoopError", "LoopResult", "LoopSettings", "MoveBook", "OUTCOMES",
+__all__ = ["ADAPTER_DEFECT", "CAP_REACHED", "CAP_UNCHECKED", "DELIVERED", "Delivery", "ENDED",
+           "KILLED", "Loop", "LoopError", "LoopResult", "LoopSettings", "MoveBook", "OUTCOMES",
            "REFUSED", "STOPPED", "SUSPENDED", "SystemPrompt", "adapter_class",
            "estimate_input_tokens", "run_cost", "system_prompt", "unpack_request",
            "usage_sum"]
