@@ -1254,6 +1254,10 @@ paste-back by the new lander, the recorder landed beside it, the relay
 stdin assumption retired, no verb changed; the last exact pin before
 `twine-pin-floor`.]
 
+[2026-10-12-twine-bundle-051-004: `carry bundle` reads 0.4.50's open
+line: the refusal named with its code and cause, the second-desk tarball
+kept, `VERSION` 0.15.0.]
+
 ### 5.2 Arc 2 — the runtime
 
 Not yet cut into sessions; its parts, each a session or a few: the
@@ -1267,6 +1271,31 @@ confined to a per-sid sandbox home, streaming with thinking, prompt
 caching, a fake transport in tests — is the first of these sessions'
 material. Arc 2 is cut at the sitting that opens it, after Arc 1
 closes.
+
+[2026-10-08-open-arc2-003: Arc 2 cut at the sitting, ratified "as
+assumed" on 2026-10-12 — R1 the adapter boundary and the capability
+registry (T7, §4.1, Q-3, TQ-2); R2 the Anthropic adapter and the
+transition table's provider axis; R3 the canonical tools and the sandbox
+(T6, §4.2, §4.3); R4 the loop, `twine run <bundle>`; R5 window
+accounting and cold resume (D23); R6 the OpenAI-compatible adapter and
+the text tool protocol (TQ-3); R7 hosted sittings (D22 as re-read, Q-4);
+R8 `ask` and `delegate` (T11). Serialized R1→R2→R3→R4, the first
+milestone; each a code session with a blind checkpoint. Q-4 answered yes
+and Q-8 sent to bale-src at the same sitting (§6).]
+
+[2026-10-12-twine-runtime-registry-007: R1 landed — the capability
+registry (`twine/runtime/capabilities.toml` declaring the eight
+capabilities §4.1 names, one module each under
+`twine/runtime/capabilities/` with its contract, three `implemented` —
+`tool-calling`, `thinking`, `usage-accounting`, by the fake adapter —
+and five `declared`, parity by name), the adapter boundary
+(`twine/runtime/boundary.py`) with its one stop spelling — the
+transition table's `stop` axis, read through
+`twine.transitions.stop_keys` and spelled nowhere in code — the fake
+transport adapter `fake` the tests drive, `from_anthropic` held to the
+architect's 2026-10-08 recording
+(`fixtures/anthropic/messages-usage-2026-10-08.json`), the two verbs
+`twine runtime list` and `twine runtime show`, and `VERSION` 0.16.0.]
 
 ### 5.3 Arc 3 — the scheduler
 
@@ -1312,11 +1341,29 @@ are twine's own.
   against two adapters. The contract's text is Arc 2's; the agent
   authoring Arc 2's first runtime session writes it, the architect
   ratifies.
+
+  [2026-10-12-twine-runtime-registry-007: proposed, awaiting
+  ratification — the contract text is
+  `claude/context/runtime-contract.md` §1, the four things the boundary
+  abstracts each with what an adapter must do and what the boundary
+  promises, implemented by `twine/runtime/boundary.py`.]
+
+  [2026-10-08-open-arc2-003: ratified at the sitting, 2026-10-12, with
+  three calls accepted — a turn asks for tools or stops, never both; the
+  boundary accepts every key of the `stop` axis, the loop-only three a
+  recorded defect for R2's table; an unknown tool name is the loop's
+  tool error, not the boundary's refusal.]
+
 - **Q-4 — Chat-mode persistence.** *Still open.* Answered if the
   Nisaba seed's Q-1 (the planning chat is a hosted office session) is
   answered yes: the sitting's words land in the notepad, its plans on
   the drafting-table, and twine keeps only mechanical streams.
   Recommend yes. The architect answers, at the Arc 2 sitting.
+
+  [2026-10-08-open-arc2-003: answered yes at the Arc 2 sitting,
+  2026-10-12 ("as assumed") — the planning chat becomes a hosted office
+  session, R7 of the cut (§5.2); twine keeps only mechanical streams.]
+
 - **Q-5 — Email transport.** *Later rung.* The batched-digest
   delivery mechanism; nothing in Arcs 1–3 depends on it. The
   architect answers when the scheduler has something to batch.
@@ -1347,6 +1394,10 @@ are twine's own.
   [2026-10-03-twine-cost-spine-005: twine-side landed — the stream
   exists and is the owner; bale's mirror remains bale-src's.]
 
+  [2026-10-08-open-arc2-003: answered at the Arc 2 sitting, 2026-10-12
+  ("as assumed") — a bale-src decision, queued for bale-src's desk
+  beside `bale contract --json`; nothing in R1–R8 waits on it.]
+
 - **TQ-1 — Where a worker's transcript lands.** Twine's log, or the
   office's folder (the Nisaba seed's Q-3 is the neighbour).
   Recommend twine's log, kept as a log and not as a record of intent,
@@ -1366,6 +1417,18 @@ are twine's own.
   parity test has something to walk and an undeclared capability
   fails by name. Arc 2's first runtime session proposes; the
   architect ratifies.
+
+  [2026-10-12-twine-runtime-registry-007: proposed, awaiting
+  ratification — the shape is written in
+  `claude/context/runtime-contract.md` §2: the declaration
+  `twine/runtime/capabilities.toml` (name, dotted module, status,
+  summary), one module per capability exposing a `Contract`, three
+  statuses held to the adapters, and each adapter declaring the
+  capabilities it implements.]
+
+  [2026-10-08-open-arc2-003: ratified at the sitting, 2026-10-12, as
+  proposed.]
+
 - **TQ-3 — The text tool protocol's exact wire.** Sentinels, one call
   per block, an integrity trailer, in bale's probe-block style; the
   bytes are Arc 2's. The agent authoring the OpenAI-compatible adapter
