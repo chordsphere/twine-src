@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Blind checkpoint — session twine-runtime-run (Arc 2 R4, v1), authored at the
+# Blind checkpoint — session twine-runtime-run (Arc 2 R4, v2), authored at the
 # desk of sitting 2026-10-08-open-arc2-003 from the request alone.
+# v2 (2026-10-13, after the HOLD of -004): the brief's twin table says `stop` is
+# null when a run ends on prose, and the oracle demanded end-turn; the brief is
+# the contract. One probe amended to accept the brief's reading (stop null with
+# move null, or end-turn with classify-final-text); the other 23 byte-identical.
 #
 # What it grades (outcomes only), all through `bin/twine run --adapter fake`
 # against a stub bale root (recorded open and dry-run lines), a request
@@ -179,8 +183,9 @@ probe("twine status lists transcripts/ and sandbox/ beside running/ and inflight
 
 # ===== ended on prose =====
 e = run("prose", SCRIPTS["prose"]); o = e["twin"] or {}
-probe("ended: a final text with no block is outcome ended, shape prose, stop end-turn, move classify-final-text, record kept",
-      outcome_is(e, "ended", False) and o.get("shape") == "prose" and o.get("stop") == "end-turn" and o.get("move") == "classify-final-text"
+probe("ended: a final text with no block is outcome ended, shape prose, stop/move as the brief's table reads (null/null, or end-turn/classify-final-text), record kept",
+      outcome_is(e, "ended", False) and o.get("shape") == "prose"
+      and ((o.get("stop") is None and o.get("move") is None) or (o.get("stop") == "end-turn" and o.get("move") == "classify-final-text"))
       and o.get("inflight") == "kept" and (e["state"] / "inflight" / f"{SID}.json").is_file())
 
 # ===== suspended on escalate =====
