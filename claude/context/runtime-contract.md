@@ -5,27 +5,30 @@
 > twine's. The sibling of `cli-contract.md`, which stays the verbs'
 > (`twine runtime list` and `show` are its §17). Each line here is
 > asserted by a test under `tests/` (`tests/test_runtime.py`,
-> `tests/test_anthropic.py`, `tests/test_runtime_tools.py`) and by the
-> landing session's `validation.sh`. Landed by session
+> `tests/test_anthropic.py`, `tests/test_runtime_tools.py`,
+> `tests/test_run.py`) and by the landing session's `validation.sh`. Landed by session
 > `2026-10-12-twine-runtime-registry-007` (Arc 2 R1); §1 (Q-3) and §2 (TQ-2)
 > were ratified as written on 2026-10-12. §5 and the lines of §1–§4 that say
 > "R2" are session `2026-10-13-twine-runtime-anthropic-002`'s (Arc 2 R2). §6
 > and the lines of §2 that say "R3" are session
-> `2026-10-13-twine-runtime-tools-003`'s (Arc 2 R3), awaiting review. A
+> `2026-10-13-twine-runtime-tools-003`'s (Arc 2 R3). §7, §3's `retry_after`
+> and `reason` and the lines of §1, §2 and §6 that say "R4" are session
+> `2026-10-13-twine-runtime-run-004`'s (Arc 2 R4), awaiting review. A
 > later session that changes a line changes it here in the same response.
 
-What exists after R3, and what does not: the registry, the boundary, the
+What exists after R4, and what does not: the registry, the boundary, the
 fake adapter, `from_anthropic`, the Anthropic adapter (§5) — the first
 code under `twine/` that reaches a network (through one module,
 `twine/runtime/transport.py`) and reads a key (from the environment mapping
-it is given) — and since R3 the seven canonical tools and the per-sid
-sandbox they run in (§6), the first code under `twine/runtime/` that starts
-a process (through the run seam it is handed). Nothing calls a model on its
-own: no loop exists to call it or to run the tools it asks for, and nothing
+it is given) — since R3 the seven canonical tools and the per-sid sandbox
+they run in (§6), the first code under `twine/runtime/` that starts a
+process (through the run seam it is handed), and since R4 the loop (§7,
+`twine/runtime/loop.py`; the verb is `twine run`, cli-contract.md §18): the
+first code that calls a model on its own, runs the tools it asks for and
 appends to the spend stream. R2 does **not** use the `anthropic` SDK
-(§5.1). R4 adds the loop (`twine run <bundle>`), R5 window accounting's
-counting, the clarification response and cold resume, R6 the text tool
-protocol's wire and the OpenAI-compatible adapter.
+(§5.1). R5 adds window accounting's counting, the clarification response
+and cold resume, R6 the text tool protocol's wire and the OpenAI-compatible
+adapter.
 
 ## 1. The adapter boundary (Q-3; ratified 2026-10-12)
 
@@ -124,11 +127,11 @@ three are capabilities (§2) every adapter behind the boundary implements
   `Tokens` of non-negative integers (`thinking` also `None`) — the same
   rule the spend stream's reader applies, so a turn the boundary passes
   is a record the spine accepts.
-- **Where usage goes:** the loop (R4) appends each turn's `Tokens` to the
-  spend stream (`<state-dir>/spend.jsonl`, cli-contract §13) through
-  `spend.append_record`, once per call, after the boundary passed it, and
-  checks the cap (`spend.check_call`) before the next. R1 builds the
-  mapping and the check; it appends nothing.
+- **Where usage goes:** the loop (R4, §7.4) appends each turn's `Tokens` to
+  the spend stream (`<state-dir>/spend.jsonl`, cli-contract §13) through
+  `spend.append_record`, once per call, after the boundary passed it and
+  before anything else is done with the turn, and checks the cap
+  (`spend.check_call`) before the next. R1 built the mapping and the check.
 
 ### 1.5 The stop set — one spelling
 
@@ -172,9 +175,11 @@ three are capabilities (§2) every adapter behind the boundary implements
 
 A boundary refusal is a `BoundaryError` naming the adapter, the call
 number and every fault (`faults`). It is an adapter defect, never a model
-outcome; what the loop does with one is R4's to decide, and it will be a
-row of the transition table. The boundary never retries, repairs or
-translates a turn.
+outcome. R1 said what the loop does with one "will be a row of the
+transition table"; R4's brief forbade new rows, so the loop (§7.4) ends the
+run `stopped` on one — no stop key, no move, the refusal quoted in the
+reason — as it does when an adapter raises. A row for it is proposed for
+review. The boundary never retries, repairs or translates a turn.
 
 ## 2. The capability registry (TQ-2; ratified 2026-10-12)
 
@@ -299,7 +304,7 @@ an adapter never implements a runtime capability.
 | `streaming` | implemented (`anthropic`) | `streaming` | R2 (landed: §5.4) |
 | `sandboxing` | implemented (the runtime: `implemented_by` `twine.runtime.sandbox`) | `sandboxing` | R3 (landed: §6) |
 | `suspend-resume` | declared | `suspend_resume` | after R4, with R5's cold resume |
-| `usage-accounting` | implemented (`anthropic`, `fake`) | `usage_accounting` | R2 calls `from_anthropic` (landed); R4 appends |
+| `usage-accounting` | implemented (`anthropic`, `fake`) | `usage_accounting` | R2 calls `from_anthropic` (landed); R4 appends (landed: §7.4) |
 
 At R1 three were implemented (the fake's) and five declared; R2 moved
 `prompt-caching` and `streaming`; R3 moved `sandboxing`, implemented by the
@@ -315,8 +320,11 @@ than inventing one; `twine runtime show <name>` renders it. `delegate`
 `twine/runtime/adapters/fake.py`, registered as `fake`: a scripted
 transport for twine's own tests (T8), implementing `tool-calling`,
 `thinking` and `usage-accounting` with the `native` tool protocol. The
-tests drive it, and nothing else in twine does (a test holds that no
-module under `twine/` but its own names it).
+tests drive it — and since R4 `twine run --adapter fake --script FILE`
+(cli-contract §18), the loop run with no model, from the same script file
+the tests write; the verb reaches it by name through the adapter registry
+(`twine.runtime.loop.adapter_class`), so no module under `twine/` but its
+own names its class (a test holds that).
 
 **A script** is a list of turns, each an object:
 
@@ -327,6 +335,8 @@ module under `twine/` but its own names it).
 | `tool_calls` | a list of `{"id", "name", "arguments"}` objects, exactly those keys, `arguments` an object | optional, default `[]` |
 | `stop` | a string, or `null` when the turn asks for tools | required |
 | `usage` | `{"input", "output", "thinking", "cache_read", "cache_write"}`, exactly the five classes | required |
+| `retry_after` | a number of seconds, or `null` — `Turn.retry_after` (R4: the loop's backoff reads it) | optional, default `null` |
+| `reason` | a string, or `null` — `Turn.reason` (R4: the loop carries it) | optional, default `null` |
 
 Any other key, or a value of the wrong type, refuses the script when it
 is built (`FakeScriptError`, naming the turn and the key) — never at
@@ -687,8 +697,9 @@ workers' tools run in (§4.3, "Sandbox"). The code is
 and its parity, the argument check, `run_tool`), `twine/runtime/tools.toml`
 and `twine/runtime/tools/` (the seven), and `twine/runtime/sandbox.py`; the
 verb is `twine runtime tools` (cli-contract §17.6); the tests are
-`tests/test_runtime_tools.py`, real processes throughout and no model. Nothing
-calls a tool but the tests until the loop (R4).
+`tests/test_runtime_tools.py`, real processes throughout and no model. Since
+R4 the loop calls them (§7.4), through `run_tool`, in the sandbox `twine run`
+makes.
 
 ### 6.1 The declaration, and parity by name
 
@@ -932,3 +943,236 @@ prescribes for the loop:
 Under `unshare -rn` without `--fork` the wrapped command replaces `unshare`
 in place, so the pid the hook registers is the command's own (a test reads
 `$$` back).
+
+## 7. The loop (Arc 2 R4)
+
+The loop that hosts a worker session from `bale open` to the apply line —
+what makes the architect stop being the courier on the worker side. The
+code is `twine/runtime/loop.py` (the loop as functions and one class,
+`Loop`, so R5's resume and R8's `ask` re-warm a transcript through the same
+code); the verb is `twine run BUNDLE` (`twine/commands/run.py`,
+cli-contract §18), which assembles what the loop needs. The tests are
+`tests/test_run.py`: the fake adapter throughout, no model.
+
+### 7.1 The sequence
+
+`twine run` performs these in order, each refusing loudly before the next
+(cli-contract §18.2 names every refusal). A refusal before the first model
+call is outcome `refused`, exit 1, nothing recorded beyond what `carry
+bundle` recorded.
+
+0. **The verb's own refusals**, before anything starts: the adapter and its
+   arguments (`--model` with `anthropic`; `--script` with `fake` only,
+   parsed by `FakeScript.from_data`, so a bad script refuses before bale
+   opens; `ANTHROPIC_API_KEY` set in the environment twine was started
+   with, for `anthropic`), the cap, the limits, the state directory, the
+   tool registry (ok, `twine runtime tools`'s) and the transition table
+   (`MoveBook.faults()`: the table total, every move the loop performs
+   declared).
+1. **`carry bundle`** — `twine.commands.carry_bundle.open_bundle`, the
+   function, not a subprocess: `bale open <bundle> --json` through the seam,
+   the in-flight record written (cli-contract §15.4). Its refusals are the
+   verb's. `opened` and `second-desk` both proceed (a second desk is a
+   second runtime on the same session: allowed, recorded). An open that
+   names no request tarball refuses.
+2. **The key** goes to the adapter and nothing else. The courier's bale
+   calls (`open`, `apply --dry-run`) get twine's environment *without*
+   `ANTHROPIC_API_KEY` — bale needs no key, and a variable it never sees
+   is one it cannot print — the cage never has it (§6.4), and no
+   transcript line, record, twin or log line carries it: the Anthropic
+   adapter is handed `env={"ANTHROPIC_API_KEY": key}` and keeps it in its
+   `x-api-key` header (§5.2).
+3. **The running record**: `twine.process.lead_own_group()` (the runtime
+   made its own group's leader with `os.setsid()` when it is not one —
+   under a PID namespace an inherited group reads as 0, the R3 HOLD's
+   lesson; a process started from an interactive shell leads its group
+   already and is left alone), then `kill.register_running(state_dir, sid,
+   pgid, pid)` — **before anything is spawned**, the sandbox's `unshare`
+   detection included (a test's wrapping runner sees the record on that
+   spawn).
+4. **The sandbox** (`Sandbox.create(state_dir, sid, repo=<the open's cwd>,
+   run=<the seam>)`, §6) and **the request unpacked** at `<home>/request/`
+   (`unpack_request`, D11): every member as it is in the tarball, through
+   `tarfile`'s `data` filter, under bale's one top-level directory
+   (`request-NNN/`), which is stripped so `request/manifest.json` is the
+   manifest (a tarball whose members share no one top directory is
+   unpacked as it is). Every member goes through the filter **before
+   anything is written**: one that would escape — `..`, a symlink or hard
+   link pointing out, a device — refuses the run and nothing is extracted.
+   (The filter strips a leading `/` from an absolute name, so such a member
+   lands inside `request/`; it is not an escape.) A later run of the same
+   session writes each member again over what is there.
+5. **The adapter**, behind the boundary (§1): `anthropic` (§5) with the
+   model, `max_tokens` and thinking as spawn-time constants (D12) and the
+   surface note as its system text; or `fake` with the script. Each is
+   found by name through the adapter registry (`adapter_class`).
+6. **The transcript** opened (§7.6).
+7. **The in-flight record's `runtime` fields** (`inflight.record_runtime`,
+   cli-contract §15.4): `adapter`, `model`, `sandbox_home`, `transcript`,
+   `started_at`, `pgid`. A record that cannot take them (none was written,
+   say) is a warning and the run goes on — the record is a cache.
+8. **The loop**, §7.4.
+
+### 7.2 The system prompt and the surface note
+
+**Model-agnostic, and only the tool definitions and the surface note**
+(D11, §4.3): `SystemPrompt(note, tools)`, the note `SURFACE_NOTE` and the
+tools the registry's seven specs in the declaration's order. A spawn-time
+constant (D12: prompt-cache stable) — the same text for every session, so
+it names no sid either. A native-tool adapter carries the tools in its own
+field and the note as its system text (the Anthropic adapter's `system`);
+the fake has no system text and is handed the tools on every `Request`.
+
+The note's text is twine's (decision 1 of the R4 brief), pinned only in
+what it must say, and a test holds each:
+
+- the request lies at `request/` in the working directory —
+  `manifest.json`, `AGENT.md`, `README.md` (the brief), `context/` — and is
+  read with `read_file` and `list_dir`, not found in the conversation;
+- the session ends by calling `deliver` with the response tarball, built in
+  the cage (`request/tools/craft_response.py` is in the request);
+- a question for the planner is `escalate`; a probe for the operator's
+  machine is `probe`;
+- and **nothing about the model, the provider or the task** (a test
+  searches it for provider and model names, `model`, `provider`, and the
+  session's sid).
+
+### 7.3 The conversation's shape
+
+R1 left the message objects' shape to R4. It is the Messages API's own
+(§5.6): `{"role": "user" | "assistant", "content": …}`, content a string or
+a list of blocks — `text`, `tool_use`, `tool_result`, `thinking`,
+`redacted_thinking` — because the first adapter speaks it and keeps a turn's
+blocks byte for byte; an adapter for another wire (R6) translates from it.
+The loop's helpers (`user_message`, `assistant_message`,
+`tool_result_message`) build exactly what the Anthropic adapter's do for the
+same input, and a test holds them to it, without the loop importing a
+provider's module.
+
+- **The first turn is the opener**, verbatim from bale's open line: one
+  user message, the text the operator used to paste into a worker chat.
+- **An assistant turn** carries the turn's own `content` blocks exactly as
+  the adapter received them when it has any (a thinking block goes back
+  byte for byte, §5.6); an adapter with none (the fake) gets blocks built
+  from its text and tool calls. Thinking without blocks is not rebuilt (its
+  signature is the provider's to write).
+- **Tool results** are one user message, a `tool_result` block per call in
+  order, `is_error: true` when the tool failed.
+- **Append-only** (D12): nothing earlier is edited; each `Request` is the
+  whole conversation so far and the tools.
+
+### 7.4 Each call, and the moves the loop performs
+
+Until an outcome, in this order — and **every step is a transcript line
+before the next begins** (§7.6):
+
+1. **The abort file** (`kill.abort_requested`, cli-contract §14.3): set →
+   outcome `killed`, stop `killed`. Its move, `close-aborted`, is `twine
+   kill`'s to finish: the loop exits and **never unlocks**.
+2. **twine's own limit**: when `--max-turns` calls have been made, the loop
+   stops before the next one (decision 4) — outcome `ended`, `shape`
+   `"max-turns"`, no stop key: a limit twine imposes on itself is not a key
+   of the axis, and the table stays as R2 left it.
+3. **The pre-call check** (`spend.check_call`, §13.8) with the cap, the
+   model, the input estimate (§7.5) and `max_tokens`: `cap-reached` and
+   `cap-unchecked` are outcomes of the same name, stop the same key, the
+   check's `refusal` and `reason` carried; the call is not made.
+4. **The call** through the boundary. Its usage is appended to
+   `spend.jsonl` (`spend.append_record`: the sid's own, `served_sid` null,
+   `extra` the call number, the stop and the adapter, and the provider's
+   request id when there is one) **before anything else is done with the
+   turn** — one record per call, a zero-usage refusal included. A usage the
+   stream refuses ends the run `stopped`: the loop does not spend what it
+   cannot count. A `BoundaryError`, or an adapter that raises (the fake's
+   script running out, an unreadable usage, an edited conversation), ends
+   the run `stopped` with no stop key and no move — an adapter defect, not a
+   model outcome (§1.6).
+5. **The move**, by the transition table — the `stop` axis row's move, read
+   through `MoveBook`, never a second dispatch table:
+
+| the turn | the table's move | what the loop does |
+|---|---|---|
+| asks for tools (`stop` null) | — | runs each call in order through `run_tool`; each result goes back as a `tool_result`, `is_error` carried — a failed tool is **`return-tool-error`**, returned and never a crash. A result with `suspend: true` (`escalate`) → outcome **`suspended`**, the light block carried; a result with `delivered: true` (`deliver`) → `carry response` on the tarball (§7.7). Nothing after either runs in that turn: each later call is answered `is_error` "not run" so the conversation stays whole for a resume |
+| `end-turn` | `classify-final-text` | `shapes.find_blocks` on the turn's text: a **light** block, intact and for this sid → **`suspended`** (as `escalate`); one that is not → `ended`, shape `light`; a **probe** block → run through the `probe` tool, its content (the paste-back, or why it did not run) the next user turn — D13's hop closed; **prose** or any other shape → **`ended`**, `shape` the report's |
+| `max-tokens` | `continue-turn` | the partial content kept as an assistant turn, then a user turn: a `tool_result` "not run" for any `tool_use` block the partial turn holds (the API refuses one left unanswered), then the request to continue (decision 3: ending on a user turn needs no prefill, which not every model allows). At most 3 continuations in a row, then `stopped` |
+| `rate-limited`, `overloaded`, `provider-error`, `network-failure`, `timeout` | `retry-with-backoff` | the same call again after `Turn.retry_after` seconds when the provider named them, else 2, 4, 8, 16, 32; at most 5 retries of one call, then `stopped`, the stop and the attempts in `reason`. The wait sleeps a second at a time and checks the abort file between: an abort meanwhile is `killed` |
+| `request-refused`, `model-refusal`, `window-exhausted`, `malformed-shape`, `tool-error` | `fix-request`, `reword-brief`, `split-goal`, `respawn-from-request`, `return-tool-error` | **`stopped`**, the stop key and `Turn.reason` carried, the move and its actor named for whoever performs it |
+| `cap-reached`, `cap-unchecked`, `killed` | `stop-at-cap`, `fix-and-resume`, `close-aborted` | never from an adapter (the boundary refuses them, §1.5): the loop's own, steps 1 and 3 |
+
+A `tool-error` stop on the API side — a provider saying a tool failed — is
+`stopped` like the refusals: the loop's own `return-tool-error` is the
+tool-result path in the first row. The `continue-turn` move's description
+in the table says that past the bound "the turn stops as malformed-shape";
+R4's brief says `stopped`, and the loop reports the stop the turn carried,
+`max-tokens` (flagged for review).
+
+### 7.5 The input estimate
+
+`estimate_input_tokens(prompt, messages)` (decision 2): the request as
+twine would send it — the note, the tool definitions and the messages,
+JSON-encoded — in UTF-8 bytes, divided by **2** and rounded up. An estimate
+by characters, acceptable at R4, and deliberately high: a token is three to
+four bytes of English or code and only the densest text (hex, base64) comes
+near two, so the worst case the check prices is above the real one. R5's
+window accounting replaces it with counted usage.
+
+### 7.6 The transcript
+
+`<state-dir>/transcripts/<sid>.jsonl` (`twine/transcript.py`; TQ-1: a log,
+durable, append-only, never a record of intent), created if absent (the
+directory 0700, the file 0600), every line one `O_APPEND` write and an
+fsync, **never rewritten**. A transcript that exists when a run starts is
+appended to with a `run-start` line — R5 resumes here — its `seq`
+continuing; a torn last line (a run killed mid-write) is ended with an LF
+first and the next line says `torn_before`. Each line is one object, `at`
+(UTC), `seq` (1-based, continuing across runs) and `kind` first:
+
+| `kind` | the event |
+|---|---|
+| `run-start` | `adapter`, `model`, `max_tokens`, `thinking`, `sandbox` (§6.4's `as_json`), `request` (where it was unpacked), `open` (the open's `sid` and `tarball` — not its twin), `group` (the runtime's pid, pgid, whether it called setsid), `cap_usd`, `max_turns`, `system` (the prompt: the note and the tools) |
+| `check` | `call`, `input_estimate`, `check` (the pre-call check's twin) |
+| `request` | `call`, `messages_total`, `appended` — the messages added since the last `request` line, so the lines' `appended` lists, joined, are the conversation as sent, with no quadratic growth (the key never appears: the adapter has no path for it to). After a turn that ends the run, a last one with `sent: false` carries the tool results that were never sent |
+| `turn` | `call`, `turn` (`Turn.as_json()`), and `spend_error` when the usage could not be appended |
+| `tool-call` | `call`, `id`, `name`, `arguments` (and `source: "final-text"` for a probe hop) |
+| `tool-result` | `call`, `id`, `result` — the result's `as_json()`, every string over 64 KiB (`content`, `shell`'s `stdout` and `stderr`) cut with the cut marked |
+| `move` | `call`, `stop`, `move`, `actor`, `did` — what the loop did (and `shape`, or the `carry_response` twin, where they apply) |
+| `retry` | `call`, `stop`, `move`, `attempt`, `wait_seconds`, `retry_after` |
+| `abort` | `when`, `path`, `move` |
+| `adapter-error` | `call`, `error`, `message` (and `faults`, for a boundary refusal) |
+| `run-end` | `twin` — the run's JSON twin (cli-contract §18.5) |
+
+The sid's `spend.jsonl` lines are the money; the transcript is the story. A
+line that cannot be written is logged and named in the twin's
+`transcript_faults`; the run goes on (the spend stream and the running
+record are what the cap and the kill stand on).
+
+### 7.7 Outcomes, and what is kept and removed
+
+| outcome | when |
+|---|---|
+| `delivered` | `deliver` named a tarball and `carry response` (`check_response`, the function: `bale apply --dry-run --json <path>`, §11.3) ran clean. The move is the `apply-outcome` row's for `dry-run`, `operator-applies` |
+| `suspended` | `escalate`, or an intact light block for this sid in the final text |
+| `ended` | the final text was prose or another shape (the worker finished without delivering — the planner's to read), or twine's turn limit (`shape` `max-turns`) |
+| `stopped` | a stop whose move is not the loop's, a bound reached (retries, continuations), the dry run not clean (its outcome's `apply-outcome` row names the move — `admit-or-return`, `return-to-worker`, `repack-on-new-base` — which is the operator's or the planner's; the loop reports it), an adapter defect |
+| `killed`, `cap-reached`, `cap-unchecked` | the loop's own stops, before a call |
+| `refused` | the verb refused before the first model call |
+
+**On any outcome** the running record is cleared (`kill.clear_running`):
+nothing is left for `twine kill` to kill once the loop has exited, and a
+record for a dead runtime would mislead it — **unless** the record still
+names a tool's group, whose run returned with live members (§6.7): then it
+is kept, for `twine kill <sid>`, and the twin says so. **On `delivered`
+only** the in-flight record is removed (`inflight.remove_inflight`, R3's
+lifecycle proposal, half of it) and the sandbox home is **kept** — the
+response tarball lives there until the operator applies it; removing homes
+is a later session's. On `suspended`, `ended`, `stopped`, `killed` and the
+`cap-*` outcomes the record and the home are kept, for R5 and for the
+planner.
+
+### 7.8 What it does not do
+
+It applies nothing (T12: the only apply argv is `bale apply --dry-run
+--json`), unlocks nothing (a kill's closure is `twine kill`'s), resumes
+nothing (R5: the transcript and the kept record are its inputs), counts no
+window beyond the pre-call check (R5), speaks no text protocol (R6), removes
+no sandbox home, and never compacts (D12).

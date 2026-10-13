@@ -903,8 +903,10 @@ class FakeScripts(unittest.TestCase):
                 self.assertEqual(registry.get(name).adapters, want)
 
     def test_nothing_in_twine_drives_the_fake(self):
-        """T8: the tests drive it, and nothing else does — no module under
-        twine/ but its own imports it."""
+        """T8: the tests drive it — and since Arc 2 R4 `twine run --adapter
+        fake --script FILE`, which reaches it by name through the adapter
+        registry (twine.runtime.loop.adapter_class) — so no module under
+        twine/ but its own names its class."""
         for path in sorted((REPO_ROOT / "twine").rglob("*.py")):
             rel = path.relative_to(REPO_ROOT).as_posix()
             if rel == "twine/runtime/adapters/fake.py":

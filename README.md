@@ -22,9 +22,11 @@ Arc 1 (the courier) session 1 landed twine's core:
 - Verbs: `commands` (list the registry), `status` (twine's own facts —
   since session 5c also where its state directory resolves, whether it
   exists, and whether `spend.jsonl`, `prices.toml`, `abort/`, `running/`
-  and `inflight/` are in it, and since 0.11.0 the sids whose in-flight
-  records read there and every file in `inflight/` that is not one,
-  named; it never creates the directory, and writes nothing),
+  and `inflight/` are in it — since 0.19.0 `transcripts/` and `sandbox/`
+  too — and since 0.11.0 the sids whose in-flight records read there and
+  every file in `inflight/` that is not one, named, and since 0.19.0 the
+  sids of the transcripts and sandbox homes `twine run` keeps; it never
+  creates the directory, and writes nothing),
   `bale check` (the gate, D2: since 0.14.0 a floor — ok when the
   installed bale's `bin/VERSION` is at or above the floor, `0.4.51`, and
   every schema the manifest pins is installed under `schemas/` with its
@@ -130,10 +132,10 @@ Arc 1 (the courier) session 1 landed twine's core:
   it stopped and prints the one line that finishes by hand — the signal for
   every group with survivors, the unlock line, or, for a session that
   reached HOLD, bale's own `bale revert <sid>`, which stays yours: twine
-  never reverts, merges or applies anything. Nothing records a running
-  group yet but the tests (the loop that registers itself is R4's; since
-  R3 the sandbox registers every tool's group when a record exists), so
-  today a kill requests the abort and closes the session.
+  never reverts, merges or applies anything. Since R4 `twine run`
+  registers its own group before it starts anything and the sandbox every
+  tool's group, so a kill stops a hosted session's runtime and tools, then
+  closes it.
 - `runtime list` and `runtime show` (Arc 2 R1, 0.16.0; R2, 0.17.0): the runtime's
   first foundations, under `twine/runtime/`. Every runtime operation is a
   named **capability** with a declared contract — one module per
@@ -162,10 +164,8 @@ Arc 1 (the courier) session 1 landed twine's core:
   streamed answers alike; and maps every stop reason and error through the
   transition table's rows. It is held to fifteen exchanges the architect
   recorded on 2026-10-13 (`fixtures/anthropic/`), and `from_anthropic`, the
-  usage mapping, to those and to the 2026-10-08 usage object. Nothing calls
-  a model on its own yet: R4 adds the loop — `twine run <bundle>` — which
-  retries with backoff, appends each call's usage to the spend stream and
-  checks the cap before the next. The contract is
+  usage mapping, to those and to the 2026-10-08 usage object. Since R4
+  the loop calls it (`twine run`, below). The contract is
   [`claude/context/runtime-contract.md`](claude/context/runtime-contract.md).
 - `runtime tools` (Arc 2 R3, 0.18.0): the **canonical tool surface** —
   `shell`, `read_file`, `write_file`, `list_dir`, `probe`, `escalate`,
@@ -188,8 +188,36 @@ Arc 1 (the courier) session 1 landed twine's core:
   cage: it runs a read-only probe block against the real repository and
   returns the verified paste-back, as `carry probe --run` does; `escalate`
   emits a light question block and asks the loop to suspend; `deliver`
-  names the response tarball the courier will carry. Nothing calls them
-  but the tests until R4's loop.
+  names the response tarball the courier will carry. Since R4 the loop
+  runs them.
+- `run` (Arc 2 R4, 0.19.0): **the loop** — twine hosts a worker session
+  from `bale open` to the apply line, and the operator stops being the
+  courier on the worker side. Three lines:
+
+  ```
+  twine run planned.bale-bundle --model <model> --cap 5   # open, run the worker, dry-run its response
+  bale apply <path>                                       # the line it printed — yours to run
+  twine kill <sid>                                        # only if you want it stopped
+  ```
+
+  `twine run` opens the bundle (`carry bundle`), registers itself with the
+  kill-switch, makes the session's sandbox and unpacks the request at
+  `request/` in it, and hands the model the opener as its first turn under
+  a system prompt that holds only the tools and a short note on where it
+  is. Before every call it checks the abort file and the hard cap (`--cap`
+  is required); after every call it appends the usage to `spend.jsonl`;
+  every turn's move comes from the transition table — tools run in the
+  cage, a cut-off turn continued, a rate limit retried with backoff, the
+  final text read as `take` reads a paste. When the worker calls
+  `deliver`, the tarball is dry-run with bale (`carry response`) and the
+  `bale apply` line printed — twine never applies. `escalate` (or a light
+  block in the final text) suspends the run and prints the block; anything
+  else ends it with its stop and the move named. Every step is a line in
+  `<state-dir>/transcripts/<sid>.jsonl`, append-only. `ANTHROPIC_API_KEY`
+  reaches the model adapter and nothing else — not bale, not the cage, not
+  a file. `--adapter fake --script FILE` runs the same loop with no model,
+  from a scripted list of turns (how the tests drive it). Contract §18 and
+  `runtime-contract.md` §7.
 - `share/bale-consumption.toml` — the floor (`0.4.51`: twine drives any
   bale at or above it whose installed schemas hash as pinned — an exact
   pin until 0.14.0) and the consumption manifest: the schema hashes, every
@@ -232,11 +260,11 @@ exchange`), dry-runs a response (`carry response`) and opens a bundle
 transition table names a move for every outcome bale reports and every
 way a runtime turn will stop. The cost spine records spend, totals it and
 checks the hard cap before a call, and the kill-switch can stop a session
-from outside and close it `aborted`; nothing makes a call yet. twine does
-not yet dispatch on the table. The runtime (Arc 2) has its capability
+from outside and close it `aborted`. The runtime (Arc 2) has its capability
 registry, its adapter boundary, a fake adapter for the tests, the
-Anthropic adapter, and the seven canonical tools with the sandbox they run
-in; no loop yet.
+Anthropic adapter, the seven canonical tools with the sandbox they run
+in, and since R4 the loop, `twine run`, which performs the table's moves
+for every way a turn stops.
 
 ## Running it
 
@@ -260,6 +288,8 @@ python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill it
 python3 -I -S bin/twine runtime list [--json]                    # the runtime's capabilities and adapters; ok when parity holds
 python3 -I -S bin/twine runtime show NAME [--json]               # one capability and its declared contract
 python3 -I -S bin/twine runtime tools [--json]                   # the canonical tools; ok when parity holds
+python3 -I -S bin/twine run <stem>.bale-bundle --model M --cap USD [--json]   # host the worker; stdout is the `bale apply` line
+python3 -I -S bin/twine run <stem>.bale-bundle --adapter fake --script turns.json --cap USD   # the same loop, no model
 ```
 
 A recording session — needed only when an install moves a listed key or

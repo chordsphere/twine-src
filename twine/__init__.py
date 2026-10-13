@@ -44,7 +44,13 @@ Modules:
   inflight  the in-flight record (Arc 1 session 3): <state-dir>/inflight/
             <sid>.json, a cache of the opens `carry bundle` carried into
             bale — written by that verb (record_open), listed by `twine
-            status` (list_inflight); nothing in Arc 1 removes one
+            status` (list_inflight); since Arc 2 R4 it carries the run's
+            `runtime` fields (record_runtime) and `twine run` removes it when
+            a run is delivered (remove_inflight), the one removal
+  transcript  the transcript (Arc 2 R4; TQ-1): <state-dir>/transcripts/
+            <sid>.jsonl, the story of a hosted session — one JSON line per
+            step, append-only, `seq` continuing across runs; written by the
+            loop, listed by `twine status`
   runtime   the runtime (T4, §4; Arc 2), a package: since R1 the
             capability registry — the declaration capabilities.toml, one
             module per capability under capabilities/ (each a CONTRACT),
@@ -67,10 +73,14 @@ Modules:
             key, network off through `unshare` where available, `confines`
             declared by its runner, every spawn registered with the
             kill-switch's running record), which implements `sandboxing`
-            itself (the declaration's `implemented_by`)
+            itself (the declaration's `implemented_by`). Since R4 the loop
+            (loop.py): the opener as the first turn, the tools run in the
+            sandbox, the abort file and the cap checked before every call,
+            usage appended after each, the transition table's moves
+            performed, every step in the transcript — `twine run` drives it
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py, carry_bale.py
-            and carry_bundle.py)
+            and carry_bundle.py; `run`, Arc 2 R4, lives in run.py)
 
 Stdlib only (T9) — the `anthropic` SDK included: no module imports it.
 Nothing here imports from bale's bin/, office's lib/

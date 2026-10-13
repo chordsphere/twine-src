@@ -73,9 +73,13 @@ project's inventory.
 
 - `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`,
   `<state-dir>/abort/<sid>.json`, `<state-dir>/running/<sid>.json`,
-  `<state-dir>/inflight/<sid>.json` and, since Arc 2 R3,
+  `<state-dir>/inflight/<sid>.json`, since Arc 2 R3
   `<state-dir>/sandbox/<sid>/home/` (a session's sandbox home — the cage
-  its tools run in, `context/runtime-contract.md` §6.3) — not in this repository: twine's state directory (`--state-dir`, else
+  its tools run in, `context/runtime-contract.md` §6.3, its request at
+  `request/` since R4, kept until a later session removes homes) and, since
+  Arc 2 R4, `<state-dir>/transcripts/<sid>.jsonl` (the transcript `twine
+  run` writes: one JSON line per step, append-only, never a record of intent
+  — TQ-1; `context/runtime-contract.md` §7.6) — not in this repository: twine's state directory (`--state-dir`, else
   `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`).
   The spend stream is twine's durable usage record (D15, N4): append-only,
   one JSON line per model call, tokens by class and a nullable
@@ -101,7 +105,10 @@ project's inventory.
   desk, `outcome`, `desk`, `bundle_sha256`, `opener_sha256`, `recorded_at`),
   written on an `opened` or `second-desk` only, never removed in Arc 1, and
   where a second desk finds the request tarball when bale's `second-desk`
-  line does not name one (bale 0.4.49's did not; 0.4.50 on names it); `context/cli-contract.md` §15.4. Pull when a session
+  line does not name one (bale 0.4.49's did not; 0.4.50 on names it) —
+  since Arc 2 R4 with an optional `runtime` (the hosting run's adapter,
+  model, sandbox home, transcript, start and pgid), and removed by `twine
+  run` when a run is delivered; `context/cli-contract.md` §15.4. Pull when a session
   reads or writes spend, prices a model, maps a provider's usage onto the
   record (Arc 2), starts, stops or kills a session's runtime, or opens,
   tracks or closes a session twine carried in.
@@ -141,7 +148,11 @@ project's inventory.
   also §17, `runtime list` and `runtime show` (the registry rendered, ok
   on parity by name; one capability's contract), and since R3 §17.6,
   `runtime tools` (the canonical tools rendered, ok on parity by name),
-  and §10.5's switch made (the sandbox's runner declares `confines`).
+  and §10.5's switch made (the sandbox's runner declares `confines`). Since
+  Arc 2 R4 also §18, `twine run` (the flags, refused before, the call
+  sequence, ok exactly on `delivered`, the twin, what is kept and removed,
+  human mode, the tests), §4's `transcripts` and `sandbox` rows and §15.4's
+  `runtime` fields.
 - `context/runtime-contract.md` — the runtime's contract, the sibling of
   `cli-contract.md` (Arc 2 R1; §1 and §2 ratified 2026-10-12; §5 Arc 2 R2's;
   §6 Arc 2 R3's):
@@ -162,8 +173,13 @@ project's inventory.
   tool error as a result, the declaration and its parity, the cage rules,
   the minimal environment, the network rule and `confines`, the
   kill-switch hook, what leaves the cage and why; and §2.3's
-  `implemented_by`). Default inclusion for any Arc 2 runtime session: an
-  adapter, a capability, the loop, the sandbox, window accounting.
+  `implemented_by`), §7 the loop (R4 — the sequence from `bale open` to
+  the apply line, the system prompt and the surface note's required
+  content, the conversation's shape, each call and the moves the loop
+  performs from the table, the input estimate, the transcript's lines, the
+  outcomes and what is kept and removed). Default inclusion for any Arc 2
+  runtime session: an adapter, a capability, the loop, the sandbox, window
+  accounting, resume.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter

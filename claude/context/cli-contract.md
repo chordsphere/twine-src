@@ -45,8 +45,11 @@
 > `2026-10-13-twine-runtime-tools-003` (Arc 2 R3: §17.6, `runtime tools`,
 > §2's verb list, §10.5's switch made, the lines of §14.4 naming the
 > sandbox, and §17's `implemented_by`; the tools and the sandbox themselves
-> are `runtime-contract.md` §6); a later session that changes a line
-> changes it here in the same response.
+> are `runtime-contract.md` §6) and by `2026-10-13-twine-runtime-run-004`
+> (Arc 2 R4: §18, `twine run`, §2's verb list, §4's `transcripts` and
+> `sandbox` rows, §11.3's and §15.7's functions, §15.4's `runtime` fields and
+> the one removal; the loop itself is `runtime-contract.md` §7); a later
+> session that changes a line changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -89,7 +92,8 @@
   group — `spend totals` and `spend check` (`twine/commands/spend.py`,
   §13) — `kill` (`twine/commands/kill.py`, §14) and, since Arc 2 R1, the
   `runtime` group — `runtime list` and `runtime show`, and since R3
-  `runtime tools` (`twine/commands/runtime.py`, §17). One group's verbs
+  `runtime tools` (`twine/commands/runtime.py`, §17) — and, since Arc 2
+  R4, `run` (`twine/commands/run.py`, §18). One group's verbs
   may live in several modules; the parser assembles the group from all
   of them.
 - `twine commands --json` emits
@@ -136,9 +140,11 @@ session 3's):
 | `state_dir_source` | `"--state-dir"`, `"TWINE_STATE_DIR"`, `"XDG_STATE_HOME"` or `"HOME"`; `null` when none resolves |
 | `state_dir_reason` | `null` when one resolves; otherwise the refusal text (`spend.SpendError`'s message) — a null `state_dir` is never silent |
 | `state_dir_exists` | whether it exists and is a directory; `null` when none resolves |
-| `state_present` | `null` when none resolves; otherwise an object with five booleans, in this order — `spend_jsonl`, `prices_toml`, `abort`, `running`, `inflight` — whether `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`, `<state-dir>/abort/`, `<state-dir>/running/` and `<state-dir>/inflight/` exist (the two files as files, the three directories as directories: a file named `inflight` reads false); all false when the directory itself does not exist |
+| `state_present` | `null` when none resolves; otherwise an object with seven booleans, in this order — `spend_jsonl`, `prices_toml`, `abort`, `running`, `inflight`, `transcripts`, `sandbox` (the last two since Arc 2 R4) — whether `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`, `<state-dir>/abort/`, `<state-dir>/running/`, `<state-dir>/inflight/`, `<state-dir>/transcripts/` and `<state-dir>/sandbox/` exist (the two files as files, the five directories as directories: a file named `inflight` reads false); all false when the directory itself does not exist |
 | `inflight_sids` | the sids whose `<state-dir>/inflight/<sid>.json` reads as an in-flight record (`twine.inflight.read_inflight` accepts it, §15.7), sorted; `[]` when `inflight/` is absent, not a directory, or holds no record; `null` when no state directory resolves (session `twine-status-inflight`) |
 | `inflight_faults` | one string per entry in `inflight/` that is not a record, in name order, each naming the entry by its basename and saying why (below); `[]` when every entry reads (or there is none, or no `inflight/`); `null` when no state directory resolves |
+| `transcript_sids`, `transcript_faults` | (Arc 2 R4) the sids of the `<sid>.jsonl` files in `<state-dir>/transcripts/` — the transcripts `twine run` keeps (§18) — sorted, and one sentence per other entry there; `[]` when there is no `transcripts/`; `null` when no state directory resolves |
+| `sandbox_sids`, `sandbox_faults` | (Arc 2 R4) the sids whose `<state-dir>/sandbox/<sid>/home/` is a directory — the sandbox homes `twine run` keeps — sorted, and one sentence per other entry in `sandbox/`; `[]` when there is no `sandbox/`; `null` when none resolves |
 | `ok_reason` | why `ok` is what it is |
 
 `ok` is true when twine itself is intact — the manifest parses and its
@@ -196,6 +202,14 @@ present:` line with the other four, then one `in-flight record: <sid>` line
 per record and one `in-flight fault: <fault>` line per fault (neither when
 there are none); the unresolved and does-not-exist renderings keep their one
 line each. The reading is `twine.inflight.list_inflight` (§15.7).
+
+**The transcripts and sandbox homes** (Arc 2 R4, R3's lifecycle proposal,
+the listing half) are listed as the in-flight records are — counts and sids,
+names only, nothing read, written or created: human mode adds `transcripts:
+N — <sids>` and `sandbox homes: N — <sids>` (neither when there are none)
+and one `transcript fault:` or `sandbox fault:` line per entry that is not
+one. `twine.transcript.list_transcripts` and `core.list_sandboxes` read
+them.
 
 ## 5. `twine bale check [--json] [--bale-root DIR]` (D2)
 
@@ -974,6 +988,10 @@ the line that applies it. **It never applies anything** (T12).
   line, pasteable as is.
 - **Human mode**: on ok, stdout is exactly the apply line and a newline;
   otherwise one line naming why. Diagnostics go to stderr.
+
+The verb is thin over `carry_bale.check_response(ctx, args) ->
+ResponseOutcome` (since Arc 2 R4), which `twine run` calls when its worker
+delivers (§18): the function, not a subprocess.
 
 The JSON twin, `command` `"carry response"`. Fixed names:
 
@@ -2075,7 +2093,8 @@ it; an existing `inflight/` keeps the mode it has), the file 0600,
 written by atomic replace (a temp file, fsynced, renamed over the record,
 the directory fsynced) under an exclusive `flock` on `<state-dir>/inflight/`
 — `twine/kill.py`'s `_write_replacing` and `_locked`, imported. Exactly
-these keys, in this order:
+these keys, in this order (and, since Arc 2 R4, the optional `runtime` after
+them, below):
 
 ```
 {"sid": <sid>, "cwd": <the absolute directory bale ran in>,
@@ -2118,10 +2137,31 @@ these keys, in this order:
   the verb not ok**: the session is open in bale, and a failure that
   invited a retry would open another desk. `record` is null, `record_error`
   names why, a warning goes to stderr, exit 0.
+- **The runtime's fields** (Arc 2 R4). A record may carry a fifth key after
+  the four: `runtime`, the run `twine run` hosts the session in (§18),
+  written once its sandbox, adapter and transcript exist
+  (`inflight.record_runtime`, under the same `flock`, by the same atomic
+  replace):
+
+  ```
+  "runtime": {"adapter": <name>, "model": <model id>,
+              "sandbox_home": <absolute>, "transcript": <absolute>,
+              "started_at": <UTC, ISO 8601, Z>, "pgid": <the runtime's group>}
+  ```
+
+  Optional — a record `carry bundle` wrote has none — and exactly those six
+  keys when present (`read_inflight` names any other shape a fault). A
+  later run replaces it; a `second-desk` append keeps it; an `opened`
+  replaces the whole record and so drops it. (R4's brief had "a reader
+  keeps unknown keys": `read_inflight` refused every key but the four, so
+  the reader names `runtime` and holds its shape instead, and every reader —
+  `carry bundle`, `status`, `twine run` — reads the same record.)
 - The record is a **cache** in N4's sense: every value in it is bale's
-  (from the line it printed) or the invocation's (`cwd`, `recorded_at`).
-  Deleting it loses nothing bale does not know. **Nothing in Arc 1 removes
-  it** (Arc 2's loop knows when a session closes). Two verbs read it:
+  (from the line it printed) or the invocation's (`cwd`, `recorded_at`, and
+  the runtime's fields). Deleting it loses nothing bale does not know.
+  **Nothing in Arc 1 removes it**; since Arc 2 R4 one thing does —
+  `inflight.remove_inflight`, called by `twine run` when a run ends
+  `delivered` (§18.6), the one removal. Two verbs read it:
   `carry bundle` itself, and `twine status` (§4, session
   `twine-status-inflight`), which lists the records and names what in
   `inflight/` is not one, writing nothing. A test pins that the record is
@@ -2230,9 +2270,18 @@ read_inflight(state_dir: Path, sid: str) -> dict | None           # raises Infli
 list_inflight(state_dir: Path) -> InflightListing                 # never raises for what is there
 record_open(state_dir: Path, sid: str, *, outcome, cwd, tarball, desk,
             bundle_sha256, opener, clock=utc_now) -> Recorded     # raises InflightError
+RUNTIME_KEY = "runtime"                                            # Arc 2 R4
+RUNTIME_KEYS = ("adapter", "model", "sandbox_home", "transcript", "started_at", "pgid")
+runtime_fields(*, adapter, model, sandbox_home, transcript, pgid, clock=utc_now) -> dict
+record_runtime(state_dir: Path, sid: str, runtime: dict) -> dict  # raises InflightError, ValueError
+remove_inflight(state_dir: Path, sid: str) -> bool                # raises InflightError
 ```
 
-`read_inflight` requires exactly the record's four keys and each entry's
+and `carry_bundle.open_bundle(ctx, args) -> BundleOutcome`, the verb's body
+(since Arc 2 R4), which `twine run` calls as its first step (§18).
+
+`read_inflight` requires exactly the record's four keys (and, since Arc 2
+R4, admits `runtime` after them with exactly its six — §15.4) and each entry's
 five — a key missing or extra, a `sid` not the file's, a `cwd` that is not
 absolute, a `tarball` neither a string nor null, `opens` not a non-empty
 array, an entry whose `outcome` is not `opened` or `second-desk`, whose
@@ -2523,3 +2572,167 @@ copy edited to be wrong (a planted module, a removed one, no `TOOL`, a
 module that does not import); and the verb end to end on a copy of the tree
 with a module planted, one removed and the declaration broken (NOT OK, exit
 1, named, no traceback, every other verb still loading).
+
+## 18. `twine run BUNDLE --cap USD [--adapter anthropic|fake] [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R4)
+
+The loop that hosts a worker session from `bale open` to the apply line —
+R1 to R4, the first milestone of Arc 2: the worker side of the courier is
+twine's. The verb is `twine/commands/run.py`; the loop it runs is
+`twine/runtime/loop.py`, whose contract — the sequence, the moves, the
+transcript, the outcomes — is `runtime-contract.md` §7. This section is the
+verb. **`twine run` never applies anything** (T12): the only apply argv it
+can reach is `carry response`'s, `bale apply --dry-run --json`; the operator
+runs the apply line.
+
+### 18.1 The flags
+
+| flag | default | |
+|---|---|---|
+| `--cap USD` | **required** | the session's hard cap (D15: "an absent cap refuses" — the pre-call check cannot run without one); a value that is not a finite, non-negative number of dollars is a named refusal |
+| `--adapter` | `anthropic` | `anthropic` or `fake` |
+| `--script FILE` | none | the fake's script, a JSON list of turns (`runtime-contract.md` §3) — the same file the tests write; required with `fake`, refused with anything else |
+| `--model M` | none; `fake` with the fake | required with `anthropic` — the office holds the policy (N4), twine picks no model; with the fake, the id its spend records carry, which the price file must price |
+| `--max-tokens N` | 16000 | the output ceiling per call (R2's), and the worst case the pre-call check prices |
+| `--thinking` | `adaptive` | `adaptive` or `off`, a spawn-time constant (D12); `off` sends the Anthropic adapter `{"type": "disabled"}` explicitly (sending none would leave the model's default, which may think, and a thinking turn on a session spawned off is refused at the boundary) |
+| `--prices PATH` | `<state-dir>/prices.toml` | §13.4 |
+| `--max-turns N` | 200 | twine's own limit on model calls, not a stop key (§18.4) |
+| `--state-dir`, `--bale-root`, `--cwd` | | as `carry bundle` takes them (§15) |
+
+### 18.2 Refused before (outcome `refused`, exit 1)
+
+Every reason named at once, **before bale is started**: `--adapter fake`
+without `--script`, or a script that is not JSON or that the fake refuses
+(`FakeScriptError`, naming the turn and the key); `--script` with
+`anthropic`; `anthropic` without `--model`; `anthropic` with
+`ANTHROPIC_API_KEY` absent, empty or blank in the environment twine was
+started with — so `bale open` is never called for a run that could not
+call its model; `--cap` not a number of dollars; `--max-tokens` or
+`--max-turns` not positive; an empty `--prices`; no state directory
+resolving (§13.2), or one that exists and is not a directory; a tool
+registry that is not ok (§17.6); a transition table the loop cannot stand
+on (not total, or not declaring a move the loop performs:
+`classify-final-text`, `continue-turn`, `retry-with-backoff`,
+`return-tool-error`). A missing `--cap` or `BUNDLE` is argparse's usage
+error (exit 2, nothing on stdout, §3).
+
+And after the open, still before the first model call — the session is
+open in bale then, and the reason says so (`twine kill <sid>` closes it, or
+a run again opens a second desk): `carry bundle` not ok (its reason, its
+twin in `open`); an open that names no request tarball; a runtime that
+cannot lead a process group of its own (`setsid` failed); a running record
+that cannot be written; a sandbox that cannot be made; a request tarball
+that cannot be opened or that has a member the `data` filter refuses
+(nothing is extracted); an adapter that cannot be spawned; a transcript
+that cannot be opened.
+
+### 18.3 The call sequence
+
+`runtime-contract.md` §7.1, in order: `carry bundle` (the function, not a
+subprocess); the key to the adapter and nothing else — the courier's bale
+calls get twine's environment without `ANTHROPIC_API_KEY`; the running
+record (`lead_own_group`, then `register_running`) before anything is
+spawned; the sandbox and the request unpacked at `<home>/request/`; the
+adapter behind the boundary; the transcript; the in-flight record's
+`runtime` fields (§15.4); the loop. Every bale call goes through the seam
+(`ctx.run`); the verb imports no process-spawning module.
+
+### 18.4 ok, and the outcomes
+
+**ok exactly when the outcome is `delivered`** — exit 0; every other
+outcome is exit 1. The outcomes (`runtime-contract.md` §7.7): `delivered`,
+`suspended`, `ended`, `stopped`, `killed`, `cap-reached`, `cap-unchecked`,
+`refused`. Reaching `--max-turns` is `ended` with `shape` `"max-turns"` and
+a `reason` saying so: a limit twine imposes on itself is not a stop key,
+and the table stays as R2 left it.
+
+### 18.5 The JSON twin
+
+`command` `"run"`. Fixed names, in this order, on every path:
+
+| key | value |
+|---|---|
+| `sid` | from the open line; null when the open refused (or was not reached) |
+| `outcome` | one of the eight |
+| `stop` | the last stop key, or null (`delivered`, `suspended`, `ended` when the text was prose or twine's limit stopped it, `refused`, an adapter defect) |
+| `move` | the table's move for what ended the run — the `stop` row's, or after a dry run the `apply-outcome` row's (`operator-applies` on `delivered`, `admit-or-return` on a `scope-drift-refused` dry run, …) — or null |
+| `shape` | on `ended`: the final text's shape (`prose`, …) or `max-turns`; else null |
+| `reason` | why, when not `delivered`; null otherwise |
+| `turns` | model calls made, retries included |
+| `tool_calls` | tool calls run (a probe hop included) |
+| `retries` | backoff retries taken |
+| `block` | on `suspended`: the light block text; else null |
+| `tarball` | the delivered response tarball's absolute path (also on a dry run that was not clean); else null |
+| `apply_line` | on `delivered`: `carry response`'s line; else null |
+| `dry_run` | `carry response`'s `dry_run` object when it ran; else null |
+| `usage` | the five classes summed over the run's own calls (`thinking` the sum of the non-null values, null only when every call's was; 0 with no calls) |
+| `cost_usd` | the run's own cost (a JSON number) when its calls are priced; 0 with no calls; else null |
+| `transcript` | the transcript's absolute path; null when none was opened |
+| `sandbox` | the sandbox home's absolute path; null when none was made |
+| `inflight` | `"removed"` on `delivered`, `"kept"` otherwise, null when none was written |
+| `open` | `carry bundle`'s twin (its own keys, §15.5), or null |
+
+And beside them: `actor` (the move's), `refusals`, `adapter`, `model`,
+`cap_usd`, `max_turns`, `check` (the last pre-call check's twin, §13.7),
+`running` (`pid`, `pgid`, `setsid`, `registered`, `cleared`, `note` — null
+before the group was led), `request` (where the request was unpacked, how
+many members, the top directory stripped), `network` (the sandbox's),
+`transcript_faults`, `inflight_error`, `state_dir`, `state_dir_source`. The
+twin is also the transcript's `run-end` line.
+
+### 18.6 What is kept, and what is removed
+
+On any outcome the running record is cleared — unless it still names a
+tool's group that outlived its run, which `twine kill` must still reach
+(the twin's `running.note` says so). On `delivered` the in-flight record is
+removed and the sandbox home kept (the response tarball lives there until
+the operator applies it; removing homes is a later session's). On every
+other outcome both are kept, for R5's resume and for the planner. The
+transcript and the spend stream are never removed.
+
+### 18.7 Human mode
+
+One `[twine] run: …` line per step on stderr as it happens — the open,
+the group, the sandbox, the request, each call, each tool, each retry, the
+end — **by default** (decision 5 of the R4 brief: a run is long and
+unattended, and its progress is the operator's only view of it; `--verbose`
+adds the leveled log lines). On stdout at the end: **the apply line alone**
+on `delivered`; **the light block alone** on `suspended`; otherwise one
+line, `run <sid>: <outcome>, stop <key>, move <move> (<actor>'s), shape
+<shape> — <reason>` (the parts that apply), or `run <BUNDLE>: refused — …`.
+
+### 18.8 Tests
+
+`tests/test_run.py`, the fake adapter throughout, no model (T8):
+`bin/twine run` as a child process against `StubBale` replaying the
+recorded `opened` line — its `tarball` edited to a request tarball the
+test builds, its `opener` kept, named as not bale's — and the recorded dry
+runs (`dry-run`, and `scope-drift-refused` with its exit 1; `StubBale`'s
+`exit_codes` and `calls()` since R4), real tools in a real sandbox, a price
+double for the fake's model: the delivered path end to end (write a file,
+tar it with `shell`, `deliver`, the apply line; bale saw exactly the open
+and the dry run); `ended` on prose; `suspended` on `escalate` and on a
+light block in the final text (the block on stdout, the record kept); a
+probe block in the final text run and its output fed back; `killed` with
+the abort file set before the first call and appearing between calls;
+`cap-reached` and `cap-unchecked` (no prices) before the first call, both
+with zero turns; each retryable stop retried with the scripted
+`retry_after` and stopped after five; `max-tokens` continued and then
+stopped; `request-refused`, `model-refusal`, `window-exhausted` and
+`malformed-shape` stopped with the table's move named; `--max-turns`; a
+dry run refused; a failed tool returned; an adapter defect and a script
+that runs out; the transcript's lines and their order, appended across
+runs; a sentinel `ANTHROPIC_API_KEY` in no file under the state directory
+and in no environment bale saw; the spend stream gaining one record per
+call with the right classes and `served_sid` null; the in-flight record's
+`runtime` fields, removed on `delivered` and kept otherwise; the request
+unpacked at `request/` and an escaping member refusing the run; the
+refusals before `bale open`; the twin's keys. In-process: the running
+record registered before the sandbox's detection spawn and cleared at the
+end (the verb with `lead_own_group` stood in by a child group — never the
+test runner's own); `lead_own_group` in a child; the loop with a fake
+sleep (the backoff schedule, `retry_after`, an abort during a wait), the
+requests the fake was given, the system prompt, the estimate, the
+conversation's shape held to the Anthropic adapter's helpers, the request
+unpacker, the move book, the transcript module and the in-flight record's
+new functions. `tests/test_json_discipline.py` runs `run` refused before
+anything starts, in-process and as a child.

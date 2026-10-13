@@ -20,10 +20,23 @@ write one as data, or load one from a file):
                                  asks for tools
      "usage":      {"input": n, "output": n, "thinking": n | null,
                     "cache_read": n, "cache_write": n}   required: twine's
-                                 five classes, exactly}
+                                 five classes, exactly
+     "retry_after": n | null,    optional, default null: seconds a
+                                 provider asked to wait (Turn.retry_after)
+     "reason":     "…" | null}   optional, default null: why the turn
+                                 stopped (Turn.reason)}
+
+`retry_after` and `reason` are Arc 2 R4's: the loop's backoff reads the one
+and carries the other, so a script can stand in for a rate limit with its
+`retry-after` header and for a refusal with its quoted message.
 
 Any other key, or a value of the wrong type, refuses the script when it is
 built (FakeScriptError, naming the turn and the key) — never at playback.
+
+Who drives it: twine's tests, and — since Arc 2 R4 — `twine run --adapter
+fake --script FILE`, the loop run with no model (the same script file the
+tests use). The loop reaches it through the adapter registry by name; no
+module under twine/ but this one names its class.
 
 What the fake does not do: reach a network, read a key, stream, cache,
 count a window, choose or invent a turn, or map anything. Its stop mapping
@@ -47,7 +60,7 @@ from twine.spend import TOKEN_CLASSES, Tokens
 
 log = logging.getLogger("twine.runtime.adapters.fake")
 
-TURN_KEYS = ("text", "thinking", "tool_calls", "stop", "usage")
+TURN_KEYS = ("text", "thinking", "tool_calls", "stop", "usage", "retry_after", "reason")
 REQUIRED_TURN_KEYS = ("stop", "usage")
 TOOL_CALL_KEYS = ("id", "name", "arguments")
 
@@ -105,12 +118,21 @@ def _parse_turn(n: int, raw: Any, faults: list[str]) -> Turn | None:
     stop = raw.get("stop")
     if stop is not None and not isinstance(stop, str):
         faults.append(f"{where}: stop must be a string or null")
+    retry_after = raw.get("retry_after")
+    if retry_after is not None and (isinstance(retry_after, bool)
+                                    or not isinstance(retry_after, (int, float))):
+        faults.append(f"{where}: retry_after must be a number of seconds or null")
+    reason = raw.get("reason")
+    if reason is not None and not isinstance(reason, str):
+        faults.append(f"{where}: reason must be a string or null")
     calls = _parse_calls(where, raw.get("tool_calls", []), faults)
     usage = _parse_usage(where, raw.get("usage"), faults) if "usage" in raw else None
     if len(faults) > before or usage is None:
         return None
+    # A negative retry_after is built as given: the boundary judges it, as
+    # it judges the counts.
     return Turn(text=text, thinking=thinking, tool_calls=calls, stop=stop, usage=usage,
-                provider_stop=stop)
+                provider_stop=stop, retry_after=retry_after, reason=reason)
 
 
 def _parse_calls(where: str, raw: Any, faults: list[str]) -> tuple[ToolCall, ...]:

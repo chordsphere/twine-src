@@ -494,8 +494,17 @@ class ResponseOutcome:
 
 
 def cmd_carry_response(ctx: Context, args: argparse.Namespace) -> Result:
+    """The verb: `check_response`, rendered."""
+    outcome = check_response(ctx, args)
+    return Result(outcome.ok, outcome.payload(), response_lines(outcome))
+
+
+def check_response(ctx: Context, args: argparse.Namespace) -> ResponseOutcome:
     """Check the file exists, dry-run it, read the verdict, hand back the
-    apply line. Never `bale apply` without `--dry-run` (T12)."""
+    apply line. Never `bale apply` without `--dry-run` (T12). The verb
+    renders what this returns; since Arc 2 R4 `twine run` calls it when the
+    worker delivers (cli-contract.md §18: the function, not a subprocess),
+    with `args` carrying `tarball`, `cwd` and `bale_root`."""
     outcome = ResponseOutcome(name=args.tarball)
     outcome.cwd = resolve_cwd(args.cwd, outcome.refusals)
     resolve_tarball(outcome)
@@ -514,7 +523,7 @@ def cmd_carry_response(ctx: Context, args: argparse.Namespace) -> Result:
     if outcome.ok:
         ctx.info(f"dry run clean (outcome {DRY_RUN_OUTCOME!r}); nothing was "
                  "applied — run the line on stdout to apply")
-    return Result(outcome.ok, outcome.payload(), response_lines(outcome))
+    return outcome
 
 
 def resolve_tarball(outcome: ResponseOutcome) -> None:

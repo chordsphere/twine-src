@@ -93,7 +93,9 @@ class Status(unittest.TestCase):
 
 STATE_KEYS = ("state_dir", "state_dir_source", "state_dir_reason", "state_dir_exists",
               "state_present", "inflight_sids", "inflight_faults")
-PRESENT_KEYS = ("spend_jsonl", "prices_toml", "abort", "running", "inflight")
+# Seven since Arc 2 R4: `twine run` keeps transcripts/ and sandbox/ there too.
+PRESENT_KEYS = ("spend_jsonl", "prices_toml", "abort", "running", "inflight", "transcripts",
+                "sandbox")
 # Two sids twine accepts (twine.kill.is_sid), and their record files' names.
 SID = "2026-10-08-twine-status-inflight-004"
 OTHER_SID = "2026-10-08-twine-exchange-vouch-005"
@@ -160,17 +162,21 @@ class StateDirectory(unittest.TestCase):
                           "state_dir_reason": None, "state_dir_exists": True,
                           "state_present": {"spend_jsonl": True, "prices_toml": False,
                                             "abort": True, "running": False,
-                                            "inflight": False},
+                                            "inflight": False, "transcripts": False,
+                                            "sandbox": False},
                           "inflight_sids": [], "inflight_faults": []})
         self.assertEqual(tuple(obj["state_present"]), PRESENT_KEYS)
         out = run_inprocess("status", "--state-dir", str(state)).stdout
         self.assertIn(f"state dir:            {state}  (from --state-dir)", out)
         self.assertIn("state present:        spend.jsonl, abort/  "
-                      "(missing: prices.toml, running/, inflight/)", out)
+                      "(missing: prices.toml, running/, inflight/, transcripts/, sandbox/)",
+                      out)
         (state / "prices.toml").write_text("")
         (state / "running").unlink()
         (state / "running").mkdir()
         (state / "inflight").mkdir()
+        (state / "transcripts").mkdir()
+        (state / "sandbox").mkdir()
         obj = self.status("--state-dir", str(state))
         self.assertEqual(obj["state_present"], dict.fromkeys(PRESENT_KEYS, True))
         self.assertNotIn("missing", run_inprocess("status", "--state-dir", str(state)).stdout)
@@ -281,7 +287,8 @@ class InflightRecords(unittest.TestCase):
         self.state.mkdir()
         obj = self.status()
         self.assertEqual(tuple(obj["state_present"]),
-                         ("spend_jsonl", "prices_toml", "abort", "running", "inflight"))
+                         ("spend_jsonl", "prices_toml", "abort", "running", "inflight",
+                          "transcripts", "sandbox"))
         self.assertEqual(tuple(k for k in obj if k in STATE_KEYS), STATE_KEYS)
 
     def test_a_record_is_read_and_its_sid_listed(self):
@@ -291,7 +298,7 @@ class InflightRecords(unittest.TestCase):
                           obj["inflight_faults"]), (True, [SID], []))
         out = self.human()
         self.assertIn("state present:        inflight/  (missing: spend.jsonl, prices.toml, "
-                      "abort/, running/)", out)
+                      "abort/, running/, transcripts/, sandbox/)", out)
         self.assertIn(f"in-flight record:     {SID}\n", out)
         self.assertNotIn("in-flight fault", out)
 
@@ -313,7 +320,8 @@ class InflightRecords(unittest.TestCase):
         self.assertEqual((obj["state_present"]["inflight"], obj["inflight_sids"],
                           obj["inflight_faults"]), (False, [], []))
         self.assertIn("state present:        spend.jsonl  "
-                      "(missing: prices.toml, abort/, running/, inflight/)", self.human())
+                      "(missing: prices.toml, abort/, running/, inflight/, transcripts/, "
+                      "sandbox/)", self.human())
 
     def test_an_empty_inflight_directory_is_present_with_nothing_in_it(self):
         self.records.mkdir(parents=True)
@@ -489,3 +497,57 @@ class InflightRecords(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunState(unittest.TestCase):
+    """Arc 2 R4 (R3's lifecycle proposal, the listing half): `status` lists
+    the transcripts and sandbox homes `twine run` keeps beside running/ and
+    inflight/ — `transcript_sids` and `sandbox_sids`, and each entry there
+    that is not one named in `transcript_faults` and `sandbox_faults` —
+    reading only."""
+
+    def setUp(self):
+        self._dir = tempfile.TemporaryDirectory(prefix="twine-status-run-")
+        self.state = Path(self._dir.name) / "state"
+        self.addCleanup(self._dir.cleanup)
+
+    def status(self) -> dict:
+        run = run_inprocess("status", "--json", "--state-dir", str(self.state))
+        self.assertEqual(run.code, 0, run.stderr)
+        return json.loads(run.stdout)
+
+    def test_absent_they_are_empty_and_null_when_nothing_resolves(self):
+        self.state.mkdir()
+        obj = self.status()
+        self.assertEqual((obj["state_present"]["transcripts"], obj["state_present"]["sandbox"],
+                          obj["transcript_sids"], obj["transcript_faults"],
+                          obj["sandbox_sids"], obj["sandbox_faults"]),
+                         (False, False, [], [], [], []))
+        none = json.loads(run_inprocess("status", "--json", env={}).stdout)
+        self.assertEqual([none[k] for k in ("transcript_sids", "transcript_faults",
+                                            "sandbox_sids", "sandbox_faults")],
+                         [None] * 4)
+
+    def test_the_sids_are_listed_and_the_rest_named_and_nothing_is_written(self):
+        transcripts = self.state / "transcripts"
+        transcripts.mkdir(parents=True)
+        (transcripts / f"{SID}.jsonl").write_text("{}\n")
+        (transcripts / f"{OTHER_SID}.jsonl").write_text("")
+        (transcripts / "notes.txt").write_text("not a transcript")
+        homes = self.state / "sandbox"
+        (homes / SID / "home").mkdir(parents=True)
+        (homes / "stray").mkdir()
+        before = snapshot(self.state)
+        obj = self.status()
+        self.assertEqual(obj["transcript_sids"], sorted([SID, OTHER_SID]))
+        self.assertEqual(len(obj["transcript_faults"]), 1)
+        self.assertIn("notes.txt is not a transcript", obj["transcript_faults"][0])
+        self.assertEqual(obj["sandbox_sids"], [SID])
+        self.assertEqual(len(obj["sandbox_faults"]), 1)
+        self.assertIn("stray is not a sandbox", obj["sandbox_faults"][0])
+        out = run_inprocess("status", "--state-dir", str(self.state)).stdout
+        self.assertIn(f"transcripts:          2 — {OTHER_SID}, {SID}", out)
+        self.assertIn(f"sandbox homes:        1 — {SID}", out)
+        self.assertIn("sandbox fault:        stray is not a sandbox", out)
+        self.assertEqual(snapshot(self.state), before, "status writes nothing")
+

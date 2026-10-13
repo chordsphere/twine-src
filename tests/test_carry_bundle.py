@@ -1243,14 +1243,31 @@ class Guards(unittest.TestCase):
 
     def test_nothing_in_the_record_module_removes_a_record(self):
         """Nothing in Arc 1 removes an in-flight record (Arc 2's loop knows
-        when a session closes): no unlink, remove, rmdir or rmtree in
-        twine/inflight.py or the verb."""
-        for rel in ("twine/inflight.py", "twine/commands/carry_bundle.py"):
-            tree_ = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
-            calls = {n.func.attr for n in ast.walk(tree_)
-                     if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
-            self.assertFalse(calls & {"unlink", "remove", "rmdir", "rmtree", "removedirs"},
-                             rel)
+        when a session closes): no unlink, remove, rmdir or rmtree in the
+        verb, and in twine/inflight.py only inside `remove_inflight` — the
+        one removal, Arc 2 R4's — which only `twine run` calls, on a
+        delivered run."""
+        removing = {"unlink", "remove", "rmdir", "rmtree", "removedirs"}
+
+        def calls_in(node) -> set[str]:
+            return {n.func.attr for n in ast.walk(node)
+                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+
+        verb = ast.parse((REPO_ROOT / "twine/commands/carry_bundle.py").read_text("utf-8"))
+        self.assertFalse(calls_in(verb) & removing)
+        module = ast.parse((REPO_ROOT / "twine/inflight.py").read_text("utf-8"))
+        for node in module.body:
+            name = getattr(node, "name", None)
+            with self.subTest(definition=name):
+                if name == "remove_inflight":
+                    self.assertEqual(calls_in(node) & removing, {"unlink"})
+                else:
+                    self.assertFalse(calls_in(node) & removing)
+        callers = [p.relative_to(REPO_ROOT).as_posix()
+                   for p in sorted((REPO_ROOT / "twine").rglob("*.py"))
+                   if "remove_inflight(" in p.read_text("utf-8")
+                   and p.name != "inflight.py"]
+        self.assertEqual(callers, ["twine/commands/run.py"])
 
     def test_the_verb_imports_nothing_that_runs_or_reaches_out(self):
         """bale runs through ctx.run only (cli-contract.md §10.6)."""

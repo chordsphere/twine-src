@@ -641,12 +641,21 @@ class StubBale:
     text the test names as not bale's ("" for none at all). It lets the
     CLI run end to end as a subprocess (`--bale-root`) with no bale
     anywhere; the bytes it replays are a recorded fixture, or bytes the
-    test names as not bale's."""
+    test names as not bale's.
+
+    Since Arc 2 R4 (`twine run`, which drives `open` and then `apply` with
+    one stub): `exit_codes` gives a verb its own exit (the recordings' own:
+    `apply` exits 1 replaying a `*-refused` dry run while `open` exits 0),
+    `exit_code` staying every other verb's; and every call is appended to
+    `record/calls` (its argv, tab-joined, one line) and its environment to
+    `record/env`, so `calls()` lists them in order and `environments()` says
+    what each saw — `argv()` stays the last call's."""
 
     def __init__(self, relay_stdout: Path | None = None,
                  apply_stdout: Path | None = None, exit_code: int = 0,
                  stderr: str | None = None, unlock_stdout: Path | None = None,
-                 open_stdout: Path | None = None) -> None:
+                 open_stdout: Path | None = None,
+                 exit_codes: dict[str, int] | None = None) -> None:
         self._dir = tempfile.TemporaryDirectory(prefix="twine-stub-bale-")
         base = Path(self._dir.name)
         self.root = base / "root"
@@ -663,6 +672,8 @@ class StubBale:
         lines = [f"#!{bash}",
                  "# A test double written by tests/helpers.py StubBale — not bale.",
                  f"printf '%s\\n' \"$@\" > {q(str(self.record / 'argv'))}",
+                 f"(IFS=$'\\t'; printf '%s\\n' \"$*\") >> {q(str(self.record / 'calls'))}",
+                 f"{{ printf -- '--- %s\\n' \"$1\"; env; }} >> {q(str(self.record / 'env'))}",
                  f"pwd > {q(str(self.record / 'cwd'))}",
                  f"if [ \"$1\" = relay ]; then cat > {q(str(self.record / 'stdin'))}; fi"]
         for verb, source in replay.items():
@@ -670,8 +681,10 @@ class StubBale:
                 sibling = Path(source).with_suffix(STDERR_EXT)
                 replay_stderr = (f"; cat {q(str(sibling))} >&2"
                                  if stderr is None and sibling.is_file() else "")
+                own_exit = ("" if verb not in (exit_codes or {})
+                            else f"; exit {int(exit_codes[verb])}")
                 lines.append(f"if [ \"$1\" = {verb} ]; then cat {q(str(source))}"
-                             f"{replay_stderr}; fi")
+                             f"{replay_stderr}{own_exit}; fi")
         if stderr:
             lines.append(f"printf '%s' {q(stderr)} >&2")
         lines.append(f"exit {int(exit_code)}")
@@ -682,6 +695,18 @@ class StubBale:
     def argv(self) -> list[str] | None:
         path = self.record / "argv"
         return path.read_text(encoding="utf-8").splitlines() if path.exists() else None
+
+    def calls(self) -> list[list[str]]:
+        """Every call's argv, in order (Arc 2 R4)."""
+        path = self.record / "calls"
+        if not path.exists():
+            return []
+        return [line.split("\t") for line in path.read_text(encoding="utf-8").splitlines()]
+
+    def environments(self) -> str:
+        """Every call's environment, each after a `--- <verb>` line."""
+        path = self.record / "env"
+        return path.read_text(encoding="utf-8") if path.exists() else ""
 
     def stdin(self) -> bytes | None:
         path = self.record / "stdin"

@@ -4,8 +4,9 @@ D12, D20, Q-3).
 Every model call's usage becomes one twine.spend.Tokens — `input`,
 `output`, `thinking`, `cache_read`, `cache_write`, disjoint — and the loop
 (R4) appends it to the spend stream through `spend.append_record`. R1
-built the mapping; R2's Anthropic adapter calls it on every turn; nothing
-appends yet.
+built the mapping; R2's Anthropic adapter calls it on every turn; since R4
+the loop (twine.runtime.loop) appends every call's usage, the sid's own,
+before anything else is done with the turn.
 
 This module is the capability's registry entry: its CONTRACT, and the
 provider mappings re-exported — `from_anthropic` and `UsageMappingError`
@@ -46,14 +47,16 @@ CONTRACT = Contract(
         "the boundary refuses a turn whose usage is not a Tokens of non-negative "
         "integers (thinking also None)",
         "the loop (R4) appends each turn's Tokens to the spend stream through "
-        "spend.append_record, once per call; R1 appends nothing",
+        "spend.append_record, once per call, before anything else is done with the "
+        "turn (served_sid null: the call served its own session)",
         "cache classes absent from a provider's usage are 0, and no provider "
         "split (Anthropic's 5m/1h cache_creation) is kept at R1",
     ),
     lands=("R1: Tokens at the boundary, the fake adapter's scripted usage and "
            "from_anthropic over the 2026-10-08 recording; R2: the Anthropic adapter "
            "calls from_anthropic on every turn (twine.runtime.usage, re-exported "
-           "here), held to the fifteen recordings of 2026-10-13; R4: the loop appends"),
+           "here), held to the fifteen recordings of 2026-10-13; R4 (landed): the loop "
+           "appends, twine.runtime.loop"),
     grounds=("D15", "D12", "D20", "Q-3", "twine.spend.Tokens"),
 )
 
