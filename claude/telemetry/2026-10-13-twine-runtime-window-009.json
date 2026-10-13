@@ -1,0 +1,616 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-13-twine-runtime-window-009",
+  "created_at": "2026-10-13T18:37:48+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-13T18:37:48+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-13-twine-runtime-window-009.log",
+      "bundle": {
+        "stem": "2026-10-13-twine-runtime-window",
+        "brief_sha256": "b954e3bfe0f10e2170469c41357235b4fbd8b51867a616d25739769432e1ee1f",
+        "checkpoint_sha256": "6ed2b01143ac231b962c6974ca82c54d2ffd3a38689feba5e48a613c2577ab2d",
+        "manifest_sha256": "f22bce63de30fe0254461394edbee5b103b50e87fda301b174510a25f2453081"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-13T18:37:47+00:00"
+      }
+    },
+    {
+      "at": "2026-10-13T21:52:45+00:00",
+      "outcome": "held",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-13-twine-runtime-window-009.tar.gz",
+      "validation": {
+        "state": "HOLD",
+        "exit_code": 0,
+        "claims": {
+          "unit test suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine runtime list --json ok": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine runtime tools --json ok": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unit test suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine runtime list --json ok": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine runtime tools --json ok": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "python syntax",
+          "twine runtime list --json ok",
+          "twine runtime tools --json ok",
+          "e2e: the warning line in what was sent",
+          "e2e: exhaustion before a call",
+          "e2e: suspend then resume, the conversation rebuilt",
+          "e2e: the clarification tarball and its dry run",
+          "no stop key spelled under twine/runtime/",
+          "VERSION is 0.22.0",
+          "fixtures/, share/, twine-seed.md, bin/twine untouched",
+          "docs carry R5",
+          "unit test suite (python3 -I -B -m unittest discover -s tests -t .)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests/bale_tools/craft_response.py",
+        "tests/bale_tools/response_lint.py",
+        "tests/helpers.py",
+        "tests/test_anthropic.py",
+        "tests/test_carry_bundle.py",
+        "tests/test_json_discipline.py",
+        "tests/test_registry.py",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "tests/test_runtime.py",
+        "tests/test_runtime_tools.py",
+        "tests/test_window.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/runtime/adapters/anthropic.py",
+        "twine/runtime/adapters/fake.py",
+        "twine/runtime/boundary.py",
+        "twine/runtime/capabilities.toml",
+        "twine/runtime/capabilities/suspend_resume.py",
+        "twine/runtime/capabilities/window_accounting.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/resume.py",
+        "twine/runtime/terms.py",
+        "twine/runtime/tools/escalate.py",
+        "twine/runtime/window.py",
+        "twine/transitions.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "31dcdded2a8fd175f7778c2bd1be09688e89e76b8fd4cd62b7646aacfa2782c4",
+              "TARBALL.md": "3037b905ee561af44f27cc83ec45d832feb7d429a98d4e07b4482a518cda6e94",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-13-twine-runtime-window-009.sh",
+              "sha256": "6ed2b01143ac231b962c6974ca82c54d2ffd3a38689feba5e48a613c2577ab2d"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-13T18:37:47+00:00",
+            "base_files": {
+              "VERSION": "363c6aacbb689a2ef691b69674629f647f1afafebc9dc353a86e6b09300b24f6",
+              "claude/INDEX.md": "b7672ee5362bf7addd28b3b265deb39ebdeee6c10a67b9d77f48719127f6ec8d",
+              "claude/context/cli-contract.md": "12cf88ae561a108bfda50c34534fcc940c6f42c644a922441171cfb2ebeccaf7",
+              "claude/context/runtime-contract.md": "b2a80dcdd934c1b8c53f4c364e2c88d782444ec954291fe98e7013f4472ae50c",
+              "tests/__init__.py": "da9ec3674b853000d66df5ad9a760a6e427d7937e243a83b5c94a5488306b597",
+              "tests/fixture_rule.py": "4fefa132b61f79daf690a866ffd2ea731f4588407b748305ff93211cef8e5503",
+              "tests/helpers.py": "c45d9c018d88533d6f45e22a5647a58d204c1534e6591ff50880097285aafb84",
+              "tests/test_anthropic.py": "d433455d83241a572ed7809353a4326dde69a916eb9f2dd75a028211d15b433d",
+              "tests/test_anthropic_live.py": "2492d048ed4eeed3865685d1501314242f00f08a7505a38f0cf22ecc01f2b506",
+              "tests/test_bale_check.py": "3cdc0df367c834478f35a8b13890796384780190c5dff5d03fe9d613ec5c74d9",
+              "tests/test_carry.py": "cbe14252ae6f7e84f4c5f8b57258d0933aad532ad2ed9ded9a0c711a35ab8f04",
+              "tests/test_carry_bale.py": "d3eee8f8dbd700a484fc0e7e1f96d716f1e16a32003314ba8a20e8a7a7ed2de3",
+              "tests/test_carry_bundle.py": "d8f933cc28b8e286b7dc8c9b0a80cb316d3fad5b8d2c047b139b1ad7cbe43996",
+              "tests/test_consumption_manifest.py": "74a89398ff9134624c6dee7265e910f280e8eafc801dbcff1303c6397aadccfe",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "f6de88313563db773e97073a294b26b724f85485c10964a69d15556264a0ba76",
+              "tests/test_json_discipline.py": "482c914c8e712d6aa2345b1a34dde3d09b60552884d912a66921031014ae8340",
+              "tests/test_kill.py": "7493780e5f77f8ebf0585889ca663d1688ad661f7c8b2c2740f6c989b5a0dc26",
+              "tests/test_probing.py": "9b2a8c3fd2c74921b9b9edca677cf1e75f200efb411117cca370a24d50f42f29",
+              "tests/test_process.py": "1d28dbe63393504cddb9c497d306d6009cea3676a8ee6f217575ba61f0ac3d71",
+              "tests/test_provider_lander.py": "c7b75241bb219d27bab8a35e60956e0141ebb50dc86e93ce2b936dc8b87224fc",
+              "tests/test_recordings.py": "ee0578560b702fdefe69438b9038ff4ddd193136380029cfc3ff0d9e5db7b491",
+              "tests/test_registry.py": "ca0a0b761f2d7a1e5a760f288f9930ec0f933ad8b9394684901981b60029d043",
+              "tests/test_run.py": "45877fd55d1ff57855dbdf935efefffbc73f7a448708fa51cf22428ac3d29334",
+              "tests/test_runtime.py": "1ddd863cdb2f41105c37108f7aaa13b53ac100e49cdf88ac21a682151512f9c2",
+              "tests/test_runtime_tools.py": "c36e93187684b6d905b167bd77ddc90edb1901401a8c99609a4bc3106d98abbb",
+              "tests/test_spend.py": "47fe9c9711445f73bad54c84c1295508033e497ae63cb8f6ded265fa9b3a3b40",
+              "tests/test_status.py": "d043912d644406ac9111d2f25c3bf7f9bf4be9022654dd0b682bca93309f09f7",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "2f34cb1f49cc9348df39c60c4261a96a0fae757601e3f640acdb6105af66dd76",
+              "twine/__init__.py": "00088e392efff8df735005cd3c560a3884cfd46658b279d6a7441f0279fcabcc",
+              "twine/bale.py": "c7fd3b5920d50fd6fa9005e25e9116938bc5d02a805f41226f872f99aa9a510e",
+              "twine/cli.py": "84c7c716ffab7a6fe7f53cc12c17deb1666dae64b2dbfa276104e1a961a62eec",
+              "twine/commands/__init__.py": "6508eeb3717c36419c9013f5f521216880f1ba2ef7c642a111bc45cf26a0674c",
+              "twine/commands/carry.py": "7c816aa12b8130d705631386fd23d95ba9f6ad41f09fc322a9601a141a66d002",
+              "twine/commands/carry_bale.py": "6897679aa9e92447661fa1f27caec8c3e3f43f3053373e50c771436b1ef96eea",
+              "twine/commands/carry_bundle.py": "be025e8d354faee30ce1180586899c001252d0e60c2ad05fec87333859f55162",
+              "twine/commands/core.py": "374dc09e7a9dafc31bba4ca885bddc16065655a5963a8b035723b2faee16151c",
+              "twine/commands/kill.py": "6821bb9092bb7eebe1ee7015c1c763259a5afed685f28ef198602c3678ca54d0",
+              "twine/commands/run.py": "c6fd60f57ed70511f552f86522580e6559dc29b5eb00f41dc5102f08f705ccdd",
+              "twine/commands/runtime.py": "e1b613569138d34de2a53bbbe5117dda06cb59b50472687a43e1e1a7c2241373",
+              "twine/commands/spend.py": "68b9c5d604130727427e7b34fa952851ba887f66de41221148dca7fc81aa579c",
+              "twine/commands/take.py": "e567032a19f01d07072e9ae044805e966e13c38b0862434565c1a2ab8dfe1a40",
+              "twine/commands/transitions.py": "3378746b2609874c84df206a4b8527016d19a2d58851d4494de9982669646174",
+              "twine/inflight.py": "a6b6ddce81540ba50a65bc06e008b5141c1f19e3506501f99e194d4293f5ab18",
+              "twine/kill.py": "77668bd3b36f35a27c2bc7912de8701b1cdbe7752a9851b8bec228c212c4bc76",
+              "twine/probing.py": "3b3a9ebdd38cf8520c3d5e6bf3001fe0a574d6e6969eb9592af6c69a42f2d78b",
+              "twine/process.py": "43e6421c8834a989d0353141f92fed1bcd0ee454302f4742f9ea9950b8193b30",
+              "twine/registry.py": "028697d6aa99e664a5c3215abc5cfaf9cfd49d3385b7212340eac9b083e88ee7",
+              "twine/runtime/__init__.py": "9404f1efa91a9d79ea03163a31a58f63278540e257f80be90dfddb834a3dfedd",
+              "twine/runtime/adapters/__init__.py": "fadc1527bb988739e8e0c718d5e463983a2791b1610694248f26001394e3fd99",
+              "twine/runtime/adapters/anthropic.py": "f1b558652d6263864b48c19dc3dec63cf61f1f926aa03ce1d0bcb3c06407bf4a",
+              "twine/runtime/adapters/fake.py": "1ea4b9903c2abc0ce62b5bcba7f72c35b2e720d51483f9fc1277cbcc8ff1ba16",
+              "twine/runtime/boundary.py": "802ddbb574b6a1f09d6c60e2eb4174d20c6457cdeca8256b13beb96863b3fab5",
+              "twine/runtime/capabilities.toml": "1566f8d98cdef0e165465a1b5a4dbd4c671f8646737e5987114cee255da9763f",
+              "twine/runtime/capabilities/__init__.py": "0aca783ccb1983ae907744a2929f4ae78eaba7bcb67e6c868db1a3f4b7291b57",
+              "twine/runtime/capabilities/prompt_caching.py": "8d4f5a3f28df4d3822a11d865f35b7f432d1901ff9a9b11351ddabf940700ce5",
+              "twine/runtime/capabilities/sandboxing.py": "66ddbbeae3647c4446efb659f09b367993a3769b8d4bf04fb7f04fcb58353468",
+              "twine/runtime/capabilities/streaming.py": "e8004e5fbf467186d92df24d587e5d1943826011341c8d8568cd31d0f7c1b9ac",
+              "twine/runtime/capabilities/suspend_resume.py": "432f7ad3f589516b84839194b90b50865308c738eeb34ae713f299acc5633f00",
+              "twine/runtime/capabilities/thinking.py": "688693f27d259a1f126e60e1e26d8f745558d6f7497ab24beb5ba579b413b85a",
+              "twine/runtime/capabilities/tool_calling.py": "3ce78cb2ba6e7fcdf4dafb9a35b974b7263a29d9ee60bc4bb89b47d9a50c3742",
+              "twine/runtime/capabilities/usage_accounting.py": "165a172c2820484fed9d97bcbcadd4c9ed556d2cf4180cfbf232335f6f81d2d3",
+              "twine/runtime/capabilities/window_accounting.py": "f077c3403c49f084eb067b7e9e84c06ee2652f8efcef879f1d78ebc213fe0a6a",
+              "twine/runtime/contract.py": "78541798507272aca5101981391638132ead7f3292fd7a04bd048eb297da57c7",
+              "twine/runtime/loop.py": "78890a4eb484830a3eefd7ea3401138dcdc6c11a181351b534af433b59c73c99",
+              "twine/runtime/registry.py": "0c18621f5e049ff6f2a5b0759491e0797753d33ddfa5cdfdc02afeff1c930456",
+              "twine/runtime/sandbox.py": "d7ecc408813ebe5cbf899530441d025272a6579ffcfa195e94a49daf7187f62a",
+              "twine/runtime/terms.py": "42518653e12900a70ec4745ba521053cedea5822de48c2e91aa69faac85f994e",
+              "twine/runtime/tooling.py": "1338dc28ce90b949fc465df83491e072d55b996f5471ee4d1d68c62b94134424",
+              "twine/runtime/tools.toml": "6f1c309d5cfa6849595ce5c88f267dfd5ca17d6301641ef510024a6927a662ee",
+              "twine/runtime/tools/__init__.py": "b09813e714a6d0e55a906537364a6cfd40f6c5053bbfab2ded012bafcf9f5c4e",
+              "twine/runtime/tools/deliver.py": "207e8a5c4306f94b648c6127fa85e02a35abb7cd96c9f827ec1313693b8c91f8",
+              "twine/runtime/tools/escalate.py": "dc24d9add2fb46afdf411a350eacf6d5e4f1fa4678ca175f04d0c2ce07c47f77",
+              "twine/runtime/tools/list_dir.py": "7e302d39c5f1aebb6323d330ff6a378b4371f58331ec05afd3a718ab64ce4624",
+              "twine/runtime/tools/probe.py": "962e4d7c4fd2bb0a5a523a57bca1b58b2117b7f4a8778bb4665c5b108011e73f",
+              "twine/runtime/tools/read_file.py": "d621cc862960c7746339e8712b2f287f10c75fbf487a21670c0df436656d080e",
+              "twine/runtime/tools/shell.py": "d63f1bf675028b08c7c2c2b65651882c07d3d2c04baff0eb654e76314b032c6b",
+              "twine/runtime/tools/write_file.py": "1d60e8d1be4238431c1be67afafd9843777c05e2e8a0e385272f6ebfdc7d8ae5",
+              "twine/runtime/transport.py": "cf07c35424d444014e9e54cf8f6b36cf164ea143434ffb05753f9d6de251ec35",
+              "twine/runtime/usage.py": "d1f4f1b939d879cb6f12bd710a88047cfef04027f4c64c11ad513fae73340e89",
+              "twine/shapes.py": "dc18c1736c4a40f6b846e2cad65071a30509013d002250cd41cc0bd060be53f9",
+              "twine/spend.py": "a8e4154434bf3acccd5f9a27d10151d81372f3911cbf9e46980e6a6fe70d7d7a",
+              "twine/transcript.py": "a2ea611fcc6348e958142f51f32d4b1aeb46e71d464b5e8fb8127a9a732d3bd6",
+              "twine/transitions.py": "8330902cef5f6a71af143d49e8d5f98da452992a17e45690e47c5c17b71cf401"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "a call whose input side is 0 (an uncounted error) keeps the window's used rather than resetting it",
+            "each run counts its own window: a resumed run's used is 0 until its first call reports",
+            "the rebuild takes the last conversation: a run-start without resumed_from starts a new one",
+            "the clarification form's summary is generated from the request manifest's goal"
+          ],
+          "judgment_calls": [
+            "the sent:false request line is written on every ending with unsent messages (R4 wrote it only after a tool-calling turn, which lost a final-text light block from the transcript's conversation)",
+            "bale's request-carried crafter and lint vendored verbatim into tests/bale_tools/, pinned by sha256",
+            "the twin's window, resumed_from and rewarm follow open so R4's order holds; window_reason beside",
+            "resume's --cap and --answer are named refusals, not argparse-required; --model added to resume's flags",
+            "the clarification form also runs the request's lint in the cage, on twine's own interpreter",
+            "the /v1/models read is held per adapter instance (one per spawn), not cached per process",
+            "the clarification tarball lives at escalations/<k>/response-<sid>.tar.gz, every round kept"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [
+            "decision: where tests get bale's request-carried crafter and lint for the clarification form (vendored into tests/bale_tools/)"
+          ],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md (core, META through \u00a711.2; \u00a711.7's table)",
+            "README.md (the brief)",
+            "TARBALL.md \u00a71, \u00a72, \u00a75, \u00a77, \u00a78, \u00a79, \u00a710",
+            "claude/context/runtime-contract.md (whole)",
+            "claude/context/cli-contract.md \u00a71\u2013\u00a74, \u00a718",
+            "claude/INDEX.md",
+            "twine-seed.md \u00a74.1\u2013\u00a74.3, \u00a75.2, D23, TQ-1"
+          ],
+          "light_blocks": 0
+        }
+      },
+      "log": ".bale/logs/2026-10-13-twine-runtime-window-009.log",
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "HOLD",
+        "exit_code": 1,
+        "script": {
+          "path": "claude/checkpoints/2026-10-13-twine-runtime-window-009.sh",
+          "sha256": "6ed2b01143ac231b962c6974ca82c54d2ffd3a38689feba5e48a613c2577ab2d"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    },
+    {
+      "at": "2026-10-13T22:02:37+00:00",
+      "outcome": "applied",
+      "command": "retry",
+      "closure_reason": null,
+      "tarball": "response-2026-10-13-twine-runtime-window-009.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "unit test suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine runtime list --json ok": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine runtime tools --json ok": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unit test suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine runtime list --json ok": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine runtime tools --json ok": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "python syntax",
+          "twine runtime list --json ok",
+          "twine runtime tools --json ok",
+          "e2e: the warning line in what was sent",
+          "e2e: exhaustion before a call",
+          "e2e: suspend then resume, the conversation rebuilt",
+          "e2e: the clarification tarball and its dry run",
+          "no stop key spelled under twine/runtime/",
+          "VERSION is 0.22.0",
+          "fixtures/, share/, twine-seed.md, bin/twine untouched",
+          "docs carry R5",
+          "unit test suite (python3 -I -B -m unittest discover -s tests -t .)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null,
+        "calls": null,
+        "models": null
+      },
+      "change_paths": [
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests/bale_tools/craft_response.py",
+        "tests/bale_tools/response_lint.py",
+        "tests/helpers.py",
+        "tests/test_anthropic.py",
+        "tests/test_carry_bundle.py",
+        "tests/test_json_discipline.py",
+        "tests/test_registry.py",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "tests/test_runtime.py",
+        "tests/test_runtime_tools.py",
+        "tests/test_window.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/runtime/adapters/anthropic.py",
+        "twine/runtime/adapters/fake.py",
+        "twine/runtime/boundary.py",
+        "twine/runtime/capabilities.toml",
+        "twine/runtime/capabilities/suspend_resume.py",
+        "twine/runtime/capabilities/window_accounting.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/resume.py",
+        "twine/runtime/terms.py",
+        "twine/runtime/tools/escalate.py",
+        "twine/runtime/window.py",
+        "twine/transitions.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "31dcdded2a8fd175f7778c2bd1be09688e89e76b8fd4cd62b7646aacfa2782c4",
+              "TARBALL.md": "3037b905ee561af44f27cc83ec45d832feb7d429a98d4e07b4482a518cda6e94",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-13-twine-runtime-window-009.sh",
+              "sha256": "6ed2b01143ac231b962c6974ca82c54d2ffd3a38689feba5e48a613c2577ab2d"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-13T18:37:47+00:00",
+            "base_files": {
+              "VERSION": "363c6aacbb689a2ef691b69674629f647f1afafebc9dc353a86e6b09300b24f6",
+              "claude/INDEX.md": "b7672ee5362bf7addd28b3b265deb39ebdeee6c10a67b9d77f48719127f6ec8d",
+              "claude/context/cli-contract.md": "12cf88ae561a108bfda50c34534fcc940c6f42c644a922441171cfb2ebeccaf7",
+              "claude/context/runtime-contract.md": "b2a80dcdd934c1b8c53f4c364e2c88d782444ec954291fe98e7013f4472ae50c",
+              "tests/__init__.py": "da9ec3674b853000d66df5ad9a760a6e427d7937e243a83b5c94a5488306b597",
+              "tests/fixture_rule.py": "4fefa132b61f79daf690a866ffd2ea731f4588407b748305ff93211cef8e5503",
+              "tests/helpers.py": "c45d9c018d88533d6f45e22a5647a58d204c1534e6591ff50880097285aafb84",
+              "tests/test_anthropic.py": "d433455d83241a572ed7809353a4326dde69a916eb9f2dd75a028211d15b433d",
+              "tests/test_anthropic_live.py": "2492d048ed4eeed3865685d1501314242f00f08a7505a38f0cf22ecc01f2b506",
+              "tests/test_bale_check.py": "3cdc0df367c834478f35a8b13890796384780190c5dff5d03fe9d613ec5c74d9",
+              "tests/test_carry.py": "cbe14252ae6f7e84f4c5f8b57258d0933aad532ad2ed9ded9a0c711a35ab8f04",
+              "tests/test_carry_bale.py": "d3eee8f8dbd700a484fc0e7e1f96d716f1e16a32003314ba8a20e8a7a7ed2de3",
+              "tests/test_carry_bundle.py": "d8f933cc28b8e286b7dc8c9b0a80cb316d3fad5b8d2c047b139b1ad7cbe43996",
+              "tests/test_consumption_manifest.py": "74a89398ff9134624c6dee7265e910f280e8eafc801dbcff1303c6397aadccfe",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "f6de88313563db773e97073a294b26b724f85485c10964a69d15556264a0ba76",
+              "tests/test_json_discipline.py": "482c914c8e712d6aa2345b1a34dde3d09b60552884d912a66921031014ae8340",
+              "tests/test_kill.py": "7493780e5f77f8ebf0585889ca663d1688ad661f7c8b2c2740f6c989b5a0dc26",
+              "tests/test_probing.py": "9b2a8c3fd2c74921b9b9edca677cf1e75f200efb411117cca370a24d50f42f29",
+              "tests/test_process.py": "1d28dbe63393504cddb9c497d306d6009cea3676a8ee6f217575ba61f0ac3d71",
+              "tests/test_provider_lander.py": "c7b75241bb219d27bab8a35e60956e0141ebb50dc86e93ce2b936dc8b87224fc",
+              "tests/test_recordings.py": "ee0578560b702fdefe69438b9038ff4ddd193136380029cfc3ff0d9e5db7b491",
+              "tests/test_registry.py": "ca0a0b761f2d7a1e5a760f288f9930ec0f933ad8b9394684901981b60029d043",
+              "tests/test_run.py": "45877fd55d1ff57855dbdf935efefffbc73f7a448708fa51cf22428ac3d29334",
+              "tests/test_runtime.py": "1ddd863cdb2f41105c37108f7aaa13b53ac100e49cdf88ac21a682151512f9c2",
+              "tests/test_runtime_tools.py": "c36e93187684b6d905b167bd77ddc90edb1901401a8c99609a4bc3106d98abbb",
+              "tests/test_spend.py": "47fe9c9711445f73bad54c84c1295508033e497ae63cb8f6ded265fa9b3a3b40",
+              "tests/test_status.py": "d043912d644406ac9111d2f25c3bf7f9bf4be9022654dd0b682bca93309f09f7",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "2f34cb1f49cc9348df39c60c4261a96a0fae757601e3f640acdb6105af66dd76",
+              "twine/__init__.py": "00088e392efff8df735005cd3c560a3884cfd46658b279d6a7441f0279fcabcc",
+              "twine/bale.py": "c7fd3b5920d50fd6fa9005e25e9116938bc5d02a805f41226f872f99aa9a510e",
+              "twine/cli.py": "84c7c716ffab7a6fe7f53cc12c17deb1666dae64b2dbfa276104e1a961a62eec",
+              "twine/commands/__init__.py": "6508eeb3717c36419c9013f5f521216880f1ba2ef7c642a111bc45cf26a0674c",
+              "twine/commands/carry.py": "7c816aa12b8130d705631386fd23d95ba9f6ad41f09fc322a9601a141a66d002",
+              "twine/commands/carry_bale.py": "6897679aa9e92447661fa1f27caec8c3e3f43f3053373e50c771436b1ef96eea",
+              "twine/commands/carry_bundle.py": "be025e8d354faee30ce1180586899c001252d0e60c2ad05fec87333859f55162",
+              "twine/commands/core.py": "374dc09e7a9dafc31bba4ca885bddc16065655a5963a8b035723b2faee16151c",
+              "twine/commands/kill.py": "6821bb9092bb7eebe1ee7015c1c763259a5afed685f28ef198602c3678ca54d0",
+              "twine/commands/run.py": "c6fd60f57ed70511f552f86522580e6559dc29b5eb00f41dc5102f08f705ccdd",
+              "twine/commands/runtime.py": "e1b613569138d34de2a53bbbe5117dda06cb59b50472687a43e1e1a7c2241373",
+              "twine/commands/spend.py": "68b9c5d604130727427e7b34fa952851ba887f66de41221148dca7fc81aa579c",
+              "twine/commands/take.py": "e567032a19f01d07072e9ae044805e966e13c38b0862434565c1a2ab8dfe1a40",
+              "twine/commands/transitions.py": "3378746b2609874c84df206a4b8527016d19a2d58851d4494de9982669646174",
+              "twine/inflight.py": "a6b6ddce81540ba50a65bc06e008b5141c1f19e3506501f99e194d4293f5ab18",
+              "twine/kill.py": "77668bd3b36f35a27c2bc7912de8701b1cdbe7752a9851b8bec228c212c4bc76",
+              "twine/probing.py": "3b3a9ebdd38cf8520c3d5e6bf3001fe0a574d6e6969eb9592af6c69a42f2d78b",
+              "twine/process.py": "43e6421c8834a989d0353141f92fed1bcd0ee454302f4742f9ea9950b8193b30",
+              "twine/registry.py": "028697d6aa99e664a5c3215abc5cfaf9cfd49d3385b7212340eac9b083e88ee7",
+              "twine/runtime/__init__.py": "9404f1efa91a9d79ea03163a31a58f63278540e257f80be90dfddb834a3dfedd",
+              "twine/runtime/adapters/__init__.py": "fadc1527bb988739e8e0c718d5e463983a2791b1610694248f26001394e3fd99",
+              "twine/runtime/adapters/anthropic.py": "f1b558652d6263864b48c19dc3dec63cf61f1f926aa03ce1d0bcb3c06407bf4a",
+              "twine/runtime/adapters/fake.py": "1ea4b9903c2abc0ce62b5bcba7f72c35b2e720d51483f9fc1277cbcc8ff1ba16",
+              "twine/runtime/boundary.py": "802ddbb574b6a1f09d6c60e2eb4174d20c6457cdeca8256b13beb96863b3fab5",
+              "twine/runtime/capabilities.toml": "1566f8d98cdef0e165465a1b5a4dbd4c671f8646737e5987114cee255da9763f",
+              "twine/runtime/capabilities/__init__.py": "0aca783ccb1983ae907744a2929f4ae78eaba7bcb67e6c868db1a3f4b7291b57",
+              "twine/runtime/capabilities/prompt_caching.py": "8d4f5a3f28df4d3822a11d865f35b7f432d1901ff9a9b11351ddabf940700ce5",
+              "twine/runtime/capabilities/sandboxing.py": "66ddbbeae3647c4446efb659f09b367993a3769b8d4bf04fb7f04fcb58353468",
+              "twine/runtime/capabilities/streaming.py": "e8004e5fbf467186d92df24d587e5d1943826011341c8d8568cd31d0f7c1b9ac",
+              "twine/runtime/capabilities/suspend_resume.py": "432f7ad3f589516b84839194b90b50865308c738eeb34ae713f299acc5633f00",
+              "twine/runtime/capabilities/thinking.py": "688693f27d259a1f126e60e1e26d8f745558d6f7497ab24beb5ba579b413b85a",
+              "twine/runtime/capabilities/tool_calling.py": "3ce78cb2ba6e7fcdf4dafb9a35b974b7263a29d9ee60bc4bb89b47d9a50c3742",
+              "twine/runtime/capabilities/usage_accounting.py": "165a172c2820484fed9d97bcbcadd4c9ed556d2cf4180cfbf232335f6f81d2d3",
+              "twine/runtime/capabilities/window_accounting.py": "f077c3403c49f084eb067b7e9e84c06ee2652f8efcef879f1d78ebc213fe0a6a",
+              "twine/runtime/contract.py": "78541798507272aca5101981391638132ead7f3292fd7a04bd048eb297da57c7",
+              "twine/runtime/loop.py": "78890a4eb484830a3eefd7ea3401138dcdc6c11a181351b534af433b59c73c99",
+              "twine/runtime/registry.py": "0c18621f5e049ff6f2a5b0759491e0797753d33ddfa5cdfdc02afeff1c930456",
+              "twine/runtime/sandbox.py": "d7ecc408813ebe5cbf899530441d025272a6579ffcfa195e94a49daf7187f62a",
+              "twine/runtime/terms.py": "42518653e12900a70ec4745ba521053cedea5822de48c2e91aa69faac85f994e",
+              "twine/runtime/tooling.py": "1338dc28ce90b949fc465df83491e072d55b996f5471ee4d1d68c62b94134424",
+              "twine/runtime/tools.toml": "6f1c309d5cfa6849595ce5c88f267dfd5ca17d6301641ef510024a6927a662ee",
+              "twine/runtime/tools/__init__.py": "b09813e714a6d0e55a906537364a6cfd40f6c5053bbfab2ded012bafcf9f5c4e",
+              "twine/runtime/tools/deliver.py": "207e8a5c4306f94b648c6127fa85e02a35abb7cd96c9f827ec1313693b8c91f8",
+              "twine/runtime/tools/escalate.py": "dc24d9add2fb46afdf411a350eacf6d5e4f1fa4678ca175f04d0c2ce07c47f77",
+              "twine/runtime/tools/list_dir.py": "7e302d39c5f1aebb6323d330ff6a378b4371f58331ec05afd3a718ab64ce4624",
+              "twine/runtime/tools/probe.py": "962e4d7c4fd2bb0a5a523a57bca1b58b2117b7f4a8778bb4665c5b108011e73f",
+              "twine/runtime/tools/read_file.py": "d621cc862960c7746339e8712b2f287f10c75fbf487a21670c0df436656d080e",
+              "twine/runtime/tools/shell.py": "d63f1bf675028b08c7c2c2b65651882c07d3d2c04baff0eb654e76314b032c6b",
+              "twine/runtime/tools/write_file.py": "1d60e8d1be4238431c1be67afafd9843777c05e2e8a0e385272f6ebfdc7d8ae5",
+              "twine/runtime/transport.py": "cf07c35424d444014e9e54cf8f6b36cf164ea143434ffb05753f9d6de251ec35",
+              "twine/runtime/usage.py": "d1f4f1b939d879cb6f12bd710a88047cfef04027f4c64c11ad513fae73340e89",
+              "twine/shapes.py": "dc18c1736c4a40f6b846e2cad65071a30509013d002250cd41cc0bd060be53f9",
+              "twine/spend.py": "a8e4154434bf3acccd5f9a27d10151d81372f3911cbf9e46980e6a6fe70d7d7a",
+              "twine/transcript.py": "a2ea611fcc6348e958142f51f32d4b1aeb46e71d464b5e8fb8127a9a732d3bd6",
+              "twine/transitions.py": "8330902cef5f6a71af143d49e8d5f98da452992a17e45690e47c5c17b71cf401"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "a call whose input side is 0 (an uncounted error) keeps the window's used rather than resetting it",
+            "each run counts its own window: a resumed run's used is 0 until its first call reports",
+            "the rebuild takes the last conversation: a run-start without resumed_from starts a new one",
+            "the clarification form's summary is generated from the request manifest's goal"
+          ],
+          "judgment_calls": [
+            "the sent:false request line is written on every ending with unsent messages (R4 wrote it only after a tool-calling turn, which lost a final-text light block from the transcript's conversation)",
+            "bale's request-carried crafter and lint vendored verbatim into tests/bale_tools/, pinned by sha256",
+            "the twin's window, resumed_from and rewarm follow open so R4's order holds; window_reason beside",
+            "resume's --cap and --answer are named refusals, not argparse-required; --model added to resume's flags",
+            "the clarification form also runs the request's lint in the cage, on twine's own interpreter",
+            "the /v1/models read is held per adapter instance (one per spawn), not cached per process",
+            "the clarification tarball lives at escalations/<k>/response-<sid>.tar.gz, every round kept"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [
+            "decision: where tests get bale's request-carried crafter and lint for the clarification form (vendored into tests/bale_tools/)"
+          ],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "manifest.json",
+            "AGENT.md (core, META through \u00a711.2; \u00a711.7's table)",
+            "README.md (the brief)",
+            "TARBALL.md \u00a71, \u00a72, \u00a75, \u00a77, \u00a78, \u00a79, \u00a710",
+            "claude/context/runtime-contract.md (whole)",
+            "claude/context/cli-contract.md \u00a71\u2013\u00a74, \u00a718",
+            "claude/INDEX.md",
+            "twine-seed.md \u00a74.1\u2013\u00a74.3, \u00a75.2, D23, TQ-1"
+          ],
+          "light_blocks": 0
+        }
+      },
+      "log": ".bale/logs/2026-10-13-twine-runtime-window-009.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-13-twine-runtime-window-009.sh",
+          "sha256": "400f3ec4e42cdf219f1a36a7eef79b19e449f857e9a0a48c75cfcff2bd1eb13b"
+        },
+        "stamp_matched": false,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-13T22:02:37+00:00",
+  "outcome": "applied"
+}
