@@ -53,7 +53,11 @@ probe() {
     RECORD_N=$((RECORD_N + 1))
     local out="$SCRATCH/rec.$RECORD_N.out" err="$SCRATCH/rec.$RECORD_N.err" rc
     echo "== recording: $label ($ann)"
-    echo "argv: $*"
+    # argv shell-quoted (`%q`), one space before each token and none after the
+    # last, so a token carrying a space (pack's goal) round-trips through
+    # shlex.split; bin/twine-land-recordings reads this form and the older
+    # `argv: $*` of the landed pastes, which has no quoting.
+    printf 'argv:'; printf ' %q' "$@"; echo
     if [ "$input" = "-" ]; then
       echo "stdin: /dev/null"
       (cd "$dir" && PYTHONDONTWRITEBYTECODE=1 "$@" </dev/null >"$out" 2>"$err"); rc=$?
@@ -95,7 +99,11 @@ probe() {
   echo "install bin/bale_report.py sha256: $(sha256sum "$INSTALL/bin/bale_report.py" | cut -c1-64)"
   echo "install schemas: $(ls "$INSTALL/schemas" | tr '\n' ' ')"
   (cd "$INSTALL/schemas" && sha256sum *.json | sed 's/^/schema /')
-  echo "clipboard key in the project bale.toml: $(grep -c 'clipboard' bale.toml 2>/dev/null || echo 0) line(s) (the global one is read by bale and shows as a copy notice on stderr)"
+  # grep -c prints its 0 and exits 1 when nothing matches, so `|| echo 0` printed a
+  # second 0 and split this line in two; `|| true` keeps the one count, and a
+  # missing bale.toml (grep prints nothing) reads as 0.
+  CLIP_LINES="$(grep -c 'clipboard' bale.toml 2>/dev/null || true)"
+  echo "clipboard key in the project bale.toml: ${CLIP_LINES:-0} line(s) (the global one is read by bale and shows as a copy notice on stderr)"
   echo "repo: $HERE; git head: $(git rev-parse --short HEAD 2>/dev/null) on $(git rev-parse --abbrev-ref HEAD 2>/dev/null); VERSION $(cat VERSION 2>/dev/null)"
   echo "git status --porcelain (head):"; git status --porcelain=v1 2>&1 | head -n 10
   echo "latest applied tag: $(git tag -l 'applied/*' | sort | tail -n 1)"

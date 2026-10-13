@@ -16,6 +16,15 @@ Modules:
   shapes    the bale shapes in text: find, parse and verify every block a
             courier carries (probe, probe-output, light, exchange, relay);
             pure, executes nothing — `twine take` is the verb over it
+  probing   the probe machinery `twine carry probe` and the runtime's
+            `probe` tool share (since session
+            2026-10-13-twine-housekeeping-probe-008, moved out of
+            twine/commands/carry.py so nothing under runtime/ imports a
+            command module or the CLI): the limits and the `Outcome`,
+            `choose_block`, `check_block_ready`, and `run_probe` and
+            `verify_output`, which take a `ProbeSeam` — the run seam,
+            `which`, `env` and `info`, what a Context carries of the CLI's
+            — rather than a Context
   process   the run seam: the one way a handler runs a subprocess
             (Context.run) — a process group, a timeout that reaches its
             children, a stdout cap, a spawn hook that hands the child's

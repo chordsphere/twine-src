@@ -6,7 +6,8 @@
 PASTE is the paste-back of `bin/twine-record-fixtures` (the recorder; its
 first run was probe `twine-051-record`): one `=== PROBE BEGIN <slug> ===`
 block holding, per recording, a `== recording: <label> (<annotation>)`
-header, `argv:`, `stdin:`, `cwd:`, `exit:`, then for stdout and stderr the
+header, `argv:` (shell-quoted since session 2026-10-13-twine-housekeeping-probe-008;
+the landed pastes' older `$*` form, with no quoting, is read too), `stdin:`, `cwd:`, `exit:`, then for stdout and stderr the
 byte count, sha256, newline fact, a raw head and a gzip+base64 copy of the
 whole stream. CRLF line endings (a chat transport's) are folded to LF
 first; nothing else is changed.
@@ -293,7 +294,10 @@ def name_recordings(paste: Paste, version: str) -> None:
     for n, rec in enumerate(paste.recordings):
         label = f"recording {rec.number} ({rec.label})"
         if rec.where == "crafter":
-            tokens = rec.command.split(" ")
+            try:
+                tokens = rule.echoed_tokens(rec.command)
+            except ValueError as exc:
+                raise Refusal(f"{label}: {exc}") from None
             at = next((n for n, t in enumerate(tokens)
                        if t == CRAFTER_BASENAME or t.endswith("/" + CRAFTER_BASENAME)), None)
             if at is None:
@@ -338,11 +342,13 @@ def name_recordings(paste: Paste, version: str) -> None:
 
 
 def command_cell(rec: Recording) -> str:
-    """The README's command cell: the argv as the recorder echoed it, the
-    crafter by its basename."""
+    """The README's command cell: `bale` and the argv joined by single
+    spaces — the unquoted form every landed row is in, whichever form the
+    recorder echoed (shell-quoted since session 2026-10-13-twine-housekeeping-
+    probe-008, `$*` before) — the crafter by its basename."""
     if rec.where == "crafter":
         return " ".join([CRAFTER_BASENAME, *rec.argv])
-    return rec.command
+    return " ".join(["bale", *rec.argv])
 
 
 def rows_for(paste: Paste) -> list[rule.Row]:

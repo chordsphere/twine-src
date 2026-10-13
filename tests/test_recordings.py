@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -38,7 +39,7 @@ from pathlib import Path
 from twine import FIXTURES_DIR, REPO_ROOT, shapes
 
 from tests.fixture_rule import (CollisionError, Role, assign_groups, echoed_argv,
-                                fixture_relpath_at, parse_rows, schemas_relpath_at,
+                                echoed_tokens, fixture_relpath_at, parse_rows, schemas_relpath_at,
                                 stderr_relpath)
 from tests.helpers import FLOOR, fenced_probe, recorded_rows, run_cli
 
@@ -90,9 +91,9 @@ def paste_text() -> str:
 class TheSharedRule(unittest.TestCase):
 
     def test_echoed_argv_rejoins_only_packs_goal(self):
-        """The recorder echoes `argv: $*`, so quoting is gone; the one
-        positional that carries spaces is pack's goal, everything before
-        its first flag. Any other verb splits on single spaces."""
+        """The old form, `argv: $*`: quoting is gone; the one positional
+        that carries spaces is pack's goal, everything before its first
+        flag. Any other verb splits on single spaces."""
         self.assertEqual(echoed_argv("bale pack twine-051-record: the read-only session "
                                      "--slug ro --read-only --no-readme --json"),
                          ["pack", "twine-051-record: the read-only session", "--slug", "ro",
@@ -103,6 +104,49 @@ class TheSharedRule(unittest.TestCase):
         self.assertEqual(echoed_argv("bale pack --json"), ["pack", "--json"])
         with self.assertRaises(ValueError):
             echoed_argv("craft_response.py --probe x")
+
+    def test_echoed_argv_reads_the_quoted_form_and_the_old_one_alike(self):
+        """The recorder echoes `argv:` shell-quoted since session
+        2026-10-13-twine-housekeeping-probe-008; the landed pastes are `$*`.
+        Whatever the quoting, one argv comes out — pack's goal one token."""
+        want = ["pack", "twine-051-record: the read-only session", "--slug", "ro",
+                "--read-only", "--no-readme", "--json"]
+        for form, command in (
+                ("old, $*", "bale pack twine-051-record: the read-only session "
+                            "--slug ro --read-only --no-readme --json"),
+                ("printf %q", "bale pack twine-051-record:\\ the\\ read-only\\ session "
+                              "--slug ro --read-only --no-readme --json"),
+                ("quoted", "bale pack 'twine-051-record: the read-only session' "
+                           "--slug ro --read-only --no-readme --json")):
+            with self.subTest(form=form):
+                self.assertEqual(echoed_argv(command), want)
+        # a token with a space that is not pack's goal survives only quoted
+        self.assertEqual(echoed_argv("bale open /tmp/a\\ b/x.bale-bundle --json"),
+                         ["open", "/tmp/a b/x.bale-bundle", "--json"])
+        # an empty token is kept in the quoted form
+        self.assertEqual(echoed_argv("bale unlock '' --json"), ["unlock", "", "--json"])
+        self.assertEqual(echoed_tokens("python3 -I /x/craft_response.py --light-block -"),
+                         ["python3", "-I", "/x/craft_response.py", "--light-block", "-"])
+        with self.assertRaises(ValueError):
+            echoed_argv("bale pack 'an open quote --json")
+        with self.assertRaises(ValueError):
+            echoed_argv("craft_response.py --probe x")
+
+    def test_no_landed_argv_line_carries_a_character_shlex_would_change(self):
+        """Why the old form can be read by shlex: in every paste in the
+        tree whose recordings the lander reads (the old `argv: $*`), no argv
+        token has a quote, a backslash, a `$`, a backtick or a `#`, so shlex.split gives the
+        same tokens as splitting on spaces."""
+        seen = 0
+        for paste in sorted(FIXTURES_DIR.glob("bale-*/carried/*.txt")):
+            for line in paste.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.startswith("argv: "):
+                    seen += 1
+                    with self.subTest(paste=paste.name, argv=line):
+                        self.assertFalse(set(line[len("argv: "):]) & set("'\\\"#$`"), line)
+                        self.assertEqual(echoed_tokens(line[len("argv: "):]),
+                                         line[len("argv: "):].split(" "))
+        self.assertGreaterEqual(seen, RECORDINGS)
 
     def test_the_stdin_role_names_twines_relay_argv_and_stays_put(self):
         """`relay <sid> - --json` names relay_sid_stdin_--json, and a key
@@ -329,6 +373,56 @@ class LanderLands(unittest.TestCase):
         self.assertIn('{argv = ["relay", "<sid>", "-", "--json"], cwd = "scratch", '
                       'outcome = "relayed", fixture = ', run.stdout)
 
+    def test_a_paste_with_the_quoted_argv_form_lands_the_same_files_and_rows(self):
+        """The lander reads both forms: the landed paste's argv lines
+        rewritten shell-quoted (pack's goal as one token, in `printf %q`'s
+        backslashes and in `shlex.quote`'s single quotes) land every
+        recording at the same path with the same bytes, and print the same
+        README rows and manifest lines — the command cell stays the
+        unquoted form the README holds. Only the argv lines change, each
+        stays one line, so the trailer's count still holds; the carried
+        paste itself is the re-quoted copy, so it is not compared."""
+        def percent_q(token: str) -> str:
+            return re.sub(r"([^A-Za-z0-9_@%+=:,./-])", r"\\\1", token) if token else "''"
+
+        old_form = lander(PASTE_REL, "--tree", str(self.root / "old"))
+        self.assertEqual(old_form.returncode, 0, old_form.stderr)
+        for name, quote in (("percent-q", percent_q), ("shlex-quote", shlex.quote)):
+            with self.subTest(form=name):
+                lines = []
+                for line in paste_text().split("\n"):
+                    command = line[len("argv: "):]
+                    if line.startswith("argv: bale "):
+                        line = "argv: " + " ".join(quote(t) for t in
+                                                   ["bale", *echoed_argv(command)])
+                    elif line.startswith("argv: "):
+                        line = "argv: " + " ".join(quote(t) for t in echoed_tokens(command))
+                    lines.append(line)
+                changed = "\n".join(lines)
+                self.assertIn("twine-051-record:" + ("\\ the" if name == "percent-q" else " the"),
+                              changed.replace("'twine-051-record: the", "twine-051-record: the"))
+                self.assertEqual(len(changed.split("\n")), len(paste_text().split("\n")))
+                paste = self.root / f"{name}-paste.txt"
+                paste.write_bytes(changed.encode("utf-8"))
+                tree = self.root / name
+                run = lander(str(paste), "--tree", str(tree))
+                self.assertEqual(run.returncode, 0, run.stderr)
+                def printed(out: str) -> list[str]:
+                    """What the lander prints but for its first line and the carried
+                    row (the paste's own bytes and hashes, the one thing that moved)."""
+                    return [ln for ln in out.split("\n")[1:] if "/carried/" not in ln]
+                self.assertEqual(printed(run.stdout), printed(old_form.stdout),
+                                 "the recording rows and the manifest lines")
+                landed = sorted(p.relative_to(tree).as_posix()
+                                for p in tree.rglob("*") if p.is_file())
+                self.assertEqual(len(landed), 2 * RECORDINGS + 1)
+                for rel in landed:
+                    if "/carried/" in rel:
+                        continue
+                    with self.subTest(file=rel):
+                        self.assertEqual((tree / rel).read_bytes(),
+                                         (REPO_ROOT / rel).read_bytes())
+
     def test_landing_again_is_idempotent_and_never_replaces_other_bytes(self):
         self.assertEqual(lander(PASTE_REL, "--tree", str(self.root)).returncode, 0)
         self.assertEqual(lander(PASTE_REL, "--tree", str(self.root)).returncode, 0)
@@ -404,35 +498,44 @@ class TheRecorder(unittest.TestCase):
         self.assertNotIn("twine-051-record ===", script, "the sentinels name $SLUG")
         self.assertIn('echo "=== PROBE BEGIN $SLUG ==="', script)
 
+    @staticmethod
+    def stub_world(base: Path, bale_toml: str | None = None):
+        """A stub bale (a double this test writes; bin/VERSION 9.9.9, no
+        crafter — the steps that need one fail and say so, as the probe lets
+        them) first on a PATH of its own, a repo to run in and a TMPDIR to
+        look in afterwards; `bale_toml`, when given, is the repo's bale.toml.
+        Returns `record(*argv)`, the recorder run there."""
+        bash = shutil.which("bash") or "/bin/bash"
+        (base / "install" / "bin").mkdir(parents=True)
+        (base / "install" / "schemas").mkdir()
+        stub = base / "install" / "bin" / "bale"
+        stub.write_text("#!/bin/sh\n# A test double written by tests/test_recordings.py "
+                        "- not bale.\ncat >/dev/null 2>&1 </dev/null\nexit 0\n",
+                        encoding="utf-8")
+        stub.chmod(0o755)
+        (base / "install" / "bin" / "VERSION").write_text("9.9.9\n", encoding="utf-8")
+        (base / "install" / "bin" / "bale_report.py").write_text("", encoding="utf-8")
+        (base / "path").mkdir()
+        (base / "path" / "bale").symlink_to(stub)
+        (base / "repo").mkdir()
+        if bale_toml is not None:
+            (base / "repo" / "bale.toml").write_text(bale_toml, encoding="utf-8")
+        (base / "tmp").mkdir()
+        env = {"PATH": f"{base / 'path'}:/usr/bin:/bin", "HOME": str(base),
+               "TMPDIR": str(base / "tmp"), "LC_ALL": "C.UTF-8"}
+
+        def record(*argv: str) -> subprocess.CompletedProcess:
+            return subprocess.run([bash, str(RECORDER), *argv], cwd=str(base / "repo"),
+                                  env=env, capture_output=True, text=True, timeout=120)
+        return record
+
     def test_the_slug_is_an_argument_defaulting_to_the_installed_version(self):
-        """Run end to end against a stub bale (a double this test writes;
-        bin/VERSION 9.9.9, no crafter — the steps that need one fail and
-        say so, as the probe lets them): the paste-back is one intact
+        """Run end to end against a stub bale: the paste-back is one intact
         probe-output block named twine-record-9.9.9 by default, or by the
         slug given; a slug that is not one is refused, exit 2."""
-        bash = shutil.which("bash") or "/bin/bash"
         with tempfile.TemporaryDirectory(prefix="twine-recorder-") as tmp:
             base = Path(tmp)
-            (base / "install" / "bin").mkdir(parents=True)
-            (base / "install" / "schemas").mkdir()
-            stub = base / "install" / "bin" / "bale"
-            stub.write_text("#!/bin/sh\n# A test double written by tests/test_recordings.py "
-                            "- not bale.\ncat >/dev/null 2>&1 </dev/null\nexit 0\n",
-                            encoding="utf-8")
-            stub.chmod(0o755)
-            (base / "install" / "bin" / "VERSION").write_text("9.9.9\n", encoding="utf-8")
-            (base / "install" / "bin" / "bale_report.py").write_text("", encoding="utf-8")
-            (base / "path").mkdir()
-            (base / "path" / "bale").symlink_to(stub)
-            (base / "repo").mkdir()
-            (base / "tmp").mkdir()
-            env = {"PATH": f"{base / 'path'}:/usr/bin:/bin", "HOME": str(base),
-                   "TMPDIR": str(base / "tmp"), "LC_ALL": "C.UTF-8"}
-
-            def record(*argv: str) -> subprocess.CompletedProcess:
-                return subprocess.run([bash, str(RECORDER), *argv], cwd=str(base / "repo"),
-                                      env=env, capture_output=True, text=True, timeout=120)
-
+            record = self.stub_world(base)
             for argv, slug in (((), "twine-record-9.9.9"), (("my-slug-1",), "my-slug-1")):
                 with self.subTest(slug=slug):
                     run = record(*argv)
@@ -448,6 +551,64 @@ class TheRecorder(unittest.TestCase):
             self.assertEqual(bad.returncode, 2)
             self.assertIn("must be lowercase", bad.stderr)
             self.assertEqual(list((base / "tmp").iterdir()), [], "the scratch is removed")
+
+    def test_argv_is_echoed_shell_quoted(self):
+        """Session 2026-10-13-twine-housekeeping-probe-008, against the stub
+        bale: every `argv:` line reads back through the lander's rule to the
+        argv the recording ran (pack's goal, the one token with spaces, is
+        backslash-escaped by `%q` and one token again); the first
+        recording's is `argv: bale --version` with no trailing space; and
+        the `== recording:` headers are byte for byte what the landed
+        paste's are."""
+        with tempfile.TemporaryDirectory(prefix="twine-recorder-") as tmp:
+            record = self.stub_world(Path(tmp))
+            out = record("argv-slug").stdout
+        argv_lines = [ln for ln in out.splitlines() if ln.startswith("argv: ")]
+        self.assertEqual(len(argv_lines), RECORDINGS)
+        self.assertEqual(argv_lines[0], "argv: bale --version")
+        self.assertFalse([ln for ln in argv_lines if ln != ln.rstrip()], "no trailing space")
+        pack = [ln for ln in argv_lines if " pack " in ln]
+        self.assertEqual(pack, ["argv: bale pack twine-051-record:\\ the\\ read-only\\ session "
+                                "--slug ro --read-only --no-readme --json"])
+        self.assertEqual(echoed_argv(pack[0][len("argv: "):]),
+                         ["pack", "twine-051-record: the read-only session", "--slug", "ro",
+                          "--read-only", "--no-readme", "--json"])
+        for ln in argv_lines:
+            if ln.startswith("argv: bale ") and " pack " not in ln:
+                with self.subTest(argv=ln):
+                    command = ln[len("argv: "):]
+                    self.assertEqual(echoed_argv(command), shlex.split(command)[1:])
+        headers = re.findall(r"^== recording: .*$", out, re.M)
+        self.assertEqual(len(headers), RECORDINGS)
+        # The landed paste crossed clip.exe, which read its UTF-8 as code page
+        # 437 (see test_its_recordings_are_the_pastes_in_order); the crafter's
+        # recordings need a crafter the stub does not have, so they are left out.
+        landed = [h.encode("utf-8").decode("cp437") for h in headers]
+        as_arrived = re.findall(r"^== recording: .*$", paste_text(), re.M)
+        self.assertEqual([h for h in landed if "crafter" not in h],
+                         [h for h in as_arrived if "crafter" not in h])
+
+    def test_the_clipboard_key_line_prints_once_whatever_the_project_bale_toml_holds(self):
+        """`grep -c` prints its 0 and exits 1 when nothing matches, so a
+        `|| echo 0` after it printed a second 0 and split the line — but only
+        when a bale.toml existed without the key (no file: grep prints
+        nothing and the `echo 0` is the only 0). Three repos: no bale.toml, one
+        with no clipboard key, one with the key: each prints exactly one
+        `clipboard key in the project bale.toml: N line(s) (…)` line, and no
+        line of its own reading `0 line(s)`."""
+        for name, toml, count in (("no bale.toml", None, 0),
+                                  ("bale.toml without the key", "[bale]\nfloor = \"0.4.51\"\n", 0),
+                                  ("bale.toml with the key",
+                                   "[clipboard]\ncommand = \"xclip -selection clipboard\"\n", 2)):
+            with self.subTest(repo=name), tempfile.TemporaryDirectory(prefix="twine-recorder-") as tmp:
+                record = self.stub_world(Path(tmp), toml)
+                lines = record("clip-slug").stdout.splitlines()
+                clip = [i for i, ln in enumerate(lines) if "clipboard key" in ln]
+                self.assertEqual(len(clip), 1, lines[clip[0]:clip[0] + 3] if clip else lines[:20])
+                self.assertRegex(lines[clip[0]], rf"^clipboard key in the project bale\.toml: "
+                                                 rf"{count} line\(s\) \(the global one is read by bale")
+                self.assertFalse([ln for ln in lines if ln.startswith("0 line(s)")])
+                self.assertEqual(lines[clip[0] + 1].split(":")[0], "repo")
 
 
 if __name__ == "__main__":
