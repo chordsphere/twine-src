@@ -277,6 +277,14 @@ exists to fake.]
 floor — `fixtures/bale-<floor>/`, the version the recordings were made
 at.]
 
+[2026-10-13-twine-runtime-anthropic-002: the first provider recordings
+of the wire — fifteen Messages API exchanges the architect made on
+2026-10-13 with his own key through probe `twine-anthropic-record`,
+carried as its paste-back and landed byte-exact by
+`bin/twine-land-provider-recordings` — live under `fixtures/anthropic/`
+(beside R1's 2026-10-08 usage object), and the Anthropic adapter's tests
+replay them through its transport seam.]
+
 **T9 — Stack lean.** Proposed: Python 3.10+, stdlib for the core
 (courier, registry, transition table, cost spine); the `anthropic`
 SDK as an optional extra used only inside the Anthropic adapter,
@@ -615,6 +623,11 @@ session.
 model-agnostic system prompt holding only the tool definitions and the
 surface note is the third runtime concern (§4.3).]
 
+[2026-10-13-twine-runtime-run-004: landed — the include set sits on disk
+at `request/` in the worker's sandbox home, the opener is the first user
+turn, and the system prompt holds only the tool definitions and the
+surface note (runtime-contract.md §7.1–§7.2).]
+
 **D12 — Caching discipline as a design constraint.** Append-only,
 stable conversation prefixes; docs and tool definitions pinned at
 spawn; per-worker model and thinking settings are spawn-time
@@ -654,6 +667,10 @@ a session escalating upward.]
 [2026-10-01-twine-seed-001: carried — `probe`, `escalate` and
 `deliver` are the wrappers T6 names, and per the annotation `escalate`
 emits bale's clarification response or light block, never a fork.]
+
+[2026-10-13-twine-runtime-tools-003: `probe`, `escalate` (light form)
+and `deliver` exist as the wrappers it demanded, in
+`twine/runtime/tools/`.]
 
 **D14 — The escalation producer.** The harness is the producer the
 S4 schemas landed ahead of. Real-time questions surface on a
@@ -1013,6 +1030,11 @@ procedure, once Arc 2's loop exists. To **nisaba-src**: the dated
 annotation on `nisaba-seed.md` §3.3 recording T4's three faces (T4
 above). Neither is this session's or this repository's to land.
 
+[2026-10-13-twine-runtime-run-004: the loop exists, so both obligations
+are now due — the bale-src `AGENT.md` §11.7 surface row for twine-hosted
+API workers, and nisaba-src's `nisaba-seed.md` §3.3 annotation; the
+desk's to send.]
+
 ### 4.5 Effort (T11, directed)
 
 The runtime owns two of T11's mechanisms: `ask` re-warms a finished
@@ -1297,6 +1319,72 @@ architect's 2026-10-08 recording
 (`fixtures/anthropic/messages-usage-2026-10-08.json`), the two verbs
 `twine runtime list` and `twine runtime show`, and `VERSION` 0.16.0.]
 
+[2026-10-13-twine-runtime-anthropic-002: R2 landed — the Anthropic
+adapter (`twine/runtime/adapters/anthropic.py`, registered `anthropic`,
+implementing `tool-calling`, `thinking` and `usage-accounting` and, now
+`implemented`, `prompt-caching` and `streaming`) over a stdlib transport
+seam (`twine/runtime/transport.py`, the only place twine opens a socket;
+the `anthropic` SDK is not used), its key read from `ANTHROPIC_API_KEY`
+in the environment it is given and sent in `x-api-key` and nowhere else;
+the readers (`read_response`, `read_stream`, the `Outcome` whose
+`as_json()` is pinned) and `build_request` with three prompt-cache
+breakpoints; the stop and error mapping as `[[mapping]]` rows of
+`share/transitions.toml`, whose `stop` axis gained `request-refused`
+(move `fix-request`, the operator's) and `provider-error`
+(`retry-with-backoff`) and declares `loop_keys` (`cap-reached`,
+`cap-unchecked`, `killed`), which the boundary now refuses from an
+adapter, with `written_against` at the floor, 0.4.51; the fifteen
+recordings of 2026-10-13 under `fixtures/anthropic/` and their lander,
+`bin/twine-land-provider-recordings`; the gated live smoke test,
+`tests/test_anthropic_live.py`; and `VERSION` 0.17.0.]
+
+[2026-10-13-twine-runtime-tools-003: R3 landed — the seven canonical
+tools (`shell`, `read_file`, `write_file`, `list_dir`, `probe`,
+`escalate`, `deliver`) declared in `twine/runtime/tools.toml` (`name`,
+`module`, `leaves_cage`), one module each under `twine/runtime/tools/`,
+parity by name, rendered by the verb `twine runtime tools [--json]`;
+each a `ToolSpec` and an executor whose every failure is a result, never
+an exception (`run_tool`). The cage and its rules: one sandbox per sid
+(`twine/runtime/sandbox.py`), its home
+`<state-dir>/sandbox/<sid>/home/`, every file tool's path resolved
+inside it — an absolute path, a `..` or a symlink out refused, naming
+the cage — and `shell` run there with a minimal environment (`PATH`,
+`HOME`, `TMPDIR`, `LANG`; never `ANTHROPIC_API_KEY`), a timeout capped
+by the sandbox's maximum and a 256 KiB stdout cap. The network rule and
+`confines`: `unshare -rn` detected at creation, every `shell` argv
+wrapped in it where it works (`network: "off"`), `network: "unconfined"`
+and the reason where it does not; `confines` declared by the sandbox's
+runner exactly when the network is off — cli-contract §10.5's switch
+made. The hook: every spawn registered with the kill-switch's running
+record through the run seam's `on_spawn` when a record exists, and
+cleared after a run with no survivor. What leaves the cage: `probe`
+alone — `carry probe`'s machinery run read-only against the real
+repository, with the cage's environment. `sandboxing` implemented by the
+runtime itself (`implemented_by`). `VERSION` 0.18.0.]
+
+[2026-10-13-twine-runtime-run-004: R4 landed — `twine run BUNDLE`
+(`twine/commands/run.py` over `twine/runtime/loop.py`). The sequence:
+`carry bundle` opens the session; the runtime leads its own process
+group and registers it in the running record before it spawns anything;
+the sandbox is made and the request unpacked at `request/` with
+tarfile's `data` filter; the adapter (`anthropic`, or `fake` with
+`--script`) is spawned behind the boundary, the key handed to it and to
+nothing else; the transcript and the in-flight record's `runtime` fields
+are written; and the loop runs — the opener as the first turn under a
+model-agnostic system prompt, the abort file and the pre-call cap check
+before every call, each call's usage appended to `spend.jsonl`, and the
+transition table's moves performed from its rows (`classify-final-text`;
+`continue-turn`, at most three times; `retry-with-backoff`, at most five
+retries; `return-tool-error` for a failed tool; every other move named
+and the run stopped). The outcomes: `delivered` (the dry run clean, the
+apply line printed — twine applies nothing), `suspended`, `ended`,
+`stopped`, `killed`, `cap-reached`, `cap-unchecked`, `refused`. Every
+step is a line of `<state-dir>/transcripts/<sid>.jsonl`. On any end the
+running record is cleared; on `delivered` the in-flight record is
+removed and the sandbox home kept; otherwise both are kept. `VERSION`
+0.19.0. With R1–R4 landed, the first milestone of the Arc 2 cut is
+reached: the worker side of the courier is twine's.]
+
 ### 5.3 Arc 3 — the scheduler
 
 Over office 0.5.0's drafting-table: it reads a ratified
@@ -1410,6 +1498,13 @@ are twine's own.
   retention a house rule of the office; N4 holds because deleting them
   loses an effort option (T11's "ask an old worker"), never anything
   of record. Ratified as assumed at light block 3 [2].]
+
+  [2026-10-13-twine-runtime-run-004: landed — a hosted session's
+  transcript lives at `<state-dir>/transcripts/<sid>.jsonl`, one
+  append-only JSON line per step (`run-start`, `check`, `request`,
+  `turn`, `tool-call`, `tool-result`, `move`, `retry`, `abort`,
+  `adapter-error`, `run-end`), its `seq` continuing across runs
+  (runtime-contract.md §7.6).]
 
 - **TQ-2 — The capability registry's file shape.** Recommend one
   Python module per capability carrying a declared contract object,
