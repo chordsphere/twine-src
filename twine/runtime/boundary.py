@@ -28,8 +28,10 @@ abstracts:
                 loop's to produce, never an adapter's.
 
 A boundary refusal is a BoundaryError naming the adapter, the call and
-every fault. It is an adapter defect, not a model outcome: what the loop
-does with one is R4's to decide (D17: it will have a move).
+every fault. It is an adapter defect, not a model outcome. Since R4 the
+loop ends the run `stopped` on one, naming it, with no stop key and no move
+(runtime-contract.md §7.4: the table has no row for an adapter defect yet,
+and R4 adds none — proposed for review).
 
 Nothing here reaches a network, reads a key or imports outside the
 stdlib and twine.
@@ -112,8 +114,9 @@ class SpawnSettings:
 @dataclass(frozen=True)
 class Request:
     """One call's input: the conversation so far, append-only (D12) — a
-    tuple of message objects whose shape the loop (R4) fixes — and the
-    tools offered. A tuple, so nothing edits an earlier turn in place."""
+    tuple of message objects in the Messages API's own shape, which the loop
+    (R4) fixed (runtime-contract.md §7.3) — and the tools offered. A tuple,
+    so nothing edits an earlier turn in place."""
 
     messages: tuple[Mapping[str, Any], ...]
     tools: tuple[ToolSpec, ...] = ()

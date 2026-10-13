@@ -47,7 +47,11 @@ What the default runner guarantees:
 One more helper, since Arc 2 R3: `inherited_environment(names)` reads the
 named variables, and only those, from this process's environment — how the
 runtime's sandbox takes PATH and LANG without any module under
-twine/runtime/ touching the environment itself.
+twine/runtime/ touching the environment itself. And since Arc 2 R4,
+`lead_own_group()`: the runtime's own process group, made the process's own
+first (`os.setsid`) when it is not — what `twine run` registers in the
+running record before it spawns anything, so no module under twine/runtime/
+or twine/commands/run.py needs `os` for it.
 
 Section 3's process-group helpers are also what `twine kill` (twine/kill.py,
 session 5b) signals and waits with: they read /proc and send signals, and
@@ -565,4 +569,51 @@ def wait_group_gone(pgid: int, timeout: float, *, poll: float = POLL_SECONDS,
         if time.monotonic() >= deadline:
             return members
         time.sleep(poll)
+
+
+# --- The runtime's own group (Arc 2 R4) ------------------------------------
+
+
+@dataclass(frozen=True)
+class OwnGroup:
+    """The calling process's group as `lead_own_group` left it: its pid, its
+    process group id, and whether `os.setsid` was called to make that group
+    its own."""
+
+    pid: int
+    pgid: int
+    setsid: bool
+
+    def as_json(self) -> dict[str, object]:
+        return {"pid": self.pid, "pgid": self.pgid, "setsid": self.setsid}
+
+
+def lead_own_group() -> OwnGroup:
+    """Make sure the calling process leads its own process group, and say
+    which it is — what the runtime registers with the kill-switch before it
+    spawns anything (`twine run`, cli-contract.md §18; §14.4).
+
+    Already the leader (its pgid is its pid — an interactive shell puts each
+    job in a group of its own, so `twine run` typed at a prompt is one):
+    nothing is changed. Otherwise — started by a script or a test without
+    job control, sharing its parent's group; or under a PID namespace whose
+    group leader lives outside it, where the inherited group reads as 0 (the
+    R3 HOLD's lesson) — `os.setsid()` makes a new session and group led by
+    this process. The new session has no controlling terminal; a process
+    that was not its group's leader had no terminal job control of its own
+    to lose. Raises OSError when setsid fails (logged); the caller refuses.
+    Never call it in a test runner's own process: it would move the runner
+    out of its group (the tests run `twine run` as a child)."""
+    pid = os.getpid()
+    pgid = os.getpgrp()
+    if pgid == pid and pgid > 1:
+        log.info("the runtime leads its own group already: pid %d, pgid %d", pid, pgid)
+        return OwnGroup(pid, pgid, False)
+    log.info("the runtime (pid %d) is in group %d, not its own; setsid", pid, pgid)
+    try:
+        os.setsid()
+    except OSError as exc:
+        log.error("setsid failed for pid %d: %s", pid, exc.strerror or exc)
+        raise
+    return OwnGroup(pid, os.getpgrp(), True)
 

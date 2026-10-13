@@ -201,9 +201,18 @@ class BundleOutcome:
 
 
 def cmd_carry_bundle(ctx: Context, args: argparse.Namespace) -> Result:
+    """The verb: `open_bundle`, rendered."""
+    outcome = open_bundle(ctx, args)
+    return Result(outcome.ok, outcome.payload(), lines(outcome))
+
+
+def open_bundle(ctx: Context, args: argparse.Namespace) -> BundleOutcome:
     """Collect every refusal first; start bale only when there is none; run
-    the one open argv once; read its line; record an open; hand back the
-    opener."""
+    the one open argv once; read its line; record an open; say on stderr
+    what opened. The verb renders what this returns; since Arc 2 R4 `twine
+    run` calls it too (cli-contract.md §18 step 1: the function, not a
+    subprocess), with `args` carrying `bundle`, `check`, `cwd`, `bale_root`
+    and `state_dir` as the verb's parser would."""
     outcome = BundleOutcome(name=args.bundle, check=bool(args.check))
     argument = resolve_bundle(ctx, outcome)
     outcome.cwd = resolve_cwd(args.cwd, outcome.refusals)
@@ -232,7 +241,7 @@ def cmd_carry_bundle(ctx: Context, args: argparse.Namespace) -> Result:
     for problem in outcome.refusals + outcome.failures:
         ctx.info(problem)
     diagnose(ctx, outcome)
-    return Result(outcome.ok, outcome.payload(), lines(outcome))
+    return outcome
 
 
 # ---------------------------------------------------------------------------

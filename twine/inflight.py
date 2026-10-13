@@ -47,11 +47,29 @@ when a session closes). Two things read it: the verb that writes it, and
 without writing, locking or creating anything, and names each entry there
 that is not a record rather than dropping it.
 
+Since Arc 2 R4 (`twine run`, cli-contract.md §15.4 and §18) a record may
+carry a fifth key, after the four: **`runtime`** — the run that hosts the
+session, written by `record_runtime` once its sandbox, adapter and
+transcript exist:
+
+    "runtime": {"adapter": <the adapter's name>, "model": <the model id>,
+                "sandbox_home": <the sandbox home, absolute>,
+                "transcript": <the transcript, absolute>,
+                "started_at": <UTC, ISO 8601, Z>, "pgid": <the runtime's group>}
+
+It is optional — a record `carry bundle` wrote has none — and when present
+it has exactly those six keys. A later run replaces it; a `second-desk`
+append keeps it; an `opened` replaces the whole record and so drops it.
+`remove_inflight` is the one removal: the loop's, when a run ends
+`delivered` (the response is the courier's now; the sandbox home stays
+until the operator applies).
+
 Sections:
-  1. Names and errors       (~line 70)
-  2. Reading a record       (~line 130)
-  3. Listing the records    (~line 220)
-  4. Recording an open      (~line 330)
+  1. Names and errors       (~line 90)
+  2. Reading a record       (~line 150)
+  3. Listing the records    (~line 260)
+  4. Recording an open      (~line 370)
+  5. The runtime's fields, and the one removal (~line 510)
 """
 
 from __future__ import annotations
@@ -78,6 +96,11 @@ INFLIGHT_SUBDIR = "inflight"
 # record_open writes and what read_inflight requires — no more, no fewer.
 RECORD_KEYS = ("sid", "cwd", "tarball", "opens")
 OPEN_KEYS = ("outcome", "desk", "bundle_sha256", "opener_sha256", "recorded_at")
+# Since Arc 2 R4: the optional fifth key, after the four, and its six keys —
+# the run that hosts the session (record_runtime). Optional, so every record
+# carry bundle writes still reads; exactly these six when present.
+RUNTIME_KEY = "runtime"
+RUNTIME_KEYS = ("adapter", "model", "sandbox_home", "transcript", "started_at", "pgid")
 
 # The two outcomes of `bale open --json` that open a session at a desk
 # (format_open_json; recorded at bale 0.4.51). `rehearsed` (under --check)
@@ -132,14 +155,18 @@ def opener_sha256(opener: str) -> str:
 
 
 def read_inflight(state_dir: Path, sid: str) -> dict[str, Any] | None:
-    """`sid`'s in-flight record as a dict with exactly RECORD_KEYS, or None
-    when there is none. Raises InflightRecordError, naming every fault, for
-    a file there that cannot be read as one — unreadable, not a JSON object,
-    a key missing or extra, its `sid` not the file's, `cwd` not an absolute
-    path, `tarball` neither a string nor null, `opens` not a non-empty array
-    of entries with exactly OPEN_KEYS (an `outcome` of the two, `desk` and
-    `bundle_sha256` a string or null, `opener_sha256` and `recorded_at`
-    non-empty strings)."""
+    """`sid`'s in-flight record as a dict with exactly RECORD_KEYS — and,
+    since Arc 2 R4, `runtime` after them when the record carries one — or
+    None when there is none. Raises InflightRecordError, naming every fault,
+    for a file there that cannot be read as one — unreadable, not a JSON
+    object, a key missing or extra, its `sid` not the file's, `cwd` not an
+    absolute path, `tarball` neither a string nor null, `opens` not a
+    non-empty array of entries with exactly OPEN_KEYS (an `outcome` of the
+    two, `desk` and `bundle_sha256` a string or null, `opener_sha256` and
+    `recorded_at` non-empty strings), a `runtime` that is not an object with
+    exactly RUNTIME_KEYS (`adapter`, `model`, `sandbox_home`, `transcript`,
+    `started_at` non-empty strings, the two paths absolute, `pgid` an
+    integer above 1)."""
     path = inflight_path(state_dir, sid)
     try:
         raw = path.read_bytes()
@@ -156,7 +183,9 @@ def read_inflight(state_dir: Path, sid: str) -> dict[str, Any] | None:
                                   f"{type(exc).__name__}: {str(exc)[:200]}") from exc
     if not isinstance(obj, dict):
         raise InflightRecordError(f"{path} is not a JSON object")
-    faults = _key_faults("the record", obj, RECORD_KEYS)
+    faults = _key_faults("the record", obj, RECORD_KEYS, optional=(RUNTIME_KEY,))
+    if RUNTIME_KEY in obj:
+        faults.extend(_runtime_faults(obj[RUNTIME_KEY]))
     if obj.get("sid") != sid:
         faults.append(f"its sid is {obj.get('sid')!r}, not {sid!r}")
     cwd = obj.get("cwd")
@@ -172,7 +201,27 @@ def read_inflight(state_dir: Path, sid: str) -> dict[str, Any] | None:
             faults.extend(_entry_faults(n, entry))
     if faults:
         raise InflightRecordError(f"{path} is not an in-flight record: " + "; ".join(faults))
-    return {key: obj[key] for key in RECORD_KEYS}
+    record = {key: obj[key] for key in RECORD_KEYS}
+    if RUNTIME_KEY in obj:
+        record[RUNTIME_KEY] = {key: obj[RUNTIME_KEY][key] for key in RUNTIME_KEYS}
+    return record
+
+
+def _runtime_faults(runtime: Any) -> list[str]:
+    where = RUNTIME_KEY
+    if not isinstance(runtime, dict):
+        return [f"{where} {_short(runtime)} is not an object"]
+    faults = _key_faults(where, runtime, RUNTIME_KEYS)
+    for key in ("adapter", "model", "started_at", "sandbox_home", "transcript"):
+        value = runtime.get(key)
+        if not isinstance(value, str) or not value:
+            faults.append(f"{where}.{key} {_short(value)} is not a non-empty string")
+        elif key in ("sandbox_home", "transcript") and not os.path.isabs(value):
+            faults.append(f"{where}.{key} {_short(value)} is not an absolute path")
+    pgid = runtime.get("pgid")
+    if type(pgid) is not int or pgid <= 1:
+        faults.append(f"{where}.pgid {_short(pgid)} is not an integer above 1")
+    return faults
 
 
 def _entry_faults(n: int, entry: Any) -> list[str]:
@@ -194,9 +243,10 @@ def _entry_faults(n: int, entry: Any) -> list[str]:
     return faults
 
 
-def _key_faults(where: str, obj: dict[str, Any], keys: tuple[str, ...]) -> list[str]:
+def _key_faults(where: str, obj: dict[str, Any], keys: tuple[str, ...],
+                optional: tuple[str, ...] = ()) -> list[str]:
     missing = [k for k in keys if k not in obj]
-    extra = sorted(k for k in obj if k not in keys)
+    extra = sorted(k for k in obj if k not in keys and k not in optional)
     faults = []
     if missing:
         faults.append(f"{where} lacks {', '.join(missing)}")
@@ -448,8 +498,13 @@ def _compose(sid: str, outcome: str, cwd: str, tarball: str | None,
         elif kept is not None and tarball is not None and kept != tarball:
             log.info("in-flight record for %s: the record keeps its own tarball %s; "
                      "bale's second-desk line names %s", sid, kept, tarball)
-        return ({"sid": sid, "cwd": found["cwd"], "tarball": kept,
-                 "opens": [*found["opens"], entry]}, False, None)
+        appended = {"sid": sid, "cwd": found["cwd"], "tarball": kept,
+                    "opens": [*found["opens"], entry]}
+        if RUNTIME_KEY in found:
+            # The run hosting an earlier desk keeps its fields until a run of
+            # this desk writes its own (record_runtime): a reader keeps them.
+            appended[RUNTIME_KEY] = found[RUNTIME_KEY]
+        return appended, False, None
     held = ("bale's tarball" if tarball is not None
             else "tarball null (bale's line names none)")
     if fault is not None:
@@ -459,3 +514,78 @@ def _compose(sid: str, outcome: str, cwd: str, tarball: str | None,
         fresh = (f"no in-flight record of {sid} to append this second-desk open to; "
                  f"a fresh one holding only it was written at {path}, {held}")
     return ({"sid": sid, "cwd": cwd, "tarball": tarball, "opens": [entry]}, False, fresh)
+
+
+# ---------------------------------------------------------------------------
+# 5. The runtime's fields, and the one removal (Arc 2 R4)
+# ---------------------------------------------------------------------------
+
+
+def runtime_fields(*, adapter: str, model: str, sandbox_home: str, transcript: str,
+                   pgid: int, clock: Callable[[], str] = utc_now) -> dict[str, Any]:
+    """The `runtime` object, its keys in RUNTIME_KEYS order."""
+    return {"adapter": adapter, "model": model, "sandbox_home": sandbox_home,
+            "transcript": transcript, "started_at": clock(), "pgid": pgid}
+
+
+def record_runtime(state_dir: Path, sid: str, runtime: dict[str, Any]) -> dict[str, Any]:
+    """Write `runtime` into `sid`'s in-flight record — replacing an earlier
+    run's — under the record's flock, by atomic replace, and return the
+    record written. Raises InflightError when there is no record to grow
+    (carry bundle could not write one), when the record there cannot be
+    read as one (its faults named), or when it cannot be written; ValueError
+    for a `runtime` without exactly RUNTIME_KEYS."""
+    faults = _runtime_faults(runtime)
+    if faults:
+        raise ValueError("runtime fields: " + "; ".join(faults))
+    path = inflight_path(state_dir, sid)
+    directory = path.parent
+    if not directory.is_dir():
+        raise InflightError(None, f"no in-flight record of {sid} to add the runtime's "
+                                  f"fields to ({directory} does not exist)")
+    try:
+        with _locked(directory):
+            try:
+                found = read_inflight(state_dir, sid)
+            except InflightRecordError as exc:
+                raise InflightError(None, f"{exc}; the runtime's fields were not "
+                                          "written") from exc
+            if found is None:
+                raise InflightError(None, f"no in-flight record of {sid} to add the "
+                                          f"runtime's fields to ({path})")
+            record = {key: found[key] for key in RECORD_KEYS}
+            record[RUNTIME_KEY] = {key: runtime[key] for key in RUNTIME_KEYS}
+            body = json.dumps(record, ensure_ascii=True) + "\n"
+            _write_replacing(path, body.encode("ascii"))
+    except InflightError:
+        raise
+    except OSError as exc:
+        raise InflightError(exc.errno, f"cannot write the in-flight record {path}: "
+                                       f"{exc.strerror or exc}") from exc
+    log.info("in-flight record for %s: runtime fields written (%s, %s)", sid,
+             runtime["adapter"], runtime["model"])
+    return record
+
+
+def remove_inflight(state_dir: Path, sid: str) -> bool:
+    """Remove `sid`'s in-flight record, under its flock — the loop's, when a
+    run ends `delivered`. True when one was removed, False when there was
+    none (logged; the record is a cache). Raises InflightError when it
+    cannot be removed."""
+    path = inflight_path(state_dir, sid)
+    if not path.parent.is_dir():
+        log.info("in-flight record for %s: none to remove (%s absent)", sid, path.parent)
+        return False
+    try:
+        with _locked(path.parent):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                log.info("in-flight record for %s: none to remove (%s)", sid, path)
+                return False
+    except OSError as exc:
+        raise InflightError(exc.errno, f"cannot remove the in-flight record {path}: "
+                                       f"{exc.strerror or exc}") from exc
+    log.info("in-flight record for %s removed (%s)", sid, path)
+    return True
+

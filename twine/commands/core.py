@@ -6,7 +6,9 @@ intact, whether the gate admits the bale install (since session
 an exact pin before), and (session 5c) where
 twine's state directory resolves and what of it exists — since session
 `twine-status-inflight` (0.11.0) including the in-flight records `carry
-bundle` keeps there, read through `twine.inflight.list_inflight`. No bale
+bundle` keeps there, read through `twine.inflight.list_inflight` — and since
+Arc 2 R4 the transcripts and sandbox homes `twine run` keeps there (counts and
+sids, as the in-flight records are listed). No bale
 repo state is read here (that is Arc 1 session 3's), and nothing here
 writes: `status` never creates the state directory it reports, nor
 anything in it.
@@ -23,7 +25,9 @@ from twine import CONSUMPTION_MANIFEST, FIXTURES_DIR, REPO_ROOT, __version__, sp
 from twine.bale import ManifestError, check, load_manifest, resolve_root
 from twine.cli import Context
 from twine.inflight import INFLIGHT_SUBDIR, list_inflight
-from twine.kill import ABORT_SUBDIR, RUNNING_SUBDIR
+from twine.kill import ABORT_SUBDIR, RUNNING_SUBDIR, is_sid
+from twine.runtime.sandbox import HOME_NAME, SANDBOX_SUBDIR
+from twine.transcript import TRANSCRIPTS_SUBDIR, list_transcripts
 from twine.registry import Argument, Command, Result, load_registry
 
 
@@ -89,7 +93,9 @@ def state_dir_facts(flag: str | None, env: dict[str, str]) -> dict[str, Any]:
     except spend.SpendError as exc:
         return {"state_dir": None, "state_dir_source": None,
                 "state_dir_reason": exc.message, "state_dir_exists": None,
-                "state_present": None, "inflight_sids": None, "inflight_faults": None}
+                "state_present": None, "inflight_sids": None, "inflight_faults": None,
+                "transcript_sids": None, "transcript_faults": None,
+                "sandbox_sids": None, "sandbox_faults": None}
     # os.path's tests never raise: a path that cannot be stat'd (a parent
     # without search permission, say) reads as absent, which is a fact
     # about the machine too, not an internal error.
@@ -98,17 +104,46 @@ def state_dir_facts(flag: str | None, env: dict[str, str]) -> dict[str, Any]:
                "prices_toml": os.path.isfile(where.prices),
                "abort": os.path.isdir(where.path / ABORT_SUBDIR),
                "running": os.path.isdir(where.path / RUNNING_SUBDIR),
-               "inflight": os.path.isdir(where.path / INFLIGHT_SUBDIR)}
+               "inflight": os.path.isdir(where.path / INFLIGHT_SUBDIR),
+               "transcripts": os.path.isdir(where.path / TRANSCRIPTS_SUBDIR),
+               "sandbox": os.path.isdir(where.path / SANDBOX_SUBDIR)}
     if not exists:
         present = {key: False for key in present}
     # Listed only when the directory is there to list; list_inflight reads
     # an absent `inflight/` as no records and no faults all the same.
     listing = list_inflight(where.path) if present["inflight"] else None
+    transcripts = (list_transcripts(where.path) if present["transcripts"] else ((), ()))
+    sandboxes = list_sandboxes(where.path) if present["sandbox"] else ((), ())
     return {"state_dir": str(where.path), "state_dir_source": where.source,
             "state_dir_reason": None, "state_dir_exists": exists,
             "state_present": present,
             "inflight_sids": list(listing.sids) if listing is not None else [],
-            "inflight_faults": list(listing.faults) if listing is not None else []}
+            "inflight_faults": list(listing.faults) if listing is not None else [],
+            "transcript_sids": list(transcripts[0]),
+            "transcript_faults": list(transcripts[1]),
+            "sandbox_sids": list(sandboxes[0]),
+            "sandbox_faults": list(sandboxes[1])}
+
+
+def list_sandboxes(state_dir) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(sids, faults) for `<state-dir>/sandbox/` (Arc 2 R4): the sids whose
+    `<sid>/home/` is a directory — a sandbox home `twine run` made and keeps —
+    sorted, and one sentence per other entry. Reads names only; writes
+    nothing."""
+    directory = os.path.join(state_dir, SANDBOX_SUBDIR)
+    try:
+        names = sorted(os.listdir(directory))
+    except OSError as exc:
+        return (), (f"{SANDBOX_SUBDIR}/ cannot be listed: {exc.strerror or exc}",)
+    sids, faults = [], []
+    for name in names:
+        shown = name if name.isprintable() else repr(name)
+        if is_sid(name) and os.path.isdir(os.path.join(directory, name, HOME_NAME)):
+            sids.append(name)
+        else:
+            faults.append(f"{shown} is not a sandbox: its name is not a sid twine "
+                          f"accepts, or it holds no {HOME_NAME}/")
+    return tuple(sids), tuple(faults)
 
 
 def state_dir_lines(facts: dict[str, Any]) -> list[str]:
@@ -121,14 +156,29 @@ def state_dir_lines(facts: dict[str, Any]) -> list[str]:
     if not facts["state_dir_exists"]:
         return [head + "  (does not exist)"]
     names = {"spend_jsonl": "spend.jsonl", "prices_toml": "prices.toml",
-             "abort": "abort/", "running": "running/", "inflight": "inflight/"}
+             "abort": "abort/", "running": "running/", "inflight": "inflight/",
+             "transcripts": "transcripts/", "sandbox": "sandbox/"}
     there = [names[k] for k, yes in facts["state_present"].items() if yes]
     missing = [names[k] for k, yes in facts["state_present"].items() if not yes]
     return [head,
             "state present:        " + (", ".join(there) if there else "nothing of twine's")
             + (f"  (missing: {', '.join(missing)})" if missing and there else ""),
             *(f"in-flight record:     {sid}" for sid in facts["inflight_sids"]),
-            *(f"in-flight fault:      {fault}" for fault in facts["inflight_faults"])]
+            *(f"in-flight fault:      {fault}" for fault in facts["inflight_faults"]),
+            *_listed("transcripts:", "transcript fault:", facts["transcript_sids"],
+                     facts["transcript_faults"]),
+            *_listed("sandbox homes:", "sandbox fault:", facts["sandbox_sids"],
+                     facts["sandbox_faults"])]
+
+
+def _listed(label: str, fault_label: str, sids: list[str], faults: list[str]) -> list[str]:
+    """One line with the count and the sids, then one per fault; nothing
+    when there is neither (Arc 2 R4)."""
+    out = []
+    if sids:
+        out.append(f"{label:<22}{len(sids)} — {', '.join(sids)}")
+    out.extend(f"{fault_label:<22}{fault}" for fault in faults)
+    return out
 
 
 def cmd_status(ctx: Context, args: argparse.Namespace) -> Result:
@@ -195,10 +245,11 @@ COMMANDS = (
                     "(--state-dir, else $TWINE_STATE_DIR, else XDG, else "
                     "$HOME; null, with the reason, when none does), whether "
                     "it exists, whether spend.jsonl, prices.toml, abort/, "
-                    "running/ and inflight/ are in it, the sids whose "
-                    "in-flight records read, and every file in inflight/ "
-                    "that is not a record, named. Nothing is created or "
-                    "written."),
+                    "running/, inflight/, transcripts/ and sandbox/ are in "
+                    "it, the sids whose in-flight records read, and every "
+                    "file in inflight/ that is not a record, named, and the "
+                    "sids of the transcripts and sandbox homes `twine run` "
+                    "keeps. Nothing is created or written."),
     Command(
         name="bale check",
         summary="check the installed bale against the floor and schema "

@@ -97,7 +97,11 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         rehearsal (ok true, exit 0; nothing written, no state directory
         needed); runtime list on the real registry and runtime show on one
         of its capabilities (ok true, exit 0; they read twine's own files
-        and nothing else, Arc 2 R1)."""
+        and nothing else, Arc 2 R1); and `run` (Arc 2 R4) refused before
+        anything starts — the fake adapter named with no script (ok false,
+        exit 1: no bale is started and no process group is touched, so the
+        in-process run never makes the test runner a session leader; its
+        paths that run are tests/test_run.py's, each in a child)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
@@ -122,6 +126,9 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
                      DOUBLE_MODEL, "--input", "100", "--max-output", "100"]
         if name == "runtime show":
             argv.append("usage-accounting")
+        if name == "run":
+            argv += [str(self.bundle), "--cap", "1", "--adapter", "fake", "--state-dir",
+                     str(self.spend_state.path), "--bale-root", str(self.stub.root)]
         return argv
 
     def test_every_registered_verb_emits_one_line_subprocess(self):

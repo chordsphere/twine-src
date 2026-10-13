@@ -52,6 +52,14 @@ canonical tools and the sandbox, and R4 the loop:
   tooling      what a tool and a result are, the declaration and its parity
                check, the schema subset arguments are checked against, and
                run_tool — never raises; `twine runtime tools` renders it
+  loop         the loop (R4): the opener as the first turn under a
+               model-agnostic system prompt (the tools and the surface
+               note), and per call the abort file, the pre-call cap check,
+               one call through the boundary, its usage appended, then the
+               transition table's move — tools run, a cut-off turn
+               continued, a retry with backoff, the final text classified;
+               the request unpacked on disk, the adapter found by name;
+               `twine run` (twine/commands/run.py) is the verb over it
 
 The contract for all of it is claude/context/runtime-contract.md.
 
