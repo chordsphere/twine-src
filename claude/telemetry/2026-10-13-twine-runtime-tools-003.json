@@ -1,0 +1,868 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-13-twine-runtime-tools-003",
+  "created_at": "2026-10-13T02:25:00+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-13T02:25:00+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-13-twine-runtime-tools-003.log",
+      "bundle": {
+        "stem": "2026-10-12-twine-runtime-tools",
+        "brief_sha256": "db1d7745db3361241df211591da480ef3890fab95594fa7df2a84d6c2ea70c14",
+        "checkpoint_sha256": "2fc635684d7c890595056bb06d09471eea053ad4496be63ddeb217d74a100be6",
+        "manifest_sha256": "be6d7f6f562bad2de6e0cb1ba8e9c71f110b694b658f50e2a5bb48e75a77ddff"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-13T02:25:00+00:00"
+      }
+    },
+    {
+      "at": "2026-10-13T03:14:12+00:00",
+      "outcome": "held",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-13-twine-runtime-tools-003.tar.gz",
+      "validation": {
+        "state": "HOLD",
+        "exit_code": 1,
+        "claims": {
+          "unittest suite (python3 -I -B, at least 958 tests)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "runtime tools --json: the seven, parity ok": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "runtime tools on a copy with a planted module: NOT OK, exit 1": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "runtime list --json: sandboxing implemented by twine.runtime.sandbox": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: file tools in and out of the cage": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: shell cwd and minimal environment, sentinel key absent": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: shell timeout kills the group": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: unshare detection reported honestly": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "kill-switch hook: registered during the run, cleared after": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "probe against a temp repo: paste-back verified by shapes": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "escalate: light block parsed back by shapes": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "deliver: sha256 matches": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "import rule: no subprocess, socket or anthropic under twine/runtime/": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures/ untouched (sha256)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine-seed.md, bin/twine, share/ untouched (sha256)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is 0.18.0 (cmp)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "no __pycache__ in the staged tree": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite (python3 -I -B, at least 958 tests)": {
+            "claim": "pass",
+            "verdict": "fail",
+            "agreement": "disagree"
+          },
+          "runtime tools --json: the seven, parity ok": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "runtime tools on a copy with a planted module: NOT OK, exit 1": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "runtime list --json: sandboxing implemented by twine.runtime.sandbox": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: file tools in and out of the cage": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: shell cwd and minimal environment, sentinel key absent": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: shell timeout kills the group": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: unshare detection reported honestly": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "kill-switch hook: registered during the run, cleared after": {
+            "claim": "pass",
+            "verdict": "fail",
+            "agreement": "disagree"
+          },
+          "probe against a temp repo: paste-back verified by shapes": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "escalate: light block parsed back by shapes": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "deliver: sha256 matches": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "import rule: no subprocess, socket or anthropic under twine/runtime/": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures/ untouched (sha256)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine-seed.md, bin/twine, share/ untouched (sha256)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is 0.18.0 (cmp)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "no __pycache__ in the staged tree": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "python syntax (changed .py files)",
+          "toml syntax (tools.toml, capabilities.toml)",
+          "unittest suite (python3 -I -B, at least 958 tests)",
+          "runtime tools --json: the seven, parity ok",
+          "runtime tools on a copy with a planted module: NOT OK, exit 1",
+          "runtime list --json: sandboxing implemented by twine.runtime.sandbox",
+          "sandbox: file tools in and out of the cage",
+          "sandbox: shell cwd and minimal environment, sentinel key absent",
+          "sandbox: shell timeout kills the group",
+          "sandbox: unshare detection reported honestly",
+          "kill-switch hook: registered during the run, cleared after",
+          "probe against a temp repo: paste-back verified by shapes",
+          "escalate: light block parsed back by shapes",
+          "deliver: sha256 matches",
+          "import rule: no subprocess, socket or anthropic under twine/runtime/",
+          "fixtures/ untouched (sha256)",
+          "twine-seed.md, bin/twine, share/ untouched (sha256)",
+          "VERSION is 0.18.0 (cmp)",
+          "no __pycache__ in the staged tree"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests/__init__.py",
+        "tests/test_registry.py",
+        "tests/test_runtime.py",
+        "tests/test_runtime_tools.py",
+        "twine/__init__.py",
+        "twine/commands/carry.py",
+        "twine/commands/runtime.py",
+        "twine/commands/transitions.py",
+        "twine/process.py",
+        "twine/runtime/__init__.py",
+        "twine/runtime/capabilities.toml",
+        "twine/runtime/capabilities/sandboxing.py",
+        "twine/runtime/contract.py",
+        "twine/runtime/registry.py",
+        "twine/runtime/sandbox.py",
+        "twine/runtime/tooling.py",
+        "twine/runtime/tools.toml",
+        "twine/runtime/tools/__init__.py",
+        "twine/runtime/tools/deliver.py",
+        "twine/runtime/tools/escalate.py",
+        "twine/runtime/tools/list_dir.py",
+        "twine/runtime/tools/probe.py",
+        "twine/runtime/tools/read_file.py",
+        "twine/runtime/tools/shell.py",
+        "twine/runtime/tools/write_file.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "f41c405455a0f1eda48c48c6bf47a5bcd3cb08213ece2a1270c4799f479c65e7",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-13-twine-runtime-tools-003.sh",
+              "sha256": "2fc635684d7c890595056bb06d09471eea053ad4496be63ddeb217d74a100be6"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-13T02:25:00+00:00",
+            "base_files": {
+              "README.md": "b54a3fcdb6c5fc3d9676702b81eeb3f678e34d9d13f8f9f5fc74eb3891cd6ad6",
+              "VERSION": "02d38e98e88f4a8dc2ea40dbb769338601066fc94920b52882a14f21ad97f7ee",
+              "claude/INDEX.md": "ecfd68f51b1155efdd37a510ef732a66e0be870670c90ed186fa66db52330ebe",
+              "claude/context/cli-contract.md": "5878b0939efab37d478a9878fa909ceada3eebc4baa18482d33b073a4b48ea52",
+              "claude/context/runtime-contract.md": "5c1b7987f8d4af0d3761349270fa0b15924981730357d7faaf10de2ae11c31cf",
+              "tests/__init__.py": "c6efa368d9fd01fbc3ec8afb943773bfb7fb892e89d0c32003cf4a5e3523a7f6",
+              "tests/fixture_rule.py": "6b2c4973f0691cefc118becb828b8a17a9bc1a6d1d3ddbde8fc345c422d120da",
+              "tests/helpers.py": "5b094d6bb70e6a0f7721691d28ded0024b2a2fb638677c5e35f6df519010378b",
+              "tests/test_anthropic.py": "d433455d83241a572ed7809353a4326dde69a916eb9f2dd75a028211d15b433d",
+              "tests/test_anthropic_live.py": "2492d048ed4eeed3865685d1501314242f00f08a7505a38f0cf22ecc01f2b506",
+              "tests/test_bale_check.py": "3cdc0df367c834478f35a8b13890796384780190c5dff5d03fe9d613ec5c74d9",
+              "tests/test_carry.py": "cbe14252ae6f7e84f4c5f8b57258d0933aad532ad2ed9ded9a0c711a35ab8f04",
+              "tests/test_carry_bale.py": "d3eee8f8dbd700a484fc0e7e1f96d716f1e16a32003314ba8a20e8a7a7ed2de3",
+              "tests/test_carry_bundle.py": "23e2a8ba20e674ee90587e162129d414ebbf74fd8899be8637f0c85582fae7d2",
+              "tests/test_consumption_manifest.py": "74a89398ff9134624c6dee7265e910f280e8eafc801dbcff1303c6397aadccfe",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "f6de88313563db773e97073a294b26b724f85485c10964a69d15556264a0ba76",
+              "tests/test_json_discipline.py": "fec96b57a9e3bc17e6d01992f020f055735de59b25d949dcbf766f30d2ccb24e",
+              "tests/test_kill.py": "7493780e5f77f8ebf0585889ca663d1688ad661f7c8b2c2740f6c989b5a0dc26",
+              "tests/test_process.py": "1d28dbe63393504cddb9c497d306d6009cea3676a8ee6f217575ba61f0ac3d71",
+              "tests/test_provider_lander.py": "c7b75241bb219d27bab8a35e60956e0141ebb50dc86e93ce2b936dc8b87224fc",
+              "tests/test_recordings.py": "f60db5c3184de02345bd270ee9b8a7ff1a73271a381f7976a115027da2079d7e",
+              "tests/test_registry.py": "b12380fd593cf4fe37489e7f3a3fe17367c70e7c73c4f307344c27646a92c24c",
+              "tests/test_runtime.py": "040e3291a1a307869e74b3da756e44314f325d1bc95f1d08da1dcf742354c692",
+              "tests/test_spend.py": "688356c3a095921296cb711c4f317dbcffd991c104224edc70e17444817d0e07",
+              "tests/test_status.py": "b4a6e7cc04bb16dc2cc064e74c093b9644fab379fb54b92ff2d7e13f1f7747f9",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "d44bf005021ea95c35d22fb5b15f920b6b3ebf67cf0fb17b10736dc8b47a0305",
+              "twine/__init__.py": "c4ec47645da15b92dc8fc20a12026813c9a2d5453e9d4978ec9ade358c37f0e0",
+              "twine/bale.py": "c7fd3b5920d50fd6fa9005e25e9116938bc5d02a805f41226f872f99aa9a510e",
+              "twine/cli.py": "84c7c716ffab7a6fe7f53cc12c17deb1666dae64b2dbfa276104e1a961a62eec",
+              "twine/commands/__init__.py": "6508eeb3717c36419c9013f5f521216880f1ba2ef7c642a111bc45cf26a0674c",
+              "twine/commands/carry.py": "4a12dbe9c84c244b49d934313dfe2ba583910bdd18b247a26dc7f623853076d2",
+              "twine/commands/carry_bale.py": "2e9bdd94b0e09e659c86ca734337921415fd859f8af3266441c3040c1601a8d1",
+              "twine/commands/carry_bundle.py": "a3464f1b36abe4203033137767081d25b2ab915e01e151b3d3d5471cd1b0812a",
+              "twine/commands/core.py": "7c0b057b203ffa8b553f89dbda9287a7c55bfb47103ad63c4fa5ada4e40cff39",
+              "twine/commands/kill.py": "6821bb9092bb7eebe1ee7015c1c763259a5afed685f28ef198602c3678ca54d0",
+              "twine/commands/runtime.py": "2f2c4710b75cb636aa8c7462cfac62dca468f1583d79b4aa251c0dc4791ef7b3",
+              "twine/commands/spend.py": "68b9c5d604130727427e7b34fa952851ba887f66de41221148dca7fc81aa579c",
+              "twine/commands/take.py": "e567032a19f01d07072e9ae044805e966e13c38b0862434565c1a2ab8dfe1a40",
+              "twine/commands/transitions.py": "ee7317d614945fb2d06b7492f0b3dc12546e4cdf52790a6982306c1ef280bbbf",
+              "twine/inflight.py": "116135c2b412e5081534bebbf3a0b1a374b8a09de2043b51b815d72c15234558",
+              "twine/kill.py": "77668bd3b36f35a27c2bc7912de8701b1cdbe7752a9851b8bec228c212c4bc76",
+              "twine/process.py": "8d1930749625c28ff6d28803f2cc4b22278b64c44fffb4c8bd09f9392b15a28a",
+              "twine/registry.py": "028697d6aa99e664a5c3215abc5cfaf9cfd49d3385b7212340eac9b083e88ee7",
+              "twine/runtime/__init__.py": "5a1e57f5c1a64addbdf18e84758108fa6885a6c492a8b13df7af3a1083f501e5",
+              "twine/runtime/adapters/__init__.py": "fadc1527bb988739e8e0c718d5e463983a2791b1610694248f26001394e3fd99",
+              "twine/runtime/adapters/anthropic.py": "f1b558652d6263864b48c19dc3dec63cf61f1f926aa03ce1d0bcb3c06407bf4a",
+              "twine/runtime/adapters/fake.py": "229394788b951f3068861eacae96c8a5ff36f32d1687749895f7250cb28cdd01",
+              "twine/runtime/boundary.py": "fbdcf211475dfcb27f26cbe6eb4ca50c5f3c37aff8e86ed7dcf74506e72fade3",
+              "twine/runtime/capabilities.toml": "49f8293ca0ec8cfa2e6d530ec8cee25efc5041fe9d4884303ddc45711cf0d9bb",
+              "twine/runtime/capabilities/__init__.py": "0aca783ccb1983ae907744a2929f4ae78eaba7bcb67e6c868db1a3f4b7291b57",
+              "twine/runtime/capabilities/prompt_caching.py": "8d4f5a3f28df4d3822a11d865f35b7f432d1901ff9a9b11351ddabf940700ce5",
+              "twine/runtime/capabilities/sandboxing.py": "f03a49f15ef639ffe7ea8db40d16d3f65b0a4f12f3151e4363ca41aec958dc28",
+              "twine/runtime/capabilities/streaming.py": "e8004e5fbf467186d92df24d587e5d1943826011341c8d8568cd31d0f7c1b9ac",
+              "twine/runtime/capabilities/suspend_resume.py": "432f7ad3f589516b84839194b90b50865308c738eeb34ae713f299acc5633f00",
+              "twine/runtime/capabilities/thinking.py": "688693f27d259a1f126e60e1e26d8f745558d6f7497ab24beb5ba579b413b85a",
+              "twine/runtime/capabilities/tool_calling.py": "3ce78cb2ba6e7fcdf4dafb9a35b974b7263a29d9ee60bc4bb89b47d9a50c3742",
+              "twine/runtime/capabilities/usage_accounting.py": "4c0e18130c75d81b0e5ce14ed19dbc39805ff193a926e1c39b906c9a0db23a54",
+              "twine/runtime/capabilities/window_accounting.py": "f077c3403c49f084eb067b7e9e84c06ee2652f8efcef879f1d78ebc213fe0a6a",
+              "twine/runtime/contract.py": "88ef2b7fb8642f0c32cd9094c294771059d84904861ba911746e21c74cf78bc0",
+              "twine/runtime/registry.py": "f69226418e6d9f519fe603289020f491f4593bb1b0bb6ba355248bb9c8086f65",
+              "twine/runtime/terms.py": "42518653e12900a70ec4745ba521053cedea5822de48c2e91aa69faac85f994e",
+              "twine/runtime/transport.py": "cf07c35424d444014e9e54cf8f6b36cf164ea143434ffb05753f9d6de251ec35",
+              "twine/runtime/usage.py": "d1f4f1b939d879cb6f12bd710a88047cfef04027f4c64c11ad513fae73340e89",
+              "twine/shapes.py": "dc18c1736c4a40f6b846e2cad65071a30509013d002250cd41cc0bd060be53f9",
+              "twine/spend.py": "a8e4154434bf3acccd5f9a27d10151d81372f3911cbf9e46980e6a6fe70d7d7a",
+              "twine/transitions.py": "9456ff9278a3252338becb98ed2b5bffb939f72b95e92c99885cb9c028669c43"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "unshare may behave differently inside bale's validation sandbox than on this machine (root, unshare -rn works); every assertion accepts either the off or the unconfined branch as long as network, confines and the runner's argv agree",
+            "the default timeout for a shell call with none given is the sandbox maximum (600 s), reading the brief's 'at most the sandbox's maximum, default 600 s'",
+            "Sandbox.as_json carries `reason` only when the network is unconfined, the brief's literal wording"
+          ],
+          "judgment_calls": [
+            "sandboxing marked implemented through an optional `implemented_by` declaration key held to the module's IMPLEMENTS tuple, with a new missing-implementer problem; not the loop as a pseudo-adapter",
+            "the tools' declaration mirrors capabilities.toml (tools.toml: name, module, leaves_cage) with the module's TOOL held to it, rather than a discovered TOOLS tuple",
+            "shell's content: stdout, then stderr under [stderr], then one bracketed exit line",
+            "`unshare -rn` alone; no mount or pid namespace at R3",
+            "PATH and LANG read through twine.process.inherited_environment so no runtime module touches the process environment (R2's test kept intact)",
+            "the probe tool runs with the cage's minimal environment, not the operator's, so a model-authored script never sees ANTHROPIC_API_KEY",
+            "the probe tool reuses carry.py's functions (check_block_ready split out of check_ready), making a runtime-to-commands import",
+            "the detection spawn at creation goes through the kill-switch hook; an unreadable running record refuses the spawn (fail closed)",
+            "a stdout-capped shell run is an error result like a timeout; shell stdout and read_file capped at 256 KiB",
+            "every absolute path and every `..` component refused, even ones that would stay inside the home",
+            "R1's stop-key spelling test exempts a tool's own declared argument names in its own module (shell's pinned `timeout` is a stop key)"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "AGENT.md META through \u00a711.2",
+            "README.md (the request brief)",
+            "TARBALL.md sections 1, 2, 5, 7, 5.10, 8, 10.1",
+            "claude/context/runtime-contract.md (whole)",
+            "claude/context/cli-contract.md \u00a71-\u00a73, \u00a710, \u00a714.4, \u00a717",
+            "twine-seed.md T6, T10, D10-D15 with annotations, \u00a74, \u00a75.2",
+            "twine/process.py, twine/kill.py (running record), twine/shapes.py, twine/commands/carry.py, twine/commands/runtime.py, twine/runtime/registry.py, twine/runtime/terms.py, twine/runtime/contract.py",
+            "tests/test_runtime.py, tests/test_registry.py, tests/test_json_discipline.py, tests/helpers.py (runners and probe helpers)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-13-twine-runtime-tools-003.log",
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "HOLD",
+        "exit_code": 1,
+        "script": {
+          "path": "claude/checkpoints/2026-10-13-twine-runtime-tools-003.sh",
+          "sha256": "2fc635684d7c890595056bb06d09471eea053ad4496be63ddeb217d74a100be6"
+        },
+        "stamp_matched": true,
+        "failed_probes": [
+          "Sandbox.create: home under <state-dir>/sandbox/<sid>/, created",
+          "Sandbox.as_json: network/confines agree with this machine (unshare -rn works here: True)",
+          "write_file inside the cage: ok, parents created, bytes as given",
+          "read_file inside the cage: content 'hello\\n'",
+          "list_dir: entries sorted with name/kind/size, a.txt a file of 6 bytes",
+          "read_file with .. and with an absolute path outside: error results naming the cage, no exception",
+          "write_file through a symlink pointing out of the cage: error result and nothing written outside",
+          "read_file of a missing file: an error result",
+          "shell: exit 3 is not a tool error; exit_code 3, stdout 'hi', stderr 'err', content carries all three",
+          "shell: the cage's environment is minimal \u2014 the parent's ANTHROPIC_API_KEY is unset inside, HOME and cwd are the home",
+          "shell with timeout 1 on `sleep 30`: an error result, timed_out, exit_code null, back well before 30 s",
+          "run_tool with an unknown tool, and with arguments the schema refuses: error results, never exceptions",
+          "probe: runs the read-only block against the repo and returns a probe-output block (sentinels, integrity trailer, README.md listed), leaves_cage true",
+          "probe: a block without the read-only declaration is an error result",
+          "escalate: a light block for the sid, suspend true, kind light, shapes finds exactly one light block",
+          "escalate with four questions: an error result",
+          "deliver: delivered true with the file's sha256 and size",
+          "deliver of a missing file and of a path outside the cage: error results",
+          "the kill-switch hook: with a running record, shell passes on_spawn, the group is in the record during the run and cleared after",
+          "shell runs through the seam as bash -c (wrapped in unshare -rn when the network is off)"
+        ]
+      }
+    },
+    {
+      "at": "2026-10-13T03:27:43+00:00",
+      "outcome": "applied",
+      "command": "retry",
+      "closure_reason": null,
+      "tarball": "response-2026-10-13-twine-runtime-tools-003 (1).tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "unittest suite (python3 -I -B, at least 958 tests)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "runtime tools --json: the seven, parity ok": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "runtime tools on a copy with a planted module: NOT OK, exit 1": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "runtime list --json: sandboxing implemented by twine.runtime.sandbox": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: file tools in and out of the cage": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: shell cwd and minimal environment, sentinel key absent": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: shell timeout kills the group": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "sandbox: unshare detection reported honestly": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "kill-switch hook: registered during the run, cleared after": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "probe against a temp repo: paste-back verified by shapes": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "escalate: light block parsed back by shapes": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "deliver: sha256 matches": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "import rule: no subprocess, socket or anthropic under twine/runtime/": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures/ untouched (sha256)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine-seed.md, bin/twine, share/ untouched (sha256)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is 0.18.0 (cmp)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "no __pycache__ in the staged tree": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite (python3 -I -B, at least 958 tests)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "runtime tools --json: the seven, parity ok": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "runtime tools on a copy with a planted module: NOT OK, exit 1": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "runtime list --json: sandboxing implemented by twine.runtime.sandbox": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: file tools in and out of the cage": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: shell cwd and minimal environment, sentinel key absent": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: shell timeout kills the group": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "sandbox: unshare detection reported honestly": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "kill-switch hook: registered during the run, cleared after": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "probe against a temp repo: paste-back verified by shapes": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "escalate: light block parsed back by shapes": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "deliver: sha256 matches": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "import rule: no subprocess, socket or anthropic under twine/runtime/": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures/ untouched (sha256)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine-seed.md, bin/twine, share/ untouched (sha256)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is 0.18.0 (cmp)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "no __pycache__ in the staged tree": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "python syntax (changed .py files)",
+          "toml syntax (tools.toml, capabilities.toml)",
+          "unittest suite (python3 -I -B, at least 958 tests)",
+          "runtime tools --json: the seven, parity ok",
+          "runtime tools on a copy with a planted module: NOT OK, exit 1",
+          "runtime list --json: sandboxing implemented by twine.runtime.sandbox",
+          "sandbox: file tools in and out of the cage",
+          "sandbox: shell cwd and minimal environment, sentinel key absent",
+          "sandbox: shell timeout kills the group",
+          "sandbox: unshare detection reported honestly",
+          "kill-switch hook: registered during the run, cleared after",
+          "probe against a temp repo: paste-back verified by shapes",
+          "escalate: light block parsed back by shapes",
+          "deliver: sha256 matches",
+          "import rule: no subprocess, socket or anthropic under twine/runtime/",
+          "fixtures/ untouched (sha256)",
+          "twine-seed.md, bin/twine, share/ untouched (sha256)",
+          "VERSION is 0.18.0 (cmp)",
+          "no __pycache__ in the staged tree"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context",
+        "tests",
+        "twine"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/INDEX.md",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests/__init__.py",
+        "tests/test_registry.py",
+        "tests/test_runtime.py",
+        "tests/test_runtime_tools.py",
+        "twine/__init__.py",
+        "twine/commands/carry.py",
+        "twine/commands/runtime.py",
+        "twine/commands/transitions.py",
+        "twine/process.py",
+        "twine/runtime/__init__.py",
+        "twine/runtime/capabilities.toml",
+        "twine/runtime/capabilities/sandboxing.py",
+        "twine/runtime/contract.py",
+        "twine/runtime/registry.py",
+        "twine/runtime/sandbox.py",
+        "twine/runtime/tooling.py",
+        "twine/runtime/tools.toml",
+        "twine/runtime/tools/__init__.py",
+        "twine/runtime/tools/deliver.py",
+        "twine/runtime/tools/escalate.py",
+        "twine/runtime/tools/list_dir.py",
+        "twine/runtime/tools/probe.py",
+        "twine/runtime/tools/read_file.py",
+        "twine/runtime/tools/shell.py",
+        "twine/runtime/tools/write_file.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.52",
+            "contract_docs": {
+              "AGENT.md": "5124250b3d6362ae362801f89e2c0498a6e493c638a398de2f4c3d13d6c12285",
+              "TARBALL.md": "f41c405455a0f1eda48c48c6bf47a5bcd3cb08213ece2a1270c4799f479c65e7",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "22c4f52e73fde726b3ffab8256e2a957a18378093757f8882331315bbb2af82c"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-13-twine-runtime-tools-003.sh",
+              "sha256": "2fc635684d7c890595056bb06d09471eea053ad4496be63ddeb217d74a100be6"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-13T02:25:00+00:00",
+            "base_files": {
+              "README.md": "b54a3fcdb6c5fc3d9676702b81eeb3f678e34d9d13f8f9f5fc74eb3891cd6ad6",
+              "VERSION": "02d38e98e88f4a8dc2ea40dbb769338601066fc94920b52882a14f21ad97f7ee",
+              "claude/INDEX.md": "ecfd68f51b1155efdd37a510ef732a66e0be870670c90ed186fa66db52330ebe",
+              "claude/context/cli-contract.md": "5878b0939efab37d478a9878fa909ceada3eebc4baa18482d33b073a4b48ea52",
+              "claude/context/runtime-contract.md": "5c1b7987f8d4af0d3761349270fa0b15924981730357d7faaf10de2ae11c31cf",
+              "tests/__init__.py": "c6efa368d9fd01fbc3ec8afb943773bfb7fb892e89d0c32003cf4a5e3523a7f6",
+              "tests/fixture_rule.py": "6b2c4973f0691cefc118becb828b8a17a9bc1a6d1d3ddbde8fc345c422d120da",
+              "tests/helpers.py": "5b094d6bb70e6a0f7721691d28ded0024b2a2fb638677c5e35f6df519010378b",
+              "tests/test_anthropic.py": "d433455d83241a572ed7809353a4326dde69a916eb9f2dd75a028211d15b433d",
+              "tests/test_anthropic_live.py": "2492d048ed4eeed3865685d1501314242f00f08a7505a38f0cf22ecc01f2b506",
+              "tests/test_bale_check.py": "3cdc0df367c834478f35a8b13890796384780190c5dff5d03fe9d613ec5c74d9",
+              "tests/test_carry.py": "cbe14252ae6f7e84f4c5f8b57258d0933aad532ad2ed9ded9a0c711a35ab8f04",
+              "tests/test_carry_bale.py": "d3eee8f8dbd700a484fc0e7e1f96d716f1e16a32003314ba8a20e8a7a7ed2de3",
+              "tests/test_carry_bundle.py": "23e2a8ba20e674ee90587e162129d414ebbf74fd8899be8637f0c85582fae7d2",
+              "tests/test_consumption_manifest.py": "74a89398ff9134624c6dee7265e910f280e8eafc801dbcff1303c6397aadccfe",
+              "tests/test_entrypoint.py": "2b9f2e100c6c1e9a278f660eebc6d5c52b9d31a0134d6a145c4a8f7155d46e03",
+              "tests/test_fixtures.py": "f6de88313563db773e97073a294b26b724f85485c10964a69d15556264a0ba76",
+              "tests/test_json_discipline.py": "fec96b57a9e3bc17e6d01992f020f055735de59b25d949dcbf766f30d2ccb24e",
+              "tests/test_kill.py": "7493780e5f77f8ebf0585889ca663d1688ad661f7c8b2c2740f6c989b5a0dc26",
+              "tests/test_process.py": "1d28dbe63393504cddb9c497d306d6009cea3676a8ee6f217575ba61f0ac3d71",
+              "tests/test_provider_lander.py": "c7b75241bb219d27bab8a35e60956e0141ebb50dc86e93ce2b936dc8b87224fc",
+              "tests/test_recordings.py": "f60db5c3184de02345bd270ee9b8a7ff1a73271a381f7976a115027da2079d7e",
+              "tests/test_registry.py": "b12380fd593cf4fe37489e7f3a3fe17367c70e7c73c4f307344c27646a92c24c",
+              "tests/test_runtime.py": "040e3291a1a307869e74b3da756e44314f325d1bc95f1d08da1dcf742354c692",
+              "tests/test_spend.py": "688356c3a095921296cb711c4f317dbcffd991c104224edc70e17444817d0e07",
+              "tests/test_status.py": "b4a6e7cc04bb16dc2cc064e74c093b9644fab379fb54b92ff2d7e13f1f7747f9",
+              "tests/test_take.py": "5718a3f3a631ceb19d7826b9860ea7204074aef0afdf95f616ad4219ec6e1368",
+              "tests/test_transitions.py": "d44bf005021ea95c35d22fb5b15f920b6b3ebf67cf0fb17b10736dc8b47a0305",
+              "twine/__init__.py": "c4ec47645da15b92dc8fc20a12026813c9a2d5453e9d4978ec9ade358c37f0e0",
+              "twine/bale.py": "c7fd3b5920d50fd6fa9005e25e9116938bc5d02a805f41226f872f99aa9a510e",
+              "twine/cli.py": "84c7c716ffab7a6fe7f53cc12c17deb1666dae64b2dbfa276104e1a961a62eec",
+              "twine/commands/__init__.py": "6508eeb3717c36419c9013f5f521216880f1ba2ef7c642a111bc45cf26a0674c",
+              "twine/commands/carry.py": "4a12dbe9c84c244b49d934313dfe2ba583910bdd18b247a26dc7f623853076d2",
+              "twine/commands/carry_bale.py": "2e9bdd94b0e09e659c86ca734337921415fd859f8af3266441c3040c1601a8d1",
+              "twine/commands/carry_bundle.py": "a3464f1b36abe4203033137767081d25b2ab915e01e151b3d3d5471cd1b0812a",
+              "twine/commands/core.py": "7c0b057b203ffa8b553f89dbda9287a7c55bfb47103ad63c4fa5ada4e40cff39",
+              "twine/commands/kill.py": "6821bb9092bb7eebe1ee7015c1c763259a5afed685f28ef198602c3678ca54d0",
+              "twine/commands/runtime.py": "2f2c4710b75cb636aa8c7462cfac62dca468f1583d79b4aa251c0dc4791ef7b3",
+              "twine/commands/spend.py": "68b9c5d604130727427e7b34fa952851ba887f66de41221148dca7fc81aa579c",
+              "twine/commands/take.py": "e567032a19f01d07072e9ae044805e966e13c38b0862434565c1a2ab8dfe1a40",
+              "twine/commands/transitions.py": "ee7317d614945fb2d06b7492f0b3dc12546e4cdf52790a6982306c1ef280bbbf",
+              "twine/inflight.py": "116135c2b412e5081534bebbf3a0b1a374b8a09de2043b51b815d72c15234558",
+              "twine/kill.py": "77668bd3b36f35a27c2bc7912de8701b1cdbe7752a9851b8bec228c212c4bc76",
+              "twine/process.py": "8d1930749625c28ff6d28803f2cc4b22278b64c44fffb4c8bd09f9392b15a28a",
+              "twine/registry.py": "028697d6aa99e664a5c3215abc5cfaf9cfd49d3385b7212340eac9b083e88ee7",
+              "twine/runtime/__init__.py": "5a1e57f5c1a64addbdf18e84758108fa6885a6c492a8b13df7af3a1083f501e5",
+              "twine/runtime/adapters/__init__.py": "fadc1527bb988739e8e0c718d5e463983a2791b1610694248f26001394e3fd99",
+              "twine/runtime/adapters/anthropic.py": "f1b558652d6263864b48c19dc3dec63cf61f1f926aa03ce1d0bcb3c06407bf4a",
+              "twine/runtime/adapters/fake.py": "229394788b951f3068861eacae96c8a5ff36f32d1687749895f7250cb28cdd01",
+              "twine/runtime/boundary.py": "fbdcf211475dfcb27f26cbe6eb4ca50c5f3c37aff8e86ed7dcf74506e72fade3",
+              "twine/runtime/capabilities.toml": "49f8293ca0ec8cfa2e6d530ec8cee25efc5041fe9d4884303ddc45711cf0d9bb",
+              "twine/runtime/capabilities/__init__.py": "0aca783ccb1983ae907744a2929f4ae78eaba7bcb67e6c868db1a3f4b7291b57",
+              "twine/runtime/capabilities/prompt_caching.py": "8d4f5a3f28df4d3822a11d865f35b7f432d1901ff9a9b11351ddabf940700ce5",
+              "twine/runtime/capabilities/sandboxing.py": "f03a49f15ef639ffe7ea8db40d16d3f65b0a4f12f3151e4363ca41aec958dc28",
+              "twine/runtime/capabilities/streaming.py": "e8004e5fbf467186d92df24d587e5d1943826011341c8d8568cd31d0f7c1b9ac",
+              "twine/runtime/capabilities/suspend_resume.py": "432f7ad3f589516b84839194b90b50865308c738eeb34ae713f299acc5633f00",
+              "twine/runtime/capabilities/thinking.py": "688693f27d259a1f126e60e1e26d8f745558d6f7497ab24beb5ba579b413b85a",
+              "twine/runtime/capabilities/tool_calling.py": "3ce78cb2ba6e7fcdf4dafb9a35b974b7263a29d9ee60bc4bb89b47d9a50c3742",
+              "twine/runtime/capabilities/usage_accounting.py": "4c0e18130c75d81b0e5ce14ed19dbc39805ff193a926e1c39b906c9a0db23a54",
+              "twine/runtime/capabilities/window_accounting.py": "f077c3403c49f084eb067b7e9e84c06ee2652f8efcef879f1d78ebc213fe0a6a",
+              "twine/runtime/contract.py": "88ef2b7fb8642f0c32cd9094c294771059d84904861ba911746e21c74cf78bc0",
+              "twine/runtime/registry.py": "f69226418e6d9f519fe603289020f491f4593bb1b0bb6ba355248bb9c8086f65",
+              "twine/runtime/terms.py": "42518653e12900a70ec4745ba521053cedea5822de48c2e91aa69faac85f994e",
+              "twine/runtime/transport.py": "cf07c35424d444014e9e54cf8f6b36cf164ea143434ffb05753f9d6de251ec35",
+              "twine/runtime/usage.py": "d1f4f1b939d879cb6f12bd710a88047cfef04027f4c64c11ad513fae73340e89",
+              "twine/shapes.py": "dc18c1736c4a40f6b846e2cad65071a30509013d002250cd41cc0bd060be53f9",
+              "twine/spend.py": "a8e4154434bf3acccd5f9a27d10151d81372f3911cbf9e46980e6a6fe70d7d7a",
+              "twine/transitions.py": "9456ff9278a3252338becb98ed2b5bffb939f72b95e92c99885cb9c028669c43"
+            },
+            "model_identity": "anthropic:claude-opus-5-5"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "unshare may behave differently inside bale's validation sandbox than on this machine (root, unshare -rn works); every assertion accepts either the off or the unconfined branch as long as network, confines and the runner's argv agree",
+            "the default timeout for a shell call with none given is the sandbox maximum (600 s), reading the brief's 'at most the sandbox's maximum, default 600 s'",
+            "Sandbox.as_json carries `reason` only when the network is unconfined, the brief's literal wording"
+          ],
+          "judgment_calls": [
+            "sandboxing marked implemented through an optional `implemented_by` declaration key held to the module's IMPLEMENTS tuple, with a new missing-implementer problem; not the loop as a pseudo-adapter",
+            "the tools' declaration mirrors capabilities.toml (tools.toml: name, module, leaves_cage) with the module's TOOL held to it, rather than a discovered TOOLS tuple",
+            "shell's content: stdout, then stderr under [stderr], then one bracketed exit line",
+            "`unshare -rn` alone; no mount or pid namespace at R3",
+            "PATH and LANG read through twine.process.inherited_environment so no runtime module touches the process environment (R2's test kept intact)",
+            "the probe tool runs with the cage's minimal environment, not the operator's, so a model-authored script never sees ANTHROPIC_API_KEY",
+            "the probe tool reuses carry.py's functions (check_block_ready split out of check_ready), making a runtime-to-commands import",
+            "the detection spawn at creation goes through the kill-switch hook; an unreadable running record refuses the spawn (fail closed)",
+            "a stdout-capped shell run is an error result like a timeout; shell stdout and read_file capped at 256 KiB",
+            "every absolute path and every `..` component refused, even ones that would stay inside the home",
+            "R1's stop-key spelling test exempts a tool's own declared argument names in its own module (shell's pinned `timeout` is a stop key)",
+            "HOLD correction: the runtime registered in tests and in validation.sh is a stand-in child started as a session leader (helpers.RealGroup / subprocess with start_new_session), not the test process, which under `unshare -rpf --mount-proc` is pid 1 with pgrp 0"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "AGENT.md META through \u00a711.2",
+            "README.md (the request brief)",
+            "TARBALL.md sections 1, 2, 5, 7, 5.10, 8, 10.1",
+            "claude/context/runtime-contract.md (whole)",
+            "claude/context/cli-contract.md \u00a71-\u00a73, \u00a710, \u00a714.4, \u00a717",
+            "twine-seed.md T6, T10, D10-D15 with annotations, \u00a74, \u00a75.2",
+            "twine/process.py, twine/kill.py (running record), twine/shapes.py, twine/commands/carry.py, twine/commands/runtime.py, twine/runtime/registry.py, twine/runtime/terms.py, twine/runtime/contract.py",
+            "tests/test_runtime.py, tests/test_registry.py, tests/test_json_discipline.py, tests/helpers.py (runners and probe helpers)"
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-13-twine-runtime-tools-003.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": "2026-10-13-twine-runtime-tools-003",
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-13-twine-runtime-tools-003.sh",
+          "sha256": "ceb0572dce59e8ed4b4a8ceca6e4da922edbebc641ab68ad9d884d114a077e67"
+        },
+        "stamp_matched": false,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-13T03:27:43+00:00",
+  "outcome": "applied"
+}
