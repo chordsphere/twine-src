@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Blind checkpoint — session twine-runtime-registry (Arc 2 R1, v1), authored
+# Blind checkpoint — session twine-runtime-registry (Arc 2 R1, v2), authored
 # at the desk of sitting 2026-10-08-open-arc2-003 from the request alone.
+# v2 (2026-10-13, after the HOLD of -007 and probe twine-r1-hold): two probes
+# amended, the other nineteen byte-identical — the fake adapter's set may be
+# listed under `implements` (the brief named no key), and when the provider
+# reports thinking separately `output` is output_tokens less thinking_tokens
+# (the spine's classes are disjoint and record_cost bills thinking on top of
+# output — the brief's table was the defect, not the landing).
 #
 # What it grades (outcomes only): `twine runtime list --json` reports the
 # eight capabilities of twine-seed.md §4.1 under their pinned names, each
@@ -80,7 +86,7 @@ def listing_ok(p):
     if not EIGHT <= set(by): return False
     if {n for n, c in by.items() if c["status"] == "implemented"} != IMPLEMENTED: return False
     fake = [a for a in ads if isinstance(a, dict) and a.get("name") == "fake"]
-    if len(fake) != 1 or not IMPLEMENTED <= set(fake[0].get("capabilities") or []): return False
+    if len(fake) != 1 or not IMPLEMENTED <= set(fake[0].get("capabilities") or fake[0].get("implements") or []): return False
     return all("fake" in by[n]["adapters"] for n in IMPLEMENTED)
 def not_ok_naming(p, name):
     o = twin(p)
@@ -172,9 +178,10 @@ if dotted and rec.is_file():
     probe("from_anthropic on the recording: input 18, output 4, thinking 0, cache_read 0, cache_write 0",
           mapped(r, {"input": 18, "output": 4, "thinking": 0, "cache_read": 0, "cache_write": 0}))
     u2 = dict(usage); u2.update({"cache_creation_input_tokens": 7, "cache_read_input_tokens": 11, "output_tokens": 40,
+                                 "cache_creation": {"ephemeral_5m_input_tokens": 7, "ephemeral_1h_input_tokens": 0},
                                  "output_tokens_details": {"thinking_tokens": 3}})
-    probe("from_anthropic maps cache_creation→cache_write, cache_read→cache_read, thinking_tokens→thinking",
-          mapped(call_from_anthropic(base, dotted, u2), {"input": 18, "output": 40, "thinking": 3, "cache_read": 11, "cache_write": 7}))
+    probe("from_anthropic maps cache_creation→cache_write, cache_read→cache_read, thinking_tokens→thinking, output less thinking",
+          mapped(call_from_anthropic(base, dotted, u2), {"input": 18, "output": 37, "thinking": 3, "cache_read": 11, "cache_write": 7}))
     u3 = {"input_tokens": 5, "output_tokens": 2}
     probe("from_anthropic without output_tokens_details or cache keys: thinking None, caches 0",
           mapped(call_from_anthropic(base, dotted, u3), {"input": 5, "output": 2, "thinking": None, "cache_read": 0, "cache_write": 0}))
@@ -211,6 +218,8 @@ bad = good_listing(); bad["capabilities"][0]["status"] = "ready"
 if listing_ok(Fake(0, (json.dumps(bad) + "\n").encode())): broken("listing_ok accepts a status outside the set")
 bad = good_listing(); bad["capabilities"] = [c for c in bad["capabilities"] if c["name"] != "streaming"]
 if listing_ok(Fake(0, (json.dumps(bad) + "\n").encode())): broken("listing_ok accepts seven")
+alt = good_listing(); alt["adapters"] = [{"name": "fake", "implements": sorted(IMPLEMENTED)}]
+if not listing_ok(Fake(0, (json.dumps(alt) + "\n").encode())): broken("listing_ok refuses the set under implements")
 bad = good_listing(); bad["adapters"] = []
 if listing_ok(Fake(0, (json.dumps(bad) + "\n").encode())): broken("listing_ok accepts no fake adapter")
 bad = good_listing(); [c for c in bad["capabilities"] if c["name"] == "thinking"][0]["status"] = "declared"
