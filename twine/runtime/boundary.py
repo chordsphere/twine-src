@@ -53,7 +53,8 @@ from twine.runtime.contract import NAME_PATTERN
 # the registry must be able to report a capability module missing while
 # this module — and so every verb — still imports.
 from twine.runtime.terms import (NATIVE, TEXT, TOOL_PROTOCOLS, ThinkingSettings, ToolCall,
-                                 ToolSpec, token_faults, tool_call_faults)
+                                 ToolSpec, WindowStatement,
+                                 token_faults, tool_call_faults)
 from twine.spend import Tokens
 from twine.transitions import TableError, loop_keys, stop_keys
 
@@ -223,6 +224,16 @@ class Adapter(abc.ABC):
         a refusal, a rate limit, the window's edge — is a Turn whose stop
         names it."""
 
+    def context_window(self) -> WindowStatement:
+        """The model's context window, stated at spawn (Arc 2 R5; the
+        window-accounting contract: "state the model's context window size
+        at spawn, or say it is unknown"). This default says it is unknown —
+        an adapter that can ask its provider overrides it (the Anthropic
+        adapter reads `GET /v1/models`). Called once per spawn, by the verb,
+        never between calls; an adapter may answer from what it learned."""
+        return WindowStatement(None, f"the {type(self).name} adapter states no context "
+                                     "window size")
+
 
 def adapter_class_faults(cls: Any) -> list[str]:
     """Every reason `cls` cannot be registered as an adapter; [] when it
@@ -296,6 +307,30 @@ class Boundary:
     def settings(self) -> SpawnSettings:
         return self.adapter.settings
 
+    def context_window(self) -> WindowStatement:
+        """The adapter's statement of its model's context window (Arc 2
+        R5), held to the shape. Unknown is not a refusal, and neither is a
+        statement that breaks the shape: an adapter that raises, or answers
+        with something that is not a WindowStatement, is logged and read as
+        "unknown", the reason naming the fault — the run then counts the
+        window and cannot warn or stop on it, which is the safe side."""
+        try:
+            statement = self.adapter.context_window()
+        except Exception as exc:   # never a crash at spawn: read as unknown
+            log.error("adapter %r: stating the context window raised %s: %s", self.name,
+                      type(exc).__name__, exc)
+            return WindowStatement(None, f"the {self.name} adapter could not state its "
+                                         f"context window ({type(exc).__name__}: {exc})")
+        if not isinstance(statement, WindowStatement):
+            log.error("adapter %r stated its context window as a %s, not a WindowStatement",
+                      self.name, type(statement).__name__)
+            return WindowStatement(None, f"the {self.name} adapter stated its context "
+                                         f"window as a {type(statement).__name__}, not a "
+                                         "WindowStatement (an adapter defect)")
+        log.info("adapter %r states the context window: %s", self.name,
+                 statement.size if statement.known else f"unknown ({statement.reason})")
+        return statement
+
     def call(self, request: Request) -> Turn:
         """Call the adapter once and return its turn, or raise
         BoundaryError naming every way the turn breaks the contract."""
@@ -366,4 +401,5 @@ class Boundary:
 
 
 __all__ = ["Adapter", "BOUNDARY_CAPABILITIES", "Boundary", "BoundaryError", "NATIVE",
-           "Request", "SpawnSettings", "TEXT", "Turn", "adapter_class_faults"]
+           "Request", "SpawnSettings", "TEXT", "Turn", "WindowStatement",
+           "adapter_class_faults"]

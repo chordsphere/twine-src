@@ -3,7 +3,7 @@
 
     twine run BUNDLE --cap USD [--adapter anthropic|fake] [--script FILE]
               [--model M] [--max-tokens N] [--thinking adaptive|off]
-              [--prices PATH] [--max-turns N] [--state-dir DIR]
+              [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR]
               [--bale-root DIR] [--cwd DIR] [--json]
 
 What made the architect the courier on the worker side — open the bundle,
@@ -28,7 +28,9 @@ before the next:
      tarfile's `data` filter (twine.runtime.loop.unpack_request)
   5. the adapter: `anthropic` (R2) with the model, max_tokens and thinking
      as spawn-time constants and the surface note as its system text, or
-     `fake` with the script — behind the boundary (R1)
+     `fake` with the script — behind the boundary (R1); then the window
+     (R5): `--window N`, or the adapter's statement at spawn (the Anthropic
+     adapter's one `GET /v1/models`; the fake states unknown)
   6. the transcript, <state-dir>/transcripts/<sid>.jsonl, append-only
   7. the in-flight record's `runtime` fields (twine.inflight.record_runtime)
   8. the loop (twine.runtime.loop.Loop)
@@ -38,7 +40,9 @@ end, whatever the outcome, the running record is cleared (unless a tool's
 group outlived its run: then it stays for `twine kill`); on `delivered` the
 in-flight record is removed and the sandbox home kept (the response tarball
 lives there until the operator applies it); otherwise both are kept, for R5
-and the planner. ok exactly when the outcome is `delivered`.
+and the planner — `twine resume` (twine/commands/resume.py, R5) continues
+a kept session cold from its transcript. ok exactly when the outcome is
+`delivered`.
 
 **twine run never applies anything** (T12): the only apply argv is `bale
 apply --dry-run --json` (carry response's); the operator runs the apply line.
@@ -74,6 +78,7 @@ from twine.runtime.registry import DeclarationError
 from twine.runtime.sandbox import Sandbox, SandboxError
 from twine.runtime.terms import ThinkingSettings
 from twine.runtime.tooling import ToolRegistry, load_tool_registry
+from twine.runtime.window import Window
 from twine.transcript import Transcript, TranscriptError
 from twine.transitions import load_table
 
@@ -105,8 +110,11 @@ class RunReport:
     once as human lines."""
 
     bundle: str
-    adapter: str
+    adapter: str | None
     model: str | None = None
+    # The verb the twin speaks for: `run`, or `resume` (R5), which shares
+    # the report.
+    command: str = NAME
     refusals: list[str] = dataclasses.field(default_factory=list)
     open: carry_bundle.BundleOutcome | None = None
     result: runloop.LoopResult | None = None
@@ -124,11 +132,28 @@ class RunReport:
     running_note: str | None = None
     inflight_state: str | None = None
     inflight_error: str | None = None
+    # R5: the run's window (None until the adapter was spawned), and on a
+    # resume the `seq` of the transcript's last line before it, and the sid
+    # it was asked for (a resume has no open line to take it from).
+    window: Window | None = None
+    resumed_from: int | None = None
+    resume_sid: str | None = None
 
     @property
     def sid(self) -> str | None:
+        if self.resume_sid is not None:
+            return self.resume_sid
         sid = None if self.open is None else self.open.sid
         return sid if isinstance(sid, str) else None
+
+    @property
+    def rewarm(self) -> dict[str, Any] | None:
+        """D23's named telemetry field: a resumed run's first call's
+        Tokens, the five classes — null until that call is made, and null on
+        `twine run`."""
+        if self.command == NAME or self.result is None:
+            return None
+        return self.result.first_usage
 
     @property
     def outcome(self) -> str:
@@ -177,6 +202,10 @@ class RunReport:
             "sandbox": None if self.sandbox is None else str(self.sandbox.home),
             "inflight": self.inflight_state,
             "open": None if self.open is None else self.open.payload(),
+            # R5's, after R4's names so their order holds.
+            "window": None if self.window is None else self.window.as_json(),
+            "resumed_from": self.resumed_from,
+            "rewarm": self.rewarm,
             # beside them
             "actor": None if r is None else r.actor,
             "refusals": list(self.refusals),
@@ -184,6 +213,7 @@ class RunReport:
             "model": self.model,
             "cap_usd": spend.usd(self.cap_usd),
             "max_turns": self.max_turns,
+            "window_reason": None if self.window is None else self.window.reason,
             "check": None if r is None else r.check,
             "running": None if self.group is None else {
                 **self.group.as_json(), "registered": self.running_registered,
@@ -233,8 +263,8 @@ def _log_end(report: RunReport, *, internal_error: bool = False) -> None:
         if internal_error:
             report.transcript.append("run-end", internal_error=True)
         else:
-            report.transcript.append("run-end", twin={"command": NAME, "ok": report.ok,
-                                                      **report.payload()})
+            report.transcript.append("run-end", twin={"command": report.command,
+                                                      "ok": report.ok, **report.payload()})
     except TranscriptError:
         pass
 
@@ -303,13 +333,14 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
         return
     ctx.info(f"run: request unpacked at {report.unpacked.directory} "
              f"({report.unpacked.members} members)")
-    # 5. The adapter, behind the boundary.
+    # 5. The adapter, behind the boundary, and the window it states.
     prompt = runloop.system_prompt(tools)
     try:
         boundary = Boundary(build_adapter(args, report, adapter_cls, script, key, prompt))
     except (BoundaryError, ValueError, TypeError) as exc:
         report.refusals.append(f"the {args.adapter} adapter could not be spawned: {exc}")
         return
+    report.window = spawn_window(ctx, args, boundary)
     # 6. The transcript.
     try:
         report.transcript = Transcript.open(state_dir, sid)
@@ -322,7 +353,7 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
         sandbox=report.sandbox.as_json(), request=report.unpacked.as_json(),
         open={"sid": sid, "tarball": report.open.tarball}, group=report.group.as_json(),
         cap_usd=spend.usd(report.cap_usd), max_turns=report.max_turns,
-        system=prompt.as_json())
+        system=prompt.as_json(), window=report.window.start_json(), resumed_from=None)
     # 7. The in-flight record's runtime fields.
     try:
         inflight.record_runtime(state_dir, sid, inflight.runtime_fields(
@@ -345,7 +376,7 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
                                       prices_path=report.prices_path),
         prompt=prompt, moves=moves, tools=tools,
         deliver=lambda path: deliver(courier, args, path),
-        messages=[runloop.user_message(report.open.opener)],
+        messages=[runloop.user_message(report.open.opener)], window=report.window,
         progress=lambda line: ctx.info(f"run: {line}"))
     report.result = the_loop.run()
     # The end: what is kept and what is removed.
@@ -359,6 +390,28 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
     ctx.info(f"run: {sid}: {report.outcome}"
              + (f" — {report.reason}" if report.reason else "")
              + f"; sandbox home kept at {report.sandbox.home}")
+
+
+def spawn_window(ctx: Context, args: argparse.Namespace, boundary: Boundary, *,
+                 label: str = NAME) -> Window:
+    """The run's window (R5): `--window N` fixes it and the adapter is not
+    asked; otherwise the adapter states it at spawn — the Anthropic
+    adapter's one `GET /v1/models`, the fake's unknown. Unknown is not a
+    refusal: the run counts the window and cannot warn or stop on it."""
+    if args.window is not None:
+        window = Window.from_flag(args.window)
+    else:
+        window = Window.stated(boundary.context_window())
+    ctx.info(f"{label}: window: {window.describe()}")
+    return window
+
+
+def window_refusal(value: int | None) -> str | None:
+    """Why `--window` refuses: a size that is not a positive number of
+    tokens; None when absent or fine."""
+    if value is not None and value <= 0:
+        return f"--window {value} is not a positive number of tokens"
+    return None
 
 
 def lead_own_group() -> process.OwnGroup:
@@ -405,6 +458,9 @@ def pre_open(ctx: Context, args: argparse.Namespace, report: RunReport):
     if args.max_turns <= 0:
         refusals.append(f"--max-turns {args.max_turns} is not a positive number of calls")
     report.max_turns = args.max_turns
+    window_fault = window_refusal(args.window)
+    if window_fault is not None:
+        refusals.append(window_fault)
     if args.prices is not None:
         if not args.prices:
             refusals.append("--prices is empty; it names no price file")
@@ -539,10 +595,13 @@ def lines(report: RunReport) -> list[str]:
         return [r.apply_line]
     if r is not None and r.outcome == runloop.SUSPENDED and r.block:
         return carry_bale.passthrough_lines(r.block)
+    if r is not None and r.outcome == runloop.SUSPENDED and r.apply_line:
+        # escalate's clarification form (R5): the operator applies it.
+        return [r.apply_line]
     who = report.sid or report.bundle
     if r is None:
-        return [f"run {who}: refused — {report.reason}"]
-    parts = [f"run {who}: {r.outcome}"]
+        return [f"{report.command} {who}: refused — {report.reason}"]
+    parts = [f"{report.command} {who}: {r.outcome}"]
     if r.stop is not None:
         parts.append(f"stop {r.stop}")
     if r.move is not None:
@@ -550,6 +609,13 @@ def lines(report: RunReport) -> list[str]:
     if r.shape is not None:
         parts.append(f"shape {r.shape}")
     return [", ".join(parts) + (f" — {r.reason}" if r.reason else "")]
+
+
+WINDOW_ARGUMENT = Argument(("--window",), {
+    "metavar": "N", "type": int, "default": None,
+    "help": "the context window in input tokens (R5): fixes it; absent, the adapter states "
+            "it at spawn (the fake states unknown, and an unknown window is counted but "
+            "never warned or stopped on)"})
 
 
 COMMANDS = (
@@ -593,6 +659,7 @@ COMMANDS = (
                 "help": "twine's own limit on model calls (default "
                         f"{runloop.DEFAULT_MAX_TURNS}): reaching it ends the run "
                         "`ended`, shape max-turns"}),
+            WINDOW_ARGUMENT,
             Argument(("--state-dir",), {
                 "metavar": "DIR", "default": None,
                 "help": "twine's state directory (as carry bundle takes it): the "
@@ -606,10 +673,13 @@ COMMANDS = (
                     "the request at request/ in it, and run the worker: the opener as the "
                     "first turn, the canonical tools, the abort file and the cap checked "
                     "before every call, usage appended to spend.jsonl after each, every "
-                    "step in <state-dir>/transcripts/<sid>.jsonl. A delivered response "
-                    "tarball is checked with `bale apply --dry-run --json` (carry "
-                    "response) and its apply line printed — twine never applies. "
-                    "escalate suspends (the light block printed); every other ending is "
+                    "step in <state-dir>/transcripts/<sid>.jsonl. The context window is "
+                    "counted from each call's usage: the worker is warned in its tool "
+                    "results at 80% and the run stops window-exhausted before a call past "
+                    "it. A delivered response tarball is checked with `bale apply "
+                    "--dry-run --json` (carry response) and its apply line printed — "
+                    "twine never applies. escalate suspends (the light block printed, or "
+                    "the clarification response's apply line); every other ending is "
                     "named with its stop and the transition table's move. ok exactly when "
                     "the outcome is delivered."),
 )

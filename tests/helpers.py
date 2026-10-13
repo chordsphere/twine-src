@@ -1146,3 +1146,38 @@ class RecordedRelay:
         stdout = self.recording.stdout if self.stdout is None else self.stdout
         code = self.recording.exit_code if self.exit_code is None else self.exit_code
         return RunResult(argv=tuple(argv), exit_code=code, stdout=stdout, stderr=stderr)
+
+
+# ---------------------------------------------------------------------------
+# bale's request-carried tools (Arc 2 R5). escalate's clarification form runs
+# the request's own crafter and lint (request/tools/craft_response.py and
+# request/tools/response_lint.py) in the cage, so a test's request carries
+# them. These are bale's files, not twine's and not doubles: verbatim copies
+# of the two tools every request of bale 0.4.52 carries — taken from request
+# 2026-10-13-twine-runtime-window-009 — kept under tests/bale_tools/ (not
+# fixtures/: they are not recordings of a bale argv) and pinned by sha256 so a
+# drifted copy fails loudly (tests/test_resume.py holds the pin). Refresh them
+# from a newer request when bale's tools change; nothing in twine/ reads them.
+# ---------------------------------------------------------------------------
+
+BALE_TOOLS = REPO_ROOT / "tests" / "bale_tools"
+BALE_TOOLS_VERSION = "0.4.52"
+BALE_TOOLS_SHA256 = {
+    "craft_response.py": "c167f5b5fae97682c5917db46cc4e035698bfa99b78be7e324447ccee15ebd52",
+    "response_lint.py": "72be4027eb9979e9e9aeea2333b4789220de9f89dadfa28619e6f36948cc4579",
+}
+
+
+def request_tool_members() -> dict[str, bytes]:
+    """The two tools as request-tarball members (`tools/<name>`), bytes as
+    pinned."""
+    return {f"tools/{name}": (BALE_TOOLS / name).read_bytes() for name in BALE_TOOLS_SHA256}
+
+
+def install_request_tools(request_dir: Path, names: tuple[str, ...] | None = None) -> None:
+    """Copy the pinned tools (all of them, or `names`) into
+    `<request_dir>/tools/`, as an unpacked request lays them out."""
+    tools = Path(request_dir) / "tools"
+    tools.mkdir(parents=True, exist_ok=True)
+    for name in (names if names is not None else tuple(BALE_TOOLS_SHA256)):
+        shutil.copyfile(BALE_TOOLS / name, tools / name)

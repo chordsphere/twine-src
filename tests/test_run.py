@@ -517,9 +517,15 @@ class TheRecords(BedCase):
         bed = self.bed()
         bed.twin([tools(("list_dir", {}), n=1), stop("end-turn", "done")])
         lines = bed.transcript()
+        # Since R5: a `window` line after each call's `turn`, and the final
+        # assistant turn — never sent — in a last `request` line, `sent: false`.
         self.assertEqual([l["kind"] for l in lines],
-                         ["run-start", "check", "request", "turn", "tool-call", "tool-result",
-                          "move", "check", "request", "turn", "move", "run-end"])
+                         ["run-start", "check", "request", "turn", "window", "tool-call",
+                          "tool-result", "move", "check", "request", "turn", "window", "move",
+                          "request", "run-end"])
+        self.assertIs(lines[-2]["sent"], False)
+        self.assertEqual(lines[-2]["appended"],
+                         [{"role": "assistant", "content": [{"type": "text", "text": "done"}]}])
         self.assertEqual([l["seq"] for l in lines], list(range(1, len(lines) + 1)))
         for line in lines:
             self.assertEqual(list(line)[:3], ["at", "seq", "kind"])

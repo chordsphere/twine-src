@@ -1,6 +1,8 @@
-"""window-accounting — declared at Arc 2 R1; its counting and cold resume
-are R5's. Its contract is CONTRACT below (claude/context/runtime-contract.md
-§2); nothing implements it yet."""
+"""window-accounting — declared at Arc 2 R1; implemented at R5 (session
+2026-10-13-twine-runtime-window-009) by the runtime itself:
+twine/runtime/window.py, the declaration's `implemented_by`, which the loop
+drives. Its contract is CONTRACT below (claude/context/runtime-contract.md
+§2, §7.4–§7.6)."""
 
 from __future__ import annotations
 
@@ -27,6 +29,12 @@ CONTRACT = Contract(
         "exhaustion stops the turn with `window-exhausted`, which the transition "
         "table gives a move (D17); nothing is summarized or dropped to make room",
     ),
-    lands="declared at R1; R5 implements the counting, the warning and cold resume",
+    lands=("declared at R1; implemented at R5 (session "
+           "2026-10-13-twine-runtime-window-009) by the runtime, twine/runtime/window.py: "
+           "the size from `twine run --window N` or the adapter's statement at spawn (the "
+           "Anthropic adapter's one GET /v1/models; the fake states unknown); `used` = each "
+           "call's input + cache_read + cache_write; warned at 80%, every tool result's "
+           "last line then the warning; the call not made at 100%, stop window-exhausted, "
+           "move split-goal"),
     grounds=("twine-seed.md §4.3 (window management)", "D12", "D17", "D21"),
 )

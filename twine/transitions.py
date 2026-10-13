@@ -491,6 +491,15 @@ STOP_AXIS = "stop"
 # boundary learns the key only through the table's `loop_keys`, and the
 # table's row for it is checked by MoveBook.faults and by tests/test_run.py.
 STOP_ADAPTER_DEFECT = "adapter-defect"
+# The window's edge (Arc 2 R5). A key of the stop axis that a provider maps
+# onto (Anthropic's `model_context_window_exceeded`, R2) — so not one of the
+# `loop_keys`, which the boundary refuses from an adapter — and that the loop
+# now also reports itself, before a call, when the counted window is used up
+# (runtime-contract.md §7.4). Spelled here, beside STOP_ADAPTER_DEFECT, for
+# the same reason: no module under twine/runtime/ may spell a stop key. The
+# loop's MoveBook holds the table to a row for it, whose move (`split-goal`,
+# the planner's) the loop names.
+STOP_WINDOW_EXHAUSTED = "window-exhausted"
 # The problems that make an axis's own keys untrustworthy. Other problems
 # (a bale axis without its vocabulary, a missing row elsewhere) say
 # nothing about the stop axis's keys and do not stop them being read.

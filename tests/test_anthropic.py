@@ -1282,5 +1282,99 @@ class TheRealTransport(unittest.TestCase):
                          "network-failure")
 
 
+class TheContextWindow(unittest.TestCase):
+    """Arc 2 R5: the adapter states its model's window at spawn from one
+    `GET /v1/models`, held to the 2026-10-13 recording (`models`): its
+    entries' `max_input_tokens` — 1000000 for every 5.x model, 200000 for
+    claude-opus-4-5-20251101. What the recording cannot show (a model not
+    listed, a failure, an HTTP error, more pages) is a double built from its
+    bytes or a sibling recording's, named as such."""
+
+    MODELS = rec("models")
+
+    def adapter(self, *answers, model="claude-haiku-5-5"):
+        transport = RecordedTransport(*answers)
+        return AnthropicAdapter(env=ENV, transport=transport, model=model), transport
+
+    def test_held_to_the_recording(self):
+        listed = {m["id"]: m["max_input_tokens"]
+                  for m in json.loads(self.MODELS.response)["data"]}
+        self.assertEqual(listed["claude-opus-4-5-20251101"], 200000)
+        for model in ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5",
+                      "claude-fable-5-1", "claude-opus-4-5-20251101"):
+            with self.subTest(model=model):
+                a, transport = self.adapter((self.MODELS.status, self.MODELS.headers,
+                                             self.MODELS.response), model=model)
+                statement = a.context_window()
+                self.assertEqual((statement.size, statement.reason), (listed[model], None))
+                self.assertEqual(transport.calls, [
+                    ("GET", "https://api.anthropic.com/v1/models",
+                     {"x-api-key": SENTINEL, "anthropic-version": "2023-06-01"}, None)])
+                self.assertEqual(self.MODELS.meta["method"], "GET")
+                self.assertEqual(self.MODELS.meta["path"], "/v1/models")
+        self.assertEqual(listed["claude-opus-5-5"], 1000000)
+
+    def test_one_call_per_spawn(self):
+        a, transport = self.adapter((self.MODELS.status, self.MODELS.headers,
+                                     self.MODELS.response))
+        first, second = a.context_window(), a.context_window()
+        self.assertEqual(first, second)
+        self.assertEqual((len(transport.calls), a.window_calls), (1, 1))
+        self.assertEqual(a.calls, 0, "no Messages call was made")
+
+    def test_a_model_not_listed_is_unknown_and_says_so(self):
+        a, _ = self.adapter((200, self.MODELS.headers, self.MODELS.response),
+                            model="claude-not-a-model")
+        statement = a.context_window()
+        self.assertIsNone(statement.size)
+        self.assertIn("'claude-not-a-model' is not among the 14 model(s)", statement.reason)
+        # A double: the recording's page with has_more set — twine reads one page.
+        page = json.loads(self.MODELS.response)
+        page["has_more"] = True
+        b, _ = self.adapter((200, self.MODELS.headers, json.dumps(page).encode()),
+                            model="claude-not-a-model")
+        self.assertIn("more pages, which twine does not read", b.context_window().reason)
+
+    def test_failures_are_unknown_never_a_raise(self):
+        error_401 = rec("error_401")   # the Messages recording's error body: same shape
+        cases = {
+            "transport": (ConnectionRefusedError(f"refused, key {SENTINEL}"),
+                          "failed before an answer (ConnectionRefusedError"),
+            "http error": ((401, error_401.headers, error_401.response),
+                           "answered HTTP 401 (authentication_error:"),
+            "not json": ((200, {"content-type": "application/json"}, b"<html>"),
+                         "not JSON"),
+            "not the listing": ((200, {"content-type": "application/json"}, b'{"x": 1}'),
+                                "without a `data` list"),
+            "another type": ((200, {"content-type": "text/html"}, b"{}"),
+                             "content-type is 'text/html'"),
+            "no count": ((200, {"content-type": "application/json"},
+                          b'{"data": [{"id": "claude-haiku-5-5"}]}'),
+                         "without a positive integer max_input_tokens"),
+        }
+        for name, (answer, needle) in cases.items():
+            with self.subTest(case=name):
+                a, _ = self.adapter(answer)
+                statement = a.context_window()
+                self.assertIsNone(statement.size)
+                self.assertIn(needle, statement.reason)
+                self.assertNotIn(SENTINEL, statement.reason)
+
+    def test_the_verb_asks_once_unless_window_fixes_it(self):
+        import argparse
+        from twine.cli import Context
+        from twine.commands import run as run_verb
+        from twine.runtime.boundary import Boundary
+        ctx = Context(env={}, stdout=io.StringIO(), stderr=io.StringIO())
+        a, transport = self.adapter((self.MODELS.status, self.MODELS.headers,
+                                     self.MODELS.response), model="claude-sonnet-5-5")
+        window = run_verb.spawn_window(ctx, argparse.Namespace(window=None), Boundary(a))
+        self.assertEqual((window.size, window.source, len(transport.calls)),
+                         (1000000, "adapter", 1))
+        b, transport = self.adapter()
+        window = run_verb.spawn_window(ctx, argparse.Namespace(window=4096), Boundary(b))
+        self.assertEqual((window.size, window.source, transport.calls), (4096, "flag", []))
+
+
 if __name__ == "__main__":
     unittest.main()

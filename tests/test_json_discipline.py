@@ -101,7 +101,10 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         anything starts — the fake adapter named with no script (ok false,
         exit 1: no bale is started and no process group is touched, so the
         in-process run never makes the test runner a session leader; its
-        paths that run are tests/test_run.py's, each in a child)."""
+        paths that run are tests/test_run.py's, each in a child); and
+        `resume` (Arc 2 R5) refused the same way — a sid with no kept
+        session in the state directory (ok false, exit 1; its paths that run
+        are tests/test_resume.py's, each in a child)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
@@ -129,6 +132,12 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         if name == "run":
             argv += [str(self.bundle), "--cap", "1", "--adapter", "fake", "--state-dir",
                      str(self.spend_state.path), "--bale-root", str(self.stub.root)]
+        if name == "resume":
+            answer = Path(self._turns.name) / "answer.txt"
+            answer.write_text("as assumed\n", encoding="utf-8")
+            argv += ["2026-10-13-json-discipline-001", "--cap", "1", "--answer", str(answer),
+                     "--state-dir", str(self.spend_state.path), "--bale-root",
+                     str(self.stub.root)]
         return argv
 
     def test_every_registered_verb_emits_one_line_subprocess(self):

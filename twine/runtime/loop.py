@@ -15,11 +15,19 @@ The loop composes what R1–R3 built and Arc 1's spine:
                task (D11, §4.3); a spawn-time constant, so prompt-cache
                stable (D12)
   each call    the abort file first (twine.kill.abort_requested, §14.3),
-               then the pre-call cap check (twine.spend.check_call, §13.8)
-               with the input estimate below, then one call through the
-               boundary, its usage appended to the spend stream
-               (spend.append_record, the sid's own, served_sid null) before
-               anything else is done with the turn
+               then twine's --max-turns, then the window (R5: used up after
+               the last call → `window-exhausted`, the call not made), then
+               the pre-call cap check (twine.spend.check_call, §13.8) with
+               the input estimate below — once a call has counted the
+               window, its `used` plus the estimate of what was appended
+               since — then one call through the boundary, its usage
+               appended to the spend stream (spend.append_record, the sid's
+               own, served_sid null) before anything else is done with the
+               turn, then counted against the window (a `window` line)
+  the window   twine.runtime.window (R5): warned at 80%, every tool result
+               the model reads ends with the warning line from then on —
+               never the transcript's tool-result line, never an earlier
+               turn
   the move     the transition table's `stop` row for the turn's stop key,
                read through MoveBook — never a second dispatch table: the
                loop performs `classify-final-text`, `continue-turn` and
@@ -27,12 +35,16 @@ The loop composes what R1–R3 built and Arc 1's spine:
                failed tool), and every other move ends the run `stopped`,
                the move named for whoever performs it
   the tools    run in order through twine.runtime.tooling.run_tool (never
-               raises); `escalate` suspends, `deliver` hands the tarball to
-               the courier's `carry response` (the `deliver` callable the
-               verb passes), a failed tool goes back to the model as its
-               result
+               raises); `escalate` suspends — on its clarification form (R5)
+               after carrying the tarball it wrote to `carry response`, as
+               `deliver` does — `deliver` hands the tarball to the courier's
+               `carry response` (the `deliver` callable the verb passes), a
+               failed tool goes back to the model as its result
   the story    every step is a transcript line (twine.transcript) before
-               the next begins
+               the next begins; when the run ends, what was never sent goes
+               in one last `request` line, `sent: false`, so the lines'
+               `appended`, joined, are the conversation `twine resume`
+               rebuilds (R5, twine.runtime.resume)
 
 Nothing here spells a stop key (the one spelling is the table's; tests walk
 twine/runtime/ for it): the loop's own four keys come from twine.spend,
@@ -41,12 +53,12 @@ network module or reads the process environment; tools spawn through the
 sandbox, the model is reached through the boundary.
 
 Sections:
-  1. Names, outcomes and limits     (~line 70)
-  2. The system prompt and the estimate (~line 150)
-  3. The conversation's shape       (~line 230)
-  4. The request on disk            (~line 300)
-  5. Moves, from the table          (~line 380)
-  6. The loop                       (~line 450)
+  1. Names, outcomes and limits     (~line 90)
+  2. The system prompt and the estimate (~line 160)
+  3. The conversation's shape       (~line 250)
+  4. The request on disk            (~line 345)
+  5. Moves, from the table          (~line 460)
+  6. The loop                       (~line 525)
 """
 
 from __future__ import annotations
@@ -70,8 +82,10 @@ from twine.runtime.boundary import Adapter, Boundary, BoundaryError, Request, Tu
 from twine.runtime.sandbox import Sandbox
 from twine.runtime.terms import ToolSpec
 from twine.runtime.tooling import ToolRegistry, ToolResult, plain, run_tool
+from twine.runtime.window import Window
 from twine.transcript import Transcript, TranscriptError
-from twine.transitions import STOP_ADAPTER_DEFECT, STOP_AXIS, Move, Table
+from twine.transitions import (STOP_ADAPTER_DEFECT, STOP_AXIS, STOP_WINDOW_EXHAUSTED, Move,
+                               Table)
 
 log = logging.getLogger("twine.runtime.loop")
 
@@ -92,6 +106,10 @@ KILLED = kill.STOP_KILLED
 CAP_REACHED = spend.STOP_CAP_REACHED
 CAP_UNCHECKED = spend.STOP_CAP_UNCHECKED
 ADAPTER_DEFECT = STOP_ADAPTER_DEFECT
+# The window's edge (Arc 2 R5): a provider's key the loop also reports
+# itself, before a call, when the counted window is used up — `stopped`,
+# the table's move for it (`split-goal`, the planner's) named.
+WINDOW_EXHAUSTED = STOP_WINDOW_EXHAUSTED
 REFUSED = "refused"
 OUTCOMES = (DELIVERED, SUSPENDED, ENDED, STOPPED, KILLED, CAP_REACHED, CAP_UNCHECKED,
             REFUSED)
@@ -109,6 +127,10 @@ PERFORMED_MOVES = (MOVE_CLASSIFY, MOVE_CONTINUE, MOVE_RETRY, MOVE_TOOL_ERROR)
 # The stop keys the loop reports itself (the table's `loop_keys`): the table
 # must declare each, with a row whose move is declared.
 LOOP_STOP_KEYS = (CAP_REACHED, CAP_UNCHECKED, KILLED, ADAPTER_DEFECT)
+# The stop keys the loop reports itself that a provider may report too, so
+# the table declares them among its keys but not its loop_keys (Arc 2 R5):
+# the table must still give each a row whose move is declared.
+SHARED_STOP_KEYS = (WINDOW_EXHAUSTED,)
 # The table's axis whose row names the move after a dry run (§11.3).
 APPLY_AXIS = "apply-outcome"
 
@@ -211,6 +233,17 @@ def estimate_input_tokens(prompt: SystemPrompt, messages: Sequence[Mapping[str, 
     return math.ceil(len(body.encode("utf-8")) / BYTES_PER_TOKEN_ESTIMATE)
 
 
+def estimate_appended_tokens(messages: Sequence[Mapping[str, Any]]) -> int:
+    """R4's estimate (UTF-8 bytes / 2, rounded up) of the messages
+    appended since the last call alone — what the pre-call check adds to the
+    window's counted `used` once one exists (R5). 0 when nothing was
+    appended (a retry of the same call)."""
+    if not messages:
+        return 0
+    body = json.dumps(list(messages), ensure_ascii=False, default=str)
+    return math.ceil(len(body.encode("utf-8")) / BYTES_PER_TOKEN_ESTIMATE)
+
+
 # ---------------------------------------------------------------------------
 # 3. The conversation's shape
 # ---------------------------------------------------------------------------
@@ -271,18 +304,20 @@ def tool_result_message(results: Sequence[tuple[str, str, bool]]) -> dict[str, A
     return {"role": "user", "content": blocks}
 
 
-def continue_message(blocks: list[dict[str, Any]]) -> dict[str, Any]:
+def continue_message(blocks: list[dict[str, Any]],
+                     noted: Callable[[str], str] = lambda text: text) -> dict[str, Any]:
     """The user turn that continues a cut-off turn (decision 3): a
     `tool_result` for every `tool_use` block the partial turn holds — the
     API refuses a tool_use left unanswered — saying it was not run, then the
     request to continue. The partial content itself is kept as the assistant
     turn before it, unedited; ending on a user turn needs no prefill, which
-    not every model allows."""
+    not every model allows. `noted` is the window's (R5): on a warned run
+    each text the model reads here ends with the warning line."""
     content: list[dict[str, Any]] = [
-        {"type": "tool_result", "tool_use_id": b.get("id"), "content": NOT_RUN_CUT,
+        {"type": "tool_result", "tool_use_id": b.get("id"), "content": noted(NOT_RUN_CUT),
          "is_error": True}
         for b in blocks if b.get("type") == "tool_use"]
-    content.append({"type": "text", "text": CONTINUE_TEXT})
+    content.append({"type": "text", "text": noted(CONTINUE_TEXT)})
     return {"role": "user", "content": content}
 
 
@@ -458,6 +493,15 @@ class MoveBook:
                 elif self.stop_move(key) is None:
                     found.append(f"the loop reports the stop {key!r}, which has no row "
                                  "with a declared move")
+            # A key a provider shares with the loop (R5: window-exhausted)
+            # is one of the axis's keys, never a loop key, and has a row.
+            for key in SHARED_STOP_KEYS:
+                if key not in axis.keys:
+                    found.append(f"the loop reports the stop {key!r}, which is not a key "
+                                 f"of the {STOP_AXIS} axis")
+                elif self.stop_move(key) is None:
+                    found.append(f"the loop reports the stop {key!r}, which has no row "
+                                 "with a declared move")
         return found
 
     def _row(self, axis: str, key: str | None) -> Move | None:
@@ -537,6 +581,9 @@ class LoopResult:
     dry_run: dict[str, Any] | None = None
     check: dict[str, Any] | None = None
     records: list[spend.UsageRecord] = field(default_factory=list)
+    # The run's first call's usage, the five classes (R5: on a resumed run
+    # this is D23's re-warm cost, the twin's `rewarm`); None until made.
+    first_usage: dict[str, Any] | None = None
 
 
 class Loop:
@@ -549,9 +596,17 @@ class Loop:
                  settings: LoopSettings, prompt: SystemPrompt, moves: MoveBook,
                  tools: ToolRegistry, deliver: Deliver,
                  messages: Sequence[Mapping[str, Any]],
+                 window: Window | None = None, logged: int = 0,
                  sleep: Callable[[float], None] = time.sleep,
                  abort: Callable[[Path, str], bool] = kill.abort_requested,
                  progress: Callable[[str], None] = lambda line: None) -> None:
+        """`window` is the run's (R5; unknown when not given); `logged` how
+        many of `messages` are in the transcript's `request` lines already —
+        a resumed run's rebuilt conversation (R5), so its first `request`
+        line carries only what this run appended."""
+        if not 0 <= logged <= len(messages):
+            raise ValueError(f"logged={logged} is not between 0 and the {len(messages)} "
+                             "message(s) given")
         self.boundary = boundary
         self.sandbox = sandbox
         self.transcript = transcript
@@ -564,8 +619,10 @@ class Loop:
         self.sleep = sleep
         self.abort = abort
         self.progress = progress
+        self.window = window if window is not None else Window.unknown(
+            "the loop was given no window")
         self.result = LoopResult(outcome=STOPPED)
-        self._logged_upto = 0          # messages already in a `request` line
+        self._logged_upto = logged     # messages already in a `request` line
         self._retries_this_call = 0
         self._continuations = 0
 
@@ -606,6 +663,24 @@ class Loop:
     # --- the run -------------------------------------------------------------
 
     def run(self) -> LoopResult:
+        """The loop until an outcome; then the conversation's tail that was
+        never sent — tool results of a turn that ended the run, the final
+        assistant turn of an end-turn — goes into one last `request` line
+        with `sent: false`, so the lines' `appended`, joined, are the whole
+        conversation a resume rebuilds (R5)."""
+        try:
+            return self._run()
+        finally:
+            self.log_unsent()
+
+    def log_unsent(self) -> None:
+        if len(self.messages) > self._logged_upto:
+            self.log_line("request", call=self.result.turns,
+                          messages_total=len(self.messages),
+                          appended=self.messages[self._logged_upto:], sent=False)
+            self._logged_upto = len(self.messages)
+
+    def _run(self) -> LoopResult:
         s = self.settings
         while True:
             # 1. The abort file, before every call (§14.3).
@@ -620,15 +695,27 @@ class Loop:
                                        f"(--max-turns) was reached; it stopped before call "
                                        f"{s.max_turns + 1} — a limit twine imposes on "
                                        "itself, not a stop key")
-            # 2. The pre-call check (§13.8).
             n = self.result.turns + 1
-            estimate = estimate_input_tokens(self.prompt, self.messages)
+            # The window (R5): used up after the last call → this one is not
+            # made. Before the cap: a call the window refuses is never priced.
+            if self.window.exhausted:
+                return self.window_exhausted(n)
+            # 2. The pre-call check (§13.8). Once a call has counted the
+            # window, the input it prices is that count plus R4's estimate
+            # of what was appended since (R5) — tighter than the estimate of
+            # the whole request, still above the real number.
+            if self.window.counted:
+                appended = estimate_appended_tokens(self.messages[self._logged_upto:])
+                estimate, basis = self.window.used + appended, "counted"
+            else:
+                estimate, basis = estimate_input_tokens(self.prompt, self.messages), "estimated"
             check = spend.check_call(s.state_dir, sid=s.sid, cap_usd=s.cap_usd,
                                      model=s.model, input_tokens=estimate,
                                      max_output_tokens=s.max_tokens,
                                      prices_path=s.prices_path)
             self.result.check = check.as_json()
-            self.log_line("check", call=n, input_estimate=estimate, check=check.as_json())
+            self.log_line("check", call=n, input_estimate=estimate, input_basis=basis,
+                          check=check.as_json())
             if not check.admitted:
                 move = self.moves.stop_move(check.stop)
                 self.progress(f"call {n}: not made — {check.stop} ({check.refusal}): "
@@ -647,6 +734,21 @@ class Loop:
             ended = self.move(turn)
             if ended is not None:
                 return ended
+
+    def window_exhausted(self, n: int) -> LoopResult:
+        """The counted window is used up: call `n` is not made. `stopped`,
+        stop `window-exhausted`, the table's move for it (`split-goal`, the
+        planner's) — the same stop the provider's own refusal maps to (R2)."""
+        move = self.moves.stop_move(WINDOW_EXHAUSTED)
+        reason = self.window.exhausted_reason(n)
+        self.progress(f"call {n}: not made — {WINDOW_EXHAUSTED}: {self.window.used} of "
+                      f"{self.window.size} input tokens in use")
+        self.log_line("move", call=n, stop=WINDOW_EXHAUSTED,
+                      move=None if move is None else move.name,
+                      actor=None if move is None else move.actor,
+                      did=f"the call was not made: the window is exhausted "
+                          f"({self.window.used} of {self.window.size} input tokens in use)")
+        return self.end(STOPPED, stop=WINDOW_EXHAUSTED, move=move, reason=reason)
 
     def killed(self, when: str) -> LoopResult:
         s = self.settings
@@ -719,7 +821,15 @@ class Loop:
                                             f"the spend stream ({message}); the run stops "
                                             "rather than spend what it cannot count")
         self.result.records.append(record)
+        if self.result.first_usage is None:
+            self.result.first_usage = turn.usage.as_json()
         self.log_line("turn", call=n, turn=turn.as_json())
+        was_warned = self.window.warned
+        self.log_line("window", **self.window.count(n, turn.usage))
+        if self.window.warned and not was_warned:
+            self.progress(f"call {n}: the window runs thin — {self.window.used} of "
+                          f"{self.window.size} input tokens in use "
+                          f"({self.window.percent()}%); the worker is warned from here on")
         self.progress(f"call {n}: " + ("asks for " + ", ".join(c.name for c in turn.tool_calls)
                                        if turn.continues else f"stop {turn.stop}"))
         return turn
@@ -795,7 +905,7 @@ class Loop:
         blocks = assistant_blocks(turn)
         if blocks:
             self.messages.append(assistant_message(blocks))
-        self.messages.append(continue_message(blocks))
+        self.messages.append(continue_message(blocks, self.window.noted))
         self.log_line("move", call=self.result.turns, stop=turn.stop, move=move.name,
                       actor=move.actor,
                       did=f"asked the model to continue ({self._continuations} of "
@@ -854,7 +964,7 @@ class Loop:
         self.log_line("tool-result", call=n, id=call_id, result=result_for_transcript(result))
         self.progress(f"call {n}: ran the probe block in the final text "
                       f"({'error' if result.is_error else 'ok'})")
-        self.messages.append(user_message(result.content))
+        self.messages.append(user_message(self.window.noted(result.content)))
         self.log_line("move", call=n, stop=turn.stop, move=move.name, actor=move.actor,
                       shape=shapes.PROBE, did="ran the probe and fed its output back")
         return None
@@ -869,9 +979,11 @@ class Loop:
         self.messages.append(assistant_message(assistant_blocks(turn)))
         results: list[tuple[str, str, bool]] = []
         ending: LoopResult | None = None
+        noted = self.window.noted     # a warned run's results end with the warning
         for call in turn.tool_calls:
             if ending is not None:
-                results.append((call.id, NOT_RUN_ENDED.format(why=ending.outcome), True))
+                results.append((call.id, noted(NOT_RUN_ENDED.format(why=ending.outcome)),
+                                True))
                 continue
             arguments = dict(call.arguments)
             self.log_line("tool-call", call=n, id=call.id, name=call.name,
@@ -882,7 +994,7 @@ class Loop:
                           result=result_for_transcript(result))
             self.progress(f"call {n}: tool {call.name}: "
                           f"{'error' if result.is_error else 'ok'}")
-            results.append((call.id, result.content, result.is_error))
+            results.append((call.id, noted(result.content), result.is_error))
             if result.is_error:
                 tool_move = self.moves.table.moves.get(MOVE_TOOL_ERROR)
                 self.log_line("move", call=n, stop=None, move=MOVE_TOOL_ERROR,
@@ -890,7 +1002,11 @@ class Loop:
                               did=f"returned {call.name}'s error to the model as its "
                                   "result")
                 continue
-            if result.fields.get("suspend") is True:
+            if result.fields.get("suspend") is True and result.fields.get("path"):
+                # escalate's clarification form (R5): a response tarball to
+                # carry, then suspend — `deliver` and suspend in one.
+                ending = self.clarified(n, result)
+            elif result.fields.get("suspend") is True:
                 self.log_line("move", call=n, stop=None, move=None, actor=None,
                               did=f"suspended on {call.name}")
                 ending = self.end(SUSPENDED, block=result.content)
@@ -901,13 +1017,35 @@ class Loop:
             self.log_line("move", call=n, stop=None, move=None, actor=None,
                           did=f"ran {len(results)} tool call(s); the results go back to "
                               "the model")
-        else:
-            # The results are logged too, so the transcript holds the whole
-            # conversation for a resume (R5).
-            self.log_line("request", call=n, messages_total=len(self.messages),
-                          appended=self.messages[self._logged_upto:], sent=False)
-            self._logged_upto = len(self.messages)
+        # On an ending the results are logged by run() (`sent: false`), so
+        # the transcript holds the whole conversation for a resume (R5).
         return ending
+
+    def clarified(self, n: int, result: ToolResult) -> LoopResult:
+        """escalate wrote a clarification response tarball (R5): hand it to
+        the courier's `carry response` as a delivery is handed (the dry run),
+        then end `suspended` with the tarball, the apply line and the dry run
+        — the operator applies it, bale suspends the session and prints the
+        planner's paste block, and `twine resume` continues on the answer. A
+        dry run that is not clean ends the run `stopped`, as a bad delivery
+        does."""
+        path = (self.sandbox.home / str(result.fields.get("path"))).resolve()
+        self.progress(f"call {n}: escalate wrote the clarification response {path}; "
+                      "checking it with bale (dry run)")
+        delivery = self.deliver(path)
+        move = self.moves.apply_move(delivery.outcome)
+        self.log_line("move", call=n, stop=None, move=None if move is None else move.name,
+                      actor=None if move is None else move.actor,
+                      did="carried the clarification response to `carry response`"
+                          + ("; suspended on it" if delivery.ok else ""),
+                      carry_response=delivery.twin)
+        if delivery.ok:
+            return self.end(SUSPENDED, move=move, tarball=delivery.tarball,
+                            apply_line=delivery.apply_line, dry_run=delivery.dry_run)
+        return self.end(STOPPED, move=move, tarball=delivery.tarball,
+                        dry_run=delivery.dry_run,
+                        reason=f"the clarification response did not pass the dry run "
+                               f"(outcome {delivery.outcome!r}): {delivery.reason}")
 
     def delivered(self, n: int, result: ToolResult) -> LoopResult:
         """`deliver` named a tarball: hand it to the courier's `carry
@@ -973,6 +1111,6 @@ def run_cost(records: Sequence[spend.UsageRecord], prices_path: Path) -> Decimal
 
 __all__ = ["ADAPTER_DEFECT", "CAP_REACHED", "CAP_UNCHECKED", "DELIVERED", "Delivery", "ENDED",
            "KILLED", "Loop", "LoopError", "LoopResult", "LoopSettings", "MoveBook", "OUTCOMES",
-           "REFUSED", "STOPPED", "SUSPENDED", "SystemPrompt", "adapter_class",
-           "estimate_input_tokens", "run_cost", "system_prompt", "unpack_request",
-           "usage_sum"]
+           "REFUSED", "STOPPED", "SUSPENDED", "SystemPrompt", "WINDOW_EXHAUSTED",
+           "adapter_class", "estimate_appended_tokens", "estimate_input_tokens", "run_cost",
+           "system_prompt", "unpack_request", "usage_sum"]
