@@ -68,8 +68,12 @@ THE_THREE = {"tool-calling", "thinking", "usage-accounting"}
 # streaming — the `implemented` ones at R2.
 ANTHROPIC_FIVE = THE_THREE | {"prompt-caching", "streaming"}
 # What the runtime implements itself (R3): sandboxing, by
-# twine/runtime/sandbox.py — the declaration's `implemented_by`.
-RUNTIME_OWN = {"sandboxing": "twine.runtime.sandbox"}
+# twine/runtime/sandbox.py — the declaration's `implemented_by`; since R5
+# window accounting and suspend-resume, by twine/runtime/window.py and
+# twine/runtime/resume.py.
+RUNTIME_OWN = {"sandboxing": "twine.runtime.sandbox",
+               "window-accounting": "twine.runtime.window",
+               "suspend-resume": "twine.runtime.resume"}
 IMPLEMENTED = ANTHROPIC_FIVE | set(RUNTIME_OWN)
 
 RECORDING = FIXTURES_DIR / "anthropic" / "messages-usage-2026-10-08.json"
@@ -171,25 +175,34 @@ class TheDeclaration(unittest.TestCase):
             with self.subTest(capability=entry["name"]):
                 self.assertIn(entry["status"], STATUSES)
 
-    def test_six_implemented_two_declared(self):
+    def test_eight_implemented_none_declared(self):
         """R1 had three implemented (the fake's) and five declared; R2's
         adapter implements prompt-caching and streaming too; R3's sandbox is
-        the runtime's own implementation of sandboxing."""
+        the runtime's own implementation of sandboxing; R5's window and
+        resume modules the runtime's own of the last two."""
         statuses = {e["name"]: e["status"] for e in toml_entries()}
         self.assertEqual({n for n, s in statuses.items() if s == "implemented"},
                          IMPLEMENTED)
         self.assertEqual({n for n, s in statuses.items() if s == "declared"},
                          set(THE_EIGHT) - IMPLEMENTED)
 
-    def test_the_declared_two_have_their_contracts_written(self):
+    def test_the_r5_two_say_they_landed(self):
+        """The contracts R1 wrote for R5 are implemented as declared: the
+        same obligations, `lands` naming the session and the module."""
         registry = load_runtime_registry()
-        for name in set(THE_EIGHT) - IMPLEMENTED:
+        self.assertEqual(set(THE_EIGHT) - IMPLEMENTED, set())
+        for name, module in (("window-accounting", "twine/runtime/window.py"),
+                             ("suspend-resume", "twine/runtime/resume.py")):
             with self.subTest(capability=name):
                 contract = registry.get(name).contract
                 self.assertTrue(contract.purpose.strip())
                 self.assertTrue(contract.adapter_must)
                 self.assertTrue(contract.runtime_promises)
-                self.assertIn("declared", contract.lands)
+                self.assertIn("implemented at R5", contract.lands)
+                self.assertIn("2026-10-13-twine-runtime-window-009", contract.lands)
+                self.assertIn(module, contract.lands)
+                self.assertEqual(registry.get(name).declared.implemented_by,
+                                 RUNTIME_OWN[name])
 
     def test_delegate_is_not_r1s(self):
         """§4.5's first experimental capability is R8's."""
@@ -214,9 +227,8 @@ class MalformedDeclarationRefusesLoudly(unittest.TestCase):
             self.assertIn(fragment, str(caught.exception))
 
     def test_a_status_outside_the_three(self):
-        # window-accounting: still declared at R2 (streaming, R1's example,
-        # is implemented now).
-        self.copy.edit_declaration('name = "window-accounting"\nmodule = "twine.runtime.capabilities.window_accounting"\nstatus = "declared"',
+        # window-accounting (implemented since R5, by the runtime).
+        self.copy.edit_declaration('name = "window-accounting"\nmodule = "twine.runtime.capabilities.window_accounting"\nstatus = "implemented"',
                                    'name = "window-accounting"\nmodule = "twine.runtime.capabilities.window_accounting"\nstatus = "beta"')
         self.assertRefused("'window-accounting'", "'beta'", "declared, implemented, experimental")
 
@@ -373,8 +385,10 @@ class ParityDetectors(unittest.TestCase):
         self.assertEqual(self.kinds(self.copy.load()), {"status-mismatch": ["thinking"]})
 
     def test_an_implemented_capability_no_adapter_implements(self):
-        self.copy.edit_declaration('module = "twine.runtime.capabilities.window_accounting"\nstatus = "declared"',
-                                   'module = "twine.runtime.capabilities.window_accounting"\nstatus = "implemented"')
+        """Since R5 window-accounting is the runtime's: without its
+        `implemented_by`, nothing implements it, and `implemented` is a
+        mismatch naming it."""
+        self.copy.edit_declaration('implemented_by = "twine.runtime.window"\n', "")
         self.assertEqual(self.kinds(self.copy.load()),
                          {"status-mismatch": ["window-accounting"]})
 
@@ -946,7 +960,7 @@ class RuntimeList(unittest.TestCase):
             "tool_protocol": "native", "module": "twine.runtime.adapters.anthropic"}, {
             "name": "fake", "implements": ["tool-calling", "thinking", "usage-accounting"],
             "tool_protocol": "native", "module": "twine.runtime.adapters.fake"}])
-        self.assertEqual(obj["counts"], {"capabilities": 8, "declared": 2, "implemented": 6,
+        self.assertEqual(obj["counts"], {"capabilities": 8, "declared": 0, "implemented": 8,
                                          "experimental": 0, "adapters": 2})
         self.assertEqual(obj["statuses"], list(STATUSES))
         self.assertEqual((obj["problems"], obj["reason"]), ([], None))
@@ -1091,8 +1105,11 @@ class TheVerbsOnABrokenTree(unittest.TestCase):
 
     def test_a_malformed_declaration(self):
         path = self.root / "twine" / "runtime" / "capabilities.toml"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            'status = "declared"', 'status = "maybe"', 1), encoding="utf-8")
+        # Since R5 no entry is `declared`: the first `implemented` one.
+        text = path.read_text(encoding="utf-8")
+        self.assertIn('\nstatus = "implemented"', text)
+        path.write_text(text.replace('\nstatus = "implemented"', '\nstatus = "maybe"', 1),
+                        encoding="utf-8")
         for argv in (("runtime", "list"), ("runtime", "show", "thinking")):
             with self.subTest(argv=argv):
                 code, out, err = self.run_copy(*argv, "--json")

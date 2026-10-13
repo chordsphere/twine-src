@@ -1245,8 +1245,8 @@ class Guards(unittest.TestCase):
         """Nothing in Arc 1 removes an in-flight record (Arc 2's loop knows
         when a session closes): no unlink, remove, rmdir or rmtree in the
         verb, and in twine/inflight.py only inside `remove_inflight` — the
-        one removal, Arc 2 R4's — which only `twine run` calls, on a
-        delivered run."""
+        one removal, Arc 2 R4's — which only `twine run` and, since R5,
+        `twine resume` call, on a delivered run."""
         removing = {"unlink", "remove", "rmdir", "rmtree", "removedirs"}
 
         def calls_in(node) -> set[str]:
@@ -1267,7 +1267,7 @@ class Guards(unittest.TestCase):
                    for p in sorted((REPO_ROOT / "twine").rglob("*.py"))
                    if "remove_inflight(" in p.read_text("utf-8")
                    and p.name != "inflight.py"]
-        self.assertEqual(callers, ["twine/commands/run.py"])
+        self.assertEqual(callers, ["twine/commands/resume.py", "twine/commands/run.py"])
 
     def test_the_verb_imports_nothing_that_runs_or_reaches_out(self):
         """bale runs through ctx.run only (cli-contract.md §10.6)."""

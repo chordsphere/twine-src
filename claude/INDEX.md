@@ -58,7 +58,8 @@ project's inventory.
   `[[capability]]` per capability — `name`, `module`, `status`
   (`declared`, `implemented`, `experimental`), `summary`, and since Arc 2
   R3 `implemented_by` where the runtime implements one itself
-  (`sandboxing`) — held to the modules under `twine/runtime/capabilities/`
+  (`sandboxing`; since R5 `window-accounting` and `suspend-resume`, by
+  `twine/runtime/window.py` and `twine/runtime/resume.py`) — held to the modules under `twine/runtime/capabilities/`
   by name. Pull when a session adds, implements or changes a runtime
   capability; the header comment spells the entry shape and `twine
   runtime list` checks parity.
@@ -79,7 +80,9 @@ project's inventory.
   `request/` since R4, kept until a later session removes homes) and, since
   Arc 2 R4, `<state-dir>/transcripts/<sid>.jsonl` (the transcript `twine
   run` writes: one JSON line per step, append-only, never a record of intent
-  — TQ-1; `context/runtime-contract.md` §7.6) — not in this repository: twine's state directory (`--state-dir`, else
+  — TQ-1; `context/runtime-contract.md` §7.6; since R5 what `twine resume`
+  rebuilds a conversation from, §7.9, and the home keeps escalate's
+  clarification responses under `escalations/<k>/`) — not in this repository: twine's state directory (`--state-dir`, else
   `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`).
   The spend stream is twine's durable usage record (D15, N4): append-only,
   one JSON line per model call, tokens by class and a nullable
@@ -153,10 +156,13 @@ project's inventory.
   Arc 2 R4 also §18, `twine run` (the flags, refused before, the call
   sequence, ok exactly on `delivered`, the twin, what is kept and removed,
   human mode, the tests), §4's `transcripts` and `sandbox` rows and §15.4's
-  `runtime` fields.
+  `runtime` fields. Since Arc 2 R5 also §18's `--window` and the twin's
+  `window`, `resumed_from` and `rewarm`, and §19, `twine resume` (cold
+  resume of a kept session: the flags, every refusal before anything
+  starts, no `bale open`, the sequence, the twin, the tests).
 - `context/runtime-contract.md` — the runtime's contract, the sibling of
   `cli-contract.md` (Arc 2 R1; §1 and §2 ratified 2026-10-12; §5 Arc 2 R2's;
-  §6 Arc 2 R3's):
+  §6 Arc 2 R3's; §7 R4's; §7.9 and the window's lines R5's):
   §1 the adapter boundary (Q-3 — what an adapter implements: tool calling,
   thinking fixed at spawn, usage as the five token classes, the stop set
   read from the transition table's `stop` axis and spelled nowhere else;
@@ -178,7 +184,13 @@ project's inventory.
   the apply line, the system prompt and the surface note's required
   content, the conversation's shape, each call and the moves the loop
   performs from the table, the input estimate, the transcript's lines, the
-  outcomes and what is kept and removed). Default inclusion for any Arc 2
+  outcomes and what is kept and removed), and since R5 the window (§1.1's
+  statement at spawn and §5.7's `GET /v1/models`; §7.4's count from each
+  call's usage, the warning line at 80% and exhaustion before a call; §7.6's
+  `window` line), escalate's clarification form (§6.6: bale's crafter and
+  lint in the cage, the response tarball, suspended on its dry run) and
+  §7.9, cold resume (the conversation rebuilt from the transcript's request
+  lines, the answer appended, D23's `rewarm`). Default inclusion for any Arc 2
   runtime session: an adapter, a capability, the loop, the sandbox, window
   accounting, resume.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a

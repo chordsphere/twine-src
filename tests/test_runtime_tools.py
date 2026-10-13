@@ -33,6 +33,9 @@ import os
 import re
 import shutil
 import stat
+import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,8 +58,8 @@ from twine.runtime.tools import run_tool
 from twine.runtime.tools.shell import SHELL_STDOUT_CAP_BYTES
 from twine.runtime.tools.read_file import READ_FILE_CAP_BYTES
 
-from tests.helpers import (RealGroup, RecordingRunner, dies_within, fenced_probe,
-                           filled_probe, run_cli, run_inprocess)
+from tests.helpers import (BALE_TOOLS, RealGroup, RecordingRunner, dies_within, fenced_probe,
+                           filled_probe, install_request_tools, run_cli, run_inprocess)
 
 SID = "2026-10-13-twine-runtime-tools-003"
 SENTINEL_KEY = "sk-ant-sentinel-r3-never-in-the-cage"
@@ -72,7 +75,9 @@ RESULT_KEYS = {
     "write_file": ["path", "size"],
     "list_dir": ["path", "entries"],
     "probe": ["slug", "leaves_cage", "exit_code", "lines"],
-    "escalate": ["kind", "suspend", "questions"],
+    # R5: `path` and `sha256` name the clarification form's tarball (null on
+    # the light form).
+    "escalate": ["kind", "suspend", "questions", "path", "sha256"],
     "deliver": ["delivered", "path", "size", "sha256"],
 }
 BASE = ["name", "content", "is_error"]
@@ -258,15 +263,20 @@ class TheToolDeclaration(unittest.TestCase):
                   "write_file": (["path", "content"], ["path", "content"]),
                   "list_dir": (["path"], []),
                   "probe": (["block"], ["block"]),
-                  "escalate": (["questions"], ["questions"]),
+                  "escalate": (["questions", "blocking"], ["questions"]),
                   "deliver": (["tarball"], ["tarball"])}
         for name, (props, required) in wanted.items():
             with self.subTest(tool=name):
                 schema = registry.get(name).tool.spec.input_schema
                 self.assertEqual(list(schema["properties"]), props)
                 self.assertEqual(list(schema["required"]), required)
-        question = registry.get("escalate").tool.spec.input_schema["properties"]["questions"]
-        self.assertEqual((question["minItems"], question["maxItems"]), (1, 3))
+        escalate = registry.get("escalate").tool.spec.input_schema["properties"]
+        question = escalate["questions"]
+        # R5: the light tier's three is the executor's count, not the
+        # schema's — the clarification form takes one or more.
+        self.assertEqual(question["minItems"], 1)
+        self.assertNotIn("maxItems", question)
+        self.assertEqual(escalate["blocking"]["type"], "boolean")
         self.assertEqual(list(question["items"]["properties"]),
                          ["question", "while_doing", "would_assume", "why_blocked"])
 
@@ -1196,7 +1206,8 @@ class Escalate(unittest.TestCase):
                 obj = assert_shape(self, self.t.tool("escalate", questions=rows),
                                    "escalate")
                 self.assertEqual((obj["is_error"], obj["kind"], obj["suspend"],
-                                  obj["questions"]), (False, "light", True, count))
+                                  obj["questions"], obj["path"], obj["sha256"]),
+                                 (False, "light", True, count, None, None))
                 [block] = shapes.find_blocks(obj["content"]).blocks
                 self.assertEqual((block.kind, block.ok, block.fields["sid"]),
                                  (shapes.LIGHT, True, SID))
@@ -1224,6 +1235,11 @@ class Escalate(unittest.TestCase):
                                    "escalate")
                 self.assertTrue(obj["is_error"])
                 self.assertIs(obj["suspend"], False)
+                if rows:
+                    self.assertIn("blocking: true", obj["content"])
+        # blocking: false is the light form, said explicitly.
+        obj = self.t.tool("escalate", questions=[question(1)], blocking=False).as_json()
+        self.assertEqual((obj["kind"], obj["suspend"], obj["path"]), ("light", True, None))
 
     def test_a_field_empty_or_not_one_line_is_an_error(self):
         for key, value in (("would_assume", "   "), ("question", "two\nlines"),
@@ -1241,6 +1257,131 @@ class Escalate(unittest.TestCase):
         obj = self.t.tool("escalate", questions=[row]).as_json()
         self.assertTrue(obj["is_error"])
         self.assertIn("why_blocked", obj["content"])
+
+
+class EscalateClarification(unittest.TestCase):
+    """escalate's clarification form (Arc 2 R5; `blocking: true`): bale's
+    own request-carried crafter and lint (tests/bale_tools/, pinned) run for
+    real in the cage; the tarball is the response tarball's shape."""
+
+    GOAL = "R5 of a test: count the window"
+
+    def setUp(self):
+        self.runner = Wrapping()
+        self.t = TempSandbox(self, run=self.runner)
+        request = self.t.home / "request"
+        install_request_tools(request)
+        (request / "manifest.json").write_text(
+            json.dumps({"session_id": SID, "goal": self.GOAL}) + "\n", encoding="utf-8")
+
+    def escalate(self, rows, **extra) -> dict:
+        return assert_shape(self, self.t.tool("escalate", questions=rows, blocking=True,
+                                              **extra), "escalate")
+
+    def extract(self, obj) -> Path:
+        out = self.t.root / "extracted"
+        with tarfile.open(self.t.home / obj["path"]) as tf:
+            names = tf.getnames()
+            self.assertEqual({n.split("/")[0] for n in names}, {"response-003"},
+                             "one top directory, response-NNN (TARBALL.md §5.1)")
+            tf.extractall(out, filter="data")
+        return out / "response-003"
+
+    def test_four_questions_write_a_clarification_response_that_lints_clean(self):
+        rows = [question(n) for n in range(1, 5)]
+        obj = self.escalate(rows)
+        self.assertEqual((obj["is_error"], obj["kind"], obj["suspend"], obj["questions"]),
+                         (False, "clarification", True, 4), obj["content"])
+        self.assertEqual(obj["path"], f"escalations/1/response-{SID}.tar.gz")
+        tarball = self.t.home / obj["path"]
+        self.assertEqual(obj["sha256"], hashlib.sha256(tarball.read_bytes()).hexdigest())
+        response = self.extract(obj)
+        self.assertEqual(sorted(p.name for p in response.iterdir()),
+                         ["apply.sh", "manifest.json", "validation.sh"])
+        manifest = json.loads((response / "manifest.json").read_text())
+        self.assertEqual((manifest["session_id"], manifest["responds_to"],
+                          manifest["response_kind"]), (SID, SID, "clarification"))
+        self.assertEqual((manifest["changes"], manifest["deferred"],
+                          manifest["validation_will_run"], manifest["claims"]),
+                         ([], [], [], {}))
+        self.assertEqual(manifest["questions"], [
+            {"question": r["question"], "context": r["while_doing"],
+             "default_assumption": r["would_assume"], "why_blocked": r["why_blocked"]}
+            for r in rows])
+        self.assertIn(self.GOAL, manifest["summary"])
+        # The lint, run again here on what the tarball carries: clean.
+        lint = subprocess.run([sys.executable, "-I", "-B", str(BALE_TOOLS / "response_lint.py"),
+                               str(response), "--json"], capture_output=True, timeout=60)
+        report = json.loads(lint.stdout)
+        self.assertEqual((lint.returncode, report["ok"], report["response_kind"]),
+                         (0, True, "clarification"), report["findings"])
+        self.assertIn("lint passed", obj["content"])
+
+    def test_the_crafter_and_the_lint_run_in_the_cage(self):
+        self.escalate([question(1)])
+        calls = self.runner.tool_calls()
+        self.assertEqual(len(calls), 2)
+        crafter, lint = (list(c["argv"]) for c in calls)
+        start = crafter.index(sys.executable)
+        self.assertEqual(crafter[start:], [sys.executable, "-I", "-B",
+                                           "request/tools/craft_response.py",
+                                           "escalations/1/response-003", "--sid", SID,
+                                           "--kind", "clarification", "--questions", "1",
+                                           "--write"])
+        self.assertEqual(lint[lint.index(sys.executable):],
+                         [sys.executable, "-I", "-B", "request/tools/response_lint.py",
+                          "escalations/1/response-003", "--json"])
+        for call in calls:
+            self.assertEqual(Path(call["cwd"]), self.t.home)
+            self.assertEqual(call["env"]["HOME"], str(self.t.home))
+            if self.t.sandbox.network == "off":
+                self.assertEqual(call["argv"][:3], ("unshare", "-rn", "--"))
+
+    def test_rounds_are_kept_and_one_line_does_not_bind(self):
+        first = self.escalate([dict(question(1), why_blocked="two\nlines are fine here")])
+        second = self.escalate([question(2)])
+        self.assertFalse(first["is_error"], first["content"])
+        self.assertEqual((first["path"], second["path"]),
+                         (f"escalations/1/response-{SID}.tar.gz",
+                          f"escalations/2/response-{SID}.tar.gz"))
+        self.assertTrue((self.t.home / first["path"]).is_file())
+
+    def test_errors_are_results_and_never_suspend(self):
+        def assert_error(obj, needle):
+            self.assertTrue(obj["is_error"])
+            self.assertEqual((obj["kind"], obj["suspend"], obj["path"], obj["sha256"]),
+                             ("clarification", False, None, None))
+            self.assertIn(needle, obj["content"])
+        assert_error(self.escalate([dict(question(1), would_assume="  ")]),
+                     "would_assume is empty")
+        (self.t.home / "request" / "tools" / "craft_response.py").write_text(
+            "import sys\nprint('broken', file=sys.stderr)\nsys.exit(3)\n")
+        assert_error(self.escalate([question(1)]), "the crafter exited 3: broken")
+        (self.t.home / "request" / "tools" / "craft_response.py").unlink()
+        assert_error(self.escalate([question(1)]), "carries no crafter")
+
+    def test_a_lint_finding_is_an_error(self):
+        (self.t.home / "request" / "tools" / "response_lint.py").write_text(
+            "import json, sys\n"
+            "print(json.dumps({'ok': False, 'findings': [{'code': 'X_FINDING', "
+            "'message': 'a double of a finding'}]}))\nsys.exit(1)\n")
+        obj = self.escalate([question(1)])
+        self.assertTrue(obj["is_error"])
+        self.assertIn("X_FINDING: a double of a finding", obj["content"])
+
+    def test_without_a_lint_it_is_written_and_says_so(self):
+        (self.t.home / "request" / "tools" / "response_lint.py").unlink()
+        with self.assertLogs("twine.runtime.tools.escalate", "WARNING"):
+            obj = self.escalate([question(1)])
+        self.assertFalse(obj["is_error"], obj["content"])
+        self.assertIn("not linted", obj["content"])
+
+    def test_the_names(self):
+        from twine.runtime.tools import escalate
+        self.assertEqual(escalate.response_dir_name("2026-10-13-x-009"), "response-009")
+        self.assertEqual(escalate.response_dir_name("2026-10-13-x-1234"), "response-1234")
+        self.assertEqual(escalate.tarball_name("2026-10-13-x-009"),
+                         "response-2026-10-13-x-009.tar.gz")
 
 
 class Deliver(unittest.TestCase):

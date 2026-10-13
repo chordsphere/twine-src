@@ -26,8 +26,11 @@ owns.
   stop_key        a stop_reason onto the stop axis
   error_key       an HTTP status, an error type or a transport exception
                   onto the stop axis
+  read_models_window  a `GET /v1/models` answer as the window of a model
+                  (Arc 2 R5): its `max_input_tokens`, or unknown with why
   AnthropicAdapter  the boundary adapter: the key from the environment it
-                  is given, the spawn-time constants, `call`
+                  is given, the spawn-time constants, `call`, and since R5
+                  `context_window` — one `GET /v1/models` per spawn
 
 **The stop and error mapping is data**: share/transitions.toml's
 `[[mapping]]` rows for the provider `anthropic`, read through
@@ -67,7 +70,7 @@ from typing import Any, Callable, ClassVar, Iterable, Mapping, Sequence
 
 from twine import TRANSITIONS_TABLE
 from twine.runtime.boundary import Adapter, Request, SpawnSettings, Turn
-from twine.runtime.terms import NATIVE, ThinkingSettings, ToolCall, ToolSpec
+from twine.runtime.terms import NATIVE, ThinkingSettings, ToolCall, ToolSpec, WindowStatement
 from twine.runtime.transport import Transport, https_transport
 from twine.runtime.usage import UsageMappingError, from_anthropic
 from twine.spend import Tokens
@@ -83,6 +86,12 @@ PROVIDER = "anthropic"
 API_BASE = "https://api.anthropic.com"
 MESSAGES_PATH = "/v1/messages"
 MESSAGES_URL = API_BASE + MESSAGES_PATH
+# Where the adapter reads its model's context window at spawn (Arc 2 R5):
+# the model listing, whose entries carry `max_input_tokens` (the 2026-10-13
+# recording, fixtures/anthropic/models.response.json). One page, as
+# recorded: no query string.
+MODELS_PATH = "/v1/models"
+MODELS_URL = API_BASE + MODELS_PATH
 API_VERSION = "2023-06-01"
 KEY_VARIABLE = "ANTHROPIC_API_KEY"
 
@@ -1056,6 +1065,56 @@ def _media(headers: Mapping[str, str]) -> str:
     return _lower(headers).get("content-type", "").split(";", 1)[0].strip().lower()
 
 
+def read_models_window(status: int, headers: Mapping[str, str], body: bytes,
+                       model: str) -> WindowStatement:
+    """The context window of `model` from a `GET /v1/models` answer (Arc 2
+    R5), pure: the listed entry's `max_input_tokens` when the listing is a
+    200 JSON page carrying an entry with that `id` and a positive integer
+    there; otherwise unknown, the reason saying why — an HTTP error (its
+    `error.type` and `message` quoted), a body that is not the listing, a
+    model not listed (and whether the listing said it had more pages, which
+    twine does not read), an entry without the count. Never raises for the
+    provider's answer: an unknown window is not a refusal."""
+    where = f"GET {MODELS_PATH}"
+    if status != 200:
+        detail = ""
+        try:
+            error = json.loads(body.decode("utf-8")).get("error")
+            kind, message = _quote(error)
+            if kind or message:
+                detail = f" ({kind}: {message})"
+        except (ValueError, AttributeError, UnicodeDecodeError):
+            pass
+        return WindowStatement(None, f"{where} answered HTTP {status}{detail}; the window of "
+                                     f"{model!r} is unknown")
+    media = _media(headers)
+    if media != JSON_MEDIA:
+        return WindowStatement(None, f"{where} answered a 200 whose content-type is "
+                                     f"{media or 'absent'!r}, not {JSON_MEDIA}; the window of "
+                                     f"{model!r} is unknown")
+    try:
+        listing = json.loads(body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as exc:
+        return WindowStatement(None, f"{where} answered a body that is not JSON ({exc}); the "
+                                     f"window of {model!r} is unknown")
+    data = listing.get("data") if isinstance(listing, dict) else None
+    if not isinstance(data, list):
+        return WindowStatement(None, f"{where} answered JSON without a `data` list of models; "
+                                     f"the window of {model!r} is unknown")
+    entry = next((m for m in data if isinstance(m, dict) and m.get("id") == model), None)
+    if entry is None:
+        more = (" and says it has more pages, which twine does not read"
+                if listing.get("has_more") is True else "")
+        return WindowStatement(None, f"{model!r} is not among the {len(data)} model(s) "
+                                     f"{where} lists{more}; its window is unknown")
+    size = entry.get("max_input_tokens")
+    if type(size) is not int or size <= 0:
+        return WindowStatement(None, f"{where} lists {model!r} without a positive integer "
+                                     f"max_input_tokens (it has {size!r}); its window is "
+                                     "unknown")
+    return WindowStatement(size, None)
+
+
 class AnthropicAdapter(Adapter):
     """The Messages API behind the boundary.
 
@@ -1125,6 +1184,9 @@ class AnthropicAdapter(Adapter):
         self._transport = transport
         self._sent: tuple[dict[str, Any], ...] = ()
         self.calls = 0
+        # The context window, read once per spawn (R5): None until asked.
+        self._window: WindowStatement | None = None
+        self.window_calls = 0
         log.info("%s adapter up: model %r, max_tokens %d, thinking %s, stream %s",
                  PROVIDER, model, max_tokens, self._thinking, stream)
 
@@ -1156,6 +1218,36 @@ class AnthropicAdapter(Adapter):
             return text
         log.warning("a reason carried the key; it was scrubbed")
         return text.replace(self.__key, f"[{KEY_VARIABLE}]")
+
+    def context_window(self) -> WindowStatement:
+        """The model's context window, stated at spawn (Arc 2 R5): one
+        `GET /v1/models` through the transport seam — the key in
+        `x-api-key` and `anthropic-version`, no body — read by
+        read_models_window, then held: a second ask answers from the first,
+        so a spawn costs one call, never one per model call. A transport
+        that fails states unknown, and says so; nothing here raises for the
+        provider or the network."""
+        if self._window is not None:
+            return self._window
+        self.window_calls += 1
+        headers = {"x-api-key": self.__key, "anthropic-version": API_VERSION}
+        model = self.settings.model
+        log.info("%s: GET %s for the context window of %r", PROVIDER, MODELS_PATH, model)
+        try:
+            status, response_headers, chunks = self._transport("GET", MODELS_URL, headers, None)
+            body = b"".join(bytes(c) for c in chunks)
+        except Exception as exc:   # the transport could not talk: unknown, said
+            statement = WindowStatement(None, f"GET {MODELS_PATH} failed before an answer "
+                                              f"({type(exc).__name__}: {exc}); the window "
+                                              f"of {model!r} is unknown")
+        else:
+            statement = read_models_window(status, response_headers, body, model)
+        if statement.reason is not None:
+            statement = WindowStatement(statement.size, self._scrub(statement.reason))
+        log.info("%s: the window of %r is %s", PROVIDER, model,
+                 statement.size if statement.known else f"unknown ({statement.reason})")
+        self._window = statement
+        return statement
 
     def call(self, body: Request | Mapping[str, Any]) -> Turn | Outcome:  # type: ignore[override]
         """`call(body: dict) -> Outcome`, or `call(request: Request) -> Turn`
@@ -1236,5 +1328,6 @@ ADAPTERS = (AnthropicAdapter,)
 __all__ = ["ADAPTERS", "API_VERSION", "AnthropicAdapter", "AnthropicConfigError",
            "Conversation", "ConversationEdited", "KEY_VARIABLE", "MESSAGES_URL", "Outcome",
            "RequestShapeError", "UnreadableUsage", "anthropic_mapping", "assistant_message",
-           "build_request", "error_key", "read_response", "read_stream", "stop_key",
-           "thinking_settings", "tool_dict", "tool_result_message", "user_message"]
+           "MODELS_URL", "build_request", "error_key", "read_models_window", "read_response",
+           "read_stream", "stop_key", "thinking_settings", "tool_dict", "tool_result_message",
+           "user_message"]

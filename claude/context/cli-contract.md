@@ -48,7 +48,11 @@
 > are `runtime-contract.md` §6) and by `2026-10-13-twine-runtime-run-004`
 > (Arc 2 R4: §18, `twine run`, §2's verb list, §4's `transcripts` and
 > `sandbox` rows, §11.3's and §15.7's functions, §15.4's `runtime` fields and
-> the one removal; the loop itself is `runtime-contract.md` §7); a later
+> the one removal; the loop itself is `runtime-contract.md` §7) and by
+> `2026-10-13-twine-runtime-window-009` (Arc 2 R5: §19, `twine resume`,
+> §2's verb list, and §18's `--window`, refusals, outcomes, twin keys, human
+> mode and tests; the window, escalate's clarification form and cold resume
+> themselves are `runtime-contract.md` §6.6, §7.4–§7.6 and §7.9); a later
 > session that changes a line changes it here in the same response.
 
 ## 1. The entrypoint
@@ -93,7 +97,8 @@
   §13) — `kill` (`twine/commands/kill.py`, §14) and, since Arc 2 R1, the
   `runtime` group — `runtime list` and `runtime show`, and since R3
   `runtime tools` (`twine/commands/runtime.py`, §17) — and, since Arc 2
-  R4, `run` (`twine/commands/run.py`, §18). One group's verbs
+  R4, `run` (`twine/commands/run.py`, §18), and since R5 `resume`
+  (`twine/commands/resume.py`, §19). One group's verbs
   may live in several modules; the parser assembles the group from all
   of them.
 - `twine commands --json` emits
@@ -2601,7 +2606,7 @@ module that does not import); and the verb end to end on a copy of the tree
 with a module planted, one removed and the declaration broken (NOT OK, exit
 1, named, no traceback, every other verb still loading).
 
-## 18. `twine run BUNDLE --cap USD [--adapter anthropic|fake] [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R4)
+## 18. `twine run BUNDLE --cap USD [--adapter anthropic|fake] [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R4; `--window` R5)
 
 The loop that hosts a worker session from `bale open` to the apply line —
 R1 to R4, the first milestone of Arc 2: the worker side of the courier is
@@ -2624,6 +2629,7 @@ runs the apply line.
 | `--thinking` | `adaptive` | `adaptive` or `off`, a spawn-time constant (D12); `off` sends the Anthropic adapter `{"type": "disabled"}` explicitly (sending none would leave the model's default, which may think, and a thinking turn on a session spawned off is refused at the boundary) |
 | `--prices PATH` | `<state-dir>/prices.toml` | §13.4 |
 | `--max-turns N` | 200 | twine's own limit on model calls, not a stop key (§18.4) |
+| `--window N` | none | (R5) the context window in input tokens: fixes it, and the adapter is not asked. Absent, the adapter states it at spawn — the Anthropic adapter from one `GET /v1/models` (`max_input_tokens` for its model), the fake as unknown (`runtime-contract.md` §1.1, §5.7). An unknown window is not a refusal: the run counts it and cannot warn or stop on it |
 | `--state-dir`, `--bale-root`, `--cwd` | | as `carry bundle` takes them (§15) |
 
 ### 18.2 Refused before (outcome `refused`, exit 1)
@@ -2634,15 +2640,17 @@ without `--script`, or a script that is not JSON or that the fake refuses
 `anthropic`; `anthropic` without `--model`; `anthropic` with
 `ANTHROPIC_API_KEY` absent, empty or blank in the environment twine was
 started with — so `bale open` is never called for a run that could not
-call its model; `--cap` not a number of dollars; `--max-tokens` or
-`--max-turns` not positive; an empty `--prices`; no state directory
+call its model; `--cap` not a number of dollars; `--max-tokens`,
+`--max-turns` or (R5) `--window` not positive; an empty `--prices`; no state directory
 resolving (§13.2), or one that exists and is not a directory; a tool
 registry that is not ok (§17.6); a transition table the loop cannot stand
 on (not total; not declaring a move the loop performs:
 `classify-final-text`, `continue-turn`, `retry-with-backoff`,
 `return-tool-error`; or not declaring a stop key the loop reports itself —
 `cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` — among the stop
-axis's `loop_keys` with a row whose move is declared). A missing `--cap` or `BUNDLE` is argparse's usage
+axis's `loop_keys` with a row whose move is declared; or, since R5, not
+declaring `window-exhausted`, which the loop also reports, among the axis's
+keys with such a row). A missing `--cap` or `BUNDLE` is argparse's usage
 error (exit 2, nothing on stdout, §3).
 
 And after the open, still before the first model call — the session is
@@ -2675,6 +2683,13 @@ outcome is exit 1. The outcomes (`runtime-contract.md` §7.7): `delivered`,
 a `reason` saying so: a limit twine imposes on itself is not a stop key.
 A boundary refusal and an adapter that raises are `stopped` with the stop
 `adapter-defect` (§12), the move `fix-adapter` and the actor `operator`.
+Since R5: a known window used up after a call is `stopped` with the stop
+`window-exhausted`, the move `split-goal` and the actor `planner`, the next
+call not made (`turns` the calls made) — the same stop the provider's own
+refusal maps to; and escalate's clarification form is `suspended` with the
+tarball, the apply line and the dry run set and `block` null (the move the
+`apply-outcome` row's for `dry-run`, `operator-applies`), or `stopped` when
+that dry run is not clean.
 
 ### 18.5 The JSON twin
 
@@ -2701,9 +2716,14 @@ A boundary refusal and an adapter that raises are `stopped` with the stop
 | `sandbox` | the sandbox home's absolute path; null when none was made |
 | `inflight` | `"removed"` on `delivered`, `"kept"` otherwise, null when none was written |
 | `open` | `carry bundle`'s twin (its own keys, §15.5), or null |
+| `window` | (R5) `{"size": int \| null, "used": int, "warned": bool, "source": "flag" \| "adapter" \| "unknown"}` — exactly those keys: the size and where it came from, the last call's `used` (0 with no calls) and whether the run was warned; null when the run refused before the adapter was spawned |
+| `resumed_from` | (R5) null on `twine run`; on `twine resume` (§19) the `seq` of the transcript's last line before the resumed run's `run-start` |
+| `rewarm` | (R5, D23's named telemetry field) null on `twine run`; on `twine resume` the resumed run's first call's usage, the five classes — null until that call is made |
 
-And beside them: `actor` (the move's), `refusals`, `adapter`, `model`,
-`cap_usd`, `max_turns`, `check` (the last pre-call check's twin, §13.7),
+The three R5 names follow R4's, so R4's order holds. And beside them:
+`actor` (the move's), `refusals`, `adapter`, `model`, `cap_usd`,
+`max_turns`, `window_reason` (R5: why the window's size is unknown, null when
+it is known or no window was made), `check` (the last pre-call check's twin, §13.7),
 `running` (`pid`, `pgid`, `setsid`, `registered`, `cleared`, `note` — null
 before the group was led), `request` (where the request was unpacked, how
 many members, the top directory stripped), `network` (the sandbox's),
@@ -2724,11 +2744,12 @@ transcript and the spend stream are never removed.
 
 One `[twine] run: …` line per step on stderr as it happens — the open,
 the group, the sandbox, the request, each call, each tool, each retry, the
-end — **by default** (decision 5 of the R4 brief: a run is long and
+end — and since R5 the window at spawn and the call that warns — **by default** (decision 5 of the R4 brief: a run is long and
 unattended, and its progress is the operator's only view of it; `--verbose`
 adds the leveled log lines). On stdout at the end: **the apply line alone**
-on `delivered`; **the light block alone** on `suspended`; otherwise one
-line, `run <sid>: <outcome>, stop <key>, move <move> (<actor>'s), shape
+on `delivered`; **the light block alone** on `suspended` — or, on escalate's
+clarification form (R5), the clarification response's apply line alone;
+otherwise one line, `run <sid>: <outcome>, stop <key>, move <move> (<actor>'s), shape
 <shape> — <reason>` (the parts that apply), or `run <BUNDLE>: refused — …`.
 
 ### 18.8 Tests
@@ -2768,4 +2789,126 @@ requests the fake was given, the system prompt, the estimate, the
 conversation's shape held to the Anthropic adapter's helpers, the request
 unpacker, the move book, the transcript module and the in-flight record's
 new functions. `tests/test_json_discipline.py` runs `run` refused before
+anything starts, in-process and as a child. Since R5 `tests/test_window.py`
+(the warning line in what was sent and never in the transcript's
+`tool-result` line, exhaustion before a call, the order before a call, an
+unknown window, `--window` against the adapter's statement, the twin's new
+keys, the continue-turn and probe-hop turns, the counted cap estimate) and,
+for the Anthropic adapter's `GET /v1/models` read held to the recording and
+its unknown branches, `tests/test_anthropic.py`; the clarification form end
+to end is `tests/test_resume.py`'s (§19.6).
+
+## 19. `twine resume SID --cap USD --answer FILE|- [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R5)
+
+Cold resume (D23): continue a session `twine run` kept, under the same sid,
+from its transcript, with the planner's answer as the next user turn. The
+verb is `twine/commands/resume.py`; the rebuild is `twine/runtime/resume.py`
+and the contract `runtime-contract.md` §7.9. It shares `run`'s loop, report
+and helpers, and like `run` it **never applies anything** (T12) and imports
+no process-spawning module.
+
+### 19.1 The flags
+
+| flag | default | |
+|---|---|---|
+| `SID` | **required** (positional) | the session: one `twine run` left `suspended` (a light block, or escalate's clarification form), or `ended`, `stopped`, `killed`, `cap-*` — its in-flight record and transcript kept |
+| `--cap USD` | **required** | the session's hard cap (D15); absent, or not a finite non-negative number of dollars, is a named refusal (§19.2) — not argparse's, so every reason is named at once |
+| `--answer FILE\|-` | **required** | the planner's answer, sent verbatim as one user message: the packer's words for a light block, or the worker-facing block `bale relay` printed for a clarification; `-` reads stdin |
+| `--script FILE` | none | the fake's script, when the session ran on the fake (the in-flight record's `runtime.adapter` says which); refused for `anthropic` |
+| `--model M`, `--max-tokens N`, `--thinking adaptive\|off` | the transcript's | spawn-time constants (D12): the resume spawns with the last `run-start`'s; one given and different refuses (a different one is a new session, not a resume); one given and equal is accepted |
+| `--prices PATH`, `--max-turns N`, `--window N` | as `run`'s | §18.1; `--max-turns` bounds this run's calls |
+| `--state-dir DIR` | as `run`'s | the state directory the run used: its in-flight record, transcript and sandbox home must be there |
+| `--bale-root DIR` | as `run`'s | the bale the dry run reaches |
+| `--cwd DIR` | the in-flight record's `cwd` | where bale's dry run and `probe` run — the repo the session was opened in |
+
+### 19.2 Refused before (outcome `refused`, exit 1)
+
+Every reason named at once, **before anything starts** — no running
+record, no sandbox, no transcript line, no bale call: `SID` not a session
+id twine accepts; no state directory resolving, or one that does not exist;
+no in-flight record for `SID` (never opened by twine here, or delivered —
+`delivered` removes it), one that cannot be read, or one without `runtime`
+fields (the session was never hosted); the transcript the record names
+missing, not this state directory's, or not a conversation the rebuild can
+vouch for (`ResumeError`'s faults: a line that is not JSON, a torn last
+line, no `run-start`, no `request` line, a count that disagrees, a message
+the loop never wrote); the sandbox home the record names missing, not this
+state directory's, or holding no `request/`; `--answer` missing,
+unreadable, not UTF-8 or empty (whitespace only); `--cap` absent or not
+dollars; for the recorded adapter `fake`, `--script` absent or not a script
+the fake takes; for `anthropic`, `--script` given or `ANTHROPIC_API_KEY`
+absent, empty or blank; `--model`, `--max-tokens` or `--thinking` given and
+differing from the transcript's last `run-start`; `--max-tokens`,
+`--max-turns` or `--window` not positive; an empty `--prices`; the tool
+registry and the transition table, as `run` refuses them (§18.2). A
+missing `SID` is argparse's usage error (exit 2, §3). **No `bale open`**:
+the session is open in bale already — bale suspended it on the
+clarification, or left it open on the light block.
+
+And after the running record is written, still before the first model call
+— the session's state then as it was, its transcript and record kept, the
+reason saying so: a runtime that cannot lead a process group of its own; a
+running record that cannot be written; a sandbox that cannot be made; an
+adapter that cannot be spawned; a transcript that cannot be opened.
+
+### 19.3 The call sequence
+
+`runtime-contract.md` §7.9: the running record (`lead_own_group`, then
+`register_running`) before anything is spawned; the sandbox reused
+(`Sandbox.create` on the existing home; the request is not unpacked again);
+the adapter spawned with the transcript's constants and the key as `run`
+hands it — the key to the adapter and nothing else, the courier's bale call
+without it; the window (`--window`, or the adapter's statement); the
+transcript appended to — a `run-start` carrying `resumed_from`, `open` null,
+`answer` (its source, sha256 and length; the text itself is in the next
+`request` line) and `rebuilt`; the in-flight record's `runtime` fields
+replaced; the loop with the rebuilt conversation and the answer. The only
+bale call is `carry response`'s dry run, when the worker delivers or
+escalates in the clarification form.
+
+### 19.4 ok, the outcomes, and the JSON twin
+
+ok exactly when the outcome is `delivered` — exit 0; every other outcome is
+exit 1. The outcomes are `run`'s (§18.4). The twin is `run`'s (§18.5): the
+same fixed names in the same order, then the same names beside them —
+`command` `"resume"`, `open` null, `resumed_from` the `seq` of the line
+before the resumed run's `run-start`, `rewarm` the first call's usage (D23),
+`usage`, `cost_usd`, `turns` and `tool_calls` this run's own. The twin is
+also the transcript's `run-end` line.
+
+### 19.5 What is kept, what is removed, and human mode
+
+As `run`'s (§18.6, §18.7): the running record cleared (unless a tool's group
+outlived its run); on `delivered` the in-flight record removed and the home
+kept; otherwise both kept — a resumed run can suspend again, and a
+transcript carries any number of runs. Human mode prints `[twine] resume: …`
+progress lines on stderr and on stdout the apply line alone on `delivered`,
+the light block or the clarification response's apply line alone on
+`suspended`, otherwise one `resume <sid>: <outcome>, …` line.
+
+### 19.6 Tests
+
+`tests/test_resume.py`, the fake adapter throughout, no model (T8):
+`bin/twine run` and then `bin/twine resume` as child processes against
+`StubBale` — the recorded `opened` line for the run (edited, so named as not
+bale's) and none for the resume, the recorded clean dry run for every `apply
+--dry-run`. The clarification response's dry run is a stand-in: bale 0.4.52
+prints outcome `dry-run` with `verdict` and `merge` null for one (no side
+effect), no recording of that line exists, and the recorded `dry-run` line of
+a normal response — whose `verdict` and `merge` are null already — stands in
+for it, named as not a recording of the clarification fork until one is
+recorded. Suspended on `escalate` then resumed to `delivered` (bale saw the
+run's open and the resume's dry run, nothing else; `resumed_from`,
+`rewarm`, the first resumed `request` line's `messages_total` and
+`appended`); the rebuilt conversation the one sent plus the answer; a final
+text's light block in what is resumed; the answer from stdin and human mode;
+suspend again and resume again; a stopped run resumed; the window on a
+resume; the same constants accepted; the clarification form end to end
+(the tarball, its manifest, the apply line, the move, human mode, then the
+resume on a worker-facing block double) with bale's own request-carried
+crafter and lint (`tests/bale_tools/`, verbatim copies of bale 0.4.52's,
+pinned by sha256); a clarification dry run not clean; every refusal of
+§19.2, and every reason at once; the rebuild's own refusals; the running
+record registered before the sandbox's detection spawn, in-process with a
+stand-in group. `tests/test_json_discipline.py` runs `resume` refused before
 anything starts, in-process and as a child.

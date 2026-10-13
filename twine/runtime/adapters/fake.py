@@ -55,7 +55,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Mapping, Sequence
 
 from twine.runtime.boundary import Adapter, Request, SpawnSettings, Turn
-from twine.runtime.terms import NATIVE, ToolCall
+from twine.runtime.terms import NATIVE, ToolCall, WindowStatement
 from twine.spend import TOKEN_CLASSES, Tokens
 
 log = logging.getLogger("twine.runtime.adapters.fake")
@@ -198,6 +198,13 @@ class FakeAdapter(Adapter):
         log.debug("fake adapter: call %d plays scripted turn %d (stop %r)", played + 1,
                   played + 1, turn.stop)
         return turn
+
+    def context_window(self) -> WindowStatement:
+        """Unknown, always (Arc 2 R5): the fake plays a script and has no
+        model, so it has no window to state. A test that wants a window
+        names one with `twine run --window N`."""
+        return WindowStatement(None, "the fake adapter plays a script and has no model, "
+                                     "so it states no context window size")
 
 
 ADAPTERS = (FakeAdapter,)

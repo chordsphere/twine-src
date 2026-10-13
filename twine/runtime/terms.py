@@ -180,3 +180,53 @@ def token_faults(tokens: Any) -> list[str]:
         elif value < 0:
             found.append(f"tokens.{name} is negative ({value})")
     return found
+
+
+# ---------------------------------------------------------------------------
+# The context window (Arc 2 R5) — what an adapter states at spawn
+# ---------------------------------------------------------------------------
+
+
+class WindowStatementError(ValueError):
+    """A window statement that is not one: a size that is not a positive
+    integer, or an unknown size with no reason."""
+
+
+@dataclass(frozen=True)
+class WindowStatement:
+    """What an adapter says, at spawn, of its model's context window — the
+    window-accounting contract's first obligation: "state the model's
+    context window size at spawn, or say it is unknown".
+
+    size    the window in input tokens, a positive integer; None when the
+            adapter cannot say (its model is not listed, the provider's
+            listing failed, it has no model at all)
+    reason  why the size is unknown — required then, and None when the
+            size is known: an unknown never goes unexplained
+
+    Unknown is not a refusal: the run proceeds, counts the window from each
+    call's usage, and cannot warn or stop on it (runtime-contract.md §7.4).
+    The window's accounting is the runtime's (twine/runtime/window.py), so
+    this is the one thing an adapter contributes to it besides its usage.
+    """
+
+    size: int | None
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.size is not None and (type(self.size) is not int or self.size <= 0):
+            raise WindowStatementError(f"a window size must be a positive integer of tokens "
+                                       f"or None, not {self.size!r}")
+        if self.reason is not None and not isinstance(self.reason, str):
+            raise WindowStatementError(f"a window statement's reason must be a string, not "
+                                       f"{type(self.reason).__name__}")
+        if self.size is None and not (self.reason or "").strip():
+            raise WindowStatementError("a window statement that says the size is unknown "
+                                       "must say why")
+
+    @property
+    def known(self) -> bool:
+        return self.size is not None
+
+    def as_json(self) -> dict[str, object]:
+        return {"size": self.size, "reason": self.reason}

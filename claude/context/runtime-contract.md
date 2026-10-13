@@ -6,15 +6,18 @@
 > (`twine runtime list` and `show` are its §17). Each line here is
 > asserted by a test under `tests/` (`tests/test_runtime.py`,
 > `tests/test_anthropic.py`, `tests/test_runtime_tools.py`,
-> `tests/test_run.py`) and by the landing session's `validation.sh`. Landed by session
+> `tests/test_run.py`, since R5 `tests/test_window.py` and
+> `tests/test_resume.py`) and by the landing session's `validation.sh`. Landed by session
 > `2026-10-12-twine-runtime-registry-007` (Arc 2 R1); §1 (Q-3) and §2 (TQ-2)
 > were ratified as written on 2026-10-12. §5 and the lines of §1–§4 that say
 > "R2" are session `2026-10-13-twine-runtime-anthropic-002`'s (Arc 2 R2). §6
 > and the lines of §2 that say "R3" are session
 > `2026-10-13-twine-runtime-tools-003`'s (Arc 2 R3). §7, §3's `retry_after`
 > and `reason` and the lines of §1, §2 and §6 that say "R4" are session
-> `2026-10-13-twine-runtime-run-004`'s (Arc 2 R4), awaiting review. A
-> later session that changes a line changes it here in the same response.
+> `2026-10-13-twine-runtime-run-004`'s (Arc 2 R4). §7.9 and the lines of
+> §1–§7 that say "R5" are session `2026-10-13-twine-runtime-window-009`'s
+> (Arc 2 R5), awaiting review. A later session that changes a line changes
+> it here in the same response.
 
 What exists after R4, and what does not: the registry, the boundary, the
 fake adapter, `from_anthropic`, the Anthropic adapter (§5) — the first
@@ -26,9 +29,12 @@ process (through the run seam it is handed), and since R4 the loop (§7,
 `twine/runtime/loop.py`; the verb is `twine run`, cli-contract.md §18): the
 first code that calls a model on its own, runs the tools it asks for and
 appends to the spend stream. R2 does **not** use the `anthropic` SDK
-(§5.1). R5 adds window accounting's counting, the clarification response
-and cold resume, R6 the text tool protocol's wire and the OpenAI-compatible
-adapter.
+(§5.1). Since R5 the window is counted from each call's usage, warned in the
+worker's tool results and an outcome at its edge (§7.4,
+`twine/runtime/window.py`), `escalate` has its clarification form (§6.6),
+and a kept session resumes cold from its transcript (§7.9,
+`twine/runtime/resume.py`; the verb is `twine resume`, cli-contract.md §19).
+R6 adds the text tool protocol's wire and the OpenAI-compatible adapter.
 
 ## 1. The adapter boundary (Q-3; ratified 2026-10-12)
 
@@ -72,6 +78,19 @@ three are capabilities (§2) every adapter behind the boundary implements
 - `call` raises only for the adapter's own fault (a broken transport, a
   usage it cannot read). A provider *outcome* — a refusal, a rate limit,
   the window's edge, an overload — is a `Turn` whose `stop` names it.
+- **`context_window() -> WindowStatement`** (R5; `twine/runtime/terms.py`):
+  the model's context window, stated once at spawn — window-accounting's
+  first obligation, "state the model's context window size at spawn, or say
+  it is unknown". `WindowStatement(size, reason)`: `size` a positive integer
+  of input tokens or `None`; `reason` required when the size is unknown and
+  `None` when it is known. `Adapter`'s default says unknown (the fake keeps
+  it); the Anthropic adapter reads `GET /v1/models` (§5.7). The boundary's
+  `context_window()` passes it through held to the shape: an adapter that
+  raises, or answers with anything but a `WindowStatement`, is logged and
+  read as unknown with the fault in the reason — never a crash at spawn, and
+  never a refusal: an unknown window is counted and cannot warn or stop
+  (§7.4). It is not a capability an adapter declares in `implements` (the
+  window's accounting is the runtime's, §2.1).
 
 ### 1.2 Tool calling
 
@@ -243,7 +262,10 @@ operation is a named capability with a declared contract.
   (`capabilities`, `adapters`, `tools`); anything else refuses the
   declaration. That module lists the capability in a module-level
   `IMPLEMENTS` tuple, as an adapter lists its set (`twine.runtime.sandbox`:
-  `IMPLEMENTS = ("sandboxing",)`). `runtime list` prints it in each row as
+  `IMPLEMENTS = ("sandboxing",)`; since R5 `twine.runtime.window`:
+  `("window-accounting",)` and `twine.runtime.resume`: `("suspend-resume",)`
+  — the window is counted and the conversation re-warmed by the runtime,
+  whatever adapter is behind the boundary). `runtime list` prints it in each row as
   `implemented_by` (`null` for the rest). Why a key and not the loop as a
   pseudo-adapter: an adapter must implement the boundary's three and
   answer `call`, which a sandbox cannot, and a pseudo-adapter would put
@@ -304,26 +326,28 @@ The status check is held, not loosened, for a runtime capability (R3):
 capability that carries `implemented_by` is a `status-mismatch` naming it —
 an adapter never implements a runtime capability.
 
-### 2.4 The eight, at R3
+### 2.4 The eight, at R5
 
 | capability | status | module (under `twine.runtime.capabilities.`) | lands |
 |---|---|---|---|
 | `tool-calling` | implemented (`anthropic`, `fake`) | `tool_calling` | R2 Anthropic `tool_use` (landed); R3 the canonical tools (landed: §6 — the tools are the runtime's, the status the adapters'); R6 the text protocol |
 | `thinking` | implemented (`anthropic`, `fake`) | `thinking` | R2 Anthropic's parameter and blocks (landed) |
 | `prompt-caching` | implemented (`anthropic`) | `prompt_caching` | R2 (landed: §5.3) |
-| `window-accounting` | declared | `window_accounting` | R5 |
+| `window-accounting` | implemented (the runtime: `implemented_by` `twine.runtime.window`) | `window_accounting` | R5 (landed: §7.4–§7.6 — the size from `--window` or the adapter's statement, §1.1; `used` counted from each call's usage; the warning at 80%; exhaustion before a call) |
 | `streaming` | implemented (`anthropic`) | `streaming` | R2 (landed: §5.4) |
 | `sandboxing` | implemented (the runtime: `implemented_by` `twine.runtime.sandbox`) | `sandboxing` | R3 (landed: §6) |
-| `suspend-resume` | declared | `suspend_resume` | after R4, with R5's cold resume |
+| `suspend-resume` | implemented (the runtime: `implemented_by` `twine.runtime.resume`) | `suspend_resume` | R5 (landed: §7.9 — `twine resume`, the conversation rebuilt from the transcript; §6.6 — escalate's clarification form) |
 | `usage-accounting` | implemented (`anthropic`, `fake`) | `usage_accounting` | R2 calls `from_anthropic` (landed); R4 appends (landed: §7.4) |
 
 At R1 three were implemented (the fake's) and five declared; R2 moved
 `prompt-caching` and `streaming`; R3 moved `sandboxing`, implemented by the
-runtime itself (§2.1).
+runtime itself (§2.1); R5 moved `window-accounting` and `suspend-resume`,
+implemented by the runtime too, and none is `declared` now.
 
-Each declared capability's contract is written from the seed's §4.1 and
-§4.3 so that the session implementing it implements a declaration rather
-than inventing one; `twine runtime show <name>` renders it. `delegate`
+Each capability's contract was written from the seed's §4.1 and §4.3
+before the session implementing it, so that it implemented a declaration
+rather than inventing one — R5's two unchanged but for `lands`; `twine
+runtime show <name>` renders it. `delegate`
 (§4.5, the first experimental capability) is R8's and is not declared.
 
 ## 3. The fake adapter
@@ -355,8 +379,9 @@ playback. Each `call` plays the next turn and records the request it was
 given (`requests`); a call past the script's end raises
 `FakeScriptExhausted` instead of answering.
 
-**What it cannot do:** reach a network, read a key, stream, cache, count a
-window, choose or invent a turn — or map anything. Its stop mapping is the
+**What it cannot do:** reach a network, read a key, stream, cache, state a
+window (its `context_window()` says unknown, R5 — a test names one with
+`twine run --window N`), choose or invent a turn — or map anything. Its stop mapping is the
 identity, so a provider's word scripted where twine's belongs reaches the
 boundary unmapped and is refused there (§1.5); its usage mapping is the
 identity, since a script is already in twine's classes, and the counts are
@@ -663,7 +688,22 @@ table). Incoherent settings refuse at construction (`AnthropicConfigError`).
 transport and reads the answer by content type. `adapter.call(request:
 Request) -> Turn` is R1's `Adapter.call`, the boundary's path: the
 request's messages (append-only, §5.6) and tools, the spawn-time
-constants, `build_request`, one call, `Outcome.to_turn()`. One method takes
+constants, `build_request`, one call, `Outcome.to_turn()`.
+
+**`adapter.context_window() -> WindowStatement`** (R5, §1.1): one `GET
+https://api.anthropic.com/v1/models` through the transport seam — headers
+`x-api-key` and `anthropic-version`, no body, no query (one page, as the
+2026-10-13 `models` recording was taken) — read by
+`read_models_window(status, headers, body, model)`, pure: the entry whose
+`id` is the model, its `max_input_tokens` (1000000 for every 5.x model in
+the recording, 200000 for `claude-opus-4-5-20251101`). Unknown, the reason
+saying why, for an HTTP error (`error.type` and `message` quoted), a body
+that is not the JSON listing, a model the page does not list (and whether
+the page says `has_more`, which twine does not follow), an entry without a
+positive integer count, and a transport that fails. The answer is **held per
+adapter**: a second ask answers from the first, so a spawn costs one call
+(`window_calls`); the verb asks once, at spawn, and only when `--window` does
+not fix the size. Reasons are scrubbed of the key as every reason is. One method takes
 both because both are pinned (the brief's `call(body)` and R1's
 `call(request)`); `send(body)` and `turn(request)` are the two halves by
 name. Neither ever raises for a provider outcome or a transport failure —
@@ -673,7 +713,8 @@ that is not JSON, an edited conversation) and for an unreadable usage.
 ### 5.8 What it does not do
 
 No retries or backoff (R4's), no appending to `spend.jsonl` (R4's), no
-tools' bodies or sandbox (R3's), no window counting (R5's), no server
+tools' bodies or sandbox (R3's), no window counting — it states the size
+(§5.7) and reports usage; the count is the runtime's (§7.4, R5) — no server
 tools, batches, files, citations, structured outputs, `tool_choice` or
 `output_config`, no SDK, no proxy.
 
@@ -759,7 +800,9 @@ without a dependency (T9): `type` (object, string, integer, number, boolean,
 array), `properties`, `required`, `additionalProperties: false`, `items`,
 `minItems`, `maxItems`, `minLength`, `exclusiveMinimum`, `description`. A
 schema using anything else is a `malformed-tool`, so no call is waved
-through a keyword nobody checks. Every spec passes R2's `tool_dict` and
+through a keyword nobody checks. (Since R5 `escalate`'s `questions` has no
+`maxItems`: the light form's count of three is the executor's, the
+clarification form takes more.) Every spec passes R2's `tool_dict` and
 `build_request` unchanged (a test sends all seven).
 
 | tool | input | leaves the cage |
@@ -769,7 +812,7 @@ through a keyword nobody checks. Every spec passes R2's `tool_dict` and
 | `write_file` | `path`, `content` (UTF-8 text; parents created; an existing file replaced, a directory refused) | no |
 | `list_dir` | `path` (default `.`, the home) | no |
 | `probe` | `block` (a probe block in bale's shape — the fence included — as text) | **yes** (§6.5) |
-| `escalate` | `questions`: one to three objects, each `question`, `while_doing`, `would_assume`, `why_blocked` (non-empty strings, one line each) | no (§6.6) |
+| `escalate` | `questions`: objects, each `question`, `while_doing`, `would_assume`, `why_blocked` (non-empty strings) — one to three, one line each, for the light form; one or more with `blocking: true`; optional `blocking` (boolean, default false: R5's clarification form) | no (§6.6) |
 | `deliver` | `tarball` (a path inside the home) | no |
 
 Every tool returns a **`ToolResult`**; `as_json()` is `name`, `content` (a
@@ -783,7 +826,7 @@ pinned keys, in this order:
 | `write_file` | `path`, `size` (bytes written) |
 | `list_dir` | `path`, `entries` — `[{name, kind, size}]`, sorted by name; `kind` from the entry itself, never followed: `file`, `dir`, `link` or `other`; `size` a file's bytes, `null` for the rest |
 | `probe` | `slug`, `leaves_cage` (always `true`), `exit_code`, `lines` (the integrity trailer's count) |
-| `escalate` | `kind` (`"light"`), `suspend` (`true`; `false` on an error), `questions` (the count) |
+| `escalate` | `kind` (`"light"`, or since R5 `"clarification"`), `suspend` (`true`; `false` on an error), `questions` (the count), and since R5 `path` (the clarification response tarball, relative to the home) and `sha256` — both `null` on the light form and on an error |
 | `deliver` | `delivered` (`true`; `false` on an error), `path`, `size`, `sha256` |
 
 An error result carries the same keys, those the tool could not know `null`
@@ -925,10 +968,51 @@ assume:`, `why blocked:`), `Reply: answer inline, "as assumed", or
 returned it is read back with `twine.shapes`: exactly one `light` block,
 intact, for the sid, its rows the ones given — or the call is an error. One
 to three questions (admission is a count); a fourth, none, a field empty or
-not one line is an error. The result is the block as `content`, `kind:
-"light"` and `suspend: true` — the loop stops the worker's turn and carries
-the block. The blocking form, the clarification response with cold resume,
-is R5's; `kind` is declared now so R5 adds a value, not a shape.
+not one line is an error (a fourth names the clarification form). The result
+is the block as `content`, `kind: "light"`, `suspend: true`, `path` and
+`sha256` null — the loop stops the worker's turn and carries the block.
+
+**The clarification form** (R5; `blocking: true`; TARBALL.md §5.9): one or
+more questions — the light tier's count of three does not bind; the
+clarification response's schema does (`questions[]` non-empty, each row the
+four fields, none empty; a row may span lines). The tool **writes the
+clarification response tarball** in the home and names it, wrapping bale's
+shape and never forking it (D13):
+
+1. **the crafter**, request-carried, scaffolds the response directory: in
+   the cage through the sandbox's runner (the cage's environment, network
+   off where it can be, registered with the kill-switch, the home its
+   working directory), on the interpreter twine runs on —
+   `<python> -I -B request/tools/craft_response.py
+   escalations/<k>/response-NNN --sid <sid> --kind clarification
+   --questions N --write`: the manifest skeleton and the crafter's `apply.sh`
+   and no-op `validation.sh`. A request without the crafter, a crafter that
+   exits non-zero, or a skeleton that is not a clarification with N rows is
+   an error naming it;
+2. **the judgment fields** are filled from the arguments: each row's
+   `question`, `context` (`while_doing`), `default_assumption`
+   (`would_assume`) and `why_blocked`, and `summary` — what the session was
+   asked to do (the request manifest's `goal`) and that it is blocked on the
+   questions;
+3. **the lint**, request-carried (`request/tools/response_lint.py <dir>
+   --json`), judges it the same way, when the request carries it: a finding
+   is an error naming each (`code: message`); a request without it is said
+   in `content` and logged, and the dry run judges alone;
+4. **the tarball**, as a response tarball is built (TARBALL.md §5.1, one
+   top directory `response-NNN/`, NNN the sid's counter):
+   `escalations/<k>/response-<sid>.tar.gz` (§10.1 step 11's name), `k` the
+   first number not taken, so every round of a session's escalations is
+   kept.
+
+The result: `kind: "clarification"`, `suspend: true`, `questions` (the
+count), `path` and `sha256`. The loop treats it as `deliver` and suspend
+(§7.4): `carry response` on the tarball, then the run ends `suspended`
+with the twin's `tarball`, `apply_line` and `dry_run` set and `block` null
+— or `stopped` when the dry run is not clean, as a bad delivery is. The
+operator applies the line; bale suspends the session and prints the
+planner's paste block; the planner answers and `bale relay` carries it; and
+`twine resume <sid> --answer <the worker-facing block>` continues (§7.9).
+The light form is unchanged.
 
 **`deliver`** names the response tarball the courier will carry: the path
 through the cage rules, a regular file, readable; the result is
@@ -968,8 +1052,11 @@ what makes the architect stop being the courier on the worker side. The
 code is `twine/runtime/loop.py` (the loop as functions and one class,
 `Loop`, so R5's resume and R8's `ask` re-warm a transcript through the same
 code); the verb is `twine run BUNDLE` (`twine/commands/run.py`,
-cli-contract §18), which assembles what the loop needs. The tests are
-`tests/test_run.py`: the fake adapter throughout, no model.
+cli-contract §18), which assembles what the loop needs, and since R5 `twine
+resume SID` (`twine/commands/resume.py`, cli-contract §19; §7.9). The window
+the loop counts is `twine/runtime/window.py`. The tests are
+`tests/test_run.py`, and since R5 `tests/test_window.py` and
+`tests/test_resume.py`: the fake adapter throughout, no model.
 
 ### 7.1 The sequence
 
@@ -982,10 +1069,13 @@ bundle` recorded.
    arguments (`--model` with `anthropic`; `--script` with `fake` only,
    parsed by `FakeScript.from_data`, so a bad script refuses before bale
    opens; `ANTHROPIC_API_KEY` set in the environment twine was started
-   with, for `anthropic`), the cap, the limits, the state directory, the
+   with, for `anthropic`), the cap, the limits (since R5 `--window`, a
+   positive number of tokens when given), the state directory, the
    tool registry (ok, `twine runtime tools`'s) and the transition table
    (`MoveBook.faults()`: the table total, every move the loop performs
-   declared).
+   declared, a row with a declared move for every stop the loop reports —
+   since R5 `window-exhausted` among them, a key of the axis and not a
+   loop key).
 1. **`carry bundle`** — `twine.commands.carry_bundle.open_bundle`, the
    function, not a subprocess: `bale open <bundle> --json` through the seam,
    the in-flight record written (cli-contract §15.4). Its refusals are the
@@ -1022,8 +1112,14 @@ bundle` recorded.
 5. **The adapter**, behind the boundary (§1): `anthropic` (§5) with the
    model, `max_tokens` and thinking as spawn-time constants (D12) and the
    surface note as its system text; or `fake` with the script. Each is
-   found by name through the adapter registry (`adapter_class`).
-6. **The transcript** opened (§7.6).
+   found by name through the adapter registry (`adapter_class`). Then **the
+   window** (R5): `--window N` fixes its size (source `flag`, the adapter
+   not asked); absent, the adapter states it (§1.1 — the Anthropic
+   adapter's one `GET /v1/models`, source `adapter`; the fake's unknown,
+   source `unknown`, with the adapter's reason). Unknown is not a refusal.
+6. **The transcript** opened (§7.6); its `run-start` line carries the
+   window (`size`, `source`, `reason`, `warn_fraction`) and `resumed_from`
+   null.
 7. **The in-flight record's `runtime` fields** (`inflight.record_runtime`,
    cli-contract §15.4): `adapter`, `model`, `sandbox_home`, `transcript`,
    `started_at`, `pgid`. A record that cannot take them (none was written,
@@ -1081,7 +1177,8 @@ provider's module.
 ### 7.4 Each call, and the moves the loop performs
 
 Until an outcome, in this order — and **every step is a transcript line
-before the next begins** (§7.6):
+before the next begins** (§7.6). Before a call: the abort file, twine's
+`--max-turns`, **the window** (R5), then the cap.
 
 1. **The abort file** (`kill.abort_requested`, cli-contract §14.3): set →
    outcome `killed`, stop `killed`. Its move, `close-aborted`, is `twine
@@ -1090,15 +1187,52 @@ before the next begins** (§7.6):
    stops before the next one (decision 4) — outcome `ended`, `shape`
    `"max-turns"`, no stop key: a limit twine imposes on itself is not a key
    of the axis.
-3. **The pre-call check** (`spend.check_call`, §13.8) with the cap, the
+3. **The window** (R5; `twine.runtime.window`): when the size is known and
+   the last call's `used` (below) is at or past it, **the call is not
+   made**: outcome `stopped`, stop `window-exhausted`, the table's move for
+   it (`split-goal`, the planner's), the `move` line saying the call was not
+   made, the twin's `turns` the calls actually made. The stop key is the
+   table's and is not one of its `loop_keys` — a provider maps onto it too
+   (Anthropic's `model_context_window_exceeded`, R2, which keeps mapping to
+   the same stop); its one spelling in code is
+   `twine.transitions.STOP_WINDOW_EXHAUSTED`, and `MoveBook.faults` holds the
+   table to a row for it whose move is declared, so `twine run` refuses a
+   table without one before it opens anything.
+4. **The pre-call check** (`spend.check_call`, §13.8) with the cap, the
    model, the input estimate (§7.5) and `max_tokens`: `cap-reached` and
    `cap-unchecked` are outcomes of the same name, stop the same key, the
    check's `refusal` and `reason` carried; the call is not made.
-4. **The call** through the boundary. Its usage is appended to
+5. **The call** through the boundary. Its usage is appended to
    `spend.jsonl` (`spend.append_record`: the sid's own, `served_sid` null,
    `extra` the call number, the stop and the adapter, and the provider's
    request id when there is one) **before anything else is done with the
-   turn** — one record per call, a zero-usage refusal included. A usage the
+   turn** — one record per call, a zero-usage refusal included. Then **the
+   count** (R5): `used` = that call's `input + cache_read + cache_write` —
+   the prompt as the provider counted it, `Tokens`' input side, exact and
+   the provider's own; 0 before the first call. One `window` line per call
+   that returned a turn (§7.6). The window decisions key on `used` alone:
+   what was appended since the last call is not counted toward them (the
+   provider's own refusal is the backstop for that gap), so the numbers the
+   worker reads are counts, never estimates. A call whose input side is 0 —
+   one the provider answered with no count, an error before any answer —
+   leaves `used` as it was: every prompt carries the system note, so a zero
+   is an uncounted call, never an empty window. When the size is known and
+   `used` is at or past `0.8 × size` (`WINDOW_WARN_FRACTION`, one constant)
+   the run is **warned**, and stays warned: from then on **every tool
+   result the loop returns to the model carries, as its last line**,
+
+   ```text
+   [window: N of M input tokens in use (P%); the window does not compact — finish and deliver, or escalate; past 100% the run stops window-exhausted]
+   ```
+
+   `N` the last call's `used`, `M` the size, `P` `N * 100 // M` — appended
+   to the result's `content` the model reads (after an LF unless the content
+   already ends with one; the line alone when the content is empty), never
+   to the transcript's `tool-result` line, never by editing an earlier turn
+   (the capability's promise). The `continue-turn` user message (its text
+   and each "not run" result in it) and the probe hop's user turn carry the
+   same line while warned; so do the "not run" results of a turn that ended
+   the run, which a resume sends. A usage the
    stream refuses ends the run `stopped`: the loop does not spend what it
    cannot count. A `BoundaryError`, or an adapter that raises (the fake's
    script running out, an unreadable usage, an edited conversation), ends
@@ -1106,20 +1240,21 @@ before the next begins** (§7.6):
    `fix-adapter` and the actor `operator` — an adapter defect, not a model
    outcome (§1.6). The transcript's `adapter-error` line is followed by a
    `move` line for it, as every other stop gets one, and the spend stream is
-   untouched: no turn, no record. (`twine run` refuses before it opens
+   untouched: no turn, no record, no `window` line. (`twine run` refuses before it opens
    anything on a table that does not declare `adapter-defect` among the
    `stop` axis's `loop_keys` with a row, as for every key the loop reports.)
-5. **The move**, by the transition table — the `stop` axis row's move, read
+6. **The move**, by the transition table — the `stop` axis row's move, read
    through `MoveBook`, never a second dispatch table:
 
 | the turn | the table's move | what the loop does |
 |---|---|---|
-| asks for tools (`stop` null) | — | runs each call in order through `run_tool`; each result goes back as a `tool_result`, `is_error` carried — a failed tool is **`return-tool-error`**, returned and never a crash. A result with `suspend: true` (`escalate`) → outcome **`suspended`**, the light block carried; a result with `delivered: true` (`deliver`) → `carry response` on the tarball (§7.7). Nothing after either runs in that turn: each later call is answered `is_error` "not run" so the conversation stays whole for a resume |
+| asks for tools (`stop` null) | — | runs each call in order through `run_tool`; each result goes back as a `tool_result`, `is_error` carried — a failed tool is **`return-tool-error`**, returned and never a crash. A result with `suspend: true` (`escalate`) → outcome **`suspended`**, the light block carried — or, when the result names a tarball (`path`: escalate's clarification form, R5, §6.6), `carry response` on it first, then **`suspended`** with the tarball, the apply line and the dry run (`stopped` when the dry run is not clean); a result with `delivered: true` (`deliver`) → `carry response` on the tarball (§7.7). Nothing after any of these runs in that turn: each later call is answered `is_error` "not run" so the conversation stays whole for a resume |
 | `end-turn` | `classify-final-text` | `shapes.find_blocks` on the turn's text: a **light** block, intact and for this sid → **`suspended`** (as `escalate`); one that is not → `ended`, shape `light`; a **probe** block → run through the `probe` tool, its content (the paste-back, or why it did not run) the next user turn — D13's hop closed; **prose** or any other shape → **`ended`**, `shape` the report's |
 | `max-tokens` | `continue-turn` | the partial content kept as an assistant turn, then a user turn: a `tool_result` "not run" for any `tool_use` block the partial turn holds (the API refuses one left unanswered), then the request to continue (decision 3: ending on a user turn needs no prefill, which not every model allows). At most 3 continuations in a row, then `stopped` |
 | `rate-limited`, `overloaded`, `provider-error`, `network-failure`, `timeout` | `retry-with-backoff` | the same call again after `Turn.retry_after` seconds when the provider named them, else 2, 4, 8, 16, 32; at most 5 retries of one call, then `stopped`, the stop and the attempts in `reason`. The wait sleeps a second at a time and checks the abort file between: an abort meanwhile is `killed` |
 | `request-refused`, `model-refusal`, `window-exhausted`, `malformed-shape`, `tool-error` | `fix-request`, `reword-brief`, `split-goal`, `respawn-from-request`, `return-tool-error` | **`stopped`**, the stop key and `Turn.reason` carried, the move and its actor named for whoever performs it |
-| `cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` | `stop-at-cap`, `fix-and-resume`, `close-aborted`, `fix-adapter` | never from an adapter (the boundary refuses them, §1.5): the loop's own, steps 1, 3 and 4 (`adapter-defect` ends the run `stopped`; the other three are outcomes of their own name) |
+| `cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` | `stop-at-cap`, `fix-and-resume`, `close-aborted`, `fix-adapter` | never from an adapter (the boundary refuses them, §1.5): the loop's own, steps 1, 4 and 5 (`adapter-defect` ends the run `stopped`; the other three are outcomes of their own name) |
+| `window-exhausted`, before a call (R5) | `split-goal` | the loop's own too, step 3, beside the provider's: `stopped`, the call not made |
 
 A `tool-error` stop on the API side — a provider saying a tool failed — is
 `stopped` like the refusals: the loop's own `return-tool-error` is the
@@ -1136,8 +1271,15 @@ twine would send it — the note, the tool definitions and the messages,
 JSON-encoded — in UTF-8 bytes, divided by **2** and rounded up. An estimate
 by characters, acceptable at R4, and deliberately high: a token is three to
 four bytes of English or code and only the densest text (hex, base64) comes
-near two, so the worst case the check prices is above the real one. R5's
-window accounting replaces it with counted usage.
+near two, so the worst case the check prices is above the real one.
+
+Since R5, **once a call has counted the window** the check prices the
+window's `used` plus `estimate_appended_tokens(messages)` — the same bytes
+/ 2 of the messages appended since the last call alone (0 when nothing was,
+a retry) — tighter than the estimate of the whole request, and still above
+the real number. Before the first counted call of a run (a resumed run's
+first call included) it prices the whole-request estimate. The `check`
+line says which (`input_basis`: `counted` or `estimated`).
 
 ### 7.6 The transcript
 
@@ -1152,10 +1294,11 @@ first and the next line says `torn_before`. Each line is one object, `at`
 
 | `kind` | the event |
 |---|---|
-| `run-start` | `adapter`, `model`, `max_tokens`, `thinking`, `sandbox` (§6.4's `as_json`), `request` (where it was unpacked), `open` (the open's `sid` and `tarball` — not its twin), `group` (the runtime's pid, pgid, whether it called setsid), `cap_usd`, `max_turns`, `system` (the prompt: the note and the tools) |
-| `check` | `call`, `input_estimate`, `check` (the pre-call check's twin) |
-| `request` | `call`, `messages_total`, `appended` — the messages added since the last `request` line, so the lines' `appended` lists, joined, are the conversation as sent, with no quadratic growth (the key never appears: the adapter has no path for it to). After a turn that ends the run, a last one with `sent: false` carries the tool results that were never sent |
+| `run-start` | `adapter`, `model`, `max_tokens`, `thinking`, `sandbox` (§6.4's `as_json`), `request` (where it was unpacked), `open` (the open's `sid` and `tarball` — not its twin; null on a resume), `group` (the runtime's pid, pgid, whether it called setsid), `cap_usd`, `max_turns`, `system` (the prompt: the note and the tools), and since R5 `window` (`size`, `source`, `reason`, `warn_fraction`) and `resumed_from` (null on `twine run`; on `twine resume` the `seq` of the line before it, beside `answer` — its source, sha256 and length — and `rebuilt`, what was re-warmed) |
+| `check` | `call`, `input_estimate`, `input_basis` (R5: `counted` or `estimated`, §7.5), `check` (the pre-call check's twin) |
+| `request` | `call`, `messages_total`, `appended` — the messages added since the last `request` line, so the lines' `appended` lists, joined, are the conversation as sent, with no quadratic growth (the key never appears: the adapter has no path for it to). When the run ends with messages no `request` line holds — the tool results of a turn that ended it, and since R5 the final assistant turn of an `end-turn` (a light block, prose), the results a window stop left unsent — a last one with `sent: false` carries them, so the joined lines are the whole conversation a resume rebuilds (§7.9) |
 | `turn` | `call`, `turn` (`Turn.as_json()`), and `spend_error` when the usage could not be appended |
+| `window` | (R5) after each `turn`: `call`, `used`, `size` (null when unknown), `fraction` (`used / size`, null when unknown), `warned`, and `call_input` (this call's own input side; `used` is kept when it is 0, §7.4) |
 | `tool-call` | `call`, `id`, `name`, `arguments` (and `source: "final-text"` for a probe hop) |
 | `tool-result` | `call`, `id`, `result` — the result's `as_json()`, every string over 64 KiB (`content`, `shell`'s `stdout` and `stderr`) cut with the cut marked |
 | `move` | `call`, `stop`, `move`, `actor`, `did` — what the loop did (and `shape`, or the `carry_response` twin, where they apply) |
@@ -1174,9 +1317,9 @@ record are what the cap and the kill stand on).
 | outcome | when |
 |---|---|
 | `delivered` | `deliver` named a tarball and `carry response` (`check_response`, the function: `bale apply --dry-run --json <path>`, §11.3) ran clean. The move is the `apply-outcome` row's for `dry-run`, `operator-applies` |
-| `suspended` | `escalate`, or an intact light block for this sid in the final text |
+| `suspended` | `escalate` — its light form, or (R5) its clarification form once the dry run of the tarball it wrote is clean — or an intact light block for this sid in the final text |
 | `ended` | the final text was prose or another shape (the worker finished without delivering — the planner's to read), or twine's turn limit (`shape` `max-turns`) |
-| `stopped` | a stop whose move is not the loop's, a bound reached (retries, continuations), the dry run not clean (its outcome's `apply-outcome` row names the move — `admit-or-return`, `return-to-worker`, `repack-on-new-base` — which is the operator's or the planner's; the loop reports it), an adapter defect (stop `adapter-defect`, move `fix-adapter`, the operator's) |
+| `stopped` | a stop whose move is not the loop's (since R5 the window's edge before a call among them), a bound reached (retries, continuations), the dry run not clean (a delivery's, or a clarification response's) (its outcome's `apply-outcome` row names the move — `admit-or-return`, `return-to-worker`, `repack-on-new-base` — which is the operator's or the planner's; the loop reports it), an adapter defect (stop `adapter-defect`, move `fix-adapter`, the operator's) |
 | `killed`, `cap-reached`, `cap-unchecked` | the loop's own stops, before a call |
 | `refused` | the verb refused before the first model call |
 
@@ -1189,13 +1332,64 @@ only** the in-flight record is removed (`inflight.remove_inflight`, R3's
 lifecycle proposal, half of it) and the sandbox home is **kept** — the
 response tarball lives there until the operator applies it; removing homes
 is a later session's. On `suspended`, `ended`, `stopped`, `killed` and the
-`cap-*` outcomes the record and the home are kept, for R5 and for the
-planner.
+`cap-*` outcomes the record and the home are kept, for `twine resume` (§7.9)
+and for the planner.
 
 ### 7.8 What it does not do
 
 It applies nothing (T12: the only apply argv is `bale apply --dry-run
---json`), unlocks nothing (a kill's closure is `twine kill`'s), resumes
-nothing (R5: the transcript and the kept record are its inputs), counts no
-window beyond the pre-call check (R5), speaks no text protocol (R6), removes
-no sandbox home, and never compacts (D12).
+--json`), unlocks nothing (a kill's closure is `twine kill`'s), resumes only
+through `twine resume` and only cold (§7.9: no cache is held hot — holding
+hot on the extended-cache tier is D23's later knob, the effort machinery's),
+counts the window and never estimates it toward a decision (§7.4: a size it
+does not know it cannot warn or stop on), speaks no text protocol (R6),
+removes no sandbox home, and never compacts, summarizes or drops a turn to
+make room (D12).
+
+### 7.9 Cold resume — `twine resume` (Arc 2 R5; D23)
+
+A worker blocked on an escalation goes cold (D23): nothing is held hot, the
+cache expires, and the conversation is re-warmed from the transcript on the
+answer. The verb is `twine resume SID --cap USD --answer FILE|-`
+(`twine/commands/resume.py`, cli-contract §19); the reading is
+`twine/runtime/resume.py`, suspend-resume's `implemented_by`.
+
+- **What it resumes.** A session `twine run` left `suspended` — a light
+  block, or the clarification form (§6.6) — or `ended`, `stopped`,
+  `killed`, `cap-*`: any run whose in-flight record (with its `runtime`
+  fields) and transcript are kept. `delivered` removed the record, so a
+  delivered session is refused.
+- **The rebuild** (`read_conversation`). Every complete line read as JSON,
+  in order. A `run-start` without `resumed_from` begins a new conversation
+  (a second desk's `twine run` starts over from the opener); one with it
+  continues the last. The conversation is every `request` line's `appended`
+  since then, in order, `sent: false` lines included — each line's
+  `messages_total` checked against the conversation joined so far — and the
+  constants of the last `run-start` (`adapter`, `model`, `max_tokens`,
+  `thinking`). Refused, every fault named (`ResumeError`): no such file, a
+  line that is not a JSON object, a torn last line (a run killed mid-write:
+  the tail may be missing), no `run-start`, no `request` line, a message the
+  loop never wrote, a count that disagrees.
+- **The sequence**, then as `twine run`'s from §7.1 step 3: the running
+  record; the sandbox reused (`Sandbox.create` on the existing home — the
+  request is already unpacked there and is not unpacked again; `request`
+  in the `run-start` line names it, `members` null); the adapter spawned
+  with the transcript's constants and the key as before, and the window
+  (`--window`, or the adapter's statement); the transcript appended to —
+  a `run-start` carrying `resumed_from` (the `seq` of the last line before
+  it), `open` null; the in-flight record's `runtime` fields replaced; the
+  loop with **the rebuilt conversation plus one user message whose text is
+  the answer**, verbatim — the packer's words for a light block, or the
+  worker-facing block `bale relay` printed for a clarification — and
+  `logged` = the rebuilt count, so the resumed run's first `request` line
+  carries `messages_total` = the previous last + 1 and `appended` = that
+  one message. `seq` continues; nothing earlier is edited, so the prefix the
+  cache keys on is unchanged. The bale calls are the dry run's alone: no
+  `bale open` (the session is open in bale already).
+- **The re-warm cost** (D23's "named telemetry field"): the twin's
+  `rewarm` — the resumed run's first call's `Tokens` (the five classes),
+  null until that call is made; `twine run` carries it null. A run counts
+  its own window from its own calls: `used` is 0 until the resumed run's
+  first call reports.
+- **Outcomes, and what is kept and removed**: as §7.7's. A resumed run can
+  suspend again; a transcript carries any number of runs.
