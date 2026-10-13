@@ -1,6 +1,8 @@
 """streaming — declared at Arc 2 R1; implemented by the Anthropic adapter
-in a later Arc 2 session. Its contract is CONTRACT below
-(claude/context/runtime-contract.md §2); nothing implements it yet."""
+at R2 (`anthropic`: `stream: true`, the SSE reader assembling the turn
+from chunks split anywhere, text and thinking deltas to an observer —
+claude/context/runtime-contract.md §5.4). Its contract is CONTRACT below
+(runtime-contract §2)."""
 
 from __future__ import annotations
 
@@ -25,6 +27,8 @@ CONTRACT = Contract(
         "stream are written from the finished turn alone",
         "an observer that fails does not fail the call",
     ),
-    lands="declared at R1; implemented with the Anthropic adapter (R2 or a later Arc 2 session)",
+    lands=("declared at R1; implemented at R2 by the Anthropic adapter: the SSE reader, "
+           "held to the four stream recordings of 2026-10-13 split at every byte, and "
+           "the observer the adapter is given"),
     grounds=("D20", "twine-seed.md §4.1", "twine-seed.md §5.2"),
 )

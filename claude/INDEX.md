@@ -45,10 +45,14 @@ project's inventory.
   (the three bale vocabularies and twine's stop set), one row per key,
   each naming a declared move with its actor (twine, operator or
   planner); no default case. Pull when a session dispatches on an
-  outcome or a stop, adds a stop, or raises the floor; the header comment
-  spells the shape and `twine transitions` checks it is total. Its `stop`
-  axis is the runtime boundary's stop set, read through
-  `twine.transitions.stop_keys` (`context/runtime-contract.md` §1.5).
+  outcome or a stop, adds a stop, maps a provider's words, or raises the
+  floor; the header comment spells the shape and `twine transitions`
+  checks it is total. Its `stop` axis is the runtime boundary's stop set,
+  read through `twine.transitions.stop_keys`, with its `loop_keys` (the
+  loop's, refused from an adapter: `twine.transitions.loop_keys`); since
+  Arc 2 R2 its `[[mapping]]` rows are each provider's words onto that axis,
+  read by the adapter through `provider_mapping`
+  (`context/runtime-contract.md` §1.5, §5.5).
 - `../twine/runtime/capabilities.toml` — the runtime's capability
   declaration (T7, §4.1; TQ-2's shape, proposed at Arc 2 R1): one
   `[[capability]]` per capability — `name`, `module`, `status`
@@ -65,8 +69,8 @@ project's inventory.
   one JSON line per model call, tokens by class and a nullable
   `served_sid`. The price file is the operator's — twine ships no prices —
   one `[model."<id>"]` table per model in US dollars per million tokens.
-  Both shapes, and that no provider usage has been recorded yet, are
-  `context/cli-contract.md` §13. The abort request is the kill-switch's
+  Both shapes, and what of a provider's usage is recorded (since Arc 2 R1
+  and R2: `fixtures/anthropic/`), are `context/cli-contract.md` §13. The abort request is the kill-switch's
   durable between-calls abort — its presence is the signal the loop checks
   before every model call, written by `twine kill` and never removed — and
   the running record is the process groups a session's runtime runs in, a
@@ -123,7 +127,7 @@ project's inventory.
   also §17, `runtime list` and `runtime show` (the registry rendered, ok
   on parity by name; one capability's contract).
 - `context/runtime-contract.md` — the runtime's contract, the sibling of
-  `cli-contract.md` (Arc 2 R1; §1 and §2 proposed, awaiting ratification):
+  `cli-contract.md` (Arc 2 R1; §1 and §2 ratified 2026-10-12; §5 Arc 2 R2's):
   §1 the adapter boundary (Q-3 — what an adapter implements: tool calling,
   thinking fixed at spawn, usage as the five token classes, the stop set
   read from the transition table's `stop` axis and spelled nowhere else;
@@ -132,8 +136,13 @@ project's inventory.
   parity by name, adapters declaring what they implement, the eight at
   R1), §3 the fake adapter (the script format, what it cannot do), §4
   provider usage mappings (`from_anthropic`'s table, thinking counted
-  once). Default inclusion for any Arc 2 runtime session: an adapter, a
-  capability, the loop, the sandbox, window accounting.
+  once; null cache counts read as 0 since R2), §5 the Anthropic adapter
+  (R2 — the transport seam, the key rule, the request and its three cache
+  breakpoints, the readers and the pinned `Outcome.as_json()`, the stop and
+  error mapping, the append-only conversation and the thinking-block rule,
+  the recordings' lander, the gated live smoke test). Default inclusion for
+  any Arc 2 runtime session: an adapter, a capability, the loop, the
+  sandbox, window accounting.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter
@@ -153,8 +162,11 @@ project's inventory.
   R1 a last section, "Provider recordings": `fixtures/anthropic/`, a
   provider's recorded `usage` object (one JSON object line per model per
   day) under its own rule, beside bale's, with its provenance and a
-  `| file | bytes | sha256 |` row. Pull when recording or reading a
-  fixture, or mapping a provider's usage.
+  `| file | bytes | sha256 |` row; since Arc 2 R2 also the wire of
+  2026-10-13 — fifteen request/response pairs with meta files, landed by
+  `bin/twine-land-provider-recordings` from the carried paste under
+  `fixtures/anthropic/carried/` — under the same section. Pull when
+  recording or reading a fixture, or mapping a provider's usage or words.
 
 ## Tools
 - `../bin/twine-record-fixtures` — the recorder: the probe a recording session
@@ -169,3 +181,10 @@ project's inventory.
   what the paste derives. Its naming rule is `../tests/fixture_rule.py`,
   shared with the tests; `--check` leaves the floor's `schemas/` alone.
   Pull both when raising the floor.
+- `../bin/twine-land-provider-recordings` — the provider lander (Arc 2
+  R2), the sibling for a model provider's wire: lands a provider-recording
+  paste-back under `fixtures/anthropic/` (request, response and meta per
+  recording, and the paste), or with `--check` writes nothing and exits 0
+  exactly when the tree and `fixtures/README.md`'s rows hold what it
+  derives. `context/runtime-contract.md` §5.9. Pull when a provider's API
+  is recorded again.

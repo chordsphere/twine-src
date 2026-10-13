@@ -1074,13 +1074,35 @@ Four axes, rendered in this order:
 | `telemetry-outcome` | the 13 telemetry outcomes of the bale at the floor (0.4.51's; unchanged since 0.4.45, and held fixed above the floor by the schema's pinned hash) | §6 `[[vocabulary]]` |
 | `closure-reason` | the 9 closure reasons of the bale at the floor (0.4.51's; unchanged since 0.4.45, held as above; `null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
 | `apply-outcome` | the 9 outcomes `bale apply --json` prints | §6 `[[vocabulary]]` |
-| `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `cap-reached`, `killed`, `cap-unchecked` (13; the last added by session 5b) | the table's `keys` |
+| `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `request-refused`, `provider-error`, `cap-reached`, `killed`, `cap-unchecked` (15; `cap-unchecked` added by session 5b, `request-refused` and `provider-error` by Arc 2 R2); its `loop_keys` are `cap-reached`, `cap-unchecked`, `killed` | the table's `keys` |
 
 A bale axis takes its keys from the manifest's vocabulary of the same
 name and never declares its own, so its keys are exactly bale's
-spellings, no more and no fewer. The stop names are twine's: each model
-adapter maps its provider's stop reasons onto them when the loop is
-built (Arc 2), verified against the SDK then. A **move** has a name, an
+spellings, no more and no fewer. The stop names are twine's. Since Arc 2
+R2 the stop axis also declares **`loop_keys`** — the keys the loop
+produces (the cost spine's, the kill-switch's) and no model adapter may, a
+subset of `keys`, on a twine axis only — read through
+`twine.transitions.loop_keys()`, which refuses a table without them as
+`stop_keys()` refuses a table without the axis; the runtime boundary
+refuses a turn an adapter stops with one (`runtime-contract.md` §1.5).
+
+**The provider mappings** (Arc 2 R2) sit beside the rows: `[[mapping]]`
+entries, each a provider's word onto the stop axis — `provider`, `on`
+(`stop_reason`, `error_type`, `status` — three digits — or `condition`,
+one of the seven conditions twine names itself: `socket-timeout`,
+`connection-error`, `stream-cut`, `unclassified-stream-error`,
+`unlisted-stop-reason`, `unlisted-status`, `malformed-body`), `word`, and
+exactly one of `stop` (a key of the axis, never a loop key) and
+`continues = true` (the turn goes on: the model asked for tools), with
+`means`. They are the only place a provider's word becomes twine's: the
+model adapter reads its provider's through
+`twine.transitions.provider_mapping(<provider>)`, which refuses when any
+mapping fault names that provider, and spells no stop key. The first
+provider is `anthropic` (36 mappings: seven stop reasons, eleven HTTP
+statuses, eleven error types, the seven conditions; `runtime-contract.md`
+§5.5 is the table in prose). Mappings are not rows: a key needs its row
+whether or not a mapping lands on it, and a table with no mappings is
+still total. A **move** has a name, an
 `actor` — exactly one of `twine`, `operator`, `planner`; a move needing a
 decision is never twine's (N4) — and a one-sentence `description` of
 what happens next. No move has twine merge or apply anything (T12).
@@ -1092,7 +1114,20 @@ for `malformed_response` (`closure-reason`) and `malformed-shape`
 `fix-and-resume`, the operator's — the check could not run, so the remedy
 is to fix the named fault (write the price row, repair the stream line,
 name a state directory) and resume, never to raise the cap. `killed` is
-`close-aborted`, twine's (§14). The table has 44 rows.
+`close-aborted`, twine's (§14). Arc 2 R2's two provider keys have their
+moves: `request-refused` is **`fix-request`**, the operator's — the
+provider refused the request itself (its shape, the credentials, billing,
+permission, the model, a conflict, the size: HTTP 400, 401, 402, 403, 404,
+409, 413), so nothing is retried and the operator is told — and
+`provider-error` (HTTP 500 `api_error`) is `retry-with-backoff`, like an
+overload. The table has 46 rows over 27 moves, and 36 mappings.
+
+`[table] written_against` is the bale version the bale axes' keys are
+spelled for: since Arc 2 R2 **the manifest's floor**, `0.4.51` — the
+version the three vocabularies were last re-read at (pin-051), unchanged
+value for value since 0.4.45. (It said `0.4.49` from the pin at 0.4.49
+until R2: the tables of the 0.4.51 pin and of the floor were left
+untouched, the vocabularies not having moved.)
 
 ### 12.3 ok, and the problems that make it false
 
@@ -1111,7 +1146,12 @@ line, no traceback, and each fault a problem naming what is at fault:
 | `missing-vocabulary` | a bale axis the manifest records no vocabulary for (or the manifest is unusable) |
 | `missing-axis` | a vocabulary the manifest records for an axis the table lacks |
 | `catch-all-key` | a key spelled as a default case (`*`, `default`, `other`, …) on any axis |
-| `malformed-axis`, `malformed-row` | the axis or row that does not have the table's shape |
+| `malformed-axis`, `malformed-row` | the axis or row that does not have the table's shape — a `loop_keys` that is not a non-empty list of the axis's own keys, or on a bale axis, included |
+| `malformed-mapping` | a `[[mapping]]` without the shape: a missing provider, `on` or word; an `on` outside the four; a status that is not three digits; a condition outside the seven; both or neither of `stop` and `continues = true`; an unknown key |
+| `unknown-stop` | a mapping onto a key the stop axis lacks (the provider, the word and the key) |
+| `loop-key-mapped` | a mapping onto one of the axis's `loop_keys` |
+| `duplicate-mapping` | a (provider, `on`, word) mapped more than once |
+| `missing-mapping` | a provider that maps some word but not one of the seven conditions |
 | `unusable` | the table file cannot be read or parsed |
 
 ### 12.4 The JSON twin
@@ -1122,22 +1162,24 @@ One line (§3), `command` `"transitions"`. Fixed names:
 |---|---|
 | `rows` | every row: `axis`, `key`, `move` (strings), plus `actor` (the move's, or null when it is not declared) and `means`; in axis order, then the key's place in its vocabulary; rows refused as unknown follow |
 | `moves` | an object keyed by move name: `actor`, `description` (strings), `grounds`, `rows` (how many name it) |
-| `problems` | each fault: `kind`, `axis`, `key`, `move` (null where not applicable), `message` |
+| `problems` | each fault: `kind`, `axis`, `key`, `move`, `provider` (null where not applicable; `provider` since Arc 2 R2, set on a mapping's fault), `message` |
+| `mappings` | every provider mapping (Arc 2 R2), in the file's order: `provider`, `on`, `word`, `stop` (null when it continues), `continues`, `means`, and `move` (the stop's row's move; null when it continues or the stop has no row) |
 | `reason` | every problem's message, `; `-joined; null when ok |
 
 And beside them: `table` (the file read), `written_against` (the bale
-version the table's bale axes are spelled for — still `0.4.49` at the
-0.4.51 floor, since the table was left untouched when the vocabularies did
-not move; reported beside `floor`, never gated on), `floor` (the
+version the table's bale axes are spelled for — the floor, `0.4.51`, since
+Arc 2 R2; reported beside `floor`, never gated on), `floor` (the
 manifest's; `pin` until session `2026-10-12-twine-pin-floor-002`, and no
 `pin` key now),
-`axes` (each `name`, `source`, `home`, `means`, `keys`), `counts`
-(`axes`, `keys`, `rows`, `moves`), `unused_moves` (declared moves no row
-names — reported, not a fault).
+`axes` (each `name`, `source`, `home`, `means`, `keys`, and `loop_keys` —
+the list on the stop axis, null on the others — since Arc 2 R2), `counts`
+(`axes`, `keys`, `rows`, `moves`, and `mappings` since R2),
+`unused_moves` (declared moves no row names — reported, not a fault).
 
 Human mode prints the same facts: the verdict line, each axis with one
-line per row (`key -> move [actor]`), the moves with their actors and
-descriptions, and every problem.
+line per row (`key -> move [actor]`) and the stop axis's loop keys, the
+provider mappings (`provider  on word -> stop`), the moves with their
+actors and descriptions, and every problem.
 
 ### 12.5 Tests
 
@@ -1150,7 +1192,13 @@ doubles' `refused` and `hold` among them — and the module's other
 problems). The bale axes are held to `tests/helpers.py`
 `BALE_VOCABULARIES`, the probe's lists, and
 `tests/test_consumption_manifest.py` asserts the manifest's lists and
-the table's bale-axis keys agree.
+the table's bale-axis keys agree. Since Arc 2 R2: `loop_keys()` and its
+refusals; the Anthropic mapping held to the R2 brief's table, word for
+word, by a copy of the test's own; no mapping onto a loop key, every mapped
+stop with its row, no condition spelled as a stop key; each mapping
+detector fired against an edited copy (and `provider_mapping` refusing
+it); the two provider keys and the `fix-request` move; `written_against`
+the floor.
 
 ## 13. `twine spend` — the cost spine (D15)
 
@@ -1162,17 +1210,18 @@ degrade silently".
 
 ### 13.1 What is known, and what is not
 
-**No provider usage has been recorded yet.** Nobody has seen what a
-provider's API returns as usage: its field names, whether it reports
-thinking separately, its cache-write tiers. The gated probe
-**`twine-usage-record`** is what will record it; it waits on a funded key.
-So the spine **never sees a provider's shape**: it reads and writes only
+**What session 5a wrote — "no provider usage has been recorded yet" — is
+history** (the two parentheses below say what is true since): at 5a nobody
+had seen what a provider's API returns as usage — its field names, whether
+it reports thinking separately, its cache-write tiers — and the gated probe
+`twine-usage-record` was to record it. So the spine **never sees a provider's shape**: it reads and writes only
 twine's own usage record (§13.3), in twine's own five token classes.
 Mapping a provider's usage onto that record is the model adapter's job
-(Arc 2), verified against that recording when it exists. Every usage value
-in `tests/` is a twine record built by `tests/helpers.py`
-`usage_double`, named as a double; nothing in the tree claims to be an API
-response.
+(Arc 2), verified against a recording. Every usage value a spend test
+hands the spine is a twine record built by `tests/helpers.py`
+`usage_double`, named as a double; the API responses in the tree are the
+provider recordings under `fixtures/anthropic/`, which only the runtime's
+tests read.
 
 (Since Arc 2 R1, session `2026-10-12-twine-runtime-registry-007`: one
 provider usage *is* recorded — the Anthropic Messages API `usage` object
@@ -1182,6 +1231,12 @@ session's brief and landed as `fixtures/anthropic/messages-usage-2026-10-08.json
 (`runtime-contract.md` §4). The spine still never sees a provider's shape:
 the mapping lives in the runtime, and what reaches the stream is twine's
 record. The probe `twine-usage-record` is no longer what this waits on.)
+(Since Arc 2 R2, session `2026-10-13-twine-runtime-anthropic-002`: the
+wire itself is recorded — fifteen Messages API exchanges of 2026-10-13
+under `fixtures/anthropic/` — and the Anthropic adapter maps every
+response's usage through `from_anthropic` before anything reaches the
+boundary: `runtime-contract.md` §5. Every spend test's usage is still a
+double; the spine still never sees a provider's shape.)
 
 **Twine ships no prices** (§13.4). Neither module makes a network call,
 starts a subprocess (the verbs never call `ctx.run`) or imports a provider
@@ -2373,9 +2428,12 @@ summary), the adapters with what each implements, and every problem;
 `show` the verdict, the five fields, the registry's verdict and the
 contract.
 
-At R1 the list is eight capabilities — `tool-calling`, `thinking` and
+At R1 the list was eight capabilities — `tool-calling`, `thinking` and
 `usage-accounting` `implemented` by `fake`, the other five `declared` —
-and one adapter, `fake`.
+and one adapter, `fake`. Since R2 it is five `implemented` — those three
+by `anthropic` and `fake`, `prompt-caching` and `streaming` by `anthropic`
+— three `declared` (`window-accounting`, `sandboxing`, `suspend-resume`),
+and two adapters, `anthropic` and `fake` (`runtime-contract.md` §5).
 
 ### 17.5 Tests
 

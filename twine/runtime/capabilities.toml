@@ -1,6 +1,8 @@
 # twine/runtime/capabilities.toml — the runtime's capability declaration
 # (twine-seed.md T7, §4.1; the file shape is TQ-2's, proposed at Arc 2 R1,
-# session 2026-10-12-twine-runtime-registry-007, awaiting ratification).
+# session 2026-10-12-twine-runtime-registry-007, ratified as written on
+# 2026-10-12). Arc 2 R2 moved prompt-caching and streaming to implemented:
+# the Anthropic adapter implements them.
 #
 # The runtime applies N5's registry rule to itself: every runtime operation
 # is a named capability with a declared contract, one module per capability
@@ -53,7 +55,7 @@ summary = "extended thinking, enabled or not with its budget fixed at spawn (D12
 [[capability]]
 name = "prompt-caching"
 module = "twine.runtime.capabilities.prompt_caching"
-status = "declared"
+status = "implemented"
 summary = "append-only, stable prefixes marked for the provider's cache; cache reads and writes accounted as their own classes (D12)"
 
 [[capability]]
@@ -65,7 +67,7 @@ summary = "count the context window from usage (or estimate it), warn the worker
 [[capability]]
 name = "streaming"
 module = "twine.runtime.capabilities.streaming"
-status = "declared"
+status = "implemented"
 summary = "a call's text and thinking delivered as it is produced, the finished turn identical to the unstreamed one (D20)"
 
 [[capability]]

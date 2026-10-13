@@ -41,10 +41,13 @@ CONTRACT = Contract(
         "mid-session",
         "the boundary refuses a turn carrying thinking text when the adapter was "
         "spawned with thinking off",
-        "incoherent settings (thinking on without a positive budget, a budget with "
-        "thinking off) are refused when they are built, before any spawn",
+        "incoherent settings (thinking on with neither a positive budget nor "
+        "adaptive, a budget with thinking off, adaptive with a budget) are refused "
+        "when they are built, before any spawn",
     ),
     lands=("R1: the settings, the boundary's checks and the fake adapter; R2: "
-           "Anthropic's thinking parameters and blocks"),
+           "Anthropic's thinking parameter passed as given (adaptive by default, "
+           "ThinkingSettings(adaptive=True)), its thinking and redacted_thinking blocks "
+           "carried back verbatim, a turn with any thinking block counted as thinking"),
     grounds=("D12", "D20", "Q-3", "twine-seed.md §4.1"),
 )

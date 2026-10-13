@@ -117,28 +117,42 @@ class ThinkingSettings:
     """Whether the worker thinks, and with what budget — fixed at spawn.
 
     enabled        thinking on or off for the whole session
-    budget_tokens  the thinking budget when enabled: a positive integer;
-                   None when thinking is off (a budget with thinking off is
-                   refused — a setting that does nothing is a wrong fact)
+    budget_tokens  the thinking budget when enabled with a budget: a
+                   positive integer; None when thinking is off (a budget
+                   with thinking off is refused — a setting that does
+                   nothing is a wrong fact) or adaptive
+    adaptive       thinking on with no budget: the model decides how much
+                   to think (Anthropic's `{"type": "adaptive"}`, the only
+                   thinking the 5.x models accept besides off — Arc 2 R2's
+                   recording of /v1/models). Needs enabled and no budget.
     """
 
     enabled: bool
     budget_tokens: int | None = None
+    adaptive: bool = False
 
     def __post_init__(self) -> None:
         if type(self.enabled) is not bool:
             raise ThinkingSettingsError(f"enabled must be a bool, not {self.enabled!r}")
-        if self.enabled:
+        if type(self.adaptive) is not bool:
+            raise ThinkingSettingsError(f"adaptive must be a bool, not {self.adaptive!r}")
+        if self.adaptive:
+            if not self.enabled or self.budget_tokens is not None:
+                raise ThinkingSettingsError(
+                    "adaptive thinking is thinking enabled with no budget_tokens, not "
+                    f"enabled={self.enabled!r}, budget_tokens={self.budget_tokens!r}")
+        elif self.enabled:
             if type(self.budget_tokens) is not int or self.budget_tokens <= 0:
                 raise ThinkingSettingsError(
-                    "thinking enabled needs a positive integer budget_tokens, not "
-                    f"{self.budget_tokens!r}")
+                    "thinking enabled needs a positive integer budget_tokens (or "
+                    f"adaptive), not {self.budget_tokens!r}")
         elif self.budget_tokens is not None:
             raise ThinkingSettingsError(
                 f"thinking is off, so budget_tokens must be None, not {self.budget_tokens!r}")
 
     def as_json(self) -> dict[str, object]:
-        return {"enabled": self.enabled, "budget_tokens": self.budget_tokens}
+        return {"enabled": self.enabled, "budget_tokens": self.budget_tokens,
+                "adaptive": self.adaptive}
 
 
 THINKING_OFF = ThinkingSettings(enabled=False)

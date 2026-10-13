@@ -1,0 +1,1 @@
+{"model": "claude-haiku-5-5", "max_tokens": 5, "system": "You are a worker in a test harness. Answer tersely.", "messages": [{"role": "user", "content": "Write three sentences about rope."}]}

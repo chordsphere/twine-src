@@ -696,10 +696,14 @@ class StubBale:
 
 
 # ---------------------------------------------------------------------------
-# Spend doubles (Arc 1 session 5a). No provider usage has ever been
-# recorded and twine ships no prices, so every usage value and every price
-# a spend test sees is a double, named as one: the model ids say so, and no
-# price below is any provider's.
+# Spend doubles (Arc 1 session 5a). Provider usage is recorded now — the
+# 2026-10-08 usage object and the fifteen Messages API exchanges of
+# 2026-10-13 under fixtures/anthropic/, which from_anthropic and the
+# Anthropic adapter are held to (tests/test_runtime.py, test_anthropic.py) —
+# but the spine reads twine's own record, never a provider's, and twine
+# ships no prices: so every usage value and every price a spend test sees is
+# still a double, named as one: the model ids say so, and no price below is
+# any provider's.
 # ---------------------------------------------------------------------------
 
 # Invented model ids: no reader could take one for a real model.
@@ -732,8 +736,8 @@ cache_write = 4
 def usage_double(input: int = 0, output: int = 0, thinking: int | None = None,
                  cache_read: int = 0, cache_write: int = 0) -> dict[str, int | None]:
     """A twine usage record's `tokens`, as a double: never a provider's
-    response, which nobody has recorded yet (the gated probe
-    `twine-usage-record` will)."""
+    response (those are recorded under fixtures/anthropic/ since Arc 2 R1
+    and R2, and mapped by from_anthropic before they are twine's)."""
     return {"input": input, "output": output, "thinking": thinking,
             "cache_read": cache_read, "cache_write": cache_write}
 
