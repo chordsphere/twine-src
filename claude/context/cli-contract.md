@@ -41,8 +41,12 @@
 > procedure) and by `2026-10-12-twine-runtime-registry-007` (Arc 2 R1:
 > §17, `runtime list` and `runtime show`, and §2's verb list; the runtime
 > itself — the boundary, the registry's file shape, the fake adapter, the
-> provider usage mappings — is `runtime-contract.md`'s); a later session
-> that changes a line changes it here in the same response.
+> provider usage mappings — is `runtime-contract.md`'s) and by
+> `2026-10-13-twine-runtime-tools-003` (Arc 2 R3: §17.6, `runtime tools`,
+> §2's verb list, §10.5's switch made, the lines of §14.4 naming the
+> sandbox, and §17's `implemented_by`; the tools and the sandbox themselves
+> are `runtime-contract.md` §6); a later session that changes a line
+> changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -84,8 +88,8 @@
   `transitions` (`twine/commands/transitions.py`, §12), the `spend`
   group — `spend totals` and `spend check` (`twine/commands/spend.py`,
   §13) — `kill` (`twine/commands/kill.py`, §14) and, since Arc 2 R1, the
-  `runtime` group — `runtime list` and `runtime show`
-  (`twine/commands/runtime.py`, §17). One group's verbs
+  `runtime` group — `runtime list` and `runtime show`, and since R3
+  `runtime tools` (`twine/commands/runtime.py`, §17). One group's verbs
   may live in several modules; the parser assembles the group from all
   of them.
 - `twine commands --json` emits
@@ -694,8 +698,17 @@ cap bound how long and how much; they confine nothing. Arc 2's sandbox
 is what makes `confined` true. The flag has one switch point: it is read
 from the runner, `twine.process.runner_confines(ctx.run)` (a runner
 declares `confines`; the default runner declares false, and one that
-does not say is false), and set nowhere else — Arc 2's sandbox runner,
-a wrapper around the default one, is what will declare true.
+does not say is false), and set nowhere else.
+
+**The switch is made** (Arc 2 R3, `runtime-contract.md` §6.4): the
+sandbox's runner, `twine.runtime.sandbox.SandboxRunner` — a wrapper around
+the runner the sandbox is handed, the default one in use — declares
+`confines` true exactly when the cage's network is off (`unshare -rn`
+works on the machine, and every argv it runs is wrapped in it), false
+otherwise, and the sandbox reports it back through `runner_confines`.
+`carry probe` itself still runs through `ctx.run`, the default runner,
+and stays `confined: false`; so does the runtime's `probe` tool, which
+leaves the cage by design (§6.5 there).
 
 ### 10.6 The run seam
 
@@ -1682,7 +1695,12 @@ survivors stays in the record** for `twine kill` to reach: the loop never
 forgets a group that may be alive. Driven so, the record holds only what is
 alive — the runtime's own group and the tools still running — instead of
 growing by one entry per tool for as long as the session runs. Nothing in
-Arc 1 calls `clear_group` but the tests.
+Arc 1 calls `clear_group` but the tests. Since Arc 2 R3 the sandbox does
+(`twine.runtime.sandbox.Sandbox.spawn`, `runtime-contract.md` §6.7): every
+process it starts is handed this hook when a running record for the sid
+exists, and cleared once its run returns with no survivor; without a
+record it runs unregistered, logged; a record that cannot be read refuses
+the spawn.
 
 `read_running` requires every key. A pgid or pid that is not an integer
 above 1 is refused at registration and is malformed on reading (0 would
@@ -2362,7 +2380,9 @@ first, JSON twin, the shell renders it later)"). The registry is
 What a capability, a contract, a status and parity are is
 `runtime-contract.md` §2; this section is the verbs. (The brief that
 landed it named this §16; §16 was already the recorder and the lander,
-and section numbers are stable, so it is §17.)
+and section numbers are stable, so it is §17.) Since Arc 2 R3 the group
+has a third verb, `runtime tools`, over the canonical tools' declaration
+(§17.6).
 
 ### 17.1 Refused before
 
@@ -2403,7 +2423,7 @@ One line (§3). `runtime list`, `command` `"runtime list"`:
 
 | key | value |
 |---|---|
-| `capabilities` | every declared capability, in the declaration's order: `name`, `status` (`declared`, `implemented` or `experimental`), `summary` (one line), `module` (dotted: `twine.runtime.capabilities.<module>`), `adapters` (the names of the registered adapters that implement it; `[]` when none) |
+| `capabilities` | every declared capability, in the declaration's order: `name`, `status` (`declared`, `implemented` or `experimental`), `summary` (one line), `module` (dotted: `twine.runtime.capabilities.<module>`), `adapters` (the names of the registered adapters that implement it; `[]` when none), `implemented_by` (since R3: the runtime module that implements it itself, `runtime-contract.md` §2.1 — `twine.runtime.sandbox` for `sandboxing` — or `null`) |
 | `adapters` | every registered adapter, by name: `name`, `implements` (in the declaration's order), `tool_protocol` (`native` or `text`), `module` |
 | `counts` | `capabilities`, one count per status, `adapters` |
 | `statuses` | the closed set, `["declared", "implemented", "experimental"]` |
@@ -2413,9 +2433,9 @@ One line (§3). `runtime list`, `command` `"runtime list"`:
 beside `declaration` and `directory` (repo-relative paths). Contracts are
 rendered by `show` only, so the list stays one screen.
 
-`runtime show NAME`, `command` `"runtime show"`: the five fields of the
+`runtime show NAME`, `command` `"runtime show"`: the fields of the
 capability's `list` row at the top level (`name`, `status`, `summary`,
-`module`, `adapters`), plus `contract` — an object, `purpose` (string),
+`module`, `adapters`, and since R3 `implemented_by`), plus `contract` — an object, `purpose` (string),
 `adapter_must` and `runtime_promises` (lists of strings), `lands`
 (string), `grounds` (list of strings); `null` when the contract did not
 load — `problems` (this capability's), `registry_ok` and `reason`. For an
@@ -2433,7 +2453,10 @@ At R1 the list was eight capabilities — `tool-calling`, `thinking` and
 and one adapter, `fake`. Since R2 it is five `implemented` — those three
 by `anthropic` and `fake`, `prompt-caching` and `streaming` by `anthropic`
 — three `declared` (`window-accounting`, `sandboxing`, `suspend-resume`),
-and two adapters, `anthropic` and `fake` (`runtime-contract.md` §5).
+and two adapters, `anthropic` and `fake` (`runtime-contract.md` §5). Since
+R3 it is six `implemented` — `sandboxing` by the runtime itself
+(`implemented_by` `twine.runtime.sandbox`, no adapter) — and two
+`declared` (`window-accounting`, `suspend-resume`).
 
 ### 17.5 Tests
 
@@ -2455,3 +2478,48 @@ which holds because nothing outside `twine/runtime/capabilities/` imports a
 capability module (`runtime-contract.md` §2.1; a test walks the imports).
 `tests/test_registry.py` holds the two verbs registered as a group, and
 `tests/test_json_discipline.py` runs both under the one-line discipline.
+
+### 17.6 `twine runtime tools [--json]` (Arc 2 R3)
+
+The canonical tool surface, rendered: `twine/runtime/tools.toml` held to
+the modules under `twine/runtime/tools/` by name (`runtime-contract.md`
+§6.1), through `twine.runtime.tooling`. Like `list` and `show` it takes no
+flag but `--json`, reads twine's own files and imports twine's own modules
+— no bale install, no subprocess (it never touches `ctx.run`; a test runs it
+with a seam that fails the test if called), no network, no key.
+
+**ok** exactly when the declaration and the directory agree by name —
+every declared tool has its module, every module is declared — and every
+module's `TOOL` loads whole and agrees with the declaration (its name, its
+`leaves_cage`). Otherwise NOT OK, exit 1, each fault a problem naming it —
+the stray module by its module name, the missing module by its tool
+(`runtime-contract.md` §6.1's kinds). A **malformed declaration** is NOT
+OK, exit 1, one JSON line, no traceback, `reason` naming every bad entry
+and `tools` and `problems` empty.
+
+The JSON twin, `command` `"runtime tools"`:
+
+| key | value |
+|---|---|
+| `tools` | every declared tool, in the declaration's order, exactly these keys: `name`, `description` (what the model is offered), `input_schema` (its JSON Schema object), `leaves_cage` (a boolean — `true` for `probe` alone); a tool whose module did not load keeps its row with `description` and `input_schema` `null` |
+| `counts` | `tools`, `leaves_cage` (how many leave the cage) |
+| `problems` | each fault: `kind`, `name`, `message` |
+| `reason` | every problem's message, `; `-joined; null when ok |
+
+beside `declaration` and `directory` (repo-relative paths). Human mode prints
+a verdict line, the counts, two lines per tool (name, whether it leaves the
+cage, module and argument names; then the first line of its description)
+and every problem.
+
+At R3 the list is seven — `shell`, `read_file`, `write_file`, `list_dir`,
+`probe`, `escalate`, `deliver` — one of which, `probe`, leaves the cage.
+
+**Tests** (`tests/test_runtime_tools.py`): the declaration walked with
+tomllib and a directory listing of the test's own; every tool loads whole,
+its inputs as the brief pins them and its spec one the Anthropic adapter
+sends; every malformed declaration refused; each detector fired against a
+copy edited to be wrong (a planted module, a removed one, no `TOOL`, a
+`TOOL` for another name, a schema outside the subset, a cage mismatch, a
+module that does not import); and the verb end to end on a copy of the tree
+with a module planted, one removed and the declaration broken (NOT OK, exit
+1, named, no traceback, every other verb still loading).

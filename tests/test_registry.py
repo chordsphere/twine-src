@@ -38,13 +38,13 @@ class RegistryParity(unittest.TestCase):
             self.assertEqual(row["cli_only"], not row["json"])
 
     def test_this_sessions_verbs_are_registered(self):
-        """Since Arc 1 session 3 the set holds `carry bundle` too, and since
-        Arc 2 R1 the two `runtime` verbs."""
+        """Since Arc 1 session 3 the set holds `carry bundle` too, since
+        Arc 2 R1 the two `runtime` verbs, and since R3 `runtime tools`."""
         self.assertEqual(set(load_registry()),
                          {"commands", "status", "bale check", "take", "carry probe",
                           "carry exchange", "carry response", "carry bundle",
                           "transitions", "spend totals", "spend check", "kill",
-                          "runtime list", "runtime show"})
+                          "runtime list", "runtime show", "runtime tools"})
 
     def test_verb_names_are_space_joined_paths(self):
         for name, cmd in load_registry().items():
@@ -80,10 +80,11 @@ class RegistryDiscovery(unittest.TestCase):
 
     def test_discovers_runtime_module_as_a_group(self):
         """Arc 2 R1: `runtime` is a group of two verbs, both from
-        twine/commands/runtime.py; `show` takes the capability's NAME."""
+        twine/commands/runtime.py; `show` takes the capability's NAME. Arc 2
+        R3 adds `runtime tools` to the same module."""
         self.assertIn("twine.commands.runtime", discover_modules())
         runtime = [n for n in load_registry() if n.split(" ")[0] == "runtime"]
-        self.assertEqual(runtime, ["runtime list", "runtime show"])
+        self.assertEqual(runtime, ["runtime list", "runtime show", "runtime tools"])
         show = load_registry()["runtime show"]
         self.assertEqual([a.flags for a in show.arguments], [("name",)])
 

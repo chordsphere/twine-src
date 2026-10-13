@@ -1,5 +1,5 @@
 """The runtime's capability registry (twine-seed.md T7, §4.1; TQ-2's file
-shape, proposed at Arc 2 R1 — claude/context/runtime-contract.md §2).
+shape, ratified 2026-10-12 — claude/context/runtime-contract.md §2).
 
 The runtime applies N5's rule to itself, as twine/registry.py applies it
 to the verbs: a declaration (twine/runtime/capabilities.toml) lists every
@@ -17,6 +17,18 @@ Adapters are discovered by listing twine/runtime/adapters/ (each module's
 ADAPTERS); each declares the capabilities it implements, and the registry
 derives every capability's `adapters` from those sets and holds the
 declared statuses to them (`declared`: none; `implemented`: at least one).
+
+Since Arc 2 R3 a capability may be the runtime's own rather than an
+adapter's — `sandboxing`: the cage is the runtime's, and an adapter must
+never run a tool. Its entry says so with a fifth, optional key,
+`implemented_by`, naming the runtime module that implements it (directly
+under twine.runtime, not a package); that module declares the capabilities
+it implements in an `IMPLEMENTS` tuple, as an adapter declares its set. The
+status check is held, not loosened: `implemented` needs an implementer — a
+registered adapter, or a sound `implemented_by` (the module imports and its
+IMPLEMENTS lists the capability; otherwise `missing-implementer`); an entry
+with `implemented_by` that is `declared` is a status-mismatch; and an adapter
+claiming a runtime capability is a status-mismatch too.
 
 `load_runtime_registry` never raises for any of those faults: each is a
 Problem on the result, which `twine runtime list` reports by name (NOT OK,
@@ -76,8 +88,17 @@ IMPLEMENTED = "implemented"
 EXPERIMENTAL = "experimental"
 # A capability's status: a closed set of three.
 STATUSES = (DECLARED, IMPLEMENTED, EXPERIMENTAL)
-# A declaration entry's keys, exactly.
+# A declaration entry's keys: these four, always ...
 ENTRY_KEYS = ("name", "module", "status", "summary")
+# ... and these, only when they apply (Arc 2 R3).
+OPTIONAL_KEYS = ("implemented_by",)
+# A runtime module that implements a capability itself: directly under
+# twine.runtime, never one of its packages (the capabilities, the adapters,
+# the tools) — an adapter's capability is declared by the adapter.
+RUNTIME_PACKAGE = "twine.runtime"
+IMPLEMENTER_PATTERN = re.compile(r"^" + re.escape(RUNTIME_PACKAGE) + r"\.[a-z][a-z0-9_]*$")
+NOT_IMPLEMENTERS = frozenset({f"{RUNTIME_PACKAGE}.{name}"
+                              for name in ("capabilities", "adapters", "tools")})
 # A declared module: dotted, directly under the capabilities package, its
 # last part a plain identifier (no leading underscore).
 MODULE_PATTERN = re.compile(r"^" + re.escape(CAPABILITIES_PACKAGE) + r"\.[a-z][a-z0-9_]*$")
@@ -95,6 +116,8 @@ PROBLEM_KINDS = (
     "malformed-adapter",   # an ADAPTERS entry the boundary cannot host
     "duplicate-adapter",   # two adapters registered under one name
     "unknown-capability",  # an adapter implements a capability nobody declared
+    "missing-implementer", # an implemented_by module that is absent, does not import,
+                           # or does not list the capability in its IMPLEMENTS
 )
 
 
@@ -106,6 +129,7 @@ class Declared:
     module: str      # dotted: twine.runtime.capabilities.<stem>
     status: str
     summary: str
+    implemented_by: str | None = None   # a runtime module, when the runtime implements it
 
     @property
     def stem(self) -> str:
@@ -143,7 +167,8 @@ class CapabilityEntry:
         row: dict[str, Any] = {"name": self.declared.name, "status": self.declared.status,
                                "summary": self.declared.summary,
                                "module": self.declared.module,
-                               "adapters": list(self.adapters)}
+                               "adapters": list(self.adapters),
+                               "implemented_by": self.declared.implemented_by}
         if with_contract:
             row["contract"] = None if self.contract is None else self.contract.as_json()
         return row
@@ -249,7 +274,7 @@ def load_declaration(path: Path = CAPABILITIES_DECLARATION) -> list[Declared]:
         missing = [k for k in ENTRY_KEYS if k not in spec]
         if missing:
             faults.append(f"{label} lacks {', '.join(map(repr, missing))}")
-        unknown = sorted(set(spec) - set(ENTRY_KEYS))
+        unknown = sorted(set(spec) - set(ENTRY_KEYS) - set(OPTIONAL_KEYS))
         if unknown:
             faults.append(f"{label} has unknown key(s) {', '.join(map(repr, unknown))}")
         name, module = spec.get("name"), spec.get("module")
@@ -266,6 +291,13 @@ def load_declaration(path: Path = CAPABILITIES_DECLARATION) -> list[Declared]:
         if "summary" in spec and (not isinstance(summary, str) or not summary.strip()
                                   or "\n" in summary):
             faults.append(f"{label}: summary must be one non-empty line")
+        implementer = spec.get("implemented_by")
+        if "implemented_by" in spec and (not isinstance(implementer, str)
+                                         or not IMPLEMENTER_PATTERN.match(implementer)
+                                         or implementer in NOT_IMPLEMENTERS):
+            faults.append(f"{label}: implemented_by {implementer!r} is not a module "
+                          f"directly under {RUNTIME_PACKAGE} (the runtime's own code — "
+                          "an adapter's capability is declared by the adapter)")
         if len(faults) > before:
             continue
         if name in seen_names:
@@ -276,7 +308,7 @@ def load_declaration(path: Path = CAPABILITIES_DECLARATION) -> list[Declared]:
             continue
         seen_names.add(name)
         seen_modules.add(module)
-        entries.append(Declared(name, module, status, summary.strip()))
+        entries.append(Declared(name, module, status, summary.strip(), implementer))
     if faults:
         log.error("capability declaration %s refused: %s", shown(path), "; ".join(faults))
         raise DeclarationError(f"{shown(path)}: " + "; ".join(faults))
@@ -441,19 +473,65 @@ def load_runtime_registry(declaration: Path = CAPABILITIES_DECLARATION,
     load_adapters(registry, adapters_package)
     for entry in registry.capabilities:
         entry.adapters = [a.name for a in registry.adapters if entry.name in a.implements]
-        status = entry.declared.status
-        if status == DECLARED and entry.adapters:
-            registry.problem("status-mismatch", entry.name,
-                             f"capability {entry.name!r} is declared `{DECLARED}` and "
-                             f"adapter(s) {', '.join(entry.adapters)} implement it: it is "
-                             f"`{IMPLEMENTED}`")
-        elif status == IMPLEMENTED and not entry.adapters:
-            registry.problem("status-mismatch", entry.name,
-                             f"capability {entry.name!r} is declared `{IMPLEMENTED}` and no "
-                             "registered adapter implements it")
+        hold_status(registry, entry)
     log.info("runtime registry: %d capabilities, %d adapters, %d problems",
              len(registry.capabilities), len(registry.adapters), len(registry.problems))
     return registry
+
+
+def runtime_implements(registry: RuntimeRegistry, entry: CapabilityEntry) -> bool:
+    """Whether the entry's `implemented_by` module stands behind it: it
+    imports, and its IMPLEMENTS lists the capability. Each failure is a
+    `missing-implementer` problem naming the module."""
+    module_name = entry.declared.implemented_by
+    assert module_name is not None
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as exc:   # named, never a crash
+        registry.problem("missing-implementer", entry.name,
+                         f"capability {entry.name!r} is implemented_by {module_name}, which "
+                         f"does not import: {type(exc).__name__}: {exc}")
+        return False
+    implements = getattr(module, "IMPLEMENTS", None)
+    if not isinstance(implements, tuple) or entry.name not in implements:
+        registry.problem("missing-implementer", entry.name,
+                         f"capability {entry.name!r} is implemented_by {module_name}, whose "
+                         f"IMPLEMENTS does not list it ({implements!r})")
+        return False
+    return True
+
+
+def hold_status(registry: RuntimeRegistry, entry: CapabilityEntry) -> None:
+    """Hold the declared status to what implements the capability: the
+    registered adapters, or — for a runtime capability — its implemented_by
+    module (runtime-contract.md §2.3)."""
+    status, implementer = entry.declared.status, entry.declared.implemented_by
+    if implementer is not None:
+        if entry.adapters:
+            registry.problem("status-mismatch", entry.name,
+                             f"capability {entry.name!r} is the runtime's (implemented_by "
+                             f"{implementer}), and adapter(s) {', '.join(entry.adapters)} "
+                             "claim it: an adapter never implements a runtime capability")
+        sound = runtime_implements(registry, entry)
+        if status == DECLARED:
+            registry.problem("status-mismatch", entry.name,
+                             f"capability {entry.name!r} is declared `{DECLARED}` and "
+                             f"implemented_by {implementer}: it is `{IMPLEMENTED}`")
+        elif status == IMPLEMENTED and not sound:
+            registry.problem("status-mismatch", entry.name,
+                             f"capability {entry.name!r} is declared `{IMPLEMENTED}` and "
+                             f"its implemented_by module {implementer} does not stand "
+                             "behind it")
+        return
+    if status == DECLARED and entry.adapters:
+        registry.problem("status-mismatch", entry.name,
+                         f"capability {entry.name!r} is declared `{DECLARED}` and "
+                         f"adapter(s) {', '.join(entry.adapters)} implement it: it is "
+                         f"`{IMPLEMENTED}`")
+    elif status == IMPLEMENTED and not entry.adapters:
+        registry.problem("status-mismatch", entry.name,
+                         f"capability {entry.name!r} is declared `{IMPLEMENTED}` and no "
+                         "registered adapter implements it")
 
 
 # ---------------------------------------------------------------------------
@@ -495,8 +573,10 @@ def list_lines(registry: RuntimeRegistry) -> list[str]:
     swidth = max(len(s) for s in STATUSES)
     for c in registry.capabilities:
         adapters = ", ".join(c.adapters) or "-"
+        by = f"  implemented by {c.declared.implemented_by}" \
+            if c.declared.implemented_by else ""
         lines.append(f"  {c.name:<{nwidth}}  {c.declared.status:<{swidth}}  "
-                     f"{c.declared.module}  adapters: {adapters}")
+                     f"{c.declared.module}  adapters: {adapters}{by}")
         lines.append(f"  {'':<{nwidth}}  {c.declared.summary}")
     lines.append("")
     lines.append("adapters")

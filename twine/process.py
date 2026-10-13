@@ -44,6 +44,11 @@ What the default runner guarantees:
     raises never leaves the child running unattended: the group is
     killed, the child reaped, and the exception re-raised.
 
+One more helper, since Arc 2 R3: `inherited_environment(names)` reads the
+named variables, and only those, from this process's environment — how the
+runtime's sandbox takes PATH and LANG without any module under
+twine/runtime/ touching the environment itself.
+
 Section 3's process-group helpers are also what `twine kill` (twine/kill.py,
 session 5b) signals and waits with: they read /proc and send signals, and
 spawn nothing. `twine kill` never reads the hook; it relies on the record
@@ -137,10 +142,23 @@ def runner_confines(runner: object) -> bool:
     """Whether `runner` confines what it runs — the one switch point a
     verb's `confined` flag reads (accepted from session 2b-i's Proposals,
     prepared in 2b-ii). A runner declares it with a `confines` attribute;
-    one that does not say does not confine. Arc 2's sandbox runner — a
-    wrapper around run_process — is what will declare True; nothing else
-    may infer the flag."""
+    one that does not say does not confine. Since Arc 2 R3 the sandbox's
+    runner (twine.runtime.sandbox.SandboxRunner) — a wrapper around the
+    runner it is given, run_process by default — declares True exactly
+    when the cage's network is off; nothing else may infer the flag."""
     return getattr(runner, "confines", False) is True
+
+
+def inherited_environment(names: Sequence[str]) -> dict[str, str]:
+    """The named variables of this process's environment, and only those —
+    the ones that are set. The runtime never touches the process
+    environment itself (tests/test_runtime.py walks twine/runtime/ for it):
+    the sandbox (Arc 2 R3) asks the seam's module for exactly PATH and LANG
+    by name, so no other variable — ANTHROPIC_API_KEY above all — can reach
+    a cage by inheritance."""
+    found = {name: os.environ[name] for name in names if name in os.environ}
+    log.debug("inherited from the process environment: %s", sorted(found))
+    return found
 
 
 # The spawn hook (session 5c): called once with the child's pid, which is

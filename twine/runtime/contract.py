@@ -1,5 +1,5 @@
-"""The contract object a runtime capability declares (TQ-2, proposed at
-Arc 2 R1; claude/context/runtime-contract.md §2).
+"""The contract object a runtime capability declares (TQ-2, ratified
+2026-10-12; claude/context/runtime-contract.md §2).
 
 Every module under twine/runtime/capabilities/ exposes one module-level
 `CONTRACT`, a Contract naming the capability it is the contract for. The

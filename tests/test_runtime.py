@@ -65,8 +65,12 @@ THE_EIGHT = ["tool-calling", "thinking", "prompt-caching", "window-accounting",
 # The three the fake adapter implements — the `implemented` ones at R1.
 THE_THREE = {"tool-calling", "thinking", "usage-accounting"}
 # What the Anthropic adapter implements (R2): the three, prompt caching and
-# streaming — the `implemented` ones since R2.
+# streaming — the `implemented` ones at R2.
 ANTHROPIC_FIVE = THE_THREE | {"prompt-caching", "streaming"}
+# What the runtime implements itself (R3): sandboxing, by
+# twine/runtime/sandbox.py — the declaration's `implemented_by`.
+RUNTIME_OWN = {"sandboxing": "twine.runtime.sandbox"}
+IMPLEMENTED = ANTHROPIC_FIVE | set(RUNTIME_OWN)
 
 RECORDING = FIXTURES_DIR / "anthropic" / "messages-usage-2026-10-08.json"
 RECORDING_BYTES = 293
@@ -143,9 +147,14 @@ class TheDeclaration(unittest.TestCase):
         self.assertEqual([d.name for d in load_declaration()], THE_EIGHT)
 
     def test_every_entry_has_exactly_the_four_keys(self):
+        """Four keys, and since R3 `implemented_by` beside them exactly where
+        the runtime implements the capability itself."""
         for entry in toml_entries():
             with self.subTest(capability=entry.get("name")):
-                self.assertEqual(set(entry), {"name", "module", "status", "summary"})
+                extra = {"implemented_by"} if entry["name"] in RUNTIME_OWN else set()
+                self.assertEqual(set(entry), {"name", "module", "status", "summary"} | extra)
+                if extra:
+                    self.assertEqual(entry["implemented_by"], RUNTIME_OWN[entry["name"]])
 
     def test_every_entry_loads(self):
         registry = load_runtime_registry()
@@ -162,18 +171,19 @@ class TheDeclaration(unittest.TestCase):
             with self.subTest(capability=entry["name"]):
                 self.assertIn(entry["status"], STATUSES)
 
-    def test_five_implemented_three_declared(self):
+    def test_six_implemented_two_declared(self):
         """R1 had three implemented (the fake's) and five declared; R2's
-        adapter implements prompt-caching and streaming too."""
+        adapter implements prompt-caching and streaming too; R3's sandbox is
+        the runtime's own implementation of sandboxing."""
         statuses = {e["name"]: e["status"] for e in toml_entries()}
         self.assertEqual({n for n, s in statuses.items() if s == "implemented"},
-                         ANTHROPIC_FIVE)
+                         IMPLEMENTED)
         self.assertEqual({n for n, s in statuses.items() if s == "declared"},
-                         set(THE_EIGHT) - ANTHROPIC_FIVE)
+                         set(THE_EIGHT) - IMPLEMENTED)
 
-    def test_the_declared_three_have_their_contracts_written(self):
+    def test_the_declared_two_have_their_contracts_written(self):
         registry = load_runtime_registry()
-        for name in set(THE_EIGHT) - ANTHROPIC_FIVE:
+        for name in set(THE_EIGHT) - IMPLEMENTED:
             with self.subTest(capability=name):
                 contract = registry.get(name).contract
                 self.assertTrue(contract.purpose.strip())
@@ -581,12 +591,23 @@ class TheStopSet(unittest.TestCase):
         under twine/runtime/ is a stop key (a docstring naming one in prose
         is not a constant equal to it)."""
         keys = set(transitions.stop_keys())
+        # Arc 2 R3: a canonical tool's argument names are the tool surface's
+        # spelling, pinned by its brief — `shell` takes `timeout`, which the
+        # stop axis also spells. In a tool's own module, and only there, a
+        # constant naming one of that tool's declared arguments is exempt;
+        # any other stop key spelled there still fails.
+        from twine.runtime.tooling import load_tool_registry
+        arguments = {f"twine/runtime/tools/{t.declared.stem}.py":
+                     set(t.tool.spec.input_schema.get("properties", {}))
+                     for t in load_tool_registry().tools if t.tool is not None}
+        self.assertEqual(arguments["twine/runtime/tools/shell.py"] & keys, {"timeout"})
         for path in sorted(RUNTIME_DIR.rglob("*.py")):
-            with self.subTest(file=path.relative_to(REPO_ROOT).as_posix()):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            with self.subTest(file=rel):
                 tree = ast.parse(path.read_text(encoding="utf-8"))
                 spelled = {n.value for n in ast.walk(tree)
                            if isinstance(n, ast.Constant) and n.value in keys}
-                self.assertEqual(spelled, set())
+                self.assertEqual(spelled - arguments.get(rel, set()), set())
 
     def test_stop_keys_refuses_a_table_without_a_usable_stop_axis(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -906,11 +927,13 @@ class RuntimeList(unittest.TestCase):
         self.assertEqual([c["name"] for c in obj["capabilities"]], THE_EIGHT)
         for row in obj["capabilities"]:
             with self.subTest(capability=row["name"]):
-                self.assertEqual(set(row), {"name", "status", "summary", "module", "adapters"})
+                self.assertEqual(set(row), {"name", "status", "summary", "module", "adapters",
+                                            "implemented_by"})
                 self.assertTrue(row["module"].startswith("twine.runtime.capabilities."))
                 self.assertTrue(row["summary"])
                 self.assertEqual(row["status"],
-                                 "implemented" if row["name"] in ANTHROPIC_FIVE else "declared")
+                                 "implemented" if row["name"] in IMPLEMENTED else "declared")
+                self.assertEqual(row["implemented_by"], RUNTIME_OWN.get(row["name"]))
         self.assertEqual(obj["adapters"], [{
             "name": "anthropic",
             "implements": ["tool-calling", "thinking", "prompt-caching", "streaming",
@@ -918,7 +941,7 @@ class RuntimeList(unittest.TestCase):
             "tool_protocol": "native", "module": "twine.runtime.adapters.anthropic"}, {
             "name": "fake", "implements": ["tool-calling", "thinking", "usage-accounting"],
             "tool_protocol": "native", "module": "twine.runtime.adapters.fake"}])
-        self.assertEqual(obj["counts"], {"capabilities": 8, "declared": 3, "implemented": 5,
+        self.assertEqual(obj["counts"], {"capabilities": 8, "declared": 2, "implemented": 6,
                                          "experimental": 0, "adapters": 2})
         self.assertEqual(obj["statuses"], list(STATUSES))
         self.assertEqual((obj["problems"], obj["reason"]), ([], None))

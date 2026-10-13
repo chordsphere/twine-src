@@ -54,16 +54,28 @@ project's inventory.
   read by the adapter through `provider_mapping`
   (`context/runtime-contract.md` §1.5, §5.5).
 - `../twine/runtime/capabilities.toml` — the runtime's capability
-  declaration (T7, §4.1; TQ-2's shape, proposed at Arc 2 R1): one
+  declaration (T7, §4.1; TQ-2's shape, ratified 2026-10-12): one
   `[[capability]]` per capability — `name`, `module`, `status`
-  (`declared`, `implemented`, `experimental`), `summary` — held to the
-  modules under `twine/runtime/capabilities/` by name. Pull when a session
-  adds, implements or changes a runtime capability; the header comment
-  spells the entry shape and `twine runtime list` checks parity.
+  (`declared`, `implemented`, `experimental`), `summary`, and since Arc 2
+  R3 `implemented_by` where the runtime implements one itself
+  (`sandboxing`) — held to the modules under `twine/runtime/capabilities/`
+  by name. Pull when a session adds, implements or changes a runtime
+  capability; the header comment spells the entry shape and `twine
+  runtime list` checks parity.
+- `../twine/runtime/tools.toml` — the canonical tools' declaration (T6,
+  §4.2; Arc 2 R3): one `[[tool]]` per tool — `name`, `module`,
+  `leaves_cage` — the seven, held to the modules under
+  `twine/runtime/tools/` by name (each a `TOOL`: the spec the model is
+  offered, the pinned result keys, the executor). Pull when a session
+  adds, changes or offers a tool; the header comment spells the entry
+  shape and `twine runtime tools` checks parity
+  (`context/runtime-contract.md` §6).
 
 - `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`,
-  `<state-dir>/abort/<sid>.json`, `<state-dir>/running/<sid>.json` and
-  `<state-dir>/inflight/<sid>.json` — not in this repository: twine's state directory (`--state-dir`, else
+  `<state-dir>/abort/<sid>.json`, `<state-dir>/running/<sid>.json`,
+  `<state-dir>/inflight/<sid>.json` and, since Arc 2 R3,
+  `<state-dir>/sandbox/<sid>/home/` (a session's sandbox home — the cage
+  its tools run in, `context/runtime-contract.md` §6.3) — not in this repository: twine's state directory (`--state-dir`, else
   `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`).
   The spend stream is twine's durable usage record (D15, N4): append-only,
   one JSON line per model call, tokens by class and a nullable
@@ -79,7 +91,9 @@ project's inventory.
   runtime registered through the run seam's spawn hook, session 5c) the
   runtime writes before it works, grows as it starts tools and shrinks as
   they return with nothing left alive (`clear_group`), and `twine kill`
-  reads, signals every group of, re-reads once and clears; both are
+  reads, signals every group of, re-reads once and clears (since Arc 2 R3
+  the sandbox registers every tool's group through the hook when a record
+  exists); both are
   `context/cli-contract.md` §14, and `twine status` reports which state
   directory twine resolves and what of it exists (§4). The in-flight record
   (Arc 1 session 3) is the session `twine carry bundle` opened: a cache of
@@ -125,9 +139,12 @@ project's inventory.
   that adds a verb, runs a subprocess, routes a courier's block, or
   touches spend, the kill-switch or the in-flight record. Since Arc 2 R1
   also §17, `runtime list` and `runtime show` (the registry rendered, ok
-  on parity by name; one capability's contract).
+  on parity by name; one capability's contract), and since R3 §17.6,
+  `runtime tools` (the canonical tools rendered, ok on parity by name),
+  and §10.5's switch made (the sandbox's runner declares `confines`).
 - `context/runtime-contract.md` — the runtime's contract, the sibling of
-  `cli-contract.md` (Arc 2 R1; §1 and §2 ratified 2026-10-12; §5 Arc 2 R2's):
+  `cli-contract.md` (Arc 2 R1; §1 and §2 ratified 2026-10-12; §5 Arc 2 R2's;
+  §6 Arc 2 R3's):
   §1 the adapter boundary (Q-3 — what an adapter implements: tool calling,
   thinking fixed at spawn, usage as the five token classes, the stop set
   read from the transition table's `stop` axis and spelled nowhere else;
@@ -140,9 +157,13 @@ project's inventory.
   (R2 — the transport seam, the key rule, the request and its three cache
   breakpoints, the readers and the pinned `Outcome.as_json()`, the stop and
   error mapping, the append-only conversation and the thinking-block rule,
-  the recordings' lander, the gated live smoke test). Default inclusion for
-  any Arc 2 runtime session: an adapter, a capability, the loop, the
-  sandbox, window accounting.
+  the recordings' lander, the gated live smoke test), §6 the tools and the
+  sandbox (R3 — the seven with their schemas and pinned result keys, a
+  tool error as a result, the declaration and its parity, the cage rules,
+  the minimal environment, the network rule and `confines`, the
+  kill-switch hook, what leaves the cage and why; and §2.3's
+  `implemented_by`). Default inclusion for any Arc 2 runtime session: an
+  adapter, a capability, the loop, the sandbox, window accounting.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter

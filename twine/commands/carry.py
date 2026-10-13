@@ -236,6 +236,23 @@ def check_ready(outcome: Outcome, args: argparse.Namespace) -> None:
     """Every reason the chosen block may not run, collected (not just the
     first), so one invocation names them all. These hold with or
     without --run: a block that would be refused is never reported ok."""
+    check_block_ready(outcome)
+    if args.out is not None and Path(args.out).expanduser().exists():
+        outcome.refusals.append(f"--out {args.out} already exists; carry probe "
+                                "never overwrites")
+    if args.timeout <= 0:
+        outcome.refusals.append(f"--timeout must be positive (got {args.timeout:g})")
+    if args.cwd is not None and not Path(args.cwd).expanduser().is_dir():
+        outcome.refusals.append(f"--cwd {args.cwd} is not a directory")
+
+
+def check_block_ready(outcome: Outcome) -> None:
+    """The block's own readiness — intact, no unfilled TODO(worker)
+    placeholder, a `# Read-only:` header line — each fault a refusal on the
+    outcome, and the header recorded. Split out of check_ready at Arc 2 R3
+    so the runtime's `probe` tool (twine/runtime/tools/probe.py) holds a
+    block to exactly the rules `carry probe` does; the verb's own flags
+    (--out, --timeout, --cwd) stay check_ready's."""
     block = outcome.block
     assert block is not None
     script = outcome.script
@@ -252,13 +269,6 @@ def check_ready(outcome: Outcome, args: argparse.Namespace) -> None:
             outcome.refusals.append(
                 f"probe {outcome.slug}'s header declares no `# Read-only:` line "
                 "(TARBALL.md §4.2's purpose header confirms the script is read-only)")
-    if args.out is not None and Path(args.out).expanduser().exists():
-        outcome.refusals.append(f"--out {args.out} already exists; carry probe "
-                                "never overwrites")
-    if args.timeout <= 0:
-        outcome.refusals.append(f"--timeout must be positive (got {args.timeout:g})")
-    if args.cwd is not None and not Path(args.cwd).expanduser().is_dir():
-        outcome.refusals.append(f"--cwd {args.cwd} is not a directory")
 
 
 # ---------------------------------------------------------------------------

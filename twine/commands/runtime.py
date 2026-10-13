@@ -1,6 +1,7 @@
 """`twine runtime list [--json]` and `twine runtime show NAME [--json]` —
 render the runtime's capability registry (twine-seed.md T7, §4.1; Arc 2
-R1).
+R1) — and `twine runtime tools [--json]`, the canonical tool surface's
+declaration (T6, §4.2; Arc 2 R3).
 
 The registry is twine/runtime/registry.py over the declaration
 (twine/runtime/capabilities.toml), the capability modules
@@ -15,8 +16,15 @@ the adapters; otherwise NOT OK, exit 1, each fault named. Contracts are
 rendered by `show` only, so the list stays one screen. `show NAME` is ok
 when NAME is a declared capability whose own entry loads; an unknown NAME
 is NOT OK, the reason naming it and listing the known names. A malformed
-declaration is NOT OK on both, the reason naming every bad entry. The
-contract is claude/context/cli-contract.md §17.
+declaration is NOT OK on both, the reason naming every bad entry.
+
+`tools` renders twine/runtime/tools.toml held to twine/runtime/tools/ the
+same way (twine.runtime.tooling): every tool with its name, description,
+input schema and whether it leaves the cage; ok exactly when the declaration
+and the directory agree by name and every TOOL loads whole; otherwise NOT OK,
+exit 1, naming each stray or missing module. It too reads twine's own files
+only and never touches the run seam. The contract is
+claude/context/cli-contract.md §17.
 """
 
 from __future__ import annotations
@@ -25,6 +33,7 @@ import argparse
 
 from twine.cli import Context
 from twine.registry import Argument, Command, Result
+from twine.runtime import TOOLS_DECLARATION, tooling
 from twine.runtime import registry as runtime_registry
 from twine.runtime.registry import DeclarationError, RuntimeRegistry
 
@@ -103,6 +112,27 @@ def cmd_runtime_show(ctx: Context, args: argparse.Namespace) -> Result:
     return Result(ok, payload, lines)
 
 
+def cmd_runtime_tools(ctx: Context, args: argparse.Namespace) -> Result:
+    """Every canonical tool with its name, description, input schema and
+    whether it leaves the cage; ok when the declaration and the directory
+    agree by name and every TOOL loads whole."""
+    try:
+        registry = tooling.load_tool_registry()
+    except DeclarationError as exc:
+        reason = f"the tool declaration is malformed: {exc}"
+        ctx.info(reason)
+        payload = {"declaration": runtime_registry.shown(TOOLS_DECLARATION),
+                   "tools": [], "problems": [], "reason": reason}
+        return Result(False, payload, [f"tool registry: NOT OK — {reason}"])
+    for problem in registry.problems:
+        ctx.info(f"{problem.kind}: {problem.message}")
+    if registry.ok:
+        ctx.info(f"tool registry ok: {len(registry.tools)} tools, "
+                 f"{sum(1 for t in registry.tools if t.declared.leaves_cage)} leaving "
+                 "the cage")
+    return Result(registry.ok, tooling.tools_json(registry), tooling.tools_lines(registry))
+
+
 COMMANDS = (
     Command(
         name="runtime list",
@@ -135,4 +165,18 @@ COMMANDS = (
                     "promises, where it lands and on what grounds. ok when NAME "
                     "is declared and its own entry loads; an unknown NAME is "
                     "exit 1, naming it and the known names."),
+    Command(
+        name="runtime tools",
+        summary="list the canonical tools (name, description, input schema, whether "
+                "it leaves the cage); ok when the declaration and the directory agree",
+        handler=cmd_runtime_tools,
+        description="Render the canonical tool surface: every tool "
+                    "twine/runtime/tools.toml declares — its name, the description "
+                    "and input schema the model is offered, and whether it leaves "
+                    "the sandbox (only probe does). ok when every declared tool has "
+                    "its module under twine/runtime/tools/ and every module there is "
+                    "declared (parity by name), and every module's TOOL loads whole "
+                    "and agrees with the declaration; otherwise exit 1, naming each "
+                    "fault. Reads twine's own files; runs nothing, reaches no "
+                    "network."),
 )

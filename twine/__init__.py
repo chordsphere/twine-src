@@ -19,7 +19,10 @@ Modules:
   process   the run seam: the one way a handler runs a subprocess
             (Context.run) — a process group, a timeout that reaches its
             children, a stdout cap, a spawn hook that hands the child's
-            group to the kill-switch's record; tests inject a double
+            group to the kill-switch's record; tests inject a double. Since
+            Arc 2 R3 also the one place the runtime's sandbox reads PATH
+            and LANG from the process environment, by name
+            (inherited_environment)
   transitions  the transition table (D17): share/transitions.toml loaded
             and checked total — every key of every axis one row, every
             row's move declared — with the stop axis's loop keys and, since
@@ -55,7 +58,16 @@ Modules:
             `show`. One module reaches a network: runtime/transport.py, the
             real transport the Anthropic adapter is handed when the tests
             do not hand it theirs; the adapter reads its key from the
-            environment mapping it is given
+            environment mapping it is given. Since R3 the canonical tools —
+            tools.toml declaring the seven, one module each under tools/,
+            run by tooling.run_tool (a tool error is a result, never an
+            exception), rendered by `twine runtime tools` — and the per-sid
+            sandbox they run in (sandbox.py: a home under the state
+            directory, paths confined, a minimal environment without the
+            key, network off through `unshare` where available, `confines`
+            declared by its runner, every spawn registered with the
+            kill-switch's running record), which implements `sandboxing`
+            itself (the declaration's `implemented_by`)
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py, carry_bale.py
             and carry_bundle.py)

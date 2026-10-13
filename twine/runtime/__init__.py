@@ -2,7 +2,8 @@
 
 Arc 2 builds it; R1 (session `2026-10-12-twine-runtime-registry-007`)
 landed its two foundations, R2 (`2026-10-13-twine-runtime-anthropic-002`)
-the Anthropic adapter, and R3–R4 fill it in:
+the Anthropic adapter, R3 (`2026-10-13-twine-runtime-tools-003`) the
+canonical tools and the sandbox, and R4 the loop:
 
   contract     the Contract a capability declares (TQ-2, ratified): its
                purpose, what an implementing adapter must do, what the
@@ -39,13 +40,28 @@ the Anthropic adapter, and R3–R4 fill it in:
                words mapped through the table's [[mapping]] rows)
   transport    the transport seam an adapter is handed, and the real one —
                https_transport, the only place twine opens a socket
+  sandbox      the per-sid cage the tools run in (R3): a home under the
+               state directory, paths confined to it, a minimal environment
+               that never carries ANTHROPIC_API_KEY, network off through
+               `unshare -rn` where available (`confines` declared by its
+               runner, the §10.5 switch), every spawn registered with the
+               kill-switch's running record; implements `sandboxing` itself
+  tools.toml   the canonical tools' declaration (R3): name, module,
+               leaves_cage — the seven T6 names, parity by name
+  tools        the tool modules, one per tool, each exposing TOOL
+  tooling      what a tool and a result are, the declaration and its parity
+               check, the schema subset arguments are checked against, and
+               run_tool — never raises; `twine runtime tools` renders it
 
 The contract for all of it is claude/context/runtime-contract.md.
 
 Nothing under this package reaches a network except through transport.py,
-nothing reads the process environment (the Anthropic adapter reads its key
-from the mapping it is given), and nothing imports outside the standard
-library and twine (T8, T9) — no provider SDK; a test walks the imports.
+nothing spawns a process except through the run seam it is handed
+(twine.process), nothing reads the process environment (the Anthropic
+adapter reads its key from the mapping it is given; the sandbox asks
+twine.process for PATH and LANG by name), and nothing imports outside the
+standard library and twine (T8, T9) — no provider SDK; tests walk the
+imports.
 """
 
 from __future__ import annotations
@@ -60,3 +76,7 @@ CAPABILITIES_DIR = RUNTIME_DIR / "capabilities"
 CAPABILITIES_PACKAGE = "twine.runtime.capabilities"
 ADAPTERS_DIR = RUNTIME_DIR / "adapters"
 ADAPTERS_PACKAGE = "twine.runtime.adapters"
+# The canonical tools (Arc 2 R3): their declaration and their modules.
+TOOLS_DECLARATION = RUNTIME_DIR / "tools.toml"
+TOOLS_DIR = RUNTIME_DIR / "tools"
+TOOLS_PACKAGE = "twine.runtime.tools"

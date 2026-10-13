@@ -131,16 +131,18 @@ Arc 1 (the courier) session 1 landed twine's core:
   every group with survivors, the unlock line, or, for a session that
   reached HOLD, bale's own `bale revert <sid>`, which stays yours: twine
   never reverts, merges or applies anything. Nothing records a running
-  group yet (the runtime is Arc 2's), so today a kill requests the abort
-  and closes the session.
+  group yet but the tests (the loop that registers itself is R4's; since
+  R3 the sandbox registers every tool's group when a record exists), so
+  today a kill requests the abort and closes the session.
 - `runtime list` and `runtime show` (Arc 2 R1, 0.16.0; R2, 0.17.0): the runtime's
   first foundations, under `twine/runtime/`. Every runtime operation is a
   named **capability** with a declared contract — one module per
   capability under `twine/runtime/capabilities/`, listed by
   `twine/runtime/capabilities.toml` — eight of them: `tool-calling`,
   `thinking`, `usage-accounting`, `prompt-caching` and `streaming`
-  *implemented*, `window-accounting`, `sandboxing` and `suspend-resume`
-  *declared* (their contracts written, nothing implementing them yet).
+  *implemented* by the adapters, `sandboxing` *implemented* by the runtime
+  itself since R3, and `window-accounting` and `suspend-resume` *declared*
+  (their contracts written, nothing implementing them yet).
   `twine runtime list` renders the registry and is ok only when the
   declaration and the directory agree by name and every entry loads — a
   stray module or a missing one is named; `twine runtime show <name>`
@@ -161,11 +163,33 @@ Arc 1 (the courier) session 1 landed twine's core:
   transition table's rows. It is held to fifteen exchanges the architect
   recorded on 2026-10-13 (`fixtures/anthropic/`), and `from_anthropic`, the
   usage mapping, to those and to the 2026-10-08 usage object. Nothing calls
-  a model on its own yet: R3 adds the canonical tools and the sandbox their
-  calls run in, and R4 the loop — `twine run <bundle>` — which retries with
-  backoff, appends each call's usage to the spend stream and checks the cap
-  before the next. The contract is
+  a model on its own yet: R4 adds the loop — `twine run <bundle>` — which
+  retries with backoff, appends each call's usage to the spend stream and
+  checks the cap before the next. The contract is
   [`claude/context/runtime-contract.md`](claude/context/runtime-contract.md).
+- `runtime tools` (Arc 2 R3, 0.18.0): the **canonical tool surface** —
+  `shell`, `read_file`, `write_file`, `list_dir`, `probe`, `escalate`,
+  `deliver` — declared in `twine/runtime/tools.toml`, one module each under
+  `twine/runtime/tools/`, held to each other by name as the capabilities
+  are; `twine runtime tools` lists each with its description, input schema
+  and whether it leaves the cage, and is ok only when the two agree. Every
+  tool returns a result — a failure is a result with `is_error` true, never
+  an exception. They run in a per-session **sandbox**
+  (`twine/runtime/sandbox.py`): a home under the state directory,
+  `sandbox/<sid>/home/`, to which every file path is confined (absolute
+  paths, `..` and symlinks out refused); a minimal environment — `PATH`,
+  `HOME`, `TMPDIR`, `LANG`, never `ANTHROPIC_API_KEY`; the network off
+  through `unshare -rn` where this machine allows it, and said plainly
+  where it does not (`network: "unconfined"`, the reason). `shell` runs
+  `bash -c` there with a timeout that reaches its children and a 256 KiB
+  stdout cap. Every process a tool starts is registered with the
+  kill-switch's running record while it runs and cleared after, so
+  `twine kill` reaches tools too. `probe` is the one tool that leaves the
+  cage: it runs a read-only probe block against the real repository and
+  returns the verified paste-back, as `carry probe --run` does; `escalate`
+  emits a light question block and asks the loop to suspend; `deliver`
+  names the response tarball the courier will carry. Nothing calls them
+  but the tests until R4's loop.
 - `share/bale-consumption.toml` — the floor (`0.4.51`: twine drives any
   bale at or above it whose installed schemas hash as pinned — an exact
   pin until 0.14.0) and the consumption manifest: the schema hashes, every
@@ -210,8 +234,9 @@ way a runtime turn will stop. The cost spine records spend, totals it and
 checks the hard cap before a call, and the kill-switch can stop a session
 from outside and close it `aborted`; nothing makes a call yet. twine does
 not yet dispatch on the table. The runtime (Arc 2) has its capability
-registry, its adapter boundary, a fake adapter for the tests and the
-Anthropic adapter; no sandbox or loop yet.
+registry, its adapter boundary, a fake adapter for the tests, the
+Anthropic adapter, and the seven canonical tools with the sandbox they run
+in; no loop yet.
 
 ## Running it
 
@@ -234,6 +259,7 @@ python3 -I -S bin/twine spend check --sid SID --cap USD --model M --input N --ma
 python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill its process groups, close it `aborted`
 python3 -I -S bin/twine runtime list [--json]                    # the runtime's capabilities and adapters; ok when parity holds
 python3 -I -S bin/twine runtime show NAME [--json]               # one capability and its declared contract
+python3 -I -S bin/twine runtime tools [--json]                   # the canonical tools; ok when parity holds
 ```
 
 A recording session — needed only when an install moves a listed key or
@@ -270,7 +296,8 @@ python3 -B -m unittest discover -s tests -t .
 ```
 
 No network, no bale install, no third-party module (bash is needed —
-`carry probe`'s tests run real probe scripts): `bale check` is
+`carry probe`'s and the tools' tests run real scripts, and the sandbox's
+use `unshare` where the machine has it, asserting either outcome): `bale check` is
 exercised against temp roots the tests build, each carrying the schema
 fixtures so the gate admits it as it admits your install, and the recorded
 outputs under `fixtures/` — with doubles, named as such, for the bale
