@@ -95,7 +95,9 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         0; requesting the abort again is idempotent); carry bundle with
         --check on an existing file, the stub replaying the recorded
         rehearsal (ok true, exit 0; nothing written, no state directory
-        needed)."""
+        needed); runtime list on the real registry and runtime show on one
+        of its capabilities (ok true, exit 0; they read twine's own files
+        and nothing else, Arc 2 R1)."""
         argv = name.split(" ")
         if name == "bale check":
             argv += ["--bale-root", str(self.roots.ok)]
@@ -118,6 +120,8 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         if name == "spend check":
             argv += ["--sid", "json-discipline-sid", "--cap", "1", "--model",
                      DOUBLE_MODEL, "--input", "100", "--max-output", "100"]
+        if name == "runtime show":
+            argv.append("usage-accounting")
         return argv
 
     def test_every_registered_verb_emits_one_line_subprocess(self):

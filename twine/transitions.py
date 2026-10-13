@@ -20,11 +20,16 @@ row's move is declared. Every other finding is a Problem naming the axis,
 the key or the move at fault; nothing is ever defaulted, guessed or
 dropped.
 
+`stop_keys()` is the one reader of the `stop` axis outside this module's
+own rendering: the runtime's adapter boundary (twine/runtime/boundary.py,
+Arc 2 R1) takes its stop set from it, so the stop names are spelled once,
+in the table, and nowhere in code.
+
 Sections:
-  1. Shapes: axes, moves, rows, problems   (~line 50)
-  2. Loading the table                     (~line 140)
-  3. Checking it is total                  (~line 280)
-  4. Rendering                             (~line 360)
+  1. Shapes: axes, moves, rows, problems   (~line 55)
+  2. Loading the table                     (~line 145)
+  3. Checking it is total                  (~line 320)
+  4. Rendering                             (~line 400)
 """
 
 from __future__ import annotations
@@ -309,6 +314,39 @@ def load_rows(table: Table, raw: Any) -> None:
             continue
         means = spec.get("means") if isinstance(spec.get("means"), str) else ""
         table.rows.append(Row(fields["axis"], fields["key"], fields["move"], means))
+
+
+# The axis whose keys are twine's API-side stop set.
+STOP_AXIS = "stop"
+# The problems that make an axis's own keys untrustworthy. Other problems
+# (a bale axis without its vocabulary, a missing row elsewhere) say
+# nothing about the stop axis's keys and do not stop them being read.
+_KEY_FAULTS = ("malformed-axis", "catch-all-key")
+
+
+def stop_keys(path: Path = TRANSITIONS_TABLE) -> tuple[str, ...]:
+    """The `stop` axis's keys, in the table's order — twine's stop set.
+
+    Read from the table's `[axis.stop] keys` and nowhere else (the axis's
+    source is `twine`, so no consumption manifest is consulted). Raises
+    TableError when the table cannot be read, has no `stop` axis, the axis
+    is not a twine axis, or its keys are malformed: a caller that needs the
+    stop set never gets a guessed one."""
+    table = load_table(path, None, "not consulted: the stop axis is twine's own")
+    for problem in table.problems:
+        if problem.kind == "unusable":
+            raise TableError(problem.message)
+        if problem.axis == STOP_AXIS and problem.kind in _KEY_FAULTS:
+            raise TableError(f"{path}: the {STOP_AXIS!r} axis is unusable: "
+                             f"{problem.message}")
+    axis = table.axis(STOP_AXIS)
+    if axis is None:
+        raise TableError(f"{path}: no [axis.{STOP_AXIS}] is declared")
+    if axis.source != SOURCE_TWINE:
+        raise TableError(f"{path}: [axis.{STOP_AXIS}] has source {axis.source!r}; "
+                         f"the stop set is twine's own ({SOURCE_TWINE!r})")
+    log.debug("stop set from %s: %s", path, ", ".join(axis.keys))
+    return axis.keys
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,87 @@
+# twine/runtime/capabilities.toml — the runtime's capability declaration
+# (twine-seed.md T7, §4.1; the file shape is TQ-2's, proposed at Arc 2 R1,
+# session 2026-10-12-twine-runtime-registry-007, awaiting ratification).
+#
+# The runtime applies N5's registry rule to itself: every runtime operation
+# is a named capability with a declared contract, one module per capability
+# under twine/runtime/capabilities/, and this file lists them. No capability
+# without its entry here, and no entry without its module: `twine runtime
+# list` reports each stray module and each missing module by name (NOT OK,
+# exit 1), and tests/test_runtime.py fails on either by name.
+#
+# One [[capability]] per capability, exactly these four keys:
+#
+#   name     the capability's name: lowercase words joined by hyphens. The
+#            module's CONTRACT.capability must spell it the same.
+#   module   the module, dotted, directly under twine.runtime.capabilities
+#            (`twine.runtime.capabilities.tool_calling` is the file
+#            twine/runtime/capabilities/tool_calling.py) — importable as
+#            written, and printed as written by `twine runtime list`.
+#   status   one of a closed set of three:
+#              declared      its contract is written; no registered adapter
+#                            implements it yet
+#              implemented   at least one registered adapter implements it
+#              experimental  listed, never silently absent (§4.1), whether
+#                            or not an adapter implements it yet
+#            The registry holds `declared` and `implemented` to the adapters:
+#            an adapter claiming a `declared` capability, or an
+#            `implemented` one no adapter claims, is a status-mismatch.
+#   summary  one line, what `twine runtime list` prints.
+#
+# Which adapters implement a capability is never written here: each adapter
+# declares the set it implements (§4.1, "an adapter is a chosen set of
+# them"), and the registry derives every capability's `adapters` from those
+# sets. The capability's meaning is its module's CONTRACT, never this file.
+#
+# A malformed entry — a missing or unknown key, a bad name, a status outside
+# the three, a module not directly under twine.runtime.capabilities, a name
+# or module declared twice — refuses the whole declaration, loudly, naming
+# the entry.
+
+[[capability]]
+name = "tool-calling"
+module = "twine.runtime.capabilities.tool_calling"
+status = "implemented"
+summary = "the model asks for tools and gets results: native tool use, or the text tool protocol (TQ-3, R6) behind the same boundary"
+
+[[capability]]
+name = "thinking"
+module = "twine.runtime.capabilities.thinking"
+status = "implemented"
+summary = "extended thinking, enabled or not with its budget fixed at spawn (D12, D20); never a mid-session knob"
+
+[[capability]]
+name = "prompt-caching"
+module = "twine.runtime.capabilities.prompt_caching"
+status = "declared"
+summary = "append-only, stable prefixes marked for the provider's cache; cache reads and writes accounted as their own classes (D12)"
+
+[[capability]]
+name = "window-accounting"
+module = "twine.runtime.capabilities.window_accounting"
+status = "declared"
+summary = "count the context window from usage (or estimate it), warn the worker as a tool result when it runs thin, exhaustion an outcome (§4.3)"
+
+[[capability]]
+name = "streaming"
+module = "twine.runtime.capabilities.streaming"
+status = "declared"
+summary = "a call's text and thinking delivered as it is produced, the finished turn identical to the unstreamed one (D20)"
+
+[[capability]]
+name = "sandboxing"
+module = "twine.runtime.capabilities.sandboxing"
+status = "declared"
+summary = "the cage the worker's tools run in: a per-sid home, network off, unshare where available (§4.3)"
+
+[[capability]]
+name = "suspend-resume"
+module = "twine.runtime.capabilities.suspend_resume"
+status = "declared"
+summary = "a worker blocked on a clarification persisted append-only and re-warmed cold on the answer (D23, §4.3)"
+
+[[capability]]
+name = "usage-accounting"
+module = "twine.runtime.capabilities.usage_accounting"
+status = "implemented"
+summary = "each call's provider usage mapped onto twine's five token classes (twine.spend.Tokens) for the cost spine"

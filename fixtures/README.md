@@ -17,6 +17,13 @@ A carried paste is landed with every CRLF turned into LF and nothing
 else changed; the tests prove it by turning the LFs back into CRLFs and
 hashing to the received bytes.
 
+**Provider recordings** (since session
+`2026-10-12-twine-runtime-registry-007`, Arc 2 R1). Everything above is
+bale's: `fixtures/bale-<version>/` and its naming rule. A model provider's
+recorded output sits in a sibling directory named for the provider,
+`fixtures/anthropic/`, under a rule of its own — the last section of this
+file, "Provider recordings".
+
 **The floor, and what it means here** (since session
 `2026-10-12-twine-pin-floor-002`, D2 as amended at the sitting
 `2026-10-08-open-arc2-003`). twine no longer drives one exact bale: it
@@ -531,3 +538,41 @@ stderr: file, bytes, sha256.
 | `bale-0.4.51/schemas/request-manifest.schema.json` | 15000 | `70a0c2bd3b6b0d4cf17bc97010c2b7d58931527b7b3100aa984ca3576c075e3d` |
 | `bale-0.4.51/schemas/response-manifest.schema.json` | 26227 | `02d2b6413d078e031641c99e09a9fea909555bdfcb9b2a8a110dbdce63f5817e` |
 | `bale-0.4.51/schemas/telemetry-record.schema.json` | 49179 | `b79d7bf75c10f5799484f906954461e7379ef6d4a870bb7df8c08ce050b38825` |
+
+## Provider recordings
+
+**The rule.** A provider recording is the `usage` object — or, in a later
+session, a whole response — that a named model of a named provider
+returned on a named day, landed as one JSON object on one line with its
+trailing newline, under `fixtures/<provider>/`, named
+`<api>-<what>-<YYYY-MM-DD>.json`. It is never hand-written and never
+edited; a recording of a new model or a new day is a new file beside the
+old ones. The bale naming rule (`fixtures/bale-<version>/…`, argvs named
+by role, outcome groups, `.stderr` siblings) is bale's and does not apply
+here: no bale argv printed these, and `tests/fixture_rule.py`,
+`tests/test_fixtures.py` and `bin/twine-land-recordings` walk
+`fixtures/bale-*/` only, so they neither derive nor check this directory
+(they already did; nothing in them moved). `tests/test_runtime.py` holds
+each file here to its row below — bytes and sha256 — and to being one JSON
+object line. Twine's tests never reach the provider (T8): these files are
+the only provider output the suite ever sees.
+
+**`anthropic/messages-usage-2026-10-08.json`** — the `usage` object of
+one Anthropic Messages API response, from the architect's own `curl` to
+`POST https://api.anthropic.com/v1/messages` on 2026-10-08: model
+`claude-haiku-5-5`, `max_tokens` 16, one user turn. It is a
+**carried emission, not a byte capture of the wire**: the architect printed the
+parsed `usage` object through Python's `repr`, and the desk of the sitting
+`2026-10-08-open-arc2-003` re-serialized it as JSON (`json.dumps` spacing,
+keys in the order the API returned them), as the rule for carried pastes
+above allows. It reached this repository in the request brief of session
+`2026-10-12-twine-runtime-registry-007` (its §3), inside a fence, and was
+landed by slicing the fence's one line in code and appending the newline —
+nothing retyped — to the bytes and hash the brief pins. What it holds
+beyond what `from_anthropic` reads (`cache_creation`'s 5m/1h split,
+`service_tier`, `inference_geo`) is kept as recorded and ignored by the
+mapping (claude/context/runtime-contract.md §4).
+
+| file | bytes | sha256 |
+|---|---|---|
+| `anthropic/messages-usage-2026-10-08.json` | 293 | `98137f648aa03f5c73628db77527df11b7f0d3222067f499e6b7573521f2b094` |
