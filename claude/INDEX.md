@@ -46,7 +46,16 @@ project's inventory.
   each naming a declared move with its actor (twine, operator or
   planner); no default case. Pull when a session dispatches on an
   outcome or a stop, adds a stop, or raises the floor; the header comment
-  spells the shape and `twine transitions` checks it is total.
+  spells the shape and `twine transitions` checks it is total. Its `stop`
+  axis is the runtime boundary's stop set, read through
+  `twine.transitions.stop_keys` (`context/runtime-contract.md` §1.5).
+- `../twine/runtime/capabilities.toml` — the runtime's capability
+  declaration (T7, §4.1; TQ-2's shape, proposed at Arc 2 R1): one
+  `[[capability]]` per capability — `name`, `module`, `status`
+  (`declared`, `implemented`, `experimental`), `summary` — held to the
+  modules under `twine/runtime/capabilities/` by name. Pull when a session
+  adds, implements or changes a runtime capability; the header comment
+  spells the entry shape and `twine runtime list` checks parity.
 
 - `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`,
   `<state-dir>/abort/<sid>.json`, `<state-dir>/running/<sid>.json` and
@@ -110,7 +119,21 @@ project's inventory.
   recording) (per-run fixture names, by
   role; outcome groups; stderr siblings), how the tests run. Default inclusion for any session
   that adds a verb, runs a subprocess, routes a courier's block, or
-  touches spend, the kill-switch or the in-flight record.
+  touches spend, the kill-switch or the in-flight record. Since Arc 2 R1
+  also §17, `runtime list` and `runtime show` (the registry rendered, ok
+  on parity by name; one capability's contract).
+- `context/runtime-contract.md` — the runtime's contract, the sibling of
+  `cli-contract.md` (Arc 2 R1; §1 and §2 proposed, awaiting ratification):
+  §1 the adapter boundary (Q-3 — what an adapter implements: tool calling,
+  thinking fixed at spawn, usage as the five token classes, the stop set
+  read from the transition table's `stop` axis and spelled nowhere else;
+  what the boundary refuses), §2 the capability registry (TQ-2 — the
+  declaration's entry shape, the contract object, the three statuses,
+  parity by name, adapters declaring what they implement, the eight at
+  R1), §3 the fake adapter (the script format, what it cannot do), §4
+  provider usage mappings (`from_anthropic`'s table, thinking counted
+  once). Default inclusion for any Arc 2 runtime session: an adapter, a
+  capability, the loop, the sandbox, window accounting.
 - `../fixtures/README.md` — the fixtures rule (recorded bytes from a
   named bale version, or an architect-carried paste of bale output;
   never hand-written), the path naming rules (bale argvs, crafter
@@ -126,8 +149,12 @@ project's inventory.
   the tests replay, and the eight installed schemas the gate hashes sit
   under it in `schemas/`, byte-exact, with a `| file | bytes | sha256 |`
   table of their own (not recordings: the lander leaves them alone). One
-  section per bale version, earlier sections kept as history. Pull when
-  recording or reading a fixture.
+  section per bale version, earlier sections kept as history. Since Arc 2
+  R1 a last section, "Provider recordings": `fixtures/anthropic/`, a
+  provider's recorded `usage` object (one JSON object line per model per
+  day) under its own rule, beside bale's, with its provenance and a
+  `| file | bytes | sha256 |` row. Pull when recording or reading a
+  fixture, or mapping a provider's usage.
 
 ## Tools
 - `../bin/twine-record-fixtures` — the recorder: the probe a recording session

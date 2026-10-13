@@ -39,6 +39,16 @@ Modules:
             <sid>.json, a cache of the opens `carry bundle` carried into
             bale — written by that verb (record_open), listed by `twine
             status` (list_inflight); nothing in Arc 1 removes one
+  runtime   the runtime (T4, §4; Arc 2), a package: since R1 the
+            capability registry — the declaration capabilities.toml, one
+            module per capability under capabilities/ (each a CONTRACT),
+            parity by name — the adapter boundary (boundary.py: the
+            Adapter interface, the Turn, the stop set read from the
+            transition table's `stop` axis), the registered adapters
+            under adapters/ (at R1 only `fake`, the scripted transport
+            the tests drive) and from_anthropic, the first provider usage
+            mapping; rendered by `twine runtime list` and `show`; reaches
+            no network and reads no key
   commands  the verb modules, each exposing COMMANDS (a family may span
             modules: the `carry` verbs live in carry.py, carry_bale.py
             and carry_bundle.py)

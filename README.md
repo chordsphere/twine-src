@@ -93,9 +93,9 @@ Arc 1 (the courier) session 1 landed twine's core:
   with `stop: "cap-unchecked"`, whose remedy is to fix the named fault, not
   to raise the cap. **twine ships no
   prices**: you write them, per model, in `prices.toml`, and an unpriced
-  model is a refusal, never an estimate. No provider's usage has been
-  recorded yet (the gated probe `twine-usage-record` will), so the spine
-  reads only twine's own record; mapping a provider onto it is Arc 2's.
+  model is a refusal, never an estimate. The spine reads only twine's own
+  record; mapping a provider's usage onto it is the runtime's (since Arc 2
+  R1, `from_anthropic`, below).
 - `kill` (sessions 5b and 5c): the kill-switch (D15), in three layers.
   `twine kill <sid>` requests the **between-calls abort** — a file in
   twine's state directory, `abort/<sid>.json`, that the runtime's loop will
@@ -125,6 +125,32 @@ Arc 1 (the courier) session 1 landed twine's core:
   never reverts, merges or applies anything. Nothing records a running
   group yet (the runtime is Arc 2's), so today a kill requests the abort
   and closes the session.
+- `runtime list` and `runtime show` (Arc 2 R1, 0.16.0): the runtime's
+  first foundations, under `twine/runtime/`. Every runtime operation is a
+  named **capability** with a declared contract — one module per
+  capability under `twine/runtime/capabilities/`, listed by
+  `twine/runtime/capabilities.toml` — eight of them: `tool-calling`,
+  `thinking` and `usage-accounting` *implemented*, `prompt-caching`,
+  `window-accounting`, `streaming`, `sandboxing` and `suspend-resume`
+  *declared* (their contracts written, nothing implementing them yet).
+  `twine runtime list` renders the registry and is ok only when the
+  declaration and the directory agree by name and every entry loads — a
+  stray module or a missing one is named; `twine runtime show <name>`
+  renders one capability's contract. Beside the registry sits the
+  **adapter boundary** (`twine/runtime/boundary.py`): the interface a
+  model adapter implements — tool calls, thinking fixed at spawn, usage as
+  the cost spine's five token classes, and a stop that is always a key of
+  the transition table's `stop` axis, read from the table and spelled
+  nowhere else. One adapter is registered, `fake`: a scripted transport
+  the tests drive and nothing else does. And the first provider usage
+  mapping, `from_anthropic`, held to the Messages API `usage` object the
+  architect recorded on 2026-10-08 (`fixtures/anthropic/`). Nothing calls
+  a model yet: nothing reaches a network or reads a key. R2 adds the
+  Anthropic adapter (the SDK an optional extra inside it, and the key),
+  R3 the canonical tools and the sandbox their calls run in, and R4 the
+  loop — `twine run <bundle>` — which appends each call's usage to the
+  spend stream and checks the cap before the next. The contract is
+  [`claude/context/runtime-contract.md`](claude/context/runtime-contract.md).
 - `share/bale-consumption.toml` — the floor (`0.4.51`: twine drives any
   bale at or above it whose installed schemas hash as pinned — an exact
   pin until 0.14.0) and the consumption manifest: the schema hashes, every
@@ -143,7 +169,9 @@ Arc 1 (the courier) session 1 landed twine's core:
   recorder's paste-back the 0.4.51 recordings were landed from — and the
   eight `schemas/*.json` the gate hashes, under `fixtures/bale-0.4.51/schemas/`,
   byte-exact; the only bale the tests ever see. Earlier versions'
-  recordings stay as history.
+  recordings stay as history. Since Arc 2 R1, `fixtures/anthropic/` holds
+  provider recordings under a rule of their own — the one so far the
+  Messages API `usage` object `from_anthropic` is held to.
 - `bin/twine-record-fixtures` and `bin/twine-land-recordings` — the
   recorder and the lander a recording session runs: the probe that records every
   bale surface twine reads, stdout and stderr, and the tool that lands its
@@ -159,8 +187,9 @@ transition table names a move for every outcome bale reports and every
 way a runtime turn will stop. The cost spine records spend, totals it and
 checks the hard cap before a call, and the kill-switch can stop a session
 from outside and close it `aborted`; nothing makes a call yet. twine does
-not yet dispatch on the table, and there is no model adapter or sandbox
-(Arc 2).
+not yet dispatch on the table. The runtime (Arc 2) has its capability
+registry, its adapter boundary and a fake adapter for the tests; no model
+adapter, sandbox or loop yet.
 
 ## Running it
 
@@ -181,6 +210,8 @@ python3 -I -S bin/twine transitions [--json]                     # the transitio
 python3 -I -S bin/twine spend totals [--sid SID] [--json]        # spend per session, at your prices
 python3 -I -S bin/twine spend check --sid SID --cap USD --model M --input N --max-output N   # admit or refuse one call
 python3 -I -S bin/twine kill SID [--grace SECONDS] [--json]     # abort, kill its process groups, close it `aborted`
+python3 -I -S bin/twine runtime list [--json]                    # the runtime's capabilities and adapters; ok when parity holds
+python3 -I -S bin/twine runtime show NAME [--json]               # one capability and its declared contract
 ```
 
 A recording session — needed only when an install moves a listed key or

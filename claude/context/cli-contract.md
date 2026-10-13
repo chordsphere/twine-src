@@ -38,8 +38,11 @@
 > procedure, §7's schemas, §8's roots and `status`, §11.1's gate and the
 > key check in §11.2, §11.3, §14.5 and §15.4, §11.4, §14.7 and §15.6 on the
 > edited lines, §12's `floor`, §14.1, §14.2, §14.8, §15.2 and §16's
-> procedure); a later session that changes a line changes it here in the
-> same response.
+> procedure) and by `2026-10-12-twine-runtime-registry-007` (Arc 2 R1:
+> §17, `runtime list` and `runtime show`, and §2's verb list; the runtime
+> itself — the boundary, the registry's file shape, the fake adapter, the
+> provider usage mappings — is `runtime-contract.md`'s); a later session
+> that changes a line changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -80,7 +83,9 @@
   bundle` (`twine/commands/carry_bundle.py`, §15) —
   `transitions` (`twine/commands/transitions.py`, §12), the `spend`
   group — `spend totals` and `spend check` (`twine/commands/spend.py`,
-  §13) — and `kill` (`twine/commands/kill.py`, §14). One group's verbs
+  §13) — `kill` (`twine/commands/kill.py`, §14) and, since Arc 2 R1, the
+  `runtime` group — `runtime list` and `runtime show`
+  (`twine/commands/runtime.py`, §17). One group's verbs
   may live in several modules; the parser assembles the group from all
   of them.
 - `twine commands --json` emits
@@ -1168,6 +1173,15 @@ Mapping a provider's usage onto that record is the model adapter's job
 in `tests/` is a twine record built by `tests/helpers.py`
 `usage_double`, named as a double; nothing in the tree claims to be an API
 response.
+
+(Since Arc 2 R1, session `2026-10-12-twine-runtime-registry-007`: one
+provider usage *is* recorded — the Anthropic Messages API `usage` object
+the architect printed on 2026-10-08 from his own call, carried in that
+session's brief and landed as `fixtures/anthropic/messages-usage-2026-10-08.json`
+— and the first mapping, `from_anthropic`, is held to it
+(`runtime-contract.md` §4). The spine still never sees a provider's shape:
+the mapping lives in the runtime, and what reaches the stream is twine's
+record. The probe `twine-usage-record` is no longer what this waits on.)
 
 **Twine ships no prices** (§13.4). Neither module makes a network call,
 starts a subprocess (the verbs never call `ctx.run`) or imports a provider
@@ -2280,3 +2294,106 @@ session that moved the pin):
 
 Earlier versions' directories and README sections stay as history; nothing
 under them is moved, re-landed or edited.
+
+## 17. `twine runtime list [--json]` and `twine runtime show NAME [--json]` — the capability registry (T7)
+
+The runtime's capabilities, rendered (twine-seed.md §4.1: "`twine runtime
+list` and `twine runtime show <capability>` render the registry (CLI
+first, JSON twin, the shell renders it later)"). The registry is
+`twine/runtime/registry.py` over the declaration
+`twine/runtime/capabilities.toml`, the capability modules under
+`twine/runtime/capabilities/` and the adapters under
+`twine/runtime/adapters/`; the verbs are `twine/commands/runtime.py`.
+What a capability, a contract, a status and parity are is
+`runtime-contract.md` §2; this section is the verbs. (The brief that
+landed it named this §16; §16 was already the recorder and the lander,
+and section numbers are stable, so it is §17.)
+
+### 17.1 Refused before
+
+Nothing is refused before the registry loads: neither verb takes a flag
+but `--json`, and `show` takes one positional, `NAME`. A **malformed
+declaration** (`runtime-contract.md` §2.2: unreadable, not TOML, an entry
+with a missing or unknown key, a bad name, a status outside the three, a
+duplicate) is NOT OK on both verbs, exit 1, one JSON line, no traceback —
+`reason` naming every bad entry, and `list`'s `capabilities`, `adapters`
+and `problems` empty.
+
+### 17.2 The call
+
+Both verbs read twine's own files and import twine's own modules: **no
+bale install, no subprocess (neither touches `ctx.run`), no
+`--bale-root`, `TWINE_BALE_ROOT` or `PATH`, no network, no key.** A test
+runs both with a run seam that fails the test if called.
+
+### 17.3 ok
+
+- **`runtime list`** is ok exactly when the declaration and the
+  directory agree by name — every declared capability has its module,
+  every module is declared — and every entry loads: each module imports,
+  its `CONTRACT` is whole and names its capability, each status agrees
+  with the adapters, and every adapter registers. Otherwise NOT OK, exit
+  1, each fault a problem naming it — the stray module by its module name,
+  the missing module by its capability (`runtime-contract.md` §2.2's
+  kinds).
+- **`runtime show NAME`** is ok when `NAME` is a declared capability whose
+  own entry loads (its module, its contract, its status). A problem
+  elsewhere in the registry does not make it NOT OK — it is reported on
+  stderr and as `registry_ok` false. An **unknown `NAME`** is NOT OK, exit
+  1, the reason naming it and listing the declared names.
+
+### 17.4 The JSON twin
+
+One line (§3). `runtime list`, `command` `"runtime list"`:
+
+| key | value |
+|---|---|
+| `capabilities` | every declared capability, in the declaration's order: `name`, `status` (`declared`, `implemented` or `experimental`), `summary` (one line), `module` (dotted: `twine.runtime.capabilities.<module>`), `adapters` (the names of the registered adapters that implement it; `[]` when none) |
+| `adapters` | every registered adapter, by name: `name`, `implements` (in the declaration's order), `tool_protocol` (`native` or `text`), `module` |
+| `counts` | `capabilities`, one count per status, `adapters` |
+| `statuses` | the closed set, `["declared", "implemented", "experimental"]` |
+| `problems` | each fault: `kind`, `name`, `message` |
+| `reason` | every problem's message, `; `-joined; null when ok |
+
+beside `declaration` and `directory` (repo-relative paths). Contracts are
+rendered by `show` only, so the list stays one screen.
+
+`runtime show NAME`, `command` `"runtime show"`: the five fields of the
+capability's `list` row at the top level (`name`, `status`, `summary`,
+`module`, `adapters`), plus `contract` — an object, `purpose` (string),
+`adapter_must` and `runtime_promises` (lists of strings), `lands`
+(string), `grounds` (list of strings); `null` when the contract did not
+load — `problems` (this capability's), `registry_ok` and `reason`. For an
+unknown `NAME`: `name` (as given), `known` (the declared names, in order)
+and `reason`.
+
+Human mode prints the same facts: `list` a verdict line, the counts, two
+lines per capability (name, status, module and adapters; then its
+summary), the adapters with what each implements, and every problem;
+`show` the verdict, the five fields, the registry's verdict and the
+contract.
+
+At R1 the list is eight capabilities — `tool-calling`, `thinking` and
+`usage-accounting` `implemented` by `fake`, the other five `declared` —
+and one adapter, `fake`.
+
+### 17.5 Tests
+
+`tests/test_runtime.py`: the declaration walked with tomllib and a
+directory listing of the test's own (the parity pair — a module not
+listed, a listed module missing — each failing by the name at fault);
+every entry loads; the three statuses and the set closed; each detector
+fired against a copy edited to be wrong (a planted module or package, a
+removed module, no contract, a contract for another capability, one not
+whole, a module that does not import, each status mismatch, an adapter
+implementing an undeclared capability); every malformed declaration
+refused; the verbs end to end on a copy of the tree with a module planted,
+one removed and the declaration broken (NOT OK, exit 1, named, no
+traceback), their JSON twins and human lines, and an unknown `NAME`; and
+each listed capability module removed in turn on its own copy — `runtime
+list` NOT OK naming that capability, `runtime show` of it NOT OK, and every
+verb still loading (`twine commands` ok, every verb's `--help` exit 0),
+which holds because nothing outside `twine/runtime/capabilities/` imports a
+capability module (`runtime-contract.md` §2.1; a test walks the imports).
+`tests/test_registry.py` holds the two verbs registered as a group, and
+`tests/test_json_discipline.py` runs both under the one-line discipline.
