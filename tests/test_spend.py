@@ -644,7 +644,8 @@ class PreCallCheck(StateCase):
         with TRANSITIONS_TABLE.open("rb") as fh:
             table = tomllib.load(fh)
         keys = table["axis"]["stop"]["keys"]
-        self.assertEqual(keys[-2:], ["killed", spend.STOP_CAP_UNCHECKED])
+        # The loop's keys sit last; adapter-defect (007) follows cap-unchecked.
+        self.assertEqual(keys[-3:], ["killed", spend.STOP_CAP_UNCHECKED, "adapter-defect"])
         rows = [r for r in table["row"]
                 if (r["axis"], r["key"]) == ("stop", spend.STOP_CAP_UNCHECKED)]
         self.assertEqual([r["move"] for r in rows], ["fix-and-resume"])

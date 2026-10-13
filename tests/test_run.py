@@ -32,6 +32,7 @@ import copy
 import io
 import json
 import os
+import re
 import tarfile
 import tempfile
 import unittest
@@ -472,19 +473,42 @@ class TheStops(BedCase):
         self.assertEqual(twin["check"]["refusal"], "no-prices")
         self.assertEqual(twin["cost_usd"], 0.0, "no call, nothing spent")
 
-    def test_an_adapter_defect_is_stopped_with_no_move(self):
+    def test_an_adapter_defect_is_stopped_adapter_defect_with_fix_adapter(self):
         """A provider's word scripted where twine's belongs: the boundary
-        refuses the turn; the loop stops, naming the defect."""
+        refuses the turn; the loop stops with the loop key `adapter-defect`
+        and the operator's move `fix-adapter`, naming the defect."""
         bed = self.bed()
         twin = bed.twin([stop("end_turn", "a provider's word")])
-        self.assertEqual((twin["outcome"], twin["stop"], twin["move"], twin["turns"]),
-                         ("stopped", None, None, 1))
+        self.assertEqual((twin["outcome"], twin["stop"], twin["move"], twin["actor"],
+                          twin["turns"]),
+                         ("stopped", "adapter-defect", "fix-adapter", "operator", 1))
         self.assertIn("boundary", twin["reason"])
+        self.assertEqual(bed.records(), [], "no turn, no spend record")
+        self.assert_kept(bed, twin)
 
-    def test_a_script_that_runs_out_is_stopped(self):
-        twin = self.bed().twin([tools(("list_dir", {}), n=1)])
-        self.assertEqual((twin["outcome"], twin["turns"]), ("stopped", 2))
+    def test_an_adapter_defect_leaves_an_adapter_error_line_then_a_move_line(self):
+        bed = self.bed()
+        bed.twin([stop("end_turn", "a provider's word")])
+        lines = bed.transcript()
+        self.assertEqual([l["kind"] for l in lines],
+                         ["run-start", "check", "request", "adapter-error", "move", "run-end"])
+        error, move = lines[3], lines[4]
+        self.assertEqual((error["call"], error["error"]), (1, "BoundaryError"))
+        self.assertTrue(error["faults"])
+        self.assertEqual((move["call"], move["stop"], move["move"], move["actor"]),
+                         (1, "adapter-defect", "fix-adapter", "operator"))
+        self.assertEqual(lines[-1]["twin"]["stop"], "adapter-defect")
+
+    def test_a_script_that_runs_out_is_stopped_adapter_defect(self):
+        bed = self.bed()
+        twin = bed.twin([tools(("list_dir", {}), n=1)])
+        self.assertEqual((twin["outcome"], twin["stop"], twin["move"], twin["actor"],
+                          twin["turns"]),
+                         ("stopped", "adapter-defect", "fix-adapter", "operator", 2))
         self.assertIn("FakeScriptExhausted", twin["reason"])
+        self.assertEqual(len(bed.records()), 1, "only the first call was counted")
+        kinds = [l["kind"] for l in bed.transcript()]
+        self.assertEqual(kinds[-3:], ["adapter-error", "move", "run-end"])
 
 
 class TheRecords(BedCase):
@@ -830,8 +854,27 @@ class TheLoop(unittest.TestCase):
     def test_a_thinking_turn_on_a_thinking_off_session_is_a_defect(self):
         bed = LoopBed(self, [stop("end-turn", "x", thinking="hm")], thinking=False)
         result = bed.run()
-        self.assertEqual((result.outcome, result.stop), ("stopped", None))
+        self.assertEqual((result.outcome, result.stop, result.move, result.actor),
+                         ("stopped", "adapter-defect", "fix-adapter", "operator"))
         self.assertIn("thinking", result.reason)
+        self.assertEqual(result.records, [], "a refused turn is never spent")
+
+    def test_an_adapter_that_raises_anything_is_an_adapter_defect(self):
+        """Not only the boundary's refusals and the fake's exhaustion: any
+        exception an adapter raises ends the run adapter-defect/fix-adapter,
+        and nothing is appended to the spend stream."""
+        bed = LoopBed(self, [stop("end-turn", "never played")])
+
+        def explode(request):
+            raise RuntimeError("the adapter's own bug")
+        bed.adapter.call = explode
+        result = bed.run()
+        self.assertEqual((result.outcome, result.stop, result.move, result.actor, result.turns),
+                         ("stopped", "adapter-defect", "fix-adapter", "operator", 1))
+        self.assertIn("RuntimeError", result.reason)
+        self.assertEqual(spend.read_stream(bed.state / spend.STREAM_NAME).records, [])
+        kinds = [l["kind"] for l in transcripts.read_lines(bed.transcript.path)]
+        self.assertEqual(kinds[-3:], ["request", "adapter-error", "move"])
 
 
 class TheSystemPrompt(unittest.TestCase):
@@ -1005,6 +1048,40 @@ class TheMoveBook(unittest.TestCase):
         trimmed.moves = {k: v for k, v in table.moves.items() if k != "continue-turn"}
         faults = runloop.MoveBook(trimmed).faults()
         self.assertTrue(any("'continue-turn'" in f for f in faults), faults)
+
+    def test_a_table_without_the_adapter_defect_key_or_row_is_a_fault(self):
+        """The loop reports adapter-defect itself, so a table that does not
+        declare it as a loop key, or gives it no row, is a fault `twine run`
+        names before it opens anything."""
+        text = TRANSITIONS_TABLE.read_text(encoding="utf-8")
+        row = re.search(r'\[\[row\]\]\naxis = "stop"\nkey = "adapter-defect"\n.*?\n\n', text,
+                        re.S)
+        self.assertIsNotNone(row)
+        move = re.search(r'\[move\.fix-adapter\]\n.*?\n\n', text, re.S)
+        self.assertIsNotNone(move)
+        cases = {
+            "no key at all": (text.replace(', "adapter-defect"]', ']')
+                              .replace(row.group(0), "").replace(move.group(0), ""),
+                              "among its loop_keys"),
+            "a key without a loop key": (text.replace(
+                'loop_keys = ["cap-reached", "cap-unchecked", "killed", "adapter-defect"]',
+                'loop_keys = ["cap-reached", "cap-unchecked", "killed"]'),
+                "among its loop_keys"),
+            "a key with no row": (text.replace(row.group(0), ""),
+                                  "has no row with a declared move"),
+            "a row whose move is not declared": (text.replace(move.group(0), ""),
+                                                 "has no row with a declared move"),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, (body, expected) in cases.items():
+                with self.subTest(case=name):
+                    self.assertNotEqual(body, text)
+                    path = Path(tmp) / "t.toml"
+                    path.write_text(body, encoding="utf-8")
+                    table = load_table(path, load_manifest(CONSUMPTION_MANIFEST))
+                    faults = runloop.MoveBook(table).faults()
+                    self.assertTrue(any("'adapter-defect'" in f and expected in f
+                                        for f in faults), faults)
 
     def test_the_loop_spells_no_stop_key_and_imports_no_process_module(self):
         """The one spelling is the table's; nothing under twine/runtime/ or

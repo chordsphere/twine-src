@@ -616,7 +616,8 @@ class TheStopSet(unittest.TestCase):
                 "no-axis": text.replace("[axis.stop]", "[axis.halt]"),
                 "bale-source": re.sub(r'(\[axis\.stop\]\norder = 4\nsource = )"twine"',
                                       r'\1"bale"', text),
-                "catch-all": text.replace('"cap-unchecked"]', '"cap-unchecked", "other"]'),
+                "catch-all": text.replace('"adapter-defect"]', '"adapter-defect", "other"]',
+                                         1),
                 "not-toml": "[axis.stop\n",
             }
             for name, body in cases.items():
@@ -655,10 +656,12 @@ class FakeThroughTheBoundary(unittest.TestCase):
 
     def test_every_stop_on_the_axis_passes_but_the_loops(self):
         """Every key of the axis passes from an adapter — except the axis's
-        loop_keys (Arc 2 R2): the loop produces those, and the boundary
-        refuses an adapter whose mapping produces one, naming it."""
+        loop_keys (Arc 2 R2; four since the adapter-defect session): the loop
+        produces those, and the boundary refuses an adapter whose mapping
+        produces one, naming it."""
         loop = transitions.loop_keys()
-        self.assertEqual(set(loop), {"cap-reached", "cap-unchecked", "killed"})
+        self.assertEqual(set(loop), {"cap-reached", "cap-unchecked", "killed",
+                                  "adapter-defect"})
         for key in transitions.stop_keys():
             with self.subTest(stop=key):
                 if key in loop:

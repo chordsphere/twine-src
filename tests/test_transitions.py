@@ -52,13 +52,17 @@ PINNED_STOPS = ["end-turn", "max-tokens", "model-refusal", "window-exhausted",
 # one session 5b added: cap-unchecked, the pre-call check that could not
 # run (cost-spine-005's Proposal, ratified at continue-twine-006).
 ADDED_STOPS = ["cap-reached", "killed", "cap-unchecked"]
+# The loop's fourth key (session 2026-10-13-twine-table-adapter-defect-007):
+# a boundary refusal or an adapter that raised, the operator's `fix-adapter`.
+ADAPTER_DEFECT_STOP = "adapter-defect"
 # The two provider keys Arc 2 R2 added (its brief (e), (f)), placed after the
 # ten so the provider's keys sit together and the loop's stay last.
 R2_STOPS = ["request-refused", "provider-error"]
 # The stop axis in the table's order since R2.
-STOPS = PINNED_STOPS + R2_STOPS + ADDED_STOPS
-# The keys the loop produces and no adapter may (R1's Proposal 3, accepted).
-LOOP_KEYS = ["cap-reached", "cap-unchecked", "killed"]
+STOPS = PINNED_STOPS + R2_STOPS + ADDED_STOPS + [ADAPTER_DEFECT_STOP]
+# The keys the loop produces and no adapter may (R1's Proposal 3, accepted;
+# four since the adapter-defect session).
+LOOP_KEYS = ["cap-reached", "cap-unchecked", "killed", ADAPTER_DEFECT_STOP]
 
 
 def raw_table() -> dict:
@@ -264,7 +268,7 @@ class TheMoves(unittest.TestCase):
                 with self.subTest(move=move.name):
                     self.assertNotEqual(move.actor, "twine", move.description)
 
-    def test_the_stop_set_is_the_brief_s_ten_plus_r2_s_two_plus_the_three_added(self):
+    def test_the_stop_set_is_the_brief_s_ten_plus_r2_s_two_plus_the_loops_four(self):
         stop = list(self.table.axis("stop").keys)
         self.assertEqual(stop, STOPS)
         self.assertEqual(self.table.axis("stop").source, "twine")
@@ -294,6 +298,38 @@ class TheMoves(unittest.TestCase):
         move = self.table.moves[self.rows[("stop", "cap-unchecked")]]
         self.assertEqual((move.name, move.actor), ("fix-and-resume", "operator"))
         self.assertNotEqual(move.name, self.rows[("stop", "cap-reached")])
+
+    def test_adapter_defect_is_a_loop_key_with_the_operators_fix_adapter(self):
+        """Session 2026-10-13-twine-table-adapter-defect-007 (ruled at the
+        desk): the key is the loop's, no adapter may produce it, and its move
+        is the operator's — not respawn-from-request, the planner's, whose
+        premise is a malformed response."""
+        axis = self.table.axis("stop")
+        self.assertIn(ADAPTER_DEFECT_STOP, axis.keys)
+        self.assertIn(ADAPTER_DEFECT_STOP, axis.loop_keys)
+        self.assertEqual(self.rows[("stop", ADAPTER_DEFECT_STOP)], "fix-adapter")
+        move = self.table.moves["fix-adapter"]
+        self.assertEqual(move.actor, "operator")
+        self.assertNotEqual(move.name, "respawn-from-request")
+        self.assertIn("twine's own defect, never a model outcome", move.description)
+        self.assertIn("the planner is not asked", move.description)
+        row = next(r for r in self.table.rows if (r.axis, r.key) == ("stop", ADAPTER_DEFECT_STOP))
+        self.assertTrue(row.means.strip())
+        self.assertEqual(transitions.STOP_ADAPTER_DEFECT, ADAPTER_DEFECT_STOP)
+
+    def test_continue_turn_says_what_the_loop_does(self):
+        """The same session reconciled the description with the loop: at most
+        three continuations in a row, then the run stops with the stop the
+        turn carried, max-tokens, for the planner — not malformed-shape."""
+        move = self.table.moves["continue-turn"]
+        self.assertEqual(move.actor, "twine")
+        self.assertEqual(
+            move.description,
+            "Twine continues the cut-off turn in a further call that carries what was written "
+            "so far, counted against the window and the cap; at most three continuations in a "
+            "row, past which the run stops with the stop the turn carried, max-tokens, for the "
+            "planner to read.")
+        self.assertNotIn("malformed-shape", move.description)
 
     def test_unlocked_defers_to_its_closure_reason(self):
         move = self.table.moves[self.rows[("telemetry-outcome", "unlocked")]]
@@ -508,7 +544,7 @@ def mapping_of(data: dict, on: str, word: str) -> dict:
 
 class LoopKeysAndMappings(unittest.TestCase):
 
-    def test_loop_keys_are_the_loops_three_read_from_the_table(self):
+    def test_loop_keys_are_the_loops_four_read_from_the_table(self):
         with TRANSITIONS_TABLE.open("rb") as fh:
             raw = tomllib.load(fh)["axis"]["stop"]["loop_keys"]
         self.assertEqual(raw, LOOP_KEYS)
@@ -595,6 +631,16 @@ class LoopKeysAndMappings(unittest.TestCase):
                 with self.assertRaises(transitions.TableError) as caught:
                     transitions.provider_mapping("anthropic", path)
                 self.assertIn("anthropic", str(caught.exception))
+
+    def test_no_provider_word_may_map_onto_adapter_defect(self):
+        """The new loop key is held like the other three: a mapping onto it is
+        `loop-key-mapped`, so no adapter can produce the loop's own key."""
+        data = raw_table()
+        mapping_of(data, "status", "529").update(stop=ADAPTER_DEFECT_STOP)
+        problems = load(data).problems
+        self.assertEqual([p.kind for p in problems], ["loop-key-mapped"],
+                         [p.message for p in problems])
+        self.assertIn(ADAPTER_DEFECT_STOP, problems[0].message)
 
     def test_malformed_mapping_shapes_are_each_named(self):
         bad = [
@@ -698,8 +744,8 @@ class TheVerb(unittest.TestCase):
         obj = one_line(self, run.stdout)
         self.assertEqual((run.code, obj["ok"], obj["reason"], obj["problems"]),
                          (0, True, None, []))
-        self.assertEqual(len(obj["rows"]), 13 + 9 + 9 + 15)
-        self.assertEqual(obj["counts"]["rows"], 46)
+        self.assertEqual(len(obj["rows"]), 13 + 9 + 9 + 16)
+        self.assertEqual(obj["counts"]["rows"], 47)
         for row in obj["rows"]:
             for key in ("axis", "key", "move"):
                 self.assertIsInstance(row[key], str, row)
