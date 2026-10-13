@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# Blind checkpoint — session twine-runtime-tools (Arc 2 R3, v1), authored at
+# Blind checkpoint — session twine-runtime-tools (Arc 2 R3, v2), authored at
 # the desk of sitting 2026-10-08-open-arc2-003 from the request alone.
+# v2 (2026-10-13, after the HOLD of -003): inside bale's apply sandbox the
+# grading interpreter's process group reads as 0 (a PID namespace whose group
+# leader is outside it), so registering the runtime with its own pgid crashed
+# the interpreter and every probe after it. The interpreter now makes itself
+# a session leader before registering, and the registration is a step of its
+# own so a failure there names itself instead of taking the others down. No
+# probe's expectation changed.
 #
 # What it grades (outcomes only): `twine runtime tools` lists the seven
 # canonical tools with schemas and parity by name; a sandbox created under a
@@ -155,12 +162,20 @@ step("escalate_four", lambda: R("escalate", {"questions": qs * 4}))
 step("deliver", lambda: R("deliver", {"tarball": "out/r.tar.gz"}))
 step("deliver_missing", lambda: R("deliver", {"tarball": "out/none.tar.gz"}))
 step("deliver_outside", lambda: R("deliver", {"tarball": str(OUTSIDE / "secret.txt")}))
-# the kill-switch hook: a running record for the sid, then a shell run
-kill.register_running(STATE, SID, os.getpgid(0), os.getpid())
+# the kill-switch hook: a running record for the sid, then a shell run. This
+# interpreter becomes its own session (and so its own group, pgid == pid > 1)
+# first: under a PID namespace the inherited group's leader is invisible and
+# the pgid reads as 0.
+def register():
+    try: os.setsid()
+    except OSError: pass
+    rec = kill.register_running(STATE, SID, os.getpgid(0), os.getpid())
+    return {"pgid": rec.pgid, "pid": rec.pid}
+step("register", register)
 seen["hooks"] = 0; seen["groups_during"] = None
 step("hooked", lambda: R("shell", {"command": "sleep 0.3; echo done"}))
 step("hook_seen", lambda: dict(seen, argv=None))
-step("groups_after", lambda: len(kill.read_running(STATE, SID).groups))
+step("groups_after", lambda: len(kill.read_running(STATE, SID).groups) if kill.read_running(STATE, SID) is not None else None)
 step("argv_shell", lambda: [a for a in seen["argv"] if any("printf hi" in x for x in a)][:1])
 ''')
 r, err = run_py(code, {"ANTHROPIC_API_KEY": SECRET, "ORACLE_PARENT_ONLY": "1"})
@@ -204,8 +219,8 @@ v = value(r, "deliver") or {}
 probe("deliver: delivered true with the file's sha256 and size", is_ok(v) and v.get("delivered") is True and v.get("sha256") == hashlib.sha256(b"not really a tarball\n").hexdigest() and v.get("size") == 21)
 probe("deliver of a missing file and of a path outside the cage: error results", is_error(value(r, "deliver_missing")) and is_error(value(r, "deliver_outside")))
 hs = value(r, "hook_seen") or {}
-probe("the kill-switch hook: with a running record, shell passes on_spawn, the group is in the record during the run and cleared after",
-      is_ok(value(r, "hooked")) and hs.get("hooks") == 1 and hs.get("groups_during") == 1 and value(r, "groups_after") == 0)
+probe("the kill-switch hook: with a running record (this interpreter registered as its own session), shell passes on_spawn, the group is in the record during the run and cleared after",
+      okv(r, "register") and is_ok(value(r, "hooked")) and hs.get("hooks") == 1 and hs.get("groups_during") == 1 and value(r, "groups_after") == 0)
 argv = (value(r, "argv_shell") or [[]])[0]
 probe("shell runs through the seam as bash -c (wrapped in unshare -rn when the network is off)",
       isinstance(argv, list) and "bash" in argv and "-c" in argv and ((sbj.get("network") == "off") == (len(argv) > 0 and argv[0] == "unshare" and "-rn" in argv)))
