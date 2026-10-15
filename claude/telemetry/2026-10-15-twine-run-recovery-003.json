@@ -1,0 +1,294 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-15-twine-run-recovery-003",
+  "created_at": "2026-10-15T21:43:45+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-15T21:43:45+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "share/transitions.toml",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "tests/test_transitions.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/resume.py",
+        "twine/transcript.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null,
+        "calls": null,
+        "models": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-15-twine-run-recovery-003.log",
+      "bundle": {
+        "stem": "2026-10-15-twine-run-recovery-v3",
+        "brief_sha256": "37c4bd3d5a143b180456ed436ef11f1fcacc728ed9d0ab8a9cbe20ea91239d35",
+        "checkpoint_sha256": "5bd1dcd1fef157ddd7ac6e5bb1525bf4ac54a04cc66cc8ed4ae92f488c420263",
+        "manifest_sha256": "e08fc1cec3ee2d4cec9813c29cba9fb374a560380962d53fff2c14898ff2ac9a"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-15T21:43:45+00:00"
+      }
+    },
+    {
+      "at": "2026-10-15T22:13:49+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-15-twine-run-recovery-003.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "unittest suite: green, at least the base count of 1209 tests": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine transitions --json: ok, 47 rows over 28 moves": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "RESUME_TEXT is byte-for-byte the pinned sentence": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "the descriptions of fix-adapter, stop-at-cap and respawn-from-request name twine resume": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "README.md names twine resume and sixteen keys; VERSION is 0.25.0": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures/, share/bale-consumption.toml, twine-seed.md and bin/twine are byte-identical to the request's": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unittest suite: green, at least the base count of 1209 tests": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine transitions --json: ok, 47 rows over 28 moves": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "RESUME_TEXT is byte-for-byte the pinned sentence": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "the descriptions of fix-adapter, stop-at-cap and respawn-from-request name twine resume": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "README.md names twine resume and sixteen keys; VERSION is 0.25.0": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures/, share/bale-consumption.toml, twine-seed.md and bin/twine are byte-identical to the request's": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "python syntax of the changed modules",
+          "unittest suite: green, at least the base count of 1209 tests",
+          "twine transitions --json: ok, 47 rows over 28 moves",
+          "RESUME_TEXT is byte-for-byte the pinned sentence",
+          "the descriptions of fix-adapter, stop-at-cap and respawn-from-request name twine resume",
+          "README.md names twine resume and sixteen keys; VERSION is 0.25.0",
+          "fixtures/, share/bale-consumption.toml, twine-seed.md and bin/twine are byte-identical to the request's"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "share/transitions.toml",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "tests/test_transitions.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/resume.py",
+        "twine/transcript.py"
+      ],
+      "overridden_paths": [
+        "twine/recovery.py"
+      ],
+      "overridden_path_sources": {
+        "twine/recovery.py": "prompt"
+      },
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null,
+        "calls": null,
+        "models": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "share/transitions.toml",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/recovery.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/resume.py",
+        "twine/transcript.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.55",
+            "contract_docs": {
+              "AGENT.md": "31dcdded2a8fd175f7778c2bd1be09688e89e76b8fd4cd62b7646aacfa2782c4",
+              "TARBALL.md": "3037b905ee561af44f27cc83ec45d832feb7d429a98d4e07b4482a518cda6e94",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "a8e5714e51049768e52bb5bc0ede9338db1175e7095d9b2bdd0d314ab3e01078"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-15-twine-run-recovery-003.sh",
+              "sha256": "5bd1dcd1fef157ddd7ac6e5bb1525bf4ac54a04cc66cc8ed4ae92f488c420263"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-15T21:43:45+00:00",
+            "base_files": {
+              "README.md": "f3835bde327f918d457d6b2d3a57ee4d5fe445050c328f746bef47ad45b11a84",
+              "VERSION": "dbf81d3754264f6dce22444d551ef30913c3959a2ecc784a786162df068d5435",
+              "claude/context/cli-contract.md": "44868af2985a1b4b6a7c3aabf882d56c5e255c2e1f1055ba43b2434a20768e6a",
+              "claude/context/runtime-contract.md": "9f7ed43e865007d6595bea81bdbafd29621843e22ba00df8324c777398eeaac5",
+              "share/transitions.toml": "8c83840f9d438f4937e8c26580ef40d1fc6c1d70d3089c3636d119aa7ba9ecb5",
+              "tests/test_resume.py": "c86d1e8ede68026b367c6e173bb25d7a30d9a6fdfc2bfabed08e74913d230f70",
+              "tests/test_run.py": "be51b0ce4f0249bd18a46c757e5b334a4a32331e3626f2cabe36140d21189fa3",
+              "tests/test_transitions.py": "a8576b53abbe92ad10b126ffd81a0a057abde4a1a9e68b9aa3cc6a0132209c6a",
+              "twine/commands/resume.py": "d394c6f6dda4b33b62794183d2315906c637cf0c7637ce2f02c856e4d4c0e57c",
+              "twine/commands/run.py": "7be4d79517227fcd0af3b5a191b6f9f4e4cec80754c9733dc001f31ba9804a90",
+              "twine/runtime/loop.py": "a612632ab89637f172d44b9690efcc16f8994e49840cedad1ec5da60c22faf30",
+              "twine/runtime/resume.py": "a1542cf14711431208f6a2c50a5c2128c93e40d5911eac70c3063e21c3d023cd",
+              "twine/transcript.py": "24d099ff1ae9344e4a0782c62823f7249c877656f4b34b936f4b6222f58fe30f"
+            },
+            "model_identity": "unknown:unknown"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "the header's 'session line' of share/transitions.toml means the paragraph of session sentences, to which I added one",
+            "a standing abort request is the same kill as a run-end of killed, so resume refuses it too",
+            "a session whose last run never ended (run-start, no run-end) is not suspended, so --answer is optional on it",
+            "a resumed cap-reached conversation's two consecutive user turns (tool results, then RESUME_TEXT) are accepted by the Messages API, which merges adjacent same-role turns; only the fake adapter exercised it"
+          ],
+          "judgment_calls": [
+            "new module twine/recovery.py rather than growing resume.py and run.py (a cycle, and ~300 lines of money arithmetic)",
+            "the spent-cap ending is the loop's first pre-call check, with a better reason, not a refusal in resume's list",
+            "raw files: exclusive create, next free name <sid>.call-<N>-<K>.raw; the first run's file keeps its name",
+            "the admit line is built with bale.apply_line plus one --allow-out-of-scope per drift path, because test_apply_is_built_in_one_place_only pins apply to twine/bale.py",
+            "the admit line is read from the last run-end twin, not the move line's carry_response",
+            "next carries --prices when given (the cap was priced from it) but not --script; with no suggestible cap the resume line is twine resume SID --plan (empty inside the plan itself)",
+            "window-exhausted is resumable by the rule but names no next command, per the brief; the plan says why in words",
+            "--plan ignores --cap, --answer, --script, --model, --max-tokens, --thinking and --window with a stderr note instead of refusing them",
+            "the plan is ok when readable, even if not resumable (delivered, killed, home gone); a transcript that does not rebuild is ok false",
+            "the suggested cap rule: spend + re-warm at cache-write + 40 calls at the mean of the last ten (0 with none) + worst case, rounded up to the cent, one cent more if not above the floor"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false,
+            "disclosure_ref": null
+          },
+          "docs_read": [
+            "AGENT.md core",
+            "TARBALL.md sections 5, 7 and 10.1",
+            "the request README.md (the brief)",
+            "runtime-contract.md 7.6-7.9",
+            "cli-contract.md 18 and 19"
+          ],
+          "forecast_departures": [
+            {
+              "path": "twine/recovery.py",
+              "why": "the shared reading of a kept session is needed by both run and resume; resume.py imports run.py, so it cannot live in either without a cycle, and ~300 lines of spend arithmetic and next-line building belong in a module of their own"
+            }
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-15-twine-run-recovery-003.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-15-twine-run-recovery-003.sh",
+          "sha256": "5bd1dcd1fef157ddd7ac6e5bb1525bf4ac54a04cc66cc8ed4ae92f488c420263"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-15T22:13:49+00:00",
+  "outcome": "applied"
+}
