@@ -424,8 +424,10 @@ def one_line(text: str, limit: int = PROGRESS_ARGUMENT_CHARS) -> str:
     return folded if len(folded) <= limit else folded[:limit] + "..."
 
 
-def tool_argument(name: str, arguments: Mapping[str, Any]) -> str:
-    """What a tool call runs, for its progress line, cut at 80 characters:
+def tool_argument(name: str, arguments: Mapping[str, Any],
+                  limit: int = PROGRESS_ARGUMENT_CHARS) -> str:
+    """What a tool call runs, for its progress line, cut at 80 characters (or
+    `limit`: a recovery plan shows 110):
     `shell`'s command, a file tool's path, `probe`'s slug, `escalate`'s
     question count and form, `deliver`'s path; empty for a tool this does
     not know, or arguments that do not have the key (the call is refused
@@ -454,7 +456,7 @@ def tool_argument(name: str, arguments: Mapping[str, Any]) -> str:
         shown = text("tarball")
     else:
         shown = ""
-    return one_line(shown)
+    return one_line(shown, limit)
 
 
 # ---------------------------------------------------------------------------
@@ -909,7 +911,7 @@ class Loop:
                               actor=None if move is None else move.actor,
                               did="the call was not made")
                 return self.end(check.stop or CAP_UNCHECKED, stop=check.stop, move=move,
-                                reason=f"{check.refusal}: {check.reason}")
+                                reason=self.refused_reason(check))
             # 3. The call, and its usage appended before anything else.
             turn = self.call(n)
             if isinstance(turn, LoopResult):
@@ -918,6 +920,21 @@ class Loop:
             ended = self.move(turn)
             if ended is not None:
                 return ended
+
+    def refused_reason(self, check: spend.CallCheck) -> str:
+        """Why the pre-call check refused: its refusal and reason — and, when
+        the cap itself is already spent (the session's spend so far is at or
+        past it), the sentence a resume under the same cap needs: the cap is
+        cumulative per session, so the same cap refuses every call and a
+        higher one is the way on."""
+        reason = f"{check.refusal}: {check.reason}"
+        spent, cap = check.spend_so_far_usd, check.cap_usd
+        if check.stop == CAP_REACHED and spent is not None and cap is not None and spent >= cap:
+            reason = (f"{check.refusal}: the cap {spend.dollars(cap)} is already spent — the "
+                      f"session's spend so far is {spend.dollars(spent)}, and the cap is "
+                      "cumulative per session, so the same cap refuses every call; "
+                      f"raise it: {check.reason}")
+        return reason
 
     def window_exhausted(self, n: int) -> LoopResult:
         """The counted window is used up: call `n` is not made. `stopped`,

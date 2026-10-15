@@ -599,7 +599,8 @@ was. **The raw stream is kept on any `malformed-shape`**: the adapter remembers
 the chunks the reader draws (or the body it joined) and, when the call ends in
 the `malformed-body` condition — whatever the detail — hands them to the
 loop on `Outcome.raw` and `Turn.raw`; the loop writes them to
-`<state-dir>/transcripts/<sid>.call-<N>.raw` (mode 0600, `N` the call number)
+`<state-dir>/transcripts/<sid>.call-<N>.raw` (mode 0600, `N` the call number;
+`<sid>.call-<N>-<K>.raw` when a resumed run reaches a call number again, §7.6)
 and names the file in the `turn` line's `raw` key (§7.6). No other outcome
 keeps a byte, and the key is never in it: it is a response body. Text
 and thinking deltas reach an `observer(kind, text)` as they arrive, when
@@ -1355,10 +1356,10 @@ first and the next line says `torn_before`. Each line is one object, `at`
 
 | `kind` | the event |
 |---|---|
-| `run-start` | `adapter`, `model`, `max_tokens`, `thinking`, `sandbox` (§6.4's `as_json`), `request` (where it was unpacked), `open` (the open's `sid` and `tarball` — not its twin; null on a resume), `group` (the runtime's pid, pgid, whether it called setsid), `cap_usd`, `max_turns`, `system` (the prompt: the note and the tools), and since R5 `window` (`size`, `source`, `reason`, `warn_fraction`) and `resumed_from` (null on `twine run`; on `twine resume` the `seq` of the line before it, beside `answer` — its source, sha256 and length — and `rebuilt`, what was re-warmed) |
+| `run-start` | `adapter`, `model`, `max_tokens`, `thinking`, `sandbox` (§6.4's `as_json`), `request` (where it was unpacked), `open` (the open's `sid` and `tarball` — not its twin; null on a resume), `group` (the runtime's pid, pgid, whether it called setsid), `cap_usd`, since twine-run-recovery `cap_given` (the `--cap` as typed, `+2` or `5`, beside `cap_usd`, the absolute cap it worked out), `max_turns`, `system` (the prompt: the note and the tools), and since R5 `window` (`size`, `source`, `reason`, `warn_fraction`) and `resumed_from` (null on `twine run`; on `twine resume` the `seq` of the line before it, beside `answer` — its source (a path, `stdin`, or `twine` when no answer was given and `RESUME_TEXT` was sent, §7.9), sha256 and length — and `rebuilt`, what was re-warmed) |
 | `check` | `call`, `input_estimate`, `input_basis` (R5: `counted` or `estimated`, §7.5), `check` (the pre-call check's twin) |
 | `request` | `call`, `messages_total`, `appended` — the messages added since the last `request` line, so the lines' `appended` lists, joined, are the conversation as sent, with no quadratic growth (the key never appears: the adapter has no path for it to). When the run ends with messages no `request` line holds — the tool results of a turn that ended it, and since R5 the final assistant turn of an `end-turn` (a light block, prose), the results a window stop left unsent — a last one with `sent: false` carries them, so the joined lines are the whole conversation a resume rebuilds (§7.9) |
-| `turn` | `call`, `turn` (`Turn.as_json()`), and `spend_error` when the usage could not be appended; and since twine-run-ergonomics, beside `turn`: `raw` — the path of `<state-dir>/transcripts/<sid>.call-<N>.raw`, the response body kept (mode 0600, `N` the call number) when the call ended `malformed-shape`, whatever the detail (§5.4), and absent on every other turn (`raw: null` with `raw_error` when the file could not be written; a resumed run's numbering restarts, so its file of the same name replaces the earlier one); and `cut_tool_input` — `{"id", "name", "partial_json"}` of the tool call a `max-tokens` turn was cut inside, whose input never completed and which is therefore not in the turn's content (§5.4), absent otherwise |
+| `turn` | `call`, `turn` (`Turn.as_json()`), and `spend_error` when the usage could not be appended; and since twine-run-ergonomics, beside `turn`: `raw` — the path of `<state-dir>/transcripts/<sid>.call-<N>.raw`, the response body kept (mode 0600, `N` the call number) when the call ended `malformed-shape`, whatever the detail (§5.4), and absent on every other turn (`raw: null` with `raw_error` when the file could not be written; a resumed run's numbering restarts, so since twine-run-recovery a raw file is **never overwritten**: it is created exclusively, and a name already taken gives `<sid>.call-<N>-2.raw`, then `-3`, … — the first run's file keeps its name and the line's `raw` names whichever file the body went to); and `cut_tool_input` — `{"id", "name", "partial_json"}` of the tool call a `max-tokens` turn was cut inside, whose input never completed and which is therefore not in the turn's content (§5.4), absent otherwise |
 | `window` | (R5) after each `turn`: `call`, `used`, `size` (null when unknown), `fraction` (`used / size`, null when unknown), `warned`, and `call_input` (this call's own input side; `used` is kept when it is 0, §7.4) |
 | `tool-call` | `call`, `id`, `name`, `arguments` (and `source: "final-text"` for a probe hop) |
 | `tool-result` | `call`, `id`, `result` — the result's `as_json()`, every string over 64 KiB (`content`, `shell`'s `stdout` and `stderr`) cut with the cut marked |
@@ -1366,7 +1367,7 @@ first and the next line says `torn_before`. Each line is one object, `at`
 | `retry` | `call`, `stop`, `move`, `attempt`, `wait_seconds`, `retry_after` |
 | `abort` | `when`, `path`, `move` |
 | `adapter-error` | `call`, `error`, `message` (and `faults`, for a boundary refusal) |
-| `run-end` | `twin` — the run's JSON twin (cli-contract §18.5) |
+| `run-end` | `twin` — the run's JSON twin (cli-contract §18.5), its `next` included; a recovery reading (§7.9) takes the last one's `outcome`, `stop`, `move`, `actor`, `reason`, and for a refused delivery its `tarball` and `dry_run` |
 
 The sid's `spend.jsonl` lines are the money; the transcript is the story. A
 line that cannot be written is logged and named in the twin's
@@ -1380,8 +1381,8 @@ record are what the cap and the kill stand on).
 | `delivered` | `deliver` named a tarball and `carry response` (`check_response`, the function: `bale apply --dry-run --json <path>`, §11.3) ran clean. The move is the `apply-outcome` row's for `dry-run`, `operator-applies` |
 | `suspended` | `escalate` — its light form, or (R5) its clarification form once the dry run of the tarball it wrote is clean — or an intact light block for this sid in the final text |
 | `ended` | the final text was prose or another shape (the worker finished without delivering — the planner's to read), or twine's turn limit (`shape` `max-turns`) |
-| `stopped` | a stop whose move is not the loop's (since R5 the window's edge before a call among them), a bound reached (retries, continuations), the dry run not clean (a delivery's, or a clarification response's) (its outcome's `apply-outcome` row names the move — `admit-or-return`, `return-to-worker`, `repack-on-new-base` — which is the operator's or the planner's; the loop reports it), an adapter defect (stop `adapter-defect`, move `fix-adapter`, the operator's) |
-| `killed`, `cap-reached`, `cap-unchecked` | the loop's own stops, before a call |
+| `stopped` | a stop whose move is not the loop's (since R5 the window's edge before a call among them), a bound reached (retries, continuations), the dry run not clean (a delivery's, or a clarification response's) (its outcome's `apply-outcome` row names the move — `admit-or-return`, `return-to-worker`, `repack-on-new-base` — which is the operator's or the planner's; the loop reports it), an adapter defect (stop `adapter-defect`, move `fix-adapter`, the operator's) — **resumable** like every kept-home outcome but `killed` (§7.9): the record and the home are kept |
+| `killed`, `cap-reached`, `cap-unchecked` | the loop's own stops, before a call. `cap-reached` and `cap-unchecked` resume (§7.9); `killed` is closed in bale and is not resumed |
 | `refused` | the verb refused before the first model call |
 
 **On any outcome** the running record is cleared (`kill.clear_running`):
@@ -1411,15 +1412,90 @@ make room (D12).
 
 A worker blocked on an escalation goes cold (D23): nothing is held hot, the
 cache expires, and the conversation is re-warmed from the transcript on the
-answer. The verb is `twine resume SID --cap USD --answer FILE|-`
+answer. The verb is `twine resume SID --cap USD [--answer FILE|-]`
 (`twine/commands/resume.py`, cli-contract §19); the reading is
 `twine/runtime/resume.py`, suspend-resume's `implemented_by`.
 
+- **The rule** (twine-run-recovery). A run `twine run` or `twine resume`
+  left `stopped`, `cap-reached`, `cap-unchecked`, `ended` or `suspended`
+  resumes with `twine resume`, in its kept home, from its transcript;
+  `respawn-from-request` is the last resort, for a home that is gone or a
+  session bale has closed. The transition table says it where the operator
+  reads it: the descriptions of `fix-adapter`, `stop-at-cap` and
+  `respawn-from-request` each name `twine resume`.
 - **What it resumes.** A session `twine run` left `suspended` — a light
   block, or the clarification form (§6.6) — or `ended`, `stopped`,
-  `killed`, `cap-*`: any run whose in-flight record (with its `runtime`
-  fields) and transcript are kept. `delivered` removed the record, so a
-  delivered session is refused.
+  `cap-*`: any run whose in-flight record (with its `runtime` fields) and
+  transcript are kept. `delivered` removed the record, so a delivered
+  session is refused (its reason names the apply line the transcript
+  recorded). **`killed` is refused, before anything starts**: `twine kill`
+  closes the session in bale (`bale unlock <sid> --reason aborted`, §14.5),
+  so a resumed worker could rebuild the conversation but no response it
+  delivered could be dry-run or applied under that sid — a kill stays a
+  close, and the reason names the `aborted` closure and the respawn path
+  (`respawn-from-request`, the planner's). The refusal's test is the
+  transcript's last `run-end` outcome `killed`, or an abort request still
+  standing for the sid (it would end the loop `killed` before any call).
+- **The cap is cumulative per session.** `spend.check_call` admits a call
+  when the spend so far plus the call's worst case is at most the cap, so a
+  `cap-reached` run resumed under the **same** cap refuses its first call
+  `cap-reached` again — `turns` 0, no new line in `spend.jsonl`, the twin's
+  `reason` saying the cap is spent (when the spend so far is at or past it)
+  and naming the spend so far — and under a **raised** cap it makes its next
+  call. The ending is the loop's first pre-call check, not a refusal of the
+  verb's (the session is open, the running record is written, the transcript
+  gets its `run-start` and the unsent answer). `--cap +USD` is the spend so
+  far plus that amount (cli-contract §19.1).
+- **The answer, and `RESUME_TEXT`.** `--answer` is required on a
+  `suspended` run (the last `run-end` outcome; an answer is what a
+  suspended worker waits for) and optional on every other. Given, it is the
+  next user message verbatim, as before. Absent, the next user message is,
+  byte for byte, `RESUME_TEXT` — `twine.runtime.resume.RESUME_TEXT`, one
+  constant:
+
+  ```
+  This session was stopped and has been resumed; continue from where you left off.
+  ```
+
+  and the `run-start`'s `answer` object says `source: "twine"` (with the
+  sha256 and length of those bytes). The constant spells no stop key.
+- **`--plan`: the recovery reading** (`twine resume SID --plan`,
+  `twine/recovery.py` and `twine/commands/resume.py`). It reads the
+  session's transcript, its `spend.jsonl` records, its in-flight record and
+  its sandbox home; it **writes nothing, starts no bale and calls no
+  model**, and says whether the session resumes (the rule and the `killed`
+  refusal) and with what line. The facts are the transcript's last
+  `run-end` twin (outcome, stop, move, actor, and for a refused delivery
+  its tarball and the dry run's line), its last `window` line, its last ten
+  `tool-call` lines, the sid's spend records priced as `twine spend totals
+  --sid` prices them (own cost and what served the session), and the
+  pre-call check's worst case for the next call (the rebuilt conversation
+  plus `RESUME_TEXT`, estimated as §7.5 estimates, at the dearest
+  input-side price, and `max_tokens` at the output price). Nothing that
+  cannot be priced is estimated: those figures are null, with the reason.
+  **The suggested cap** is a number of dollars at two decimals, strictly
+  above the spend plus the next call's worst case, so the resumed run's
+  first call is admitted; above that floor: the spend so far, plus a
+  re-warm of the window at the cache-write price (the window tokens in use,
+  or the input estimate when no call counted a window), plus forty calls at
+  the mean of the last ten calls (0 with no calls yet), plus the worst case,
+  rounded up to the cent — and one cent more when that is not above the
+  floor. The human rendering states the sum.
+- **`next`: every ending names its next command** (twine-run-recovery; the
+  twin's `next` and human mode's `next: <command>` lines, cli-contract
+  §18.7). The resume line — `twine resume SID --cap <suggested>`, with the
+  `--state-dir`, `--bale-root`, `--cwd` and `--prices` the run was given — is
+  named for `cap-reached`, `cap-unchecked` (once its fault is fixed),
+  `ended`, and every `stopped` but the two below; when no cap can be
+  suggested (an unpriced model, a transcript a resume cannot rebuild) it is
+  `twine resume SID --plan` instead. A dry run refused `scope-drift-refused`
+  names bale's own admit line, `bale apply <tarball> --allow-out-of-scope
+  <path>` for each path of the dry run's `drift.out_of_scope_paths`, then
+  the resume line; **twine never runs the admit line** (T12). `killed` names
+  no command — the respawn path is said in words — and `window-exhausted`
+  none (the planner's split). `delivered` and the clarification form's
+  `suspended` name the apply line; a light block's `suspended` the resume
+  line with `--answer -`.
 - **The rebuild** (`read_conversation`). Every complete line read as JSON,
   in order. A `run-start` without `resumed_from` begins a new conversation
   (a second desk's `twine run` starts over from the opener); one with it

@@ -83,11 +83,13 @@ Arc 1 (the courier) session 1 landed twine's core:
   next and who does it (twine, the operator or the planner). No default
   case. `twine transitions` renders it and is ok only when every key of
   every axis has a row and every row's move is declared; it reads no
-  bale install. Since Arc 2 R2 (0.17.0) the stop set has fifteen keys —
-  `request-refused` (the provider refused the request; the operator fixes
-  it, nothing is retried) and `provider-error` (retried with backoff) are
-  new — and names its three `loop_keys` (`cap-reached`, `cap-unchecked`,
-  `killed`: the loop's, never an adapter's); the table's
+  bale install. The stop set has sixteen keys since 0.20.0 — fifteen at Arc 2 R2
+  (0.17.0), when `request-refused` (the provider refused the request; the
+  operator fixes it, nothing is retried) and `provider-error` (retried with
+  backoff) were new, and `adapter-defect` (twine's own defect: an adapter
+  that broke the boundary or raised) the sixteenth — and names its four
+  `loop_keys` (`cap-reached`, `cap-unchecked`, `killed` and
+  `adapter-defect`: the loop's, never a model adapter's); the table's
   `written_against` is the version its bale axes were re-read at (0.4.51,
   the manifest's `recordings` since 0.23.0); and the table carries the first
   provider's mapping — every Anthropic stop reason, HTTP status and error
@@ -223,7 +225,38 @@ Arc 1 (the courier) session 1 landed twine's core:
   reaches the model adapter and nothing else — not bale, not the cage, not
   a file. `--adapter fake --script FILE` runs the same loop with no model,
   from a scripted list of turns (how the tests drive it). Contract §18 and
-  `runtime-contract.md` §7.
+  `runtime-contract.md` §7. The run counts the context window from each
+  call's usage (the worker is warned in its tool results at 80%, and the run
+  stops `window-exhausted` before a call past it), prints a progress line per
+  step on stderr with a `summary:` line last, and — since 0.25.0 — every
+  ending names its next command: the twin's `next` and a `next: <command>`
+  line on stderr after the summary (the apply line on `delivered`; for a
+  dry run bale refused as `scope-drift-refused`, bale's own
+  `--allow-out-of-scope` admit line, which twine never runs, and the resume
+  line that returns the work to the worker; the resume line, with a
+  suggested cap, for a stop a resume goes on from). `--cap +USD` is the
+  session's spend so far plus that amount.
+- `resume` (Arc 2 R5; recovery since 0.25.0): **a kept session goes on.**
+  The rule: a run left `stopped`, `cap-reached`, `cap-unchecked`, `ended` or
+  `suspended` resumes with `twine resume`, in its kept home, from its
+  transcript — cold: the conversation is rebuilt from the transcript's
+  `request` lines and the first call re-warms the cache — and
+  `respawn-from-request` is the last resort, for a home that is gone or a
+  session bale has closed. A `killed` session is one bale closed (`twine
+  kill` unlocks it `aborted`), so `twine resume` refuses it and names the
+  respawn. `twine resume SID --cap USD` goes on: the cap is cumulative per
+  session, so a `cap-reached` run needs a higher one (`+USD` adds to the
+  spend so far), and `--answer` is required only on a `suspended` run —
+  given nothing on any other, twine sends one line, `This session was
+  stopped and has been resumed; continue from where you left off.`
+  `twine resume SID --plan` reads the session — its transcript, spend,
+  in-flight record and sandbox home; it writes nothing, starts no bale and
+  calls no model — and says whether it resumes, the window, the calls and
+  spend, the next call's worst case, the last tool calls and a suggested
+  cap (the spend, a re-warm of the window at the cache-write price, forty
+  calls at the mean of the last ten, and the worst case, rounded up to the
+  cent), then the `next` lines. A resumed run's raw response files never
+  overwrite the first run's. Contract §19 and `runtime-contract.md` §7.9.
 - `share/bale-consumption.toml` — the `[bale]` table — `floor` (`0.4.54`,
   the first bale with `bale contract --json`: twine drives any bale at or
   above it whose contract states what twine reads), `recordings`
@@ -302,6 +335,8 @@ python3 -I -S bin/twine runtime show NAME [--json]               # one capabilit
 python3 -I -S bin/twine runtime tools [--json]                   # the canonical tools; ok when parity holds
 python3 -I -S bin/twine run <stem>.bale-bundle --model M --cap USD [--json]   # host the worker; stdout is the `bale apply` line
 python3 -I -S bin/twine run <stem>.bale-bundle --adapter fake --script turns.json --cap USD   # the same loop, no model
+python3 -I -S bin/twine resume SID --plan [--json]               # read a kept session: does it resume, with what line, under what cap
+python3 -I -S bin/twine resume SID --cap USD|+USD [--answer FILE|-] [--json]   # go on from its transcript (a stopped run needs no answer)
 ```
 
 A recording session — needed only when the gate refuses an install

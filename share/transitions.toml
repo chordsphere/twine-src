@@ -19,7 +19,11 @@
 # 2026-10-13-twine-table-adapter-defect-007 gave the loop its fourth key,
 # `adapter-defect` (a boundary refusal or an adapter that raised: twine's own
 # defect, its move the operator's `fix-adapter`), and reconciled
-# `continue-turn`'s description with the loop that performs it.
+# `continue-turn`'s description with the loop that performs it. Session
+# 2026-10-15-twine-run-recovery-003 put the resume rule in three moves'
+# descriptions (`fix-adapter`, `stop-at-cap`, `respawn-from-request`): a
+# session whose home is kept and open in bale is resumed with `twine resume`;
+# a respawn from the request is the last resort.
 # twine/transitions.py loads and checks it; `twine transitions [--json]`
 # renders it; tests/test_transitions.py fails by name on any key without a
 # row. The table reads no bale install: its three bale axes take their
@@ -191,8 +195,8 @@ grounds = "cli-contract.md §11.2; bin/bale_relay.py 204-209 ('relay-refused')"
 
 [move.stop-at-cap]
 actor = "operator"
-description = "The hard cap refused the call before it was made, so nothing more was spent; the operator decides whether to raise the cap or close the session, and in-flight work hands off as a bailout would."
-grounds = "D15 (the hard cap refuses loudly; a cap breach has bailout semantics); Arc 1 session 5"
+description = "The hard cap refused the call before it was made, so nothing more was spent; the operator decides whether to raise the cap — `twine resume` continues the session from its transcript under a higher one (the cap is cumulative per session, so the same cap refuses again, and `twine resume SID --plan` suggests one) — or close the session, and in-flight work hands off as a bailout would."
+grounds = "D15 (the hard cap refuses loudly; a cap breach has bailout semantics); Arc 1 session 5; session 2026-10-15-twine-run-recovery-003 (the resume rule)"
 
 [move.fix-and-resume]
 actor = "operator"
@@ -206,8 +210,8 @@ grounds = "Arc 2 R2's brief (e): HTTP 400, 401, 402, 403, 404, 409 and 413 — t
 
 [move.fix-adapter]
 actor = "operator"
-description = "The adapter broke the boundary's contract or raised on a call — twine's own defect, never a model outcome, and nothing of that call is in the spend stream — so the operator fixes the adapter and runs the session again on the same bundle (a second desk), or respawns it from the request; the planner is not asked."
-grounds = "runtime-contract.md §1.6 (R1's promise of a row); session 2026-10-13-twine-runtime-run-004's Proposal 1; ruled at sitting 2026-10-13-open-milestone-2-006"
+description = "The adapter broke the boundary's contract or raised on a call — twine's own defect, never a model outcome, and nothing of that call is in the spend stream — so the operator fixes the adapter and resumes the session with `twine resume`, from its transcript in the kept home, or — only when the home is gone — respawns it from the request; the planner is not asked."
+grounds = "runtime-contract.md §1.6 (R1's promise of a row); session 2026-10-13-twine-runtime-run-004's Proposal 1; ruled at sitting 2026-10-13-open-milestone-2-006; session 2026-10-15-twine-run-recovery-003 (the resume rule)"
 
 # --- the planner's: a decision about the work ---
 
@@ -218,8 +222,8 @@ grounds = "D17, ratified: a well-formed HOLD gets revert and repack with the fai
 
 [move.respawn-from-request]
 actor = "planner"
-description = "The planner respawns the work from the original request with a failure note the planner writes — never the failed worker's own account — within the retry bound, past which the goal is re-decomposed instead."
-grounds = "D17, ratified: a malformed response gets respawn from the original request with a master-authored failure note; PLANNER.md §16; twine-seed.md §4.2"
+description = "The planner respawns the work from the original request with a failure note the planner writes — never the failed worker's own account — within the retry bound, past which the goal is re-decomposed instead; it is the last resort, since a session whose home is kept and still open in bale is resumed first, with `twine resume`, and a respawn is for a home that is gone or a session bale has closed (a killed one)."
+grounds = "D17, ratified: a malformed response gets respawn from the original request with a master-authored failure note; PLANNER.md §16; twine-seed.md §4.2; session 2026-10-15-twine-run-recovery-003 (the resume rule)"
 
 [move.replan-after-backout]
 actor = "planner"
