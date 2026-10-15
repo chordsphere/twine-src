@@ -122,6 +122,7 @@ def cmd_resume(ctx: Context, args: argparse.Namespace) -> Result:
     payload = report.payload()
     if report.transcript is not None:
         run_verb._log_end(report)
+    ctx.info(f"{NAME}: {run_verb.summary_line(report)}")
     return Result(report.ok, payload, run_verb.lines(report))
 
 
@@ -223,6 +224,7 @@ def resume(ctx: Context, args: argparse.Namespace, report: run_verb.RunReport) -
         messages=[*rebuilt, runloop.user_message(prepared.answer)], logged=len(rebuilt),
         window=report.window, progress=lambda line: ctx.info(f"resume: {line}"))
     report.result = the_loop.run()
+    report.wall_seconds = the_loop.elapsed()
     if report.result.outcome == runloop.DELIVERED:
         try:
             removed = inflight.remove_inflight(state_dir, sid)

@@ -2793,7 +2793,7 @@ runs the apply line.
 | `--adapter` | `anthropic` | `anthropic` or `fake` |
 | `--script FILE` | none | the fake's script, a JSON list of turns (`runtime-contract.md` §3) — the same file the tests write; required with `fake`, refused with anything else |
 | `--model M` | none; `fake` with the fake | required with `anthropic` — the office holds the policy (N4), twine picks no model; with the fake, the id its spend records carry, which the price file must price |
-| `--max-tokens N` | 16000 | the output ceiling per call (R2's), and the worst case the pre-call check prices |
+| `--max-tokens N` | **32000** | the output ceiling per call (R2's), and the worst case the pre-call check prices. It was 16000 until twine-run-ergonomics: a stream that ends at the ceiling inside a `tool_use` block loses the call, and 16000 starved file writes (`runtime-contract.md` §5.4, §7.4). It applies to `twine run`; `twine resume` spawns with the transcript's constant and refuses only a `--max-tokens` that differs (§19) |
 | `--thinking` | `adaptive` | `adaptive` or `off`, a spawn-time constant (D12); `off` sends the Anthropic adapter `{"type": "disabled"}` explicitly (sending none would leave the model's default, which may think, and a thinking turn on a session spawned off is refused at the boundary) |
 | `--prices PATH` | `<state-dir>/prices.toml` | §13.4 |
 | `--max-turns N` | 200 | twine's own limit on model calls, not a stop key (§18.4) |
@@ -2855,7 +2855,8 @@ Since R5: a known window used up after a call is `stopped` with the stop
 `window-exhausted`, the move `split-goal` and the actor `planner`, the next
 call not made (`turns` the calls made) — the same stop the provider's own
 refusal maps to; and escalate's clarification form is `suspended` with the
-tarball, the apply line and the dry run set and `block` null (the move the
+tarball, the apply line and the dry run set and — since twine-run-ergonomics —
+`block` the exchange paste block (`runtime-contract.md` §6.6; §18.5) (the move the
 `apply-outcome` row's for `dry-run`, `operator-applies`), or `stopped` when
 that dry run is not clean.
 
@@ -2874,7 +2875,7 @@ that dry run is not clean.
 | `turns` | model calls made, retries included |
 | `tool_calls` | tool calls run (a probe hop included) |
 | `retries` | backoff retries taken |
-| `block` | on `suspended`: the light block text; else null |
+| `block` | on `suspended`: the light block text, or — on escalate's clarification form — the exchange paste block (`BALE EXCHANGE BEGIN <sid>` … `END`, `tools/craft_response.py --emit-block` on the filled manifest, TARBALL.md §5.9.2's second transport), beside `tarball`, `apply_line` and `dry_run`; else null |
 | `tarball` | the delivered response tarball's absolute path (also on a dry run that was not clean); else null |
 | `apply_line` | on `delivered`: `carry response`'s line; else null |
 | `dry_run` | `carry response`'s `dry_run` object when it ran; else null |
@@ -2914,9 +2915,36 @@ One `[twine] run: …` line per step on stderr as it happens — the open,
 the group, the sandbox, the request, each call, each tool, each retry, the
 end — and since R5 the window at spawn and the call that warns — **by default** (decision 5 of the R4 brief: a run is long and
 unattended, and its progress is the operator's only view of it; `--verbose`
-adds the leveled log lines). On stdout at the end: **the apply line alone**
+adds the leveled log lines). `twine resume` prints the same lines under
+`[twine] resume: …`. No colour, no cursor movement, no TUI (N6): twine's
+rendering is the shell's. Since twine-run-ergonomics the lines say what the
+operator needs to judge a run without opening the transcript:
+
+- **every line that reports a returned turn** — `call N: asks for <tools>` and
+  `call N: stop <key>` — ends `— $<cost>, <n>s` and, when the window's size is
+  known, `, window <used> of <size>`: the run's cost so far (`$` and at least
+  two decimals, four under a cent; `$?` when the run cannot be priced) and the
+  whole seconds since the loop started. The window-runs-thin and retry lines
+  carry the same figures in brackets;
+- **every tool line** says what the tool ran, cut at 80 characters (whitespace
+  folded to single spaces; `...` where it was cut): `call N: tool shell:
+  running — <command>` when it starts, `call N: tool shell: ok — <command>`
+  (`error`) when it ends; the file tools show their path, `probe` its slug,
+  `escalate` its question count and form (`2 questions, blocking`), `deliver`
+  its path;
+- **a heartbeat**, while a tool runs, every `HEARTBEAT_SECONDS` (30) seconds:
+  `call N: tool shell: still running, 33s — <command>`. It is written from a
+  thread that is stopped before the tool's own end line, so none follows it;
+- **the summary**, the last progress line of every run, and of a refusal too
+  (`twine/commands/run.py` `summary_line`): `summary: <outcome>[, stop
+  <key>][, move <move>], <n> calls, <n> tool calls, <n> retries, $<cost>,
+  <n>s` — for a refused run `summary: refused, 0 calls, 0 tool calls, 0
+  retries, $0.00, 0s`.
+
+On stdout at the end: **the apply line alone**
 on `delivered`; **the light block alone** on `suspended` — or, on escalate's
-clarification form (R5), the clarification response's apply line alone;
+clarification form (R5), the clarification response's apply line alone (its
+exchange paste block is the twin's `block`, not stdout's);
 otherwise one line, `run <sid>: <outcome>, stop <key>, move <move> (<actor>'s), shape
 <shape> — <reason>` (the parts that apply), or `run <BUNDLE>: refused — …`.
 
@@ -2964,7 +2992,12 @@ unknown window, `--window` against the adapter's statement, the twin's new
 keys, the continue-turn and probe-hop turns, the counted cap estimate) and,
 for the Anthropic adapter's `GET /v1/models` read held to the recording and
 its unknown branches, `tests/test_anthropic.py`; the clarification form end
-to end is `tests/test_resume.py`'s (§19.6).
+to end is `tests/test_resume.py`'s (§19.6). Since twine-run-ergonomics
+`tests/test_run.py` also holds, reading stderr, every progress line of §18.7
+(the cost, time and window on a returned turn, the tool arguments and their
+80-character cut, the heartbeat on a shortened interval, the summary — also on
+a refusal and on `twine resume`), the default `--max-tokens` in `--help` and
+in the `run-start` line, and the surface note's stems.
 
 ## 19. `twine resume SID --cap USD --answer FILE|- [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R5)
 

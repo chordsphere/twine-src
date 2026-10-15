@@ -55,7 +55,8 @@ from twine.runtime.tooling import (Tool, ToolRegistry, ToolResult, argument_faul
                                    load_tool_declaration, load_tool_registry,
                                    schema_faults)
 from twine.runtime.tools import run_tool
-from twine.runtime.tools.shell import SHELL_STDOUT_CAP_BYTES
+from twine.runtime.tools.shell import (SHELL_CONTENT_CAP_BYTES, SHELL_STDOUT_CAP_BYTES,
+                                       cut_stream)
 from twine.runtime.tools.read_file import READ_FILE_CAP_BYTES
 
 from tests.helpers import (BALE_TOOLS, RealGroup, RecordingRunner, dies_within, fenced_probe,
@@ -76,8 +77,9 @@ RESULT_KEYS = {
     "list_dir": ["path", "entries"],
     "probe": ["slug", "leaves_cage", "exit_code", "lines"],
     # R5: `path` and `sha256` name the clarification form's tarball (null on
-    # the light form).
-    "escalate": ["kind", "suspend", "questions", "path", "sha256"],
+    # the light form); since twine-run-ergonomics `block` is its exchange
+    # paste block (null on the light form and on an error).
+    "escalate": ["kind", "suspend", "questions", "path", "sha256", "block"],
     "deliver": ["delivered", "path", "size", "sha256"],
 }
 BASE = ["name", "content", "is_error"]
@@ -965,6 +967,70 @@ class Shell(unittest.TestCase):
         self.assertEqual(len(obj["stdout"]), SHELL_STDOUT_CAP_BYTES)
         self.assertIn(f"stdout passed {SHELL_STDOUT_CAP_BYTES} bytes", obj["content"])
 
+    def test_what_the_model_reads_of_stdout_is_cut_at_32_kib_and_marked(self):
+        """twine-run-ergonomics, finding 4: 40 000 bytes of stdout reach the
+        model as 32768 and a marker line; the command completed, so no error,
+        no kill — the result's own `stdout` still holds all of it."""
+        t = TempSandbox(self)
+        obj = assert_shape(self, t.tool("shell", command="head -c 40000 /dev/zero | tr '\\0' a"),
+                           "shell")
+        self.assertEqual(SHELL_CONTENT_CAP_BYTES, 32768)
+        self.assertFalse(obj["is_error"], obj["content"])
+        self.assertEqual((obj["exit_code"], obj["stdout_capped"], obj["timed_out"]),
+                         (0, False, False))
+        marker = "[stdout cut at 32768 bytes of 40000; read it in parts]"
+        self.assertEqual(obj["content"], "a" * 32768 + "\n" + marker + "\n[exit 0]")
+        self.assertEqual(obj["stdout"], "a" * 40000, "the result's field is as before")
+        self.assertNotIn("a" * 32769, obj["content"])
+
+    def test_stdout_at_or_under_the_cap_is_unchanged(self):
+        t = TempSandbox(self)
+        obj = t.tool("shell", command="head -c 32768 /dev/zero | tr '\\0' b").as_json()
+        self.assertEqual(obj["content"], "b" * 32768 + "\n[exit 0]")
+        self.assertNotIn("cut at", obj["content"])
+
+    def test_stderr_is_cut_the_same_way_under_its_own_marker(self):
+        t = TempSandbox(self)
+        obj = t.tool("shell", command="echo out; head -c 40000 /dev/zero | tr '\\0' e >&2; "
+                                      "exit 3").as_json()
+        self.assertFalse(obj["is_error"], obj["content"])
+        self.assertEqual(obj["exit_code"], 3)
+        self.assertEqual(obj["content"], "out\n[stderr]\n" + "e" * 32768 + "\n"
+                         "[stderr cut at 32768 bytes of 40000; read it in parts]\n[exit 3]")
+        self.assertEqual(len(obj["stderr"]), 40000)
+
+    def test_the_cut_is_on_a_character_boundary_and_names_the_bytes(self):
+        text = "é" * 20000          # two bytes each: 40000 bytes, 32768 is a boundary
+        cut = cut_stream(text, "stdout")
+        self.assertEqual(cut, "é" * 16384 + "\n[stdout cut at 32768 bytes of 40000; read it "
+                                           "in parts]\n")
+        odd = "a" + "é" * 20000      # byte 32768 falls inside a character
+        cut = cut_stream(odd, "stdout")
+        kept = cut.split("\n[stdout cut")[0]
+        self.assertEqual(kept, "a" + "é" * 16383)
+        self.assertLessEqual(len(kept.encode()), 32768)
+        self.assertIn("of 40001; read it in parts]", cut)
+        self.assertEqual(cut_stream("short\n", "stdout"), "short\n")
+        self.assertNotIn("\n\n[stdout cut", cut_stream("x\n" * 20000, "stdout"),
+                         "a cut that lands on a line end adds no blank line")
+
+    def test_the_command_is_not_stopped_at_the_content_cap(self):
+        """Past 32 KiB the command runs on to its end: its last line, printed
+        after 100 000 bytes, is in the result's stdout."""
+        t = TempSandbox(self)
+        obj = t.tool("shell", command="head -c 100000 /dev/zero | tr '\\0' a; "
+                                      "echo THE-END").as_json()
+        self.assertFalse(obj["is_error"], obj["content"])
+        self.assertTrue(obj["stdout"].endswith("THE-END\n"))
+        self.assertIn("of 100008; read it in parts]", obj["content"])
+        self.assertNotIn("THE-END", obj["content"])
+
+    def test_the_description_says_32_kib(self):
+        from twine.runtime.tools import shell
+        text = shell.TOOL.spec.description
+        self.assertIn("32 KiB", text)
+        self.assertNotIn("256 KiB", text)
+
     def test_output_that_is_not_utf8_is_a_result_not_an_error(self):
         t = TempSandbox(self)
         obj = t.tool("shell", command="printf 'caf\\351\\n'").as_json()
@@ -1317,11 +1383,65 @@ class EscalateClarification(unittest.TestCase):
                          (0, True, "clarification"), report["findings"])
         self.assertIn("lint passed", obj["content"])
 
+    def test_the_exchange_paste_block_rides_beside_the_tarball(self):
+        """twine-run-ergonomics, item 7: the result's `block` is the crafter's
+        `--emit-block` rendering of the filled manifest — one intact exchange
+        block for the sid, the same record the tarball carries — and
+        `content` is the sentence it was, then the block."""
+        from twine import shapes
+        rows = [question(1), question(2)]
+        obj = self.escalate(rows)
+        self.assertFalse(obj["is_error"], obj["content"])
+        block = obj["block"]
+        self.assertIsInstance(block, str)
+        found = shapes.find_blocks(block).blocks
+        self.assertEqual([b.kind for b in found], ["exchange"])
+        self.assertTrue(found[0].ok, found[0].error)
+        self.assertEqual((found[0].fields["sid"], found[0].fields["from"],
+                          found[0].fields["round"]), (SID, "worker", 1))
+        record = found[0].fields["record"]
+        manifest = json.loads((self.extract(obj) / "manifest.json").read_text())
+        self.assertEqual(record["questions"], manifest["questions"])
+        self.assertEqual(record["session_id"], SID)
+        self.assertTrue(obj["content"].startswith("escalate: wrote the clarification "
+                                                  "response escalations/1/"))
+        self.assertTrue(obj["content"].endswith(block))
+        self.assertIn("Do no more work in this turn.", obj["content"])
+        # the light form and an error carry none
+        light = assert_shape(self, self.t.tool("escalate", questions=[question(1)]),
+                             "escalate")
+        self.assertIsNone(light["block"])
+        err = self.escalate([dict(question(1), would_assume=" ")])
+        self.assertTrue(err["is_error"])
+        self.assertIsNone(err["block"])
+
+    def test_a_crafter_that_cannot_render_the_block_is_an_error_naming_it(self):
+        real = BALE_TOOLS / "craft_response.py"
+        crafter = self.t.home / "request" / "tools" / "craft_response.py"
+        crafter.write_text(
+            "import runpy, sys\nif '--emit-block' in sys.argv:\n"
+            "    print('the block would not render', file=sys.stderr)\n    sys.exit(4)\n"
+            f"runpy.run_path({str(real)!r}, run_name='__main__')\n", encoding="utf-8")
+        obj = self.escalate([question(1)])
+        self.assertTrue(obj["is_error"])
+        self.assertEqual((obj["suspend"], obj["path"], obj["sha256"], obj["block"]),
+                         (False, None, None, None))
+        self.assertIn("could not render the exchange paste block", obj["content"])
+        self.assertIn("--emit-block exited 4): the block would not render", obj["content"])
+        # one that renders something that is not an intact block is named too
+        crafter.write_text(
+            "import runpy, sys\nif '--emit-block' in sys.argv:\n    print('not a block')\n"
+            f"    sys.exit(0)\nrunpy.run_path({str(real)!r}, run_name='__main__')\n",
+            encoding="utf-8")
+        again = self.escalate([question(1)])
+        self.assertTrue(again["is_error"])
+        self.assertIn("not one exchange block", again["content"])
+
     def test_the_crafter_and_the_lint_run_in_the_cage(self):
         self.escalate([question(1)])
         calls = self.runner.tool_calls()
-        self.assertEqual(len(calls), 2)
-        crafter, lint = (list(c["argv"]) for c in calls)
+        self.assertEqual(len(calls), 3)
+        crafter, lint, emit = (list(c["argv"]) for c in calls)
         start = crafter.index(sys.executable)
         self.assertEqual(crafter[start:], [sys.executable, "-I", "-B",
                                            "request/tools/craft_response.py",
@@ -1331,6 +1451,9 @@ class EscalateClarification(unittest.TestCase):
         self.assertEqual(lint[lint.index(sys.executable):],
                          [sys.executable, "-I", "-B", "request/tools/response_lint.py",
                           "escalations/1/response-003", "--json"])
+        self.assertEqual(emit[emit.index(sys.executable):],
+                         [sys.executable, "-I", "-B", "request/tools/craft_response.py",
+                          "--emit-block", "escalations/1/response-003/manifest.json"])
         for call in calls:
             self.assertEqual(Path(call["cwd"]), self.t.home)
             self.assertEqual(call["env"]["HOME"], str(self.t.home))

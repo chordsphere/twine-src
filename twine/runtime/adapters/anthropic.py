@@ -22,7 +22,12 @@ owns.
                   data lines parsed as JSON (the recordings pad them with
                   spaces), `ping` and unknown events ignored, the usage the
                   message_start's overlaid with the message_delta's
-                  (cumulative, final)
+                  (cumulative, final); the stop_reason is taken before an
+                  open block is judged: a stream that ended at the output
+                  ceiling inside a block is a max_tokens turn, its closed
+                  blocks and an open text or thinking block kept, an open
+                  tool_use block whose input did not parse left out
+                  (twine-run-ergonomics, runtime-contract §5.4)
   stop_key        a stop_reason onto the stop axis
   error_key       an HTTP status, an error type or a transport exception
                   onto the stop axis
@@ -402,6 +407,21 @@ class Outcome:
     raw_stop_reason  the provider's stop_reason, or the error.type, or the
                      exception's class — the untranslated fact
     status           the HTTP status (None when no answer came)
+
+    Beside them, three facts that are not pinned in `as_json()` (the
+    transcript's `turn` line carries them under keys of the loop's own):
+
+    malformed        True when the call ended in the `malformed-body`
+                     condition, whatever the detail (the one door is
+                     `_Context.malformed`)
+    raw              the response body as the transport drew it, headers
+                     aside — set by the adapter, and only on a malformed
+                     call (the loop writes it to `<sid>.call-<N>.raw`)
+    cut_tool_call    {"id", "name", "partial_json"} of the `tool_use` block a
+                     stream ended inside at the output ceiling, whose input
+                     never parsed: the block is not in `content` (a
+                     `tool_use` the API would refuse is never sent back);
+                     None otherwise
     """
 
     stop: str | None
@@ -416,6 +436,9 @@ class Outcome:
     request_id: str | None = None
     raw_stop_reason: str | None = None
     status: int | None = None
+    malformed: bool = False
+    raw: bytes | None = None
+    cut_tool_call: Mapping[str, Any] | None = None
 
     @property
     def continues(self) -> bool:
@@ -459,7 +482,9 @@ class Outcome:
                     provider_stop=self.raw_stop_reason,
                     content=tuple(copy.deepcopy(dict(b)) for b in self.content),
                     retry_after=self.retry_after, request_id=self.request_id,
-                    reason=self.reason)
+                    reason=self.reason, raw=self.raw,
+                    cut_tool_call=(None if self.cut_tool_call is None
+                                   else copy.deepcopy(dict(self.cut_tool_call))))
 
 
 # ---------------------------------------------------------------------------
@@ -510,7 +535,7 @@ class _Context:
 
     def malformed(self, detail: str, **fields: Any) -> Outcome:
         row = self.mapping.condition(C_MALFORMED)
-        return self.outcome(row.stop, f"{detail}: {row.means}", **fields)
+        return self.outcome(row.stop, f"{detail}: {row.means}", malformed=True, **fields)
 
 
 def _context(status: int | None, headers: Mapping[str, str] | None,
@@ -572,10 +597,13 @@ def _check_block(n: int, block: Any) -> str | None:
 
 
 def _finish(ctx: _Context, content: list[Any], stop_reason: Any, stop_details: Any,
-            usage_obj: Any) -> Outcome:
+            usage_obj: Any, cut_tool_call: Mapping[str, Any] | None = None) -> Outcome:
     """A complete message — from a JSON body or an assembled stream — as an
     Outcome: the blocks checked, the usage mapped, the stop_reason looked
-    up, and the two held to each other (a turn asks for tools or stops)."""
+    up, and the two held to each other (a turn asks for tools or stops).
+    `cut_tool_call` is the stream reader's: a `tool_use` block the output
+    ceiling cut short, left out of `content`, named in the reason and kept
+    on the Outcome for the transcript."""
     usage: Tokens | None = None
     usage_fault = None
     try:
@@ -614,12 +642,16 @@ def _finish(ctx: _Context, content: list[Any], stop_reason: Any, stop_details: A
         reason = f"{row.means} (stop_reason {raw!r})"
         if stop_details is not None:
             reason += f"; stop_details {json.dumps(stop_details, ensure_ascii=False)}"
+        if cut_tool_call is not None:
+            reason += (f"; the stream ended inside a {cut_tool_call['name']!r} tool_use "
+                       "block whose input was not complete, so the block is not carried")
     thinking = tuple(({"thinking": b["thinking"], "signature": b["signature"]}
                       if b["type"] == "thinking" else {"data": b["data"]})
                      for b in blocks if b["type"] in ("thinking", "redacted_thinking"))
     text = "".join(b["text"] for b in blocks if b["type"] == "text")
     return ctx.outcome(row.stop, reason, text=text, tool_calls=calls, thinking=thinking,
-                       content=blocks, usage=usage, raw_stop_reason=raw)
+                       content=blocks, usage=usage, raw_stop_reason=raw,
+                       cut_tool_call=None if cut_tool_call is None else dict(cut_tool_call))
 
 
 def read_response(status: int, headers: Mapping[str, str], body: bytes, *,
@@ -960,6 +992,13 @@ def read_stream(status: int, headers: Mapping[str, str], chunks: Iterable[bytes]
                         raise _StreamFault("message_stop without a message_delta: no "
                                            "stop_reason or final usage")
                     unclosed = sorted(set(a.blocks) - a.closed)
+                    if unclosed and a.stop_reason == CUT_SHORT:
+                        # The stop_reason is taken before an open block is
+                        # judged: a stream that ended at the output ceiling
+                        # inside a block is the turn that was cut short.
+                        content, cut = _cut_blocks(a, unclosed)
+                        return _finish(ctx, content, a.stop_reason, a.stop_details,
+                                       a.usage, cut)
                     if unclosed:
                         raise _StreamFault(f"message_stop with block(s) {unclosed} still open")
                     content = [a.blocks[i] for i in sorted(a.blocks)]
@@ -980,6 +1019,42 @@ def read_stream(status: int, headers: Mapping[str, str], chunks: Iterable[bytes]
         detail += (f"; an earlier event could not be placed ({fault}), but a stream that "
                    "never ended is judged as cut")
     return ctx.outcome(row.stop, f"{detail}: {row.means}", **_partial_usage(a))
+
+
+def _cut_blocks(a: _Assembly, unclosed: Sequence[int]
+                ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """The content of a stream that ended at the output ceiling with
+    block(s) still open: every block in order, the closed ones as they are
+    and an open `text` or `thinking` block as far as it got. An open
+    `tool_use` block is carried only when the pieces of its input joined
+    parse as an object (a ceiling that fell exactly between the last piece
+    and the block's stop); otherwise it is left out — a tool_use the API
+    would refuse is never sent back — and returned as the second value,
+    `{"id", "name", "partial_json"}`, for the transcript. Pure of the
+    assembly: nothing is edited."""
+    content: list[dict[str, Any]] = []
+    cut: dict[str, Any] | None = None
+    for index in sorted(a.blocks):
+        block = copy.deepcopy(a.blocks[index])
+        if index not in unclosed:
+            content.append(block)
+            continue
+        if block.get("type") != "tool_use":
+            if block.get("type") == "thinking":
+                block.setdefault("signature", "")   # the signature comes last
+            content.append(block)
+            continue
+        joined = "".join(a.partial_json.get(index, []))
+        try:
+            parsed = json.loads(joined) if joined else None
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, Mapping):
+            block["input"] = parsed
+            content.append(block)
+            continue
+        cut = {"id": block.get("id"), "name": block.get("name"), "partial_json": joined}
+    return content, cut
 
 
 def _partial_usage(a: _Assembly) -> dict[str, Any]:
@@ -1288,18 +1363,20 @@ class AnthropicAdapter(Adapter):
               chunks: Iterable[bytes]) -> Outcome:
         media = _media(headers)
         if status == 200 and media == SSE_MEDIA:
-            return read_stream(status, headers, chunks, table=self._table,
-                               observer=self._observer)
+            drawn = _Drawn(chunks)
+            outcome = read_stream(status, headers, drawn, table=self._table,
+                                  observer=self._observer)
+            return _keep_raw(outcome, drawn.body)
         try:
             body = b"".join(bytes(c) for c in chunks)
         except Exception as exc:
             return _failure(_context(status, headers, self._table), exc,
                             "reading the response body")
         if status != 200 or media == JSON_MEDIA:
-            return read_response(status, headers, body, table=self._table)
-        return _context(status, headers, self._table).malformed(
+            return _keep_raw(read_response(status, headers, body, table=self._table), body)
+        return _keep_raw(_context(status, headers, self._table).malformed(
             f"a 200 whose content-type is {media or 'absent'!r}, neither {JSON_MEDIA} nor "
-            f"{SSE_MEDIA}")
+            f"{SSE_MEDIA}"), body)
 
     def turn(self, request: Request) -> Turn:
         """The boundary's path: the Request's messages (API-shaped, append-
@@ -1317,6 +1394,33 @@ class AnthropicAdapter(Adapter):
         outcome = self.send(body)
         self._sent = tuple(messages)
         return outcome.to_turn()
+
+
+class _Drawn:
+    """The chunks a stream reader draws, remembered as they are drawn: the
+    response body as the transport delivered it (headers aside), so a call
+    that ends `malformed-body` can keep what the reader was given. An
+    iterable the reader walks once."""
+
+    def __init__(self, chunks: Iterable[bytes]) -> None:
+        self._chunks = chunks
+        self._seen = bytearray()
+
+    def __iter__(self) -> Iterable[bytes]:
+        for chunk in self._chunks:
+            self._seen += bytes(chunk)
+            yield chunk
+
+    @property
+    def body(self) -> bytes:
+        return bytes(self._seen)
+
+
+def _keep_raw(outcome: Outcome, body: bytes) -> Outcome:
+    """The Outcome with the response body attached when — and only when — the
+    call ended in the `malformed-body` condition, whatever the detail. No
+    other outcome keeps a byte (the loop writes what it is handed)."""
+    return replace(outcome, raw=body) if outcome.malformed else outcome
 
 
 def _replace_reason(outcome: Outcome, reason: str | None) -> Outcome:

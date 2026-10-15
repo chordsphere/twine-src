@@ -91,7 +91,9 @@ FAKE = "fake"
 # The model the fake's spend records carry when none is named: the prices
 # file must price it, as it prices any model (§13.4).
 FAKE_DEFAULT_MODEL = "fake"
-DEFAULT_MAX_TOKENS = 16000
+# 16000 starved file writes: a stream that ends at the ceiling inside a
+# tool call loses the call (twine-run-ergonomics, finding 2).
+DEFAULT_MAX_TOKENS = 32000
 THINKING_CHOICES = ("adaptive", "off")
 # The thinking parameter each choice sends the Anthropic adapter. `off` is
 # `disabled`, said explicitly: sending none leaves the model's default,
@@ -138,6 +140,8 @@ class RunReport:
     window: Window | None = None
     resumed_from: int | None = None
     resume_sid: str | None = None
+    # The loop's wall time (seconds since it started), for the summary line.
+    wall_seconds: float = 0.0
 
     @property
     def sid(self) -> str | None:
@@ -254,7 +258,20 @@ def cmd_run(ctx: Context, args: argparse.Namespace) -> Result:
     payload = report.payload()
     if report.transcript is not None:
         _log_end(report)
+    ctx.info(f"{NAME}: {summary_line(report)}")
     return Result(report.ok, payload, lines(report))
+
+
+def summary_line(report: RunReport) -> str:
+    """The run's last progress line (cli-contract.md §18.7), the same words
+    the loop's `summary()` speaks — and the same line when the loop never ran
+    (`refused`: no calls, nothing spent, no time)."""
+    r = report.result
+    return runloop.summary_text(
+        report.outcome, stop=None if r is None else r.stop, move=None if r is None else r.move,
+        calls=0 if r is None else r.turns, tool_calls=0 if r is None else r.tool_calls,
+        retries=0 if r is None else r.retries, cost=report.cost_usd(),
+        seconds=report.wall_seconds)
 
 
 def _log_end(report: RunReport, *, internal_error: bool = False) -> None:
@@ -379,6 +396,7 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
         messages=[runloop.user_message(report.open.opener)], window=report.window,
         progress=lambda line: ctx.info(f"run: {line}"))
     report.result = the_loop.run()
+    report.wall_seconds = the_loop.elapsed()
     # The end: what is kept and what is removed.
     if report.result.outcome == runloop.DELIVERED:
         try:
@@ -593,11 +611,13 @@ def lines(report: RunReport) -> list[str]:
     r = report.result
     if r is not None and r.outcome == runloop.DELIVERED and r.apply_line:
         return [r.apply_line]
+    if r is not None and r.outcome == runloop.SUSPENDED and r.apply_line:
+        # escalate's clarification form (R5): the operator applies it. Its
+        # twin's `block` is the paste block, for the other courier; human
+        # mode on stdout stays the apply line alone.
+        return [r.apply_line]
     if r is not None and r.outcome == runloop.SUSPENDED and r.block:
         return carry_bale.passthrough_lines(r.block)
-    if r is not None and r.outcome == runloop.SUSPENDED and r.apply_line:
-        # escalate's clarification form (R5): the operator applies it.
-        return [r.apply_line]
     who = report.sid or report.bundle
     if r is None:
         return [f"{report.command} {who}: refused — {report.reason}"]
@@ -647,7 +667,9 @@ COMMANDS = (
                         "records carry, which the price file must price"}),
             Argument(("--max-tokens",), {
                 "metavar": "N", "type": int, "default": DEFAULT_MAX_TOKENS,
-                "help": f"the output ceiling per call (default {DEFAULT_MAX_TOKENS})"}),
+                "help": f"the output ceiling per call (default {DEFAULT_MAX_TOKENS}; a "
+                        "turn cut at it is continued, and a tool call it cut off is "
+                        "asked for again in parts)"}),
             Argument(("--thinking",), {
                 "choices": THINKING_CHOICES, "default": "adaptive",
                 "help": "thinking, a spawn-time constant (default adaptive)"}),

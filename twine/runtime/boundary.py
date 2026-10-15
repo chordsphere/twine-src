@@ -151,6 +151,20 @@ class Turn:
     reason      a sentence saying why the turn stopped, when the stop is
                 not a plain end (a refusal quotes the provider's error type
                 and message whole); None otherwise
+
+    Added at twine-run-ergonomics, each defaulting to None, and neither in
+    `as_json()` (the transcript's `turn` line carries them beside it, under
+    `raw` and `cut_tool_input`, runtime-contract.md §7.6):
+
+    raw         the response body as the transport drew it, headers aside —
+                set by an adapter only on a call that ended
+                `malformed-shape`; the loop writes it to
+                `<state-dir>/transcripts/<sid>.call-<N>.raw`
+    cut_tool_call  `{"id", "name", "partial_json"}` of a tool call the model
+                was writing when the output ceiling cut the turn, whose
+                input never completed: not among `content` or `tool_calls`
+                (a call the provider would refuse is never sent back), kept
+                for the transcript and for the loop's continuation text
     """
 
     text: str
@@ -163,6 +177,8 @@ class Turn:
     retry_after: float | None = None
     request_id: str | None = None
     reason: str | None = None
+    raw: bytes | None = None
+    cut_tool_call: Mapping[str, Any] | None = None
 
     @property
     def continues(self) -> bool:
@@ -397,6 +413,10 @@ class Boundary:
             value = getattr(turn, name)
             if value is not None and not isinstance(value, str):
                 found.append(f"{name} must be a string or None")
+        if turn.raw is not None and not isinstance(turn.raw, bytes):
+            found.append("raw must be bytes or None")
+        if turn.cut_tool_call is not None and not isinstance(turn.cut_tool_call, Mapping):
+            found.append("cut_tool_call must be an object or None")
         return found
 
 

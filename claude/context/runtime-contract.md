@@ -74,7 +74,12 @@ three are capabilities (§2) every adapter behind the boundary implements
   `()` by default), `retry_after` (seconds a provider asked to wait, or
   `None`), `request_id` (the provider's id for the call, or `None`) and
   `reason` (a sentence saying why the turn stopped when it is not a plain
-  end, or `None`). The boundary checks their types.
+  end, or `None`). The boundary checks their types. Since twine-run-ergonomics
+  two more, each `None` by default and neither in `Turn.as_json()`: `raw`
+  (the response body as the transport drew it, headers aside — an adapter
+  sets it only on a call that ended `malformed-shape`; the loop writes it,
+  §7.6) and `cut_tool_call` (`{"id", "name", "partial_json"}` of a tool call
+  the output ceiling cut off before its input was complete, §5.4).
 - `call` raises only for the adapter's own fault (a broken transport, a
   usage it cannot read). A provider *outcome* — a refusal, a rate limit,
   the window's edge, an overload — is a `Turn` whose `stop` names it.
@@ -575,7 +580,28 @@ naming how many complete events arrived; a transport exception mid-stream
 is its own key (§5.5); both keep the usage reported so far. Only in a
 stream that did end is an event that cannot be placed (a delta for no open
 block, a delta of an unknown type, data that is not JSON or not UTF-8,
-`message_stop` without `message_delta`) `malformed-shape`. Text
+`message_stop` without `message_delta`) `malformed-shape`.
+
+**The stop reason is taken before an open block is judged** (twine-run-ergonomics,
+finding 2). A stream that reaches `message_stop` with a content block still
+open and `message_delta`'s `stop_reason` `max_tokens` ended at the output
+ceiling inside the block: it is the **`max-tokens`** turn (the table's
+`continue-turn`), never `malformed-shape`. The closed blocks are the turn's
+content as they are; an open `text` or `thinking` block is carried as far as
+it got (a `thinking` block with no signature yet carries `""`); an open
+`tool_use` block is carried only when the pieces of its input, joined,
+parse as an object — otherwise it is **not** carried (a `tool_use` the API
+would refuse is never sent back), its id, name and partial input going to the
+`Turn`'s `cut_tool_call` and to the transcript's `turn` line under
+`cut_tool_input` (§7.6), and its name into the turn's `reason`. With any other
+`stop_reason` an open block at `message_stop` stays `malformed-body` as it
+was. **The raw stream is kept on any `malformed-shape`**: the adapter remembers
+the chunks the reader draws (or the body it joined) and, when the call ends in
+the `malformed-body` condition — whatever the detail — hands them to the
+loop on `Outcome.raw` and `Turn.raw`; the loop writes them to
+`<state-dir>/transcripts/<sid>.call-<N>.raw` (mode 0600, `N` the call number)
+and names the file in the `turn` line's `raw` key (§7.6). No other outcome
+keeps a byte, and the key is never in it: it is a response body. Text
 and thinking deltas reach an `observer(kind, text)` as they arrive, when
 the adapter is given one; an observer that fails is logged and dropped,
 never failing the call (the streaming contract).
@@ -821,12 +847,12 @@ pinned keys, in this order:
 
 | tool | beyond `name`, `content`, `is_error` |
 |---|---|
-| `shell` | `exit_code` (int, or `null` when killed), `stdout`, `stderr` (decoded UTF-8, an undecodable byte replaced by U+FFFD), `timed_out`, `stdout_capped`, `duration_seconds` (`null` when nothing ran) |
+| `shell` | `exit_code` (int, or `null` when killed), `stdout`, `stderr` (decoded UTF-8, an undecodable byte replaced by U+FFFD; both whole — the cap on what the model reads, below, is on `content` alone), `timed_out`, `stdout_capped`, `duration_seconds` (`null` when nothing ran) |
 | `read_file` | `path` (as resolved, relative to the home), `size` (bytes) |
 | `write_file` | `path`, `size` (bytes written) |
 | `list_dir` | `path`, `entries` — `[{name, kind, size}]`, sorted by name; `kind` from the entry itself, never followed: `file`, `dir`, `link` or `other`; `size` a file's bytes, `null` for the rest |
 | `probe` | `slug`, `leaves_cage` (always `true`), `exit_code`, `lines` (the integrity trailer's count) |
-| `escalate` | `kind` (`"light"`, or since R5 `"clarification"`), `suspend` (`true`; `false` on an error), `questions` (the count), and since R5 `path` (the clarification response tarball, relative to the home) and `sha256` — both `null` on the light form and on an error |
+| `escalate` | `kind` (`"light"`, or since R5 `"clarification"`), `suspend` (`true`; `false` on an error), `questions` (the count), and since R5 `path` (the clarification response tarball, relative to the home) and `sha256`, and since twine-run-ergonomics `block` (the exchange paste block, §6.6) — all three `null` on the light form and on an error |
 | `deliver` | `delivered` (`true`; `false` on an error), `path`, `size`, `sha256` |
 
 An error result carries the same keys, those the tool could not know `null`
@@ -846,15 +872,26 @@ non-zero is not a tool error**: `shell`'s result carries the exit code,
 stdout and stderr, and `is_error` is false. The loop (R4) hands `content`
 and `is_error` to the adapter's `tool_result` block (§5.6) as they are.
 
-**`shell`'s `content`**: stdout as it was; then, when there is any, stderr
+**`shell`'s `content`**: stdout; then, when there is any, stderr
 under a `[stderr]` line; then one bracketed line saying how it ended —
 `[exit N]`, `[exit -N: killed by SIGNAME]`, `[killed: timed out after Ts; the
 command and its children were stopped]` or `[killed: stdout passed 262144
 bytes; …]` — and `[stderr cut at 65536 bytes]` when the seam truncated it.
-Nothing dropped up to the caps, nothing added but those markers. Stdout is
-capped at **262144 bytes (256 KiB)**, `carry probe`'s cap (cli-contract
-§10.3); `read_file` refuses a file over the same 256 KiB (read it in parts
-with `shell`). Both caps are R3's choice, not the brief's.
+**What the model reads back of stdout is at most 32768 bytes (32 KiB)**
+(twine-run-ergonomics, finding 4: the model carries every byte it reads
+through every later call): cut on a character boundary and marked, on a line of
+its own, `[stdout cut at 32768 bytes of <total>; read it in parts]`, `<total>`
+the bytes there were. Stderr's share in `content` is cut the same way at the
+same number, its marker naming `stderr`
+(`[stderr cut at 32768 bytes of <total>; read it in parts]`). **The command is
+not stopped at that point**: it runs to its end, its timeout or the seam's own
+stdout cap — **262144 bytes (256 KiB)**, `carry probe`'s number (cli-contract
+§10.3), past which the group is killed, the result is an error and the exit
+line says so, as before; `is_error` stays false for a command that completed;
+and the result's `exit_code`, `stdout`, `stderr` and `stdout_capped` fields
+and the transcript's 64 KiB clip are as they were. `read_file` refuses a file
+over 256 KiB (read it in parts with `shell`) — untouched. The 256 KiB figures
+were R3's choice, not the brief's; the 32 KiB is the model's.
 
 ### 6.3 The sandbox and the cage
 
@@ -1002,17 +1039,29 @@ shape and never forking it (D13):
    top directory `response-NNN/`, NNN the sid's counter):
    `escalations/<k>/response-<sid>.tar.gz` (§10.1 step 11's name), `k` the
    first number not taken, so every round of a session's escalations is
-   kept.
+   kept;
+5. **the paste block** (twine-run-ergonomics): TARBALL.md §5.9.2's second
+   transport — the same record for a courier who pastes — rendered by the
+   request-carried crafter in the cage, `<python> -I -B
+   request/tools/craft_response.py --emit-block
+   escalations/<k>/response-NNN/manifest.json`, and read back with
+   `twine.shapes`: exactly one `exchange` block, intact (its sha256 trailer
+   holds), for the sid. A crafter that exits non-zero, or renders anything
+   else, is an error result naming `--emit-block` — as a crafter that cannot
+   scaffold is. The round is the crafter's default, 1.
 
 The result: `kind: "clarification"`, `suspend: true`, `questions` (the
-count), `path` and `sha256`. The loop treats it as `deliver` and suspend
+count), `path`, `sha256` and `block` (the paste block's text); its `content`
+is the sentence it always was followed by the block. The loop treats it as
+`deliver` and suspend
 (§7.4): `carry response` on the tarball, then the run ends `suspended`
-with the twin's `tarball`, `apply_line` and `dry_run` set and `block` null
-— or `stopped` when the dry run is not clean, as a bad delivery is. The
+with the twin's `tarball`, `apply_line` and `dry_run` set and `block` the
+paste block — or `stopped` when the dry run is not clean, as a bad delivery
+is. Human mode on stdout stays the apply line alone (cli-contract §18.7). The
 operator applies the line; bale suspends the session and prints the
 planner's paste block; the planner answers and `bale relay` carries it; and
 `twine resume <sid> --answer <the worker-facing block>` continues (§7.9).
-The light form is unchanged.
+The light form is unchanged: its `block` key is `null`.
 
 **`deliver`** names the response tarball the courier will carry: the path
 through the cage rules, a regular file, readable; the result is
@@ -1146,6 +1195,18 @@ what it must say, and a test holds each:
   the cage (`request/tools/craft_response.py` is in the request);
 - a question for the planner is `escalate`; a probe for the operator's
   machine is `probe`;
+- and, since twine-run-ergonomics (the one deliberate edit of this
+  cache-stable constant, ratified at the sitting of 2026-10-13, and the only
+  one: no later session edits it without a ruling), six things about working
+  here, each held by a test on its stem — case-insensitive, markdown
+  stripped: **list your home first** (a previous desk's work may already be
+  in it — `list`, `first`); **read ranges, never whole files** (every byte
+  printed is re-read on every later call — `range`); **write large files in
+  parts** (`in parts`); **never background a command and poll it**
+  (`background`); **the request carries no schemas: the lint judges the
+  manifest** (`lint`, `judge`); and **the window line exists** (the last line
+  of a tool result when the window runs thin, §7.4 — `window`) **and
+  `escalate`'s `blocking: true` form exists** (`blocking`);
 - and **nothing about the model, the provider or the task** (a test
   searches it for provider and model names, `model`, `provider`, and the
   session's sid).
@@ -1250,7 +1311,7 @@ before the next begins** (§7.6). Before a call: the abort file, twine's
 |---|---|---|
 | asks for tools (`stop` null) | — | runs each call in order through `run_tool`; each result goes back as a `tool_result`, `is_error` carried — a failed tool is **`return-tool-error`**, returned and never a crash. A result with `suspend: true` (`escalate`) → outcome **`suspended`**, the light block carried — or, when the result names a tarball (`path`: escalate's clarification form, R5, §6.6), `carry response` on it first, then **`suspended`** with the tarball, the apply line and the dry run (`stopped` when the dry run is not clean); a result with `delivered: true` (`deliver`) → `carry response` on the tarball (§7.7). Nothing after any of these runs in that turn: each later call is answered `is_error` "not run" so the conversation stays whole for a resume |
 | `end-turn` | `classify-final-text` | `shapes.find_blocks` on the turn's text: a **light** block, intact and for this sid → **`suspended`** (as `escalate`); one that is not → `ended`, shape `light`; a **probe** block → run through the `probe` tool, its content (the paste-back, or why it did not run) the next user turn — D13's hop closed; **prose** or any other shape → **`ended`**, `shape` the report's |
-| `max-tokens` | `continue-turn` | the partial content kept as an assistant turn, then a user turn: a `tool_result` "not run" for any `tool_use` block the partial turn holds (the API refuses one left unanswered), then the request to continue (decision 3: ending on a user turn needs no prefill, which not every model allows). At most 3 continuations in a row, then `stopped` |
+| `max-tokens` | `continue-turn` | the partial content kept as an assistant turn, then a user turn: a `tool_result` "not run" for any `tool_use` block the partial turn holds (the API refuses one left unanswered), then the request to continue (decision 3: ending on a user turn needs no prefill, which not every model allows) — and, since twine-run-ergonomics, when the turn was cut inside a tool call whose input did not complete (§5.4: that call is not among the partial content), a second sentence in the same text block: that the call was cut off before its input was complete and not run, to be made again in smaller pieces, a large file written in parts (`CUT_CALL_TEXT`). At most 3 continuations in a row, then `stopped` |
 | `rate-limited`, `overloaded`, `provider-error`, `network-failure`, `timeout` | `retry-with-backoff` | the same call again after `Turn.retry_after` seconds when the provider named them, else 2, 4, 8, 16, 32; at most 5 retries of one call, then `stopped`, the stop and the attempts in `reason`. The wait sleeps a second at a time and checks the abort file between: an abort meanwhile is `killed` |
 | `request-refused`, `model-refusal`, `window-exhausted`, `malformed-shape`, `tool-error` | `fix-request`, `reword-brief`, `split-goal`, `respawn-from-request`, `return-tool-error` | **`stopped`**, the stop key and `Turn.reason` carried, the move and its actor named for whoever performs it |
 | `cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` | `stop-at-cap`, `fix-and-resume`, `close-aborted`, `fix-adapter` | never from an adapter (the boundary refuses them, §1.5): the loop's own, steps 1, 4 and 5 (`adapter-defect` ends the run `stopped`; the other three are outcomes of their own name) |
@@ -1297,7 +1358,7 @@ first and the next line says `torn_before`. Each line is one object, `at`
 | `run-start` | `adapter`, `model`, `max_tokens`, `thinking`, `sandbox` (§6.4's `as_json`), `request` (where it was unpacked), `open` (the open's `sid` and `tarball` — not its twin; null on a resume), `group` (the runtime's pid, pgid, whether it called setsid), `cap_usd`, `max_turns`, `system` (the prompt: the note and the tools), and since R5 `window` (`size`, `source`, `reason`, `warn_fraction`) and `resumed_from` (null on `twine run`; on `twine resume` the `seq` of the line before it, beside `answer` — its source, sha256 and length — and `rebuilt`, what was re-warmed) |
 | `check` | `call`, `input_estimate`, `input_basis` (R5: `counted` or `estimated`, §7.5), `check` (the pre-call check's twin) |
 | `request` | `call`, `messages_total`, `appended` — the messages added since the last `request` line, so the lines' `appended` lists, joined, are the conversation as sent, with no quadratic growth (the key never appears: the adapter has no path for it to). When the run ends with messages no `request` line holds — the tool results of a turn that ended it, and since R5 the final assistant turn of an `end-turn` (a light block, prose), the results a window stop left unsent — a last one with `sent: false` carries them, so the joined lines are the whole conversation a resume rebuilds (§7.9) |
-| `turn` | `call`, `turn` (`Turn.as_json()`), and `spend_error` when the usage could not be appended |
+| `turn` | `call`, `turn` (`Turn.as_json()`), and `spend_error` when the usage could not be appended; and since twine-run-ergonomics, beside `turn`: `raw` — the path of `<state-dir>/transcripts/<sid>.call-<N>.raw`, the response body kept (mode 0600, `N` the call number) when the call ended `malformed-shape`, whatever the detail (§5.4), and absent on every other turn (`raw: null` with `raw_error` when the file could not be written; a resumed run's numbering restarts, so its file of the same name replaces the earlier one); and `cut_tool_input` — `{"id", "name", "partial_json"}` of the tool call a `max-tokens` turn was cut inside, whose input never completed and which is therefore not in the turn's content (§5.4), absent otherwise |
 | `window` | (R5) after each `turn`: `call`, `used`, `size` (null when unknown), `fraction` (`used / size`, null when unknown), `warned`, and `call_input` (this call's own input side; `used` is kept when it is 0, §7.4) |
 | `tool-call` | `call`, `id`, `name`, `arguments` (and `source: "final-text"` for a probe hop) |
 | `tool-result` | `call`, `id`, `result` — the result's `as_json()`, every string over 64 KiB (`content`, `shell`'s `stdout` and `stderr`) cut with the cut marked |
