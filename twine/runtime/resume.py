@@ -53,6 +53,15 @@ log = logging.getLogger("twine.runtime.resume")
 # holds the declaration to this tuple (runtime-contract.md §2.3).
 IMPLEMENTS = ("suspend-resume",)
 
+# The user message `twine resume` appends when no answer is given, byte for
+# byte (twine-run-recovery): a run that was stopped needs telling to go on,
+# not answering. Spelled once; `validation.sh` of the session that landed it
+# holds it to these bytes, and the transcript's `run-start` `answer` object
+# says `source: "twine"` when it was sent.
+RESUME_TEXT = "This session was stopped and has been resumed; continue from where you left off."
+# The `source` a `run-start`'s `answer` carries for it.
+RESUME_SOURCE = "twine"
+
 # The transcript's line kinds a rebuild reads (twine/runtime/loop.py and
 # twine/commands/run.py write them; runtime-contract.md §7.6).
 RUN_START = "run-start"
@@ -214,5 +223,5 @@ def read_conversation(path: Path) -> Conversation:
                         request_lines=request_lines, runs=runs)
 
 
-__all__ = ["CONSTANTS", "Conversation", "IMPLEMENTS", "ResumeError", "RunStart",
-           "message_fault", "read_conversation"]
+__all__ = ["CONSTANTS", "Conversation", "IMPLEMENTS", "RESUME_SOURCE", "RESUME_TEXT",
+           "ResumeError", "RunStart", "message_fault", "read_conversation"]

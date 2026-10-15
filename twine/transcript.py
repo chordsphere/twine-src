@@ -31,16 +31,23 @@ keeps the response body the transport drew:
 
 written by `write_raw` and named in the `turn` line's `raw` key — nothing is
 kept for any other outcome. It is a response body, so the key is never in it.
+A resumed run numbers its calls from 1 again, so since twine-run-recovery a
+raw file is **never overwritten**: it is created exclusively, and a name
+already taken gives the next one, `<sid>.call-<N>-2.raw`, `-3`, … — the
+first run's file keeps its name, and the `turn` line's `raw` names whichever
+file the call's body went to.
 
 Nothing here reads a key or the process environment, or spawns anything.
 """
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
 import os
 import re
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -52,10 +59,15 @@ log = logging.getLogger("twine.transcript")
 TRANSCRIPTS_SUBDIR = "transcripts"
 SUFFIX = ".jsonl"
 # The raw response body kept for a call that ended malformed-shape:
-# `<sid>.call-<N>.raw`, beside the transcript.
+# `<sid>.call-<N>.raw`, beside the transcript — `<sid>.call-<N>-<K>.raw` for
+# the K-th file kept for a call number a resumed run reached again (K >= 2).
 RAW_INFIX = ".call-"
 RAW_SUFFIX = ".raw"
-RAW_NAME = re.compile(r"^(?P<sid>.+)\.call-(?P<call>[1-9][0-9]*)\.raw$")
+RAW_NAME = re.compile(r"^(?P<sid>.+)\.call-(?P<call>[1-9][0-9]*)"
+                      r"(?:-(?P<again>[2-9]|[1-9][0-9]+))?\.raw$")
+# How many files one call number may have kept; past it the body is not kept
+# (named, never silent) rather than searched for forever.
+MAX_RAW_PER_CALL = 1000
 # The three keys every line opens with, in this order.
 LINE_KEYS = ("at", "seq", "kind")
 
@@ -84,27 +96,46 @@ def transcript_path(state_dir: Path, sid: str) -> Path:
     return transcripts_dir(state_dir) / f"{sid}{SUFFIX}"
 
 
-def raw_path(state_dir: Path, sid: str, call: int) -> Path:
+def raw_path(state_dir: Path, sid: str, call: int, again: int = 1) -> Path:
     """`<state-dir>/transcripts/<sid>.call-<N>.raw`, the response body kept
-    for call N when it ended `malformed-shape`. Raises ValueError for a sid
-    twine would not name a file by, or a call that is not a positive int."""
+    for call N when it ended `malformed-shape` — or, for the `again`-th
+    file kept for that call number (a resumed run reaching it again),
+    `<sid>.call-<N>-<again>.raw`. Raises ValueError for a sid twine would
+    not name a file by, or a call or `again` that is not a positive int."""
     if not is_sid(sid):
         raise ValueError(f"session id {sid!r} is not one twine names a transcript by")
     if type(call) is not int or call < 1:
         raise ValueError(f"call {call!r} is not a positive call number")
-    return transcripts_dir(state_dir) / f"{sid}{RAW_INFIX}{call}{RAW_SUFFIX}"
+    if type(again) is not int or again < 1:
+        raise ValueError(f"file number {again!r} is not a positive number")
+    suffix = "" if again == 1 else f"-{again}"
+    return transcripts_dir(state_dir) / f"{sid}{RAW_INFIX}{call}{suffix}{RAW_SUFFIX}"
 
 
 def write_raw(state_dir: Path, sid: str, call: int, data: bytes) -> Path:
-    """Keep `data` — the response body of call `call`, as drawn — at
-    `raw_path`, mode 0600 (the directory 0700 when it has to be made). A
-    file of the same name (a resumed run's numbering restarts) is replaced.
-    Returns the path; raises TranscriptError naming it when it cannot be
-    written."""
+    """Keep `data` — the response body of call `call`, as drawn — mode 0600
+    (the directory 0700 when it has to be made), at `raw_path`'s first name
+    no file holds: created exclusively, so a file kept before — by an
+    earlier run of the session, whose call numbers a resume restarts — is
+    never replaced. Returns the path; raises TranscriptError naming it when
+    it cannot be written, or when the name is taken by something that is not
+    a regular file (a squatter is named, not walked around)."""
     path = raw_path(state_dir, sid, call)
     try:
         path.parent.mkdir(mode=DIR_MODE, parents=True, exist_ok=True)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, FILE_MODE)
+        for again in range(1, MAX_RAW_PER_CALL + 1):
+            path = raw_path(state_dir, sid, call, again)
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, FILE_MODE)
+            except FileExistsError:
+                if not stat.S_ISREG(os.lstat(path).st_mode):
+                    raise OSError(errno.EEXIST,
+                                  "something that is not a regular file is in its place") from None
+                continue
+            break
+        else:
+            raise OSError(errno.EEXIST, f"{MAX_RAW_PER_CALL} files are kept for this call "
+                                        "number already")
         try:
             os.fchmod(fd, FILE_MODE)
             written = 0

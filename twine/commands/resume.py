@@ -1,27 +1,39 @@
 """`twine resume` — continue a kept session cold, from its transcript, with
-the planner's answer as the next user turn (Arc 2 R5; D23; cli-contract.md
-§19, runtime-contract.md §7.9).
+the planner's answer — or, when it was only stopped, twine's own words — as
+the next user turn (Arc 2 R5; D23; twine-run-recovery; cli-contract.md §19,
+runtime-contract.md §7.9).
 
-    twine resume SID --cap USD --answer FILE|- [--script FILE] [--model M]
-                 [--max-tokens N] [--thinking adaptive|off] [--prices PATH]
-                 [--max-turns N] [--window N] [--state-dir DIR]
-                 [--bale-root DIR] [--cwd DIR] [--json]
+    twine resume SID --cap USD|+USD [--answer FILE|-] [--script FILE]
+                 [--model M] [--max-tokens N] [--thinking adaptive|off]
+                 [--prices PATH] [--max-turns N] [--window N]
+                 [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]
+    twine resume SID --plan [--state-dir DIR] [--prices PATH] [--json]
 
-What it resumes: a session `twine run` left `suspended` — on a light block,
-or on escalate's clarification form — or `ended`, `stopped`, `killed`,
-`cap-*`: any run whose in-flight record (with its `runtime` fields) and
-transcript are kept. Under the same sid, cold (D23): nothing was held hot,
-so the conversation is rebuilt from the transcript's `request` lines
+**The rule** (twine-run-recovery): a run `twine run` or `twine resume` left
+`stopped`, `cap-reached`, `cap-unchecked`, `ended` or `suspended` resumes
+with `twine resume`, in its kept home, from its transcript;
+`respawn-from-request` is the last resort — for a home that is gone, or a
+session bale has closed. A `killed` session is one bale closed (`twine kill`
+unlocks it `aborted`): `twine resume` refuses it, naming the respawn path.
+
+What it resumes: any run whose in-flight record (with its `runtime` fields)
+and transcript are kept. Under the same sid, cold (D23): nothing was held
+hot, so the conversation is rebuilt from the transcript's `request` lines
 (twine.runtime.resume) and the first call re-warms the cache — its usage is
 the twin's `rewarm`, D23's named telemetry field.
 
   0. refused before anything starts, every reason at once: the sid, the
      state directory; no in-flight record, or one without `runtime` fields
      (never hosted, or delivered); its transcript missing or unreadable as a
-     conversation; its sandbox home missing, or not this state directory's;
-     `--answer` missing, unreadable or empty (`-` reads stdin); `--cap`
-     absent or not dollars (D15); the recorded adapter's arguments — `fake`
-     needs `--script`, `anthropic` refuses one and needs ANTHROPIC_API_KEY;
+     conversation; its last run `killed` (or an abort request standing: a
+     kill closed the session); its sandbox home missing, or not this state
+     directory's; `--answer` missing on a `suspended` session (an answer is
+     what a suspended worker waits for; on any other outcome it is optional
+     and `RESUME_TEXT` is sent), unreadable or empty (`-` reads stdin);
+     `--cap` absent or not dollars or `+dollars` (D15; `+USD` is the
+     session's spend so far plus that amount, and refuses when that spend
+     cannot be priced); the recorded adapter's arguments — `fake` needs
+     `--script`, `anthropic` refuses one and needs ANTHROPIC_API_KEY;
      `--model`, `--max-tokens` or `--thinking` given and differing from the
      transcript's last `run-start` (D12: spawn-time constants — a different
      one is a new session, not a resume); the limits; the tool registry and
@@ -34,13 +46,22 @@ the twin's `rewarm`, D23's named telemetry field.
      there, and is not unpacked again); the adapter spawned with the
      transcript's constants and the key as before, and the window
      (`--window`, or the adapter's statement); the transcript appended to —
-     a `run-start` carrying `resumed_from`, the `seq` of the line before it;
-     the in-flight record's `runtime` fields replaced; the loop, its
-     messages the rebuilt conversation plus one user message, the answer.
+     a `run-start` carrying `resumed_from`, the `seq` of the line before it,
+     and `cap_given`, the `--cap` as typed; the in-flight record's `runtime`
+     fields replaced; the loop, its messages the rebuilt conversation plus
+     one user message, the answer.
   2. the end as `twine run`'s: the running record cleared; on `delivered`
      the in-flight record removed and the home kept; otherwise both kept —
-     a resumed run can suspend again, and a transcript carries any number
-     of runs.
+     a resumed run can suspend again, and a transcript carries any number of
+     runs. The twin's `next` and the human `next:` lines name the command the
+     ending names (recovery.next_commands).
+
+**`--plan`** reads and writes nothing: the session's transcript, its spend
+stream, its in-flight record and its sandbox home, no bale started and no
+model called. It says whether the session resumes (the rule above and the
+`killed` refusal) and with what line, and suggests a cap (twine.recovery:
+the rule is stated there and in cli-contract.md §19.1). Its twin is
+`command` `"resume"` with `plan` true.
 
 The twin is `twine run`'s (cli-contract.md §18.5), `command` `"resume"`,
 `open` null, `resumed_from` set and `rewarm` the first call's usage. ok
@@ -55,11 +76,12 @@ import argparse
 import dataclasses
 import hashlib
 import logging
+import os
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from twine import inflight, kill, process, spend
+from twine import inflight, kill, process, recovery, spend
 from twine.cli import Context
 from twine.commands import run as run_verb
 from twine.commands.carry_bale import BALE_ROOT_ARGUMENT
@@ -68,7 +90,8 @@ from twine.registry import Argument, Command, Result
 from twine.runtime import loop as runloop
 from twine.runtime.adapters.anthropic import KEY_VARIABLE
 from twine.runtime.boundary import Boundary, BoundaryError
-from twine.runtime.resume import Conversation, ResumeError, read_conversation
+from twine.runtime.resume import (RESUME_SOURCE, RESUME_TEXT, Conversation, ResumeError,
+                                  read_conversation)
 from twine.runtime.sandbox import HOME_NAME, SANDBOX_SUBDIR, Sandbox, SandboxError
 from twine.transcript import Transcript, TranscriptError, transcript_path
 
@@ -103,6 +126,8 @@ class Prepared:
 
 
 def cmd_resume(ctx: Context, args: argparse.Namespace) -> Result:
+    if args.plan:
+        return cmd_plan(ctx, args)
     sid = args.sid if kill.is_sid(args.sid) else None
     report = run_verb.RunReport(bundle=args.sid, adapter=None, command=NAME, resume_sid=sid)
     try:
@@ -119,10 +144,12 @@ def cmd_resume(ctx: Context, args: argparse.Namespace) -> Result:
             f"nothing ran in {report.sid}; it is as it was — still open in bale, its "
             f"transcript and in-flight record kept: fix the fault and resume again, or "
             f"close it with `twine kill {report.sid}`")
+    run_verb.name_next(report, args)
     payload = report.payload()
     if report.transcript is not None:
         run_verb._log_end(report)
     ctx.info(f"{NAME}: {run_verb.summary_line(report)}")
+    run_verb.say_next(ctx, report)
     return Result(report.ok, payload, run_verb.lines(report))
 
 
@@ -188,8 +215,8 @@ def resume(ctx: Context, args: argparse.Namespace, report: run_verb.RunReport) -
         "run-start", adapter=start.adapter, model=start.model, max_tokens=start.max_tokens,
         thinking=start.thinking, sandbox=report.sandbox.as_json(),
         request=report.unpacked.as_json(), open=None, group=report.group.as_json(),
-        cap_usd=spend.usd(report.cap_usd), max_turns=report.max_turns,
-        system=prompt.as_json(), window=report.window.start_json(),
+        cap_usd=spend.usd(report.cap_usd), cap_given=run_verb.cap_given(report),
+        max_turns=report.max_turns, system=prompt.as_json(), window=report.window.start_json(),
         resumed_from=report.resumed_from,
         answer={"source": prepared.answer_source,
                 "sha256": hashlib.sha256(prepared.answer.encode("utf-8")).hexdigest(),
@@ -257,16 +284,18 @@ def pre_start(ctx: Context, args: argparse.Namespace,
     sid = report.sid
     if sid is None:
         refusals.append(f"{args.sid!r} is not a session id twine accepts")
-    # The cap (D15: an absent cap refuses — named here, with the rest).
+    # The cap (D15: an absent cap refuses — named here, with the rest). `+USD`
+    # waits for the state directory: it is the spend so far plus the amount.
     if args.cap is None:
-        refusals.append("--cap USD is required: the session's hard cap is checked before "
-                        "every call (D15), and an absent cap refuses")
+        refusals.append("--cap USD is required (or +USD, the session's spend so far plus "
+                        "that amount): the session's hard cap is checked before every call "
+                        "(D15), and an absent cap refuses; `twine resume SID --plan` "
+                        "suggests one")
     else:
-        try:
-            report.cap_usd = spend.parse_usd(args.cap)
-        except ValueError as exc:
-            refusals.append(f"--cap: {exc}")
-    answer, answer_source = read_answer(ctx, args.answer, refusals)
+        run_verb.parse_cap(report, args.cap, refusals)
+    answer = answer_source = None
+    if args.answer is not None:
+        answer, answer_source = read_answer(ctx, args.answer, refusals)
     for flag, value, what in (("--max-tokens", args.max_tokens, "tokens"),
                               ("--max-turns", args.max_turns, "calls")):
         if value is not None and value <= 0:
@@ -295,6 +324,10 @@ def pre_start(ctx: Context, args: argparse.Namespace,
             refusals.append(f"the state directory {where.path} (from {where.source}) {fault}")
         elif sid is not None:
             record, conversation, home = kept_session(where.path, sid, refusals)
+            run_verb.resolve_cap(report, sid, label=NAME)
+    if conversation is not None and report.state_dir is not None and sid is not None:
+        answer, answer_source = last_run_rules(args, report.state_dir, sid, answer,
+                                               answer_source, refusals)
     if record is not None:
         report.inflight_state = run_verb.INFLIGHT_KEPT
     # The adapter the record names, and its arguments.
@@ -317,16 +350,32 @@ def pre_start(ctx: Context, args: argparse.Namespace,
                     cwd=args.cwd or record["cwd"], home=home)
 
 
-def read_answer(ctx: Context, name: str | None, refusals: list[str]
+def last_run_rules(args: argparse.Namespace, state_dir: Path, sid: str, answer: str | None,
+                   source: str | None, refusals: list[str]) -> tuple[str | None, str | None]:
+    """What the transcript's last run's end decides: a `killed` session is
+    refused (a kill is a close: the respawn path is named), and `--answer` is
+    required only on a `suspended` one — on any other outcome (or a run that
+    never ended) an absent answer is `RESUME_TEXT`, from source `twine`."""
+    story = recovery.read_story(transcript_path(state_dir, sid))
+    if story.outcome == recovery.KILLED or kill.abort_requested(state_dir, sid):
+        refusals.append(recovery.killed_refusal(sid))
+    if args.answer is None:
+        if story.outcome in recovery.ANSWER_REQUIRED_ON:
+            refusals.append("--answer FILE|- is required on a suspended session: the "
+                            "planner's answer is what the suspended worker waits for, the "
+                            "next user turn of the resumed conversation")
+        else:
+            return RESUME_TEXT, RESUME_SOURCE
+    return answer, source
+
+
+def read_answer(ctx: Context, name: str, refusals: list[str]
                 ) -> tuple[str | None, str | None]:
     """The planner's answer — the packer's words for a light block, or the
     worker-facing block `bale relay` printed for a clarification — from a
-    file, or from stdin for `-`; refused when missing, unreadable, not
-    UTF-8 or empty. Returned as given: the loop sends it unchanged."""
-    if name is None:
-        refusals.append("--answer FILE|- is required: the planner's answer is the next user "
-                        "turn of the resumed conversation")
-        return None, None
+    file, or from stdin for `-`; refused when unreadable, not UTF-8 or empty.
+    Returned as given: the loop sends it unchanged. (Absent is
+    `last_run_rules`'s: required only on a suspended session.)"""
     if name == STDIN:
         source = "stdin"
         try:
@@ -369,7 +418,7 @@ def kept_session(state_dir: Path, sid: str, refusals: list[str]
     if record is None:
         refusals.append(f"no in-flight record of {sid} under {state_dir}: twine never opened "
                         "it here, or it was delivered (the record is removed then) — there "
-                        "is no kept session to resume")
+                        "is no kept session to resume" + delivered_hint(state_dir, sid))
         return None, None, None
     runtime = record.get(inflight.RUNTIME_KEY)
     if runtime is None:
@@ -406,6 +455,19 @@ def kept_session(state_dir: Path, sid: str, refusals: list[str]
     if conversation is None or home is None:
         return record, None, None
     return record, conversation, home
+
+
+def delivered_hint(state_dir: Path, sid: str) -> str:
+    """When the transcript says the session was delivered, the response it
+    delivered and its apply line — what to do with a session there is
+    nothing to resume in; empty otherwise."""
+    story = recovery.read_story(transcript_path(state_dir, sid))
+    if story.outcome != recovery.DELIVERED:
+        return ""
+    line, tarball = story.field("apply_line"), story.field("tarball")
+    if not line:
+        return f"; its transcript says it was delivered ({tarball or 'no tarball named'})"
+    return f"; its transcript says it was delivered, and the response applies with `{line}`"
 
 
 def adapter_arguments(ctx: Context, args: argparse.Namespace, adapter: str,
@@ -456,6 +518,183 @@ def constants_refusals(args: argparse.Namespace, conversation: Conversation,
                         f"of {', '.join(run_verb.THINKING_CHOICES)}")
 
 
+# ---------------------------------------------------------------------------
+# --plan: the recovery reading
+# ---------------------------------------------------------------------------
+
+# The keys of the plan's twin after `command` and `ok`, in this order.
+PLAN_KEYS = ("plan", "sid", "outcome", "stop", "move", "actor", "resumable", "why", "window",
+             "calls", "spend_usd", "per_call_usd", "next_call_worst_usd", "suggested_cap_usd",
+             "last_tools", "home", "next", "reason")
+# The flags a plan has no use for: accepted, said to be ignored.
+PLAN_IGNORES = (("--cap", "cap"), ("--answer", "answer"), ("--script", "script"),
+                ("--model", "model"), ("--max-tokens", "max_tokens"),
+                ("--thinking", "thinking"), ("--window", "window"))
+
+
+@dataclasses.dataclass
+class Plan:
+    """`twine resume SID --plan`: what the session says about going on.
+    `ok` is true exactly when it could be read; `resumable` is the rule's
+    verdict on it, `why` the refusal's reason when it is not."""
+
+    sid: str | None
+    ok: bool = False
+    outcome: str | None = None
+    stop: str | None = None
+    move: str | None = None
+    actor: str | None = None
+    resumable: bool = False
+    why: str | None = None
+    window: dict[str, Any] | None = None
+    advice: recovery.Advice = dataclasses.field(default_factory=recovery.Advice)
+    suggested: Decimal | None = None
+    last_tools: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    home: dict[str, Any] = dataclasses.field(
+        default_factory=lambda: {"path": None, "exists": False, "entries": []})
+    next: list[str] = dataclasses.field(default_factory=list)
+    reason: str | None = None
+    state_dir: Path | None = None
+
+    def payload(self) -> dict[str, Any]:
+        a = self.advice
+        return {
+            "plan": True, "sid": self.sid, "outcome": self.outcome, "stop": self.stop,
+            "move": self.move, "actor": self.actor, "resumable": self.resumable,
+            "why": self.why, "window": self.window, "calls": a.calls,
+            "spend_usd": spend.usd(a.spent), "per_call_usd": spend.usd(a.per_call),
+            "next_call_worst_usd": spend.usd(a.worst),
+            "suggested_cap_usd": spend.usd(self.suggested),
+            "last_tools": list(self.last_tools), "home": dict(self.home),
+            "next": list(self.next), "reason": self.reason}
+
+    def lines(self) -> list[str]:
+        """Human mode: the facts, one per line, then the `next` lines last."""
+        if not self.ok:
+            return [f"resume {self.sid or 'SID'} --plan: cannot be read — {self.reason}"]
+        a = self.advice
+        out = [f"resume plan for {self.sid} (state directory {self.state_dir})"]
+        if self.outcome is None:
+            out.append("outcome: unknown — the transcript's last run did not end")
+        else:
+            out.append(f"outcome: {self.outcome}"
+                       + (f", stop {self.stop}" if self.stop else "")
+                       + (f", move {self.move} ({self.actor}'s)" if self.move else ""))
+        if self.reason:
+            out.append(f"reason: {self.reason}")
+        out.append("resumable: yes" if self.resumable else f"resumable: no — {self.why}")
+        if self.window is None:
+            out.append("window: no call counted one")
+        else:
+            size, used = self.window.get("size"), self.window.get("used")
+            fraction = self.window.get("fraction")
+            out.append(f"window: {used} of {size} input tokens in use ({fraction * 100:.0f}%)"
+                       if size and fraction is not None
+                       else f"window: {used} input tokens in use (its size is unknown)")
+        out.append(f"calls: {'unknown' if a.calls is None else a.calls}")
+        out.append(f"spend so far: {spend.dollars(a.spent)}")
+        out.append("per call, the mean of the last ten: "
+                   + ("none yet" if a.calls == 0 else spend.dollars(a.per_call)))
+        out.append(f"next call's worst case: {spend.dollars(a.worst)}")
+        if self.suggested is not None:
+            out.append(f"suggested cap: ${self.suggested:.2f} = {a.arithmetic()}")
+        else:
+            out.append("suggested cap: none"
+                       + (f" — {a.problem}" if a.problem else
+                          " — the session is not resumable" if not self.resumable else ""))
+        for tool in self.last_tools:
+            out.append(f"last tool: call {tool['call']} {tool['name']}"
+                       + (f" — {tool['what']}" if tool["what"] else ""))
+        home = self.home
+        out.append(f"home: {home['path']} ("
+                   + (f"{len(home['entries'])} entries: {', '.join(home['entries'])}"
+                      if home["exists"] else "gone") + ")")
+        out += [f"next: {line}" for line in self.next]
+        return out
+
+
+def cmd_plan(ctx: Context, args: argparse.Namespace) -> Result:
+    """`twine resume SID --plan`: read, write nothing, start nothing."""
+    ignored = [flag for flag, name in PLAN_IGNORES
+               if getattr(args, name, None) is not None]
+    if ignored:
+        ctx.info(f"resume --plan reads the session and starts nothing: {', '.join(ignored)} "
+                 "ignored")
+    plan = make_plan(ctx, args)
+    return Result(plan.ok, plan.payload(), plan.lines())
+
+
+def unreadable(plan: Plan, why: str) -> Plan:
+    plan.ok, plan.resumable, plan.why, plan.reason = False, False, why, why
+    return plan
+
+
+def make_plan(ctx: Context, args: argparse.Namespace) -> Plan:
+    plan = Plan(sid=args.sid if kill.is_sid(args.sid) else None)
+    if plan.sid is None:
+        return unreadable(plan, f"{args.sid!r} is not a session id twine accepts")
+    sid = plan.sid
+    try:
+        where = spend.resolve_state_dir(args.state_dir, ctx.env)
+    except spend.SpendError as exc:
+        return unreadable(plan, f"{exc.message} — twine resume --plan reads the session's "
+                                "transcript, spend, in-flight record and sandbox there")
+    fault = state_dir_fault(where.path)
+    if fault is not None:
+        return unreadable(plan, f"the state directory {where.path} (from {where.source}) "
+                                f"{fault}")
+    state_dir = plan.state_dir = where.path
+    transcript = transcript_path(state_dir, sid)
+    try:
+        conversation = read_conversation(transcript)
+    except ResumeError as exc:
+        return unreadable(plan, str(exc))
+    story = recovery.read_story(transcript)
+    plan.ok = True
+    plan.outcome, plan.stop, plan.move = story.outcome, story.field("stop"), story.field("move")
+    plan.actor, plan.reason = story.field("actor"), story.field("reason")
+    plan.window, plan.last_tools = (None if story.window is None else dict(story.window),
+                                    list(story.tools))
+    # The refusals: the rule's (a kept record, transcript and home), and `killed`.
+    refusals: list[str] = []
+    record, _, home = kept_session(state_dir, sid, refusals)
+    if story.outcome == recovery.KILLED or kill.abort_requested(state_dir, sid):
+        refusals.append(recovery.killed_refusal(sid))
+    elif story.outcome == recovery.DELIVERED and record is not None:
+        refusals.append(f"{sid} was delivered: there is nothing to resume, its response "
+                        "applies with `" + str(story.field("apply_line")) + "`")
+    plan.resumable = not refusals
+    plan.why = "; ".join(refusals) if refusals else None
+    prices = Path(args.prices).expanduser().resolve() if args.prices else None
+    plan.advice = recovery.advise(state_dir, sid, conversation, story.window, prices)
+    plan.suggested = plan.advice.suggested if plan.resumable else None
+    plan.home = home_facts(state_dir, sid, record)
+    if plan.resumable or story.outcome == recovery.DELIVERED:
+        plan.next = recovery.next_commands(
+            sid, outcome=story.outcome, stop=plan.stop, move=plan.move,
+            apply_line=story.field("apply_line"), light_block=bool(story.field("block")),
+            tarball=story.field("tarball"), dry_run=story.field("dry_run"),
+            suggested=plan.suggested, carried=recovery.Carried.of(args), plannable=False)
+    return plan
+
+
+def home_facts(state_dir: Path, sid: str, record: dict[str, Any] | None) -> dict[str, Any]:
+    """The sandbox home as the plan shows it: the path the record names (or
+    the state directory's own), whether it exists, and its top-level names,
+    sorted."""
+    runtime = None if record is None else record.get(inflight.RUNTIME_KEY)
+    named = runtime.get("sandbox_home") if isinstance(runtime, dict) else None
+    path = Path(named) if named else state_dir / SANDBOX_SUBDIR / sid / HOME_NAME
+    entries: list[str] = []
+    exists = path.is_dir()
+    if exists:
+        try:
+            entries = sorted(os.listdir(path))
+        except OSError as exc:
+            log.warning("cannot list the sandbox home %s: %s", path, exc)
+    return {"path": str(path), "exists": exists, "entries": entries}
+
+
 COMMANDS = (
     Command(
         name=NAME,
@@ -468,14 +707,22 @@ COMMANDS = (
                 "help": "the session `twine run` left suspended (or ended, stopped, killed, "
                         "cap-*), its in-flight record and transcript kept"}),
             Argument(("--cap",), {
-                "metavar": "USD", "default": None,
+                "metavar": "USD|+USD", "default": None,
                 "help": "the session's hard cap in US dollars (D15), checked before every "
-                        "call; required — an absent cap refuses"}),
+                        "call; required — an absent cap refuses. The cap is cumulative per "
+                        "session: `+USD` is the spend so far plus that amount, and "
+                        "`--plan` suggests one"}),
             Argument(("--answer",), {
                 "metavar": "FILE|-", "default": None,
                 "help": "the planner's answer — the packer's words for a light block, or "
                         "the worker-facing block `bale relay` printed for a clarification; "
-                        "`-` reads stdin; required"}),
+                        "`-` reads stdin; required on a suspended session, optional "
+                        "otherwise (absent, twine sends its own one-line RESUME_TEXT)"}),
+            Argument(("--plan",), {
+                "action": "store_true", "default": False,
+                "help": "read the session — transcript, spend, in-flight record, sandbox "
+                        "home — and say whether it resumes, with what line and what cap; "
+                        "writes nothing, starts no bale, calls no model"}),
             Argument(("--script",), {
                 "metavar": "FILE", "default": None,
                 "help": "the fake adapter's script, when the session ran on the fake"}),
@@ -507,10 +754,14 @@ COMMANDS = (
         ),
         description="Resume SID cold (D23): rebuild its conversation from the transcript "
                     "`twine run` kept (the request lines' appended messages, joined), "
-                    "append the planner's answer as one user message, and run the loop "
+                    "append the planner's answer — or, when no answer is given on a "
+                    "stopped run, twine's one-line RESUME_TEXT — as one user message, and "
+                    "run the loop "
                     "again under the same sid — in the same sandbox home, with the "
                     "adapter, model, max_tokens and thinking the transcript recorded. No "
                     "`bale open`: the session is open in bale already. The first call's "
-                    "usage is the re-warm cost (the twin's rewarm). Ends as `twine run` "
-                    "does; ok exactly when the outcome is delivered."),
+                    "usage is the re-warm cost (the twin's rewarm). A killed session is refused: "
+                    "a kill closes it in bale. Ends as `twine run` does, naming its next "
+                    "command; ok exactly when the outcome is delivered. With --plan: read "
+                    "and say, start nothing."),
 )

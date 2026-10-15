@@ -1,7 +1,7 @@
 """`twine run` — host a worker session from `bale open` to the apply line
 (Arc 2 R4; twine-seed.md §4, §5.2; cli-contract.md §18).
 
-    twine run BUNDLE --cap USD [--adapter anthropic|fake] [--script FILE]
+    twine run BUNDLE --cap USD|+USD [--adapter anthropic|fake] [--script FILE]
               [--model M] [--max-tokens N] [--thinking adaptive|off]
               [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR]
               [--bale-root DIR] [--cwd DIR] [--json]
@@ -35,14 +35,23 @@ before the next:
   7. the in-flight record's `runtime` fields (twine.inflight.record_runtime)
   8. the loop (twine.runtime.loop.Loop)
 
+`--cap +USD` (twine-run-recovery) is the session's spend so far plus that
+amount, worked out once bale has named the sid (a second desk on a session
+that has spent); `cap_usd` is the absolute cap and the `run-start` line keeps
+the text as typed (`cap_given`).
+
 A refusal before the first model call is outcome `refused`, exit 1. At the
 end, whatever the outcome, the running record is cleared (unless a tool's
 group outlived its run: then it stays for `twine kill`); on `delivered` the
 in-flight record is removed and the sandbox home kept (the response tarball
 lives there until the operator applies it); otherwise both are kept, for R5
 and the planner — `twine resume` (twine/commands/resume.py, R5) continues
-a kept session cold from its transcript. ok exactly when the outcome is
-`delivered`.
+a kept session cold from its transcript: **the resume rule** is that every
+kept-home ending but `killed` resumes, `respawn-from-request` being the last
+resort. Every ending names its next command (twine-run-recovery): the twin's
+`next`, the last of its names, and a `next: <command>` line per entry on
+stderr after the summary — `name_next` and `say_next` below, over
+twine.recovery. ok exactly when the outcome is `delivered`.
 
 **twine run never applies anything** (T12): the only apply argv is `bale
 apply --dry-run --json` (carry response's); the operator runs the apply line.
@@ -61,7 +70,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from twine import CONSUMPTION_MANIFEST, TRANSITIONS_TABLE, inflight, kill, process, spend
+from twine import (CONSUMPTION_MANIFEST, TRANSITIONS_TABLE, inflight, kill, process,
+                   recovery, spend)
 from twine.bale import ManifestError, load_manifest
 from twine.cli import Context
 from twine.commands import carry_bale, carry_bundle
@@ -75,6 +85,7 @@ from twine.runtime.adapters.anthropic import KEY_VARIABLE
 from twine.runtime.adapters.fake import FakeScript, FakeScriptError
 from twine.runtime.boundary import Boundary, BoundaryError, SpawnSettings
 from twine.runtime.registry import DeclarationError
+from twine.runtime.resume import ResumeError, read_conversation
 from twine.runtime.sandbox import Sandbox, SandboxError
 from twine.runtime.terms import ThinkingSettings
 from twine.runtime.tooling import ToolRegistry, load_tool_registry
@@ -124,6 +135,11 @@ class RunReport:
     state_dir_source: str | None = None
     prices_path: Path | None = None
     cap_usd: Decimal | None = None
+    # `--cap` as given (twine-run-recovery): `+<dollars>` is resolved to
+    # `cap_usd` once the sid is known (the session's spend so far plus it).
+    cap_spec: recovery.CapSpec | None = None
+    # The command each ending names (cli-contract.md §18.7), set by `name_next`.
+    next_lines: list[str] = dataclasses.field(default_factory=list)
     max_turns: int | None = None
     transcript: Transcript | None = None
     sandbox: Sandbox | None = None
@@ -229,6 +245,8 @@ class RunReport:
             "inflight_error": self.inflight_error,
             "state_dir": None if self.state_dir is None else str(self.state_dir),
             "state_dir_source": self.state_dir_source,
+            # twine-run-recovery's, the last of the names beside the fixed ones.
+            "next": list(self.next_lines),
         }
 
 
@@ -255,11 +273,62 @@ def cmd_run(ctx: Context, args: argparse.Namespace) -> Result:
             f"session {report.sid} is open in bale and nothing ran in it: fix the fault "
             f"and run again (bale opens a second desk), or close it with `twine kill "
             f"{report.sid}`")
+    name_next(report, args)
     payload = report.payload()
     if report.transcript is not None:
         _log_end(report)
     ctx.info(f"{NAME}: {summary_line(report)}")
+    say_next(ctx, report)
     return Result(report.ok, payload, lines(report))
+
+
+def name_next(report: RunReport, args: argparse.Namespace) -> None:
+    """Fill `report.next_lines`: the command the ending names
+    (recovery.next_commands). The cap a resume line carries is the plan's
+    suggestion, read off the transcript the run just wrote; when it cannot be
+    worked out (an unpriced model, a transcript a resume cannot rebuild) the
+    line is `twine resume SID --plan` instead, which says why."""
+    r, sid = report.result, report.sid
+    if r is None or sid is None or report.state_dir is None:
+        return
+    carried = recovery.Carried.of(args)
+    needs_cap = (r.outcome not in (runloop.DELIVERED, runloop.KILLED, runloop.REFUSED)
+                 and r.stop != runloop.WINDOW_EXHAUSTED
+                 and not (r.outcome == runloop.SUSPENDED and r.apply_line))
+    suggested = None
+    if needs_cap and report.transcript is not None:
+        try:
+            conversation = read_conversation(report.transcript.path)
+        except ResumeError as exc:
+            log.warning("no cap suggested for %s: %s", sid, exc)
+        else:
+            story = recovery.read_story(report.transcript.path)
+            advice = recovery.advise(report.state_dir, sid, conversation, story.window,
+                                     report.prices_path)
+            suggested = advice.suggested
+            if advice.problem is not None:
+                log.info("cap for %s: %s", sid, advice.problem)
+    report.next_lines = recovery.next_commands(
+        sid, outcome=r.outcome, stop=r.stop, move=r.move, apply_line=r.apply_line,
+        light_block=bool(r.block), tarball=r.tarball, dry_run=r.dry_run,
+        suggested=suggested, carried=carried)
+
+
+def say_next(ctx: Context, report: RunReport) -> None:
+    """Human mode's end: after the summary line, what the departures were
+    (when the line admits drift), and one `next: <command>` line per entry —
+    or, for the endings that name none, the way on in words."""
+    r = report.result
+    if r is None:
+        return
+    if recovery.admit_line(r.tarball or "", r.dry_run) in report.next_lines:
+        ctx.info(recovery.departures_note(r.tarball))
+    if not report.next_lines:
+        words = recovery.no_command_words(report.sid, r.outcome, r.stop)
+        if words:
+            ctx.info(words)
+    for line in report.next_lines:
+        ctx.info(f"next: {line}")
 
 
 def summary_line(report: RunReport) -> str:
@@ -319,6 +388,9 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
         return
     state_dir = report.state_dir
     assert state_dir is not None
+    # `--cap +USD`: the sid is known now, so the spend so far can be added.
+    if not resolve_cap(report, sid, label="run"):
+        return
     # 3. The running record, before anything is spawned.
     try:
         report.group = lead_own_group()
@@ -369,8 +441,9 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
         max_tokens=args.max_tokens, thinking=args.thinking,
         sandbox=report.sandbox.as_json(), request=report.unpacked.as_json(),
         open={"sid": sid, "tarball": report.open.tarball}, group=report.group.as_json(),
-        cap_usd=spend.usd(report.cap_usd), max_turns=report.max_turns,
-        system=prompt.as_json(), window=report.window.start_json(), resumed_from=None)
+        cap_usd=spend.usd(report.cap_usd), cap_given=cap_given(report),
+        max_turns=report.max_turns, system=prompt.as_json(), window=report.window.start_json(),
+        resumed_from=None)
     # 7. The in-flight record's runtime fields.
     try:
         inflight.record_runtime(state_dir, sid, inflight.runtime_fields(
@@ -408,6 +481,45 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
     ctx.info(f"run: {sid}: {report.outcome}"
              + (f" — {report.reason}" if report.reason else "")
              + f"; sandbox home kept at {report.sandbox.home}")
+
+
+def parse_cap(report: RunReport, text: str, refusals: list[str]) -> None:
+    """`--cap` as given: dollars, kept as `cap_usd`; or `+<dollars>`, kept as
+    `cap_spec` until the sid is known (`resolve_cap`). Refused, named, when
+    it is neither."""
+    try:
+        report.cap_spec = recovery.parse_cap(text)
+    except ValueError as exc:
+        refusals.append(f"--cap: {exc}")
+        return
+    if not report.cap_spec.relative:
+        report.cap_usd = report.cap_spec.amount
+
+
+def resolve_cap(report: RunReport, sid: str, *, label: str) -> bool:
+    """A `+<dollars>` cap made absolute: the session's spend so far (as the
+    cap check counts it) plus the amount. True when `cap_usd` is set — a
+    plain cap already was. False, with the refusal named, when the spend
+    cannot be priced: nothing is guessed."""
+    spec = report.cap_spec
+    if spec is None or not spec.relative:
+        return True
+    assert report.state_dir is not None
+    spent, problem = recovery.spend_so_far(report.state_dir, sid, report.prices_path)
+    if spent is None:
+        report.refusals.append(f"--cap {spec.given}: {problem}, so the session's spend so "
+                               "far cannot be added to it; give the cap in plain dollars, "
+                               "or fix that and try again")
+        return False
+    report.cap_usd = spec.absolute(spent)
+    log.info("%s: --cap %s is %s (spend so far %s plus %s)", label, spec.given,
+             spend.dollars(report.cap_usd), spend.dollars(spent), spend.dollars(spec.amount))
+    return True
+
+
+def cap_given(report: RunReport) -> str | None:
+    """The `--cap` text as typed, for the `run-start` line beside its result."""
+    return None if report.cap_spec is None else report.cap_spec.given
 
 
 def spawn_window(ctx: Context, args: argparse.Namespace, boundary: Boundary, *,
@@ -467,10 +579,7 @@ def pre_open(ctx: Context, args: argparse.Namespace, report: RunReport):
             key = None
     if adapter == FAKE and args.script is not None:
         script = read_script(args.script, refusals)
-    try:
-        report.cap_usd = spend.parse_usd(args.cap)
-    except ValueError as exc:
-        refusals.append(f"--cap: {exc}")
+    parse_cap(report, args.cap, refusals)
     if args.max_tokens <= 0:
         refusals.append(f"--max-tokens {args.max_tokens} is not a positive number of tokens")
     if args.max_turns <= 0:
@@ -651,7 +760,8 @@ COMMANDS = (
             Argument(("--cap",), {
                 "metavar": "USD", "required": True,
                 "help": "the session's hard cap in US dollars (D15): checked before every "
-                        "model call; required — an absent cap refuses"}),
+                        "model call; required — an absent cap refuses. `+USD` is the "
+                        "session's spend so far plus that amount (for a second desk)"}),
             Argument(("--adapter",), {
                 "choices": ADAPTERS, "default": DEFAULT_ADAPTER,
                 "help": "the model adapter (default anthropic; fake plays --script, for "

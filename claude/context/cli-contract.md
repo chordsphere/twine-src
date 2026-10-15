@@ -2774,7 +2774,7 @@ module that does not import); and the verb end to end on a copy of the tree
 with a module planted, one removed and the declaration broken (NOT OK, exit
 1, named, no traceback, every other verb still loading).
 
-## 18. `twine run BUNDLE --cap USD [--adapter anthropic|fake] [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R4; `--window` R5)
+## 18. `twine run BUNDLE --cap USD|+USD [--adapter anthropic|fake] [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R4; `--window` R5; `+USD` and `next` twine-run-recovery)
 
 The loop that hosts a worker session from `bale open` to the apply line —
 R1 to R4, the first milestone of Arc 2: the worker side of the courier is
@@ -2789,7 +2789,7 @@ runs the apply line.
 
 | flag | default | |
 |---|---|---|
-| `--cap USD` | **required** | the session's hard cap (D15: "an absent cap refuses" — the pre-call check cannot run without one); a value that is not a finite, non-negative number of dollars is a named refusal |
+| `--cap USD` or `+USD` | **required** | the session's hard cap (D15: "an absent cap refuses" — the pre-call check cannot run without one); a value that is not a finite, non-negative number of dollars is a named refusal. Since twine-run-recovery `+USD` is the session's spend so far plus that amount — for a second desk on a session that has spent (the sid is known once bale has opened it, so the cap is worked out then; spend that cannot be priced is a named refusal, nothing guessed); the twin's `cap_usd` is the absolute cap it worked out and the transcript's `run-start` records both, `cap_given` the text as typed |
 | `--adapter` | `anthropic` | `anthropic` or `fake` |
 | `--script FILE` | none | the fake's script, a JSON list of turns (`runtime-contract.md` §3) — the same file the tests write; required with `fake`, refused with anything else |
 | `--model M` | none; `fake` with the fake | required with `anthropic` — the office holds the policy (N4), twine picks no model; with the fake, the id its spend records carry, which the price file must price |
@@ -2860,6 +2860,8 @@ tarball, the apply line and the dry run set and — since twine-run-ergonomics �
 `apply-outcome` row's for `dry-run`, `operator-applies`), or `stopped` when
 that dry run is not clean.
 
+**The resume rule** (twine-run-recovery): every outcome with a kept home but `killed` and `delivered` is resumable — `stopped`, `cap-reached`, `cap-unchecked`, `ended` and `suspended` continue with `twine resume` (§19) from the transcript; `respawn-from-request` is the last resort, for a home that is gone or a session bale has closed. `killed` is closed (§19.2).
+
 ### 18.5 The JSON twin
 
 `command` `"run"`. Fixed names, in this order, on every path:
@@ -2896,8 +2898,10 @@ it is known or no window was made), `check` (the last pre-call check's twin, §1
 `running` (`pid`, `pgid`, `setsid`, `registered`, `cleared`, `note` — null
 before the group was led), `request` (where the request was unpacked, how
 many members, the top directory stripped), `network` (the sandbox's),
-`transcript_faults`, `inflight_error`, `state_dir`, `state_dir_source`. The
-twin is also the transcript's `run-end` line.
+`transcript_faults`, `inflight_error`, `state_dir`, `state_dir_source` — and
+last of them, since twine-run-recovery, **`next`**: a list of command strings,
+the command each ending names (§18.7; empty for the endings that name none).
+The twin is also the transcript's `run-end` line.
 
 ### 18.6 What is kept, and what is removed
 
@@ -2940,6 +2944,28 @@ operator needs to judge a run without opening the transcript:
   <key>][, move <move>], <n> calls, <n> tool calls, <n> retries, $<cost>,
   <n>s` — for a refused run `summary: refused, 0 calls, 0 tool calls, 0
   retries, $0.00, 0s`.
+
+- **the ending's next command**, after the summary line: one `[twine] next:
+  <command>` line per entry of the twin's `next` — so the summary is the last
+  *progress* line and the `next:` lines follow it, on stderr. By outcome:
+  `cap-reached`, `cap-unchecked`, `ended`, and a `stopped` on an adapter
+  defect, `malformed-shape`, `max-tokens` past its bound, retries past their
+  bound (any `stopped` but the two below) name `twine resume SID --cap
+  <suggested>`, the `--state-dir`, `--bale-root`, `--cwd` and `--prices` the run
+  was given carried on it when they were given (the suggested cap is
+  `twine resume SID --plan`'s, §19.4; with none to suggest the line is `twine
+  resume SID --plan`); a `stopped` on a dry run refused
+  `scope-drift-refused` names two — bale's own admit line, `bale apply
+  <tarball> --allow-out-of-scope <path> …` built from the dry run's `drift`
+  (the remedy bale's refusal prints: one flag per out-of-scope path), and the
+  resume line that returns the work to the worker — after a line saying the
+  departures are enumerated in the response's `notes.md`; **twine never runs
+  the admit line** (T12): it hands the operator bale's choice. `killed` names
+  no command and says in words that the way on is a respawn from the request
+  (a kill is a close); `window-exhausted` none, and says the way on is the
+  planner's split. `delivered` and the clarification form's `suspended` name
+  the apply line, a light block's `suspended` `twine resume SID --cap
+  <suggested> --answer -`.
 
 On stdout at the end: **the apply line alone**
 on `delivered`; **the light block alone** on `suspended` — or, on escalate's
@@ -2999,7 +3025,7 @@ to end is `tests/test_resume.py`'s (§19.6). Since twine-run-ergonomics
 a refusal and on `twine resume`), the default `--max-tokens` in `--help` and
 in the `run-start` line, and the surface note's stems.
 
-## 19. `twine resume SID --cap USD --answer FILE|- [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R5)
+## 19. `twine resume SID --cap USD|+USD [--answer FILE|-] [--plan] [--script FILE] [--model M] [--max-tokens N] [--thinking adaptive|off] [--prices PATH] [--max-turns N] [--window N] [--state-dir DIR] [--bale-root DIR] [--cwd DIR] [--json]` (Arc 2 R5; recovery, twine-run-recovery)
 
 Cold resume (D23): continue a session `twine run` kept, under the same sid,
 from its transcript, with the planner's answer as the next user turn. The
@@ -3008,13 +3034,21 @@ and the contract `runtime-contract.md` §7.9. It shares `run`'s loop, report
 and helpers, and like `run` it **never applies anything** (T12) and imports
 no process-spawning module.
 
+**The rule** (twine-run-recovery): a run `twine run` or `twine resume` left
+`stopped`, `cap-reached`, `cap-unchecked`, `ended` or `suspended` resumes with
+`twine resume`, in its kept home, from its transcript. `respawn-from-request`
+is the last resort — for a home that is gone, or a session bale has closed (a
+`killed` one, §19.2). The transition table's `fix-adapter`, `stop-at-cap` and
+`respawn-from-request` say so (`runtime-contract.md` §7.9).
+
 ### 19.1 The flags
 
 | flag | default | |
 |---|---|---|
-| `SID` | **required** (positional) | the session: one `twine run` left `suspended` (a light block, or escalate's clarification form), or `ended`, `stopped`, `killed`, `cap-*` — its in-flight record and transcript kept |
-| `--cap USD` | **required** | the session's hard cap (D15); absent, or not a finite non-negative number of dollars, is a named refusal (§19.2) — not argparse's, so every reason is named at once |
-| `--answer FILE\|-` | **required** | the planner's answer, sent verbatim as one user message: the packer's words for a light block, or the worker-facing block `bale relay` printed for a clarification; `-` reads stdin |
+| `SID` | **required** (positional) | the session: one `twine run` left `suspended` (a light block, or escalate's clarification form), or `ended`, `stopped`, `cap-*` — its in-flight record and transcript kept. A `killed` one is refused (§19.2) |
+| `--cap USD` or `+USD` | **required** (not with `--plan`) | the session's hard cap (D15); absent, or not a finite non-negative number of dollars, is a named refusal (§19.2) — not argparse's, so every reason is named at once. **The cap is cumulative per session**: a call is admitted when the spend so far plus its worst case is at most the cap, so a `cap-reached` run resumed under the same cap ends `cap-reached` again before any call (`turns` 0, no new spend line, the `reason` saying the cap is spent and naming the spend so far), and under a higher one makes its next call. `+USD` is the session's spend so far (priced as the cap check prices it) plus that amount; the twin's `cap_usd` is the absolute cap it worked out, and the `run-start` line records both (`cap_given` the text as typed). A `+USD` whose spend cannot be priced is a named refusal |
+| `--answer FILE\|-` | **required on a `suspended` run only** | the planner's answer, sent verbatim as one user message: the packer's words for a light block, or the worker-facing block `bale relay` printed for a clarification; `-` reads stdin. On a run whose last `run-end` outcome is `stopped`, `cap-reached`, `cap-unchecked` or `ended` (or that never ended) it may be absent: the user message twine appends is then, byte for byte, `RESUME_TEXT` — `This session was stopped and has been resumed; continue from where you left off.` — and the `run-start`'s `answer` object says `source: "twine"`. On a `suspended` run an absent `--answer` is refused: an answer is what a suspended worker waits for |
+| `--plan` | off | read the session and say how to go on (§19.4); writes nothing, starts no bale, calls no model. It needs neither `--cap` nor `--answer`; those, and `--script`, `--model`, `--max-tokens`, `--thinking` and `--window`, are accepted and ignored (said on stderr). It reads `--state-dir` and `--prices`, and carries `--bale-root` and `--cwd` on the lines it suggests |
 | `--script FILE` | none | the fake's script, when the session ran on the fake (the in-flight record's `runtime.adapter` says which); refused for `anthropic` |
 | `--model M`, `--max-tokens N`, `--thinking adaptive\|off` | the transcript's | spawn-time constants (D12): the resume spawns with the last `run-start`'s; one given and different refuses (a different one is a new session, not a resume); one given and equal is accepted |
 | `--prices PATH`, `--max-turns N`, `--window N` | as `run`'s | §18.1; `--max-turns` bounds this run's calls |
@@ -3028,15 +3062,21 @@ Every reason named at once, **before anything starts** — no running
 record, no sandbox, no transcript line, no bale call: `SID` not a session
 id twine accepts; no state directory resolving, or one that does not exist;
 no in-flight record for `SID` (never opened by twine here, or delivered —
-`delivered` removes it), one that cannot be read, or one without `runtime`
+`delivered` removes it; the reason names the apply line the transcript recorded), one that cannot be read, or one without `runtime`
 fields (the session was never hosted); the transcript the record names
 missing, not this state directory's, or not a conversation the rebuild can
 vouch for (`ResumeError`'s faults: a line that is not JSON, a torn last
 line, no `run-start`, no `request` line, a count that disagrees, a message
 the loop never wrote); the sandbox home the record names missing, not this
-state directory's, or holding no `request/`; `--answer` missing,
-unreadable, not UTF-8 or empty (whitespace only); `--cap` absent or not
-dollars; for the recorded adapter `fake`, `--script` absent or not a script
+state directory's, or holding no `request/`; **the transcript's last
+`run-end` outcome `killed`, or an abort request standing for `SID`: a kill
+closed the session in bale as `aborted` (`bale unlock --reason aborted`,
+§14.5), so no response a resumed worker delivered could be dry-run or applied
+under that sid — a kill stays a close, and the reason names the `aborted`
+closure and the respawn path, `respawn-from-request`, the planner's**;
+`--answer` missing on a `suspended` run (§19.1), unreadable, not UTF-8 or
+empty (whitespace only); `--cap` absent or not dollars or `+dollars`, or a
+`+dollars` whose spend cannot be priced; for the recorded adapter `fake`, `--script` absent or not a script
 the fake takes; for `anthropic`, `--script` given or `ANTHROPIC_API_KEY`
 absent, empty or blank; `--model`, `--max-tokens` or `--thinking` given and
 differing from the transcript's last `run-start`; `--max-tokens`,
@@ -3074,8 +3114,36 @@ exit 1. The outcomes are `run`'s (§18.4). The twin is `run`'s (§18.5): the
 same fixed names in the same order, then the same names beside them —
 `command` `"resume"`, `open` null, `resumed_from` the `seq` of the line
 before the resumed run's `run-start`, `rewarm` the first call's usage (D23),
-`usage`, `cost_usd`, `turns` and `tool_calls` this run's own. The twin is
+`usage`, `cost_usd`, `turns` and `tool_calls` this run's own, and `next` (§18.5, §18.7) last. The twin is
 also the transcript's `run-end` line.
+
+**`--plan`'s twin** (`twine resume SID --plan --json`): `command` `"resume"`,
+then exactly these keys, in this order. `ok` is true exactly when the plan
+could be read (the sid, the state directory and a transcript that rebuilds as
+a conversation); exit 0 then, whether or not the session resumes.
+
+| key | value |
+|---|---|
+| `plan` | `true` |
+| `sid` | the session; null when it is not one twine accepts |
+| `outcome`, `stop`, `move`, `actor` | the last run's, from its `run-end` twin; null when the last run did not end (or the plan could not be read) |
+| `resumable` | a boolean: the rule (§19) and the `killed` refusal (§19.2) hold — an in-flight record with `runtime` fields, a transcript that rebuilds, a sandbox home with its `request/`, the last outcome not `killed`, no abort standing, the session not delivered |
+| `why` | null when resumable; else the refusal's reason (when `ok` is false, why it could not be read) |
+| `window` | `{"used", "size", "fraction"}` from the last `window` line (`size` and `fraction` null when the window's size is unknown), or null |
+| `calls` | the sid's own records in `spend.jsonl`; null when the stream cannot be read |
+| `spend_usd` | the session's whole spend, priced as `twine spend totals --sid` prices it (its own cost and what served it); null when unpriced |
+| `per_call_usd` | the mean cost of the last ten of its records; null when there are none or they cannot be priced |
+| `next_call_worst_usd` | the pre-call check's worst case for the next call, as the cap check would price it: the rebuilt conversation plus `RESUME_TEXT`, estimated as `runtime-contract.md` §7.5 estimates, at the dearest input-side price, and the transcript's `max_tokens` at the output price; null when it cannot be priced |
+| `suggested_cap_usd` | a number of dollars at two decimals, **strictly above `spend_usd + next_call_worst_usd`** so the resumed run's first call is admitted; null when not resumable or not priceable. Above that floor the rule is: `spend_usd` + a re-warm of the window at the cache-write price (the last `window` line's `used` tokens, or the input estimate with none) + 40 calls at `per_call_usd` (0 with no mean) + `next_call_worst_usd`, rounded up to the cent, and one cent more when that is not above the floor. Human mode states the sum |
+| `last_tools` | the last ten `tool-call` lines of the transcript, each `{"call", "name", "what"}`, `what` the command, path, slug or the like cut at 110 characters (`...` where cut) |
+| `home` | `{"path", "exists", "entries"}`: the sandbox home the record names (else the state directory's own), whether it exists, and its top-level names sorted |
+| `next` | a list of command strings, `run`'s rule (§18.7) — the resume line with the suggested cap and `--answer -` for a light block; bale's admit line then the resume line for a refused-delivery session (read from the last `run-end` twin's `dry_run.drift` and `tarball`); the apply line for a delivered one; empty when not resumable (and for `killed`, `window-exhausted`, and a session whose cap cannot be suggested) |
+| `reason` | the last run's own `reason`; when `ok` is false, the reason it could not be read (as `why`) |
+
+Human mode prints the facts one per line — outcome, reason, resumable, the
+window, calls, spend so far, the mean per call, the worst case, the
+suggested cap and its arithmetic, the last tools, the home — and the `next:`
+lines last, on stdout.
 
 ### 19.5 What is kept, what is removed, and human mode
 
@@ -3085,7 +3153,7 @@ kept; otherwise both kept — a resumed run can suspend again, and a
 transcript carries any number of runs. Human mode prints `[twine] resume: …`
 progress lines on stderr and on stdout the apply line alone on `delivered`,
 the light block or the clarification response's apply line alone on
-`suspended`, otherwise one `resume <sid>: <outcome>, …` line.
+`suspended`, otherwise one `resume <sid>: <outcome>, …` line; after the summary line, the `next:` lines (§18.7).
 
 ### 19.6 Tests
 
@@ -3113,3 +3181,24 @@ pinned by sha256); a clarification dry run not clean; every refusal of
 record registered before the sandbox's detection spawn, in-process with a
 stand-in group. `tests/test_json_discipline.py` runs `resume` refused before
 anything starts, in-process and as a child.
+
+Since twine-run-recovery, the same bed (child processes, the stub, the fake)
+runs every outcome of the rule: a `cap-reached` run resumed under the same
+cap (ends `cap-reached`, `turns` 0, no new spend line, the reason saying the
+cap is spent) and under a raised one (makes its next call); `--cap +USD` on
+`resume` and on `run` (a second desk), its refusals; a stopped, capped,
+ended or `cap-unchecked`-then-fixed run resumed with no `--answer` carrying
+`RESUME_TEXT` byte for byte, `source: "twine"`; a suspended one refused
+without an answer; a killed one refused, by the abort request and by the
+transcript's own word, naming the respawn path, bale seeing only the open;
+`--plan`'s twin and its key order, its suggested cap above the spend plus the
+worst case, its `next` line run with that cap making the next call, its
+writing nothing (the state directory's bytes unchanged, no bale call), its
+unreadable, killed, delivered, home-gone and unpriced cases, the ten last
+tools cut at 110 characters; every ending's `next` (cap-reached, ended,
+suspended, delivered, the clarification form, window-exhausted, killed, and a
+dry run refused `scope-drift-refused` with the recorded line, whose admit
+line is bale's `--allow-out-of-scope` for the recorded path, never run); a
+resumed run's raw file not overwriting the first run's; `twine.recovery`'s
+own parsing, rounding and admit-line construction in-process; the three
+moves' descriptions naming `twine resume`.

@@ -121,6 +121,18 @@ DELIVER_SHELL = ("mkdir -p out/response-002 && printf 'notes\\n' > out/response-
                  "&& tar -czf response.tar.gz -C out response-002")
 
 
+def summary_at(lines: list[str]) -> int:
+    """The index of the `summary:` progress line — since twine-run-recovery
+    the last progress line, followed only by the ending's `next:` lines (and
+    the words an ending with no command says): everything after it is
+    asserted to be that."""
+    at = max(i for i, line in enumerate(lines) if ": summary: " in line)
+    for line in lines[at + 1:]:
+        assert line.startswith("[twine] next: ") or "no resume line" in line or \
+            "enumerated in the response" in line, line
+    return at
+
+
 def request_tarball(path: Path, members: dict[str, bytes] | None = None, *,
                     top: str = "request-002") -> Path:
     """A request tarball as bale lays one out: one top directory."""
@@ -1460,15 +1472,24 @@ class TheCeilingInsideABlockInTheLoop(unittest.TestCase):
             path = transcripts.write_raw(Path(tmp), SID, 7, b"\xff bytes")
             self.assertEqual((path.name, path.read_bytes(), path.stat().st_mode & 0o777),
                              (f"{SID}.call-7.raw", b"\xff bytes", 0o600))
-            transcripts.write_raw(Path(tmp), SID, 7, b"x")   # replaced, never appended
-            self.assertEqual(path.read_bytes(), b"x")
+            # twine-run-recovery: never overwritten — the next free name keeps it
+            again = transcripts.write_raw(Path(tmp), SID, 7, b"x")
+            self.assertEqual((again.name, again.read_bytes(), again.stat().st_mode & 0o777),
+                             (f"{SID}.call-7-2.raw", b"x", 0o600))
+            self.assertEqual(path.read_bytes(), b"\xff bytes")
+            self.assertEqual(transcripts.write_raw(Path(tmp), SID, 7, b"y").name,
+                             f"{SID}.call-7-3.raw")
+            self.assertEqual(transcripts.raw_path(Path(tmp), SID, 7, 2), again)
+            for bad in (0, -1, True, "2"):
+                with self.assertRaises(ValueError):
+                    transcripts.raw_path(Path(tmp), SID, 7, bad)
             for call in (0, -1, True, "1"):
                 with self.assertRaises(ValueError):
                     transcripts.raw_path(Path(tmp), SID, call)
             with self.assertRaises(ValueError):
                 transcripts.raw_path(Path(tmp), "not a sid", 1)
             (Path(tmp) / "transcripts" / "junk.call-x.raw").write_text("x")
-            sids, faults = transcripts.list_transcripts(Path(tmp))
+            sids, faults = transcripts.list_transcripts(Path(tmp))   # the -2 and -3 files are no fault
             self.assertEqual(sids, ())
             self.assertEqual(len(faults), 1)
             self.assertIn("junk.call-x.raw is not a transcript", faults[0])
@@ -1601,15 +1622,19 @@ class TheProgressLines(BedCase):
 
     def test_the_last_progress_line_is_the_summary(self):
         lines = self.stderr()
-        self.assertRegex(lines[-1], rf"^\[twine\] run: summary: delivered, move operator-applies, "
+        at = summary_at(lines)
+        self.assertRegex(lines[at], rf"^\[twine\] run: summary: delivered, move operator-applies, "
                                     rf"4 calls, 4 tool calls, 0 retries, {COST}, \d+s$")
         self.assertEqual(sum(": summary: " in l and "run: " in l for l in lines), 1)
+        # twine-run-recovery: after the summary only the ending's `next:` lines
+        self.assertEqual(len(lines) - at - 1, 1)
+        self.assertTrue(lines[-1].startswith("[twine] next: bale apply "), lines[-1])
 
     def test_the_summary_names_the_stop_and_the_move_and_the_retries(self):
         bed = self.bed()
         twin = bed.twin([stop("overloaded", retry_after=0), stop("model-refusal",
                                                                reason="no")])
-        last = twin["_stderr"].splitlines()[-1]
+        last = twin["_stderr"].splitlines()[summary_at(twin["_stderr"].splitlines())]
         self.assertRegex(last, rf"^\[twine\] run: summary: stopped, stop model-refusal, move "
                                rf"reword-brief, 2 calls, 0 tool calls, 1 retries, {COST}, \d+s$")
 
