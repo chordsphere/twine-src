@@ -53,6 +53,15 @@ resort. Every ending names its next command (twine-run-recovery): the twin's
 stderr after the summary — `name_next` and `say_next` below, over
 twine.recovery. ok exactly when the outcome is `delivered`.
 
+**Telemetry** (twine-run-telemetry): once the open has named a sid, whatever the
+outcome, the verb appends one line to `<state-dir>/runs.jsonl`
+(`write_run_line`, built by `RunReport.run_record`; twine/runs.py,
+cli-contract.md §20), and every apply line it prints is `bale apply <tarball>
+--cost-file <state-dir>/cost/<sid>.json` with the file written first
+(`deliver` for `delivered` and escalate's clarification form, `name_next` for
+bale's admit line; twine/cost.py, §18.7a). A cost file that cannot be written
+is a warning and the plain line — an apply is never held up by telemetry.
+
 **twine run never applies anything** (T12): the only apply argv is `bale
 apply --dry-run --json` (carry response's); the operator runs the apply line.
 
@@ -66,12 +75,14 @@ import argparse
 import dataclasses
 import json
 import logging
+import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from twine import (CONSUMPTION_MANIFEST, TRANSITIONS_TABLE, inflight, kill, process,
-                   recovery, spend)
+from twine import (CONSUMPTION_MANIFEST, TRANSITIONS_TABLE, cost, inflight, kill, process,
+                   recovery, runs, spend)
 from twine.bale import ManifestError, load_manifest
 from twine.cli import Context
 from twine.commands import carry_bale, carry_bundle
@@ -158,6 +169,17 @@ class RunReport:
     resume_sid: str | None = None
     # The loop's wall time (seconds since it started), for the summary line.
     wall_seconds: float = 0.0
+    # twine-run-telemetry: when the verb started (UTC, and the monotonic
+    # reading its wall time is taken against — before `bale open` on a run);
+    # the cost file this run wrote for an apply line (None when none was
+    # written) and why one could not be; and whether a tool's group outlived
+    # the run (the running record kept for `twine kill`).
+    started_at: datetime = dataclasses.field(
+        default_factory=lambda: datetime.now(timezone.utc))
+    started_clock: float = dataclasses.field(default_factory=time.monotonic)
+    cost_file: str | None = None
+    cost_file_error: str | None = None
+    group_survivors: bool = False
 
     @property
     def sid(self) -> str | None:
@@ -245,8 +267,68 @@ class RunReport:
             "inflight_error": self.inflight_error,
             "state_dir": None if self.state_dir is None else str(self.state_dir),
             "state_dir_source": self.state_dir_source,
+            # twine-run-telemetry's: the cost file an apply line names (null
+            # when no apply line was printed or the file could not be
+            # written), and why it could not be. Before `next`, which stays
+            # the last name.
+            "cost_file": self.cost_file,
+            "cost_file_error": self.cost_file_error,
             # twine-run-recovery's, the last of the names beside the fixed ones.
             "next": list(self.next_lines),
+        }
+
+    def run_record(self, payload: dict[str, Any], ended_at: datetime | None = None
+                   ) -> dict[str, Any]:
+        """The run's `runs.jsonl` line (cli-contract.md §20.1): the twin's
+        names where the twin has them, then what it does not carry — the
+        desk, the times, the tools' durations and the events the stderr
+        warnings name. Built from the finished report and the twin the verb
+        rendered, so the two agree."""
+        r = self.result
+        desk = desk_number(None if self.open is None else getattr(self.open, "desk", None))
+        events = {
+            "window_warned": int(self.window is not None and bool(self.window.warned)),
+            "continuations": 0 if r is None else r.continuations,
+            "retries": 0 if r is None else r.retries,
+            "heartbeats": 0 if r is None else r.heartbeats,
+            "transcript_faults": 0 if self.transcript is None else len(self.transcript.faults),
+            "inflight_error": int(self.inflight_error is not None),
+            "group_survivors": int(self.group_survivors),
+        }
+        return {
+            "record_version": runs.RECORD_VERSION,
+            "sid": self.sid,
+            "command": self.command,
+            "desk": desk,
+            "started_at": runs.utc_stamp(self.started_at),
+            "ended_at": runs.utc_stamp(ended_at),
+            "wall_seconds": round(max(0.0, time.monotonic() - self.started_clock), 3),
+            "outcome": payload["outcome"],
+            "stop": payload["stop"],
+            "move": payload["move"],
+            "actor": payload["actor"],
+            "shape": payload["shape"],
+            "reason": payload["reason"],
+            "turns": payload["turns"],
+            "tool_calls": payload["tool_calls"],
+            "retries": payload["retries"],
+            "continuations": events["continuations"],
+            "usage": payload["usage"],
+            "cost_usd": payload["cost_usd"],
+            "cap_usd": payload["cap_usd"],
+            "adapter": payload["adapter"],
+            "model": payload["model"],
+            "window": payload["window"],
+            "resumed_from": payload["resumed_from"],
+            "rewarm": payload["rewarm"],
+            "tools": {} if r is None else {name: dict(entry)
+                                           for name, entry in r.tools.items()},
+            "events": events,
+            "transcript": payload["transcript"],
+            "sandbox": payload["sandbox"],
+            "inflight": payload["inflight"],
+            "cost_file": self.cost_file,
+            runs.APPLY: None,
         }
 
 
@@ -273,28 +355,65 @@ def cmd_run(ctx: Context, args: argparse.Namespace) -> Result:
             f"session {report.sid} is open in bale and nothing ran in it: fix the fault "
             f"and run again (bale opens a second desk), or close it with `twine kill "
             f"{report.sid}`")
-    name_next(report, args)
+    name_next(report, args, ctx)
     payload = report.payload()
     if report.transcript is not None:
         _log_end(report)
+    write_run_line(ctx, report, payload)
     ctx.info(f"{NAME}: {summary_line(report)}")
     say_next(ctx, report)
     return Result(report.ok, payload, lines(report))
 
 
-def name_next(report: RunReport, args: argparse.Namespace) -> None:
+def desk_number(desk: Any) -> int | None:
+    """The record's `desk`, an integer or null: bale spells a desk `desk-N`
+    (`desk-2` for the second) and the first desk null — so the number after
+    the last hyphen, and null for the first desk, a resume (no open) and
+    anything that names no number. An integer bale gave is kept."""
+    if type(desk) is int:
+        return desk
+    if isinstance(desk, str):
+        tail = desk.rsplit("-", 1)[-1]
+        if tail.isascii() and tail.isdigit():
+            return int(tail)
+    return None
+
+
+def write_run_line(ctx: Context, report: RunReport, payload: dict[str, Any]) -> None:
+    """The run's one `runs.jsonl` line, on every outcome once a sid exists
+    (cli-contract.md §20.1); nothing is written before one does. A line that
+    cannot be written is a warning on stderr and the log — telemetry never
+    changes what the run was."""
+    if report.sid is None or report.state_dir is None:
+        return
+    if report.command != NAME and state_dir_fault(report.state_dir) is not None:
+        return    # a resume asked of a state directory that is not there writes nothing in it
+    try:
+        runs.append_run(report.state_dir, report.run_record(payload))
+    except (runs.RunsError, ValueError) as exc:
+        log.error("%s: no runs.jsonl line for %s: %s", report.command, report.sid, exc)
+        ctx.info(f"warning: no runs.jsonl line was written for {report.sid}: {exc}")
+
+
+def name_next(report: RunReport, args: argparse.Namespace, ctx: Context | None = None) -> None:
     """Fill `report.next_lines`: the command the ending names
     (recovery.next_commands). The cap a resume line carries is the plan's
     suggestion, read off the transcript the run just wrote; when it cannot be
     worked out (an unpriced model, a transcript a resume cannot rebuild) the
-    line is `twine resume SID --plan` instead, which says why."""
+    line is `twine resume SID --plan` instead, which says why.
+
+    Every `bale apply` line the list names carries the session's cost file
+    (twine-run-telemetry): `delivered`'s and escalate's clarification form's
+    were made by `deliver`; bale's admit line on a scope-drift refusal is
+    made here, the file written first. escalate's form names the resume that
+    follows the planner's answer after its apply line, so it needs the
+    suggested cap as any resumable ending does."""
     r, sid = report.result, report.sid
     if r is None or sid is None or report.state_dir is None:
         return
     carried = recovery.Carried.of(args)
     needs_cap = (r.outcome not in (runloop.DELIVERED, runloop.KILLED, runloop.REFUSED)
-                 and r.stop != runloop.WINDOW_EXHAUSTED
-                 and not (r.outcome == runloop.SUSPENDED and r.apply_line))
+                 and r.stop != runloop.WINDOW_EXHAUSTED)
     suggested = None
     if needs_cap and report.transcript is not None:
         try:
@@ -308,10 +427,36 @@ def name_next(report: RunReport, args: argparse.Namespace) -> None:
             suggested = advice.suggested
             if advice.problem is not None:
                 log.info("cap for %s: %s", sid, advice.problem)
+    cost_file = None
+    if recovery.admit_line(r.tarball or "", r.dry_run) is not None:
+        cost_file = write_cost_file(report, ctx)
     report.next_lines = recovery.next_commands(
         sid, outcome=r.outcome, stop=r.stop, move=r.move, apply_line=r.apply_line,
         light_block=bool(r.block), tarball=r.tarball, dry_run=r.dry_run,
-        suggested=suggested, carried=carried)
+        suggested=suggested, carried=carried, cost_file=cost_file)
+
+
+def write_cost_file(report: RunReport, ctx: Context | None) -> str | None:
+    """The session's cost file, written before an apply line that names it is
+    printed (cli-contract.md §18.7a). The path, or None — a warning on stderr
+    and `cost_file_error` in the twin saying why, the plain line printed: an
+    apply is never held up by telemetry."""
+    assert report.state_dir is not None and report.sid is not None
+    try:
+        path = cost.write_cost_file(report.state_dir, report.sid, report.prices_path)
+    except cost.CostFileError as exc:
+        report.cost_file, report.cost_file_error = None, str(exc)
+        warn_no_cost_file(ctx, exc)
+        return None
+    report.cost_file, report.cost_file_error = str(path), None
+    return str(path)
+
+
+def warn_no_cost_file(ctx: Context | None, why: object) -> None:
+    log.warning("no cost file: %s", why)
+    if ctx is not None:
+        ctx.info(f"warning: no cost file was written ({why}); the apply line printed is the "
+                 "plain one, without --cost-file")
 
 
 def say_next(ctx: Context, report: RunReport) -> None:
@@ -321,7 +466,7 @@ def say_next(ctx: Context, report: RunReport) -> None:
     r = report.result
     if r is None:
         return
-    if recovery.admit_line(r.tarball or "", r.dry_run) in report.next_lines:
+    if recovery.admit_line(r.tarball or "", r.dry_run, report.cost_file) in report.next_lines:
         ctx.info(recovery.departures_note(r.tarball))
     if not report.next_lines:
         words = recovery.no_command_words(report.sid, r.outcome, r.stop)
@@ -465,7 +610,7 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
                                       max_turns=report.max_turns or runloop.DEFAULT_MAX_TURNS,
                                       prices_path=report.prices_path),
         prompt=prompt, moves=moves, tools=tools,
-        deliver=lambda path: deliver(courier, args, path),
+        deliver=lambda path: deliver(courier, args, path, report),
         messages=[runloop.user_message(report.open.opener)], window=report.window,
         progress=lambda line: ctx.info(f"run: {line}"))
     report.result = the_loop.run()
@@ -675,15 +820,29 @@ def build_adapter(args: argparse.Namespace, report: RunReport, cls: type, script
                thinking=ANTHROPIC_THINKING[args.thinking], system=prompt.note)
 
 
-def deliver(courier: Context, args: argparse.Namespace, path: Path) -> runloop.Delivery:
+def deliver(courier: Context, args: argparse.Namespace, path: Path,
+            report: RunReport | None = None) -> runloop.Delivery:
     """`carry response` on the delivered tarball — the function, not a
-    subprocess: `bale apply --dry-run --json <path>`, in --cwd."""
+    subprocess: `bale apply --dry-run --json <path>`, in --cwd. With the
+    run's `report` (the verbs pass it), the apply line that comes back is the
+    one with the session's cost file: written first, `bale apply <tarball>
+    --cost-file <path>` (cli-contract.md §18.7a); the plain line when the
+    file cannot be written. The dry run itself never carries the flag."""
     outcome = carry_bale.check_response(courier, argparse.Namespace(
         tarball=str(path), cwd=args.cwd, bale_root=args.bale_root))
+    apply_line, twin = outcome.apply_line, outcome.payload()
+    if apply_line and report is not None and report.state_dir is not None \
+            and report.sid is not None:
+        costed = cost.costed_apply_line(report.state_dir, report.sid,
+                                        outcome.tarball or str(path), report.prices_path)
+        apply_line, twin["apply_line"] = costed.line, costed.line
+        report.cost_file = None if costed.path is None else str(costed.path)
+        report.cost_file_error = costed.error
+        if costed.error:
+            warn_no_cost_file(courier, costed.error)
     return runloop.Delivery(ok=outcome.ok, tarball=outcome.tarball or str(path),
-                            apply_line=outcome.apply_line, dry_run=outcome.dry_run,
-                            outcome=outcome.outcome, reason=outcome.reason,
-                            twin=outcome.payload())
+                            apply_line=apply_line, dry_run=outcome.dry_run,
+                            outcome=outcome.outcome, reason=outcome.reason, twin=twin)
 
 
 def finish_running(ctx: Context, report: RunReport) -> None:
@@ -698,6 +857,7 @@ def finish_running(ctx: Context, report: RunReport) -> None:
         record = None
         report.running_note = f"the running record cannot be read ({exc}); it is cleared"
     if record is not None and record.groups:
+        report.group_survivors = True
         report.running_cleared = False
         report.running_note = (f"the running record still names group(s) "
                                f"{', '.join(str(g.pgid) for g in record.groups)} whose "

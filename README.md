@@ -25,7 +25,7 @@ Arc 1 (the courier) session 1 landed twine's core:
   and `inflight/` are in it — since 0.19.0 `transcripts/` and `sandbox/`
   too — and since 0.11.0 the sids whose in-flight records read there and
   every file in `inflight/` that is not one, named, and since 0.19.0 the
-  sids of the transcripts and sandbox homes `twine run` keeps; it never
+  sids of the transcripts and sandbox homes `twine run` keeps, and since 0.26.0 whether `runs.jsonl` is there; it never
   creates the directory, and writes nothing),
   `bale check` (the gate, D2: since 0.23.0 the floor plus bale's
   contract — ok when the installed bale's `bin/VERSION` is at or above the
@@ -235,7 +235,10 @@ Arc 1 (the courier) session 1 landed twine's core:
   `--allow-out-of-scope` admit line, which twine never runs, and the resume
   line that returns the work to the worker; the resume line, with a
   suggested cap, for a stop a resume goes on from). `--cap +USD` is the
-  session's spend so far plus that amount.
+  session's spend so far plus that amount. Since 0.26.0 every apply line
+  twine prints is `bale apply <tarball> --cost-file <state-dir>/cost/<sid>.json`:
+  the file holds the session's whole spend in bale's six keys (contract
+  §18.7a), written first.
 - `resume` (Arc 2 R5; recovery since 0.25.0): **a kept session goes on.**
   The rule: a run left `stopped`, `cap-reached`, `cap-unchecked`, `ended` or
   `suspended` resumes with `twine resume`, in its kept home, from its
@@ -257,6 +260,13 @@ Arc 1 (the courier) session 1 landed twine's core:
   calls at the mean of the last ten, and the worst case, rounded up to the
   cent), then the `next` lines. A resumed run's raw response files never
   overwrite the first run's. Contract §19 and `runtime-contract.md` §7.9.
+- `stats` and `transcript` (since 0.26.0, twine-run-telemetry): every `twine
+  run` and `twine resume` that has a sid appends one line to
+  `<state-dir>/runs.jsonl` whatever its outcome, `twine stats [--since DATE]
+  [--sid SID]` aggregates them (runs, outcomes, tools, cost — read-only, an
+  absent file an honest empty report; contract §20) and `twine transcript SID
+  [--from SEQ]` reads a run's story from its transcript, one line per line
+  (contract §21); `status` names `runs.jsonl` as the eighth of `state_present`.
 - `share/bale-consumption.toml` — the `[bale]` table — `floor` (`0.4.54`,
   the first bale with `bale contract --json`: twine drives any bale at or
   above it whose contract states what twine reads), `recordings`
@@ -337,6 +347,8 @@ python3 -I -S bin/twine run <stem>.bale-bundle --model M --cap USD [--json]   # 
 python3 -I -S bin/twine run <stem>.bale-bundle --adapter fake --script turns.json --cap USD   # the same loop, no model
 python3 -I -S bin/twine resume SID --plan [--json]               # read a kept session: does it resume, with what line, under what cap
 python3 -I -S bin/twine resume SID --cap USD|+USD [--answer FILE|-] [--json]   # go on from its transcript (a stopped run needs no answer)
+python3 -I -S bin/twine stats [--since DATE] [--sid SID] [--json]   # runs.jsonl aggregated; read-only
+python3 -I -S bin/twine transcript SID [--from SEQ] [--json]        # a run's story, a line per transcript line
 ```
 
 A recording session — needed only when the gate refuses an install

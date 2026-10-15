@@ -236,7 +236,8 @@ class SuspendThenResume(ResumeCase):
                            stdin=b"from stdin\n")
         self.assertEqual(human.code, 0, human.stderr)
         tarball = (bed.state / "sandbox" / SID / "home" / "response.tar.gz").resolve()
-        self.assertEqual(human.stdout, f"bale apply {tarball}\n")
+        self.assertEqual(human.stdout, f"bale apply {tarball} --cost-file "
+                                       f"{bed.state / 'cost' / (SID + '.json')}\n")
         self.assertIn("resume: ", human.stderr)
         first = [l for l in bed.transcript() if l["kind"] == "request"][-3]
         self.assertEqual(first["appended"], [{"role": "user", "content": "from stdin\n"}])
@@ -313,7 +314,8 @@ class TheClarificationForm(ResumeCase):
         home = (bed.state / "sandbox" / SID / "home").resolve()
         tarball = home / "escalations" / "1" / f"response-{SID}.tar.gz"
         self.assertEqual(twin["tarball"], str(tarball))
-        self.assertEqual(twin["apply_line"], f"bale apply {tarball}")
+        self.assertEqual(twin["apply_line"], f"bale apply {tarball} --cost-file "
+                                             f"{bed.state / 'cost' / (SID + '.json')}")
         self.assertEqual(twin["dry_run"]["outcome"], "dry-run")
         self.assertEqual((twin["move"], twin["actor"]), ("operator-applies", "operator"))
         self.assertFalse((home / "never-run").exists())
@@ -894,7 +896,12 @@ class TheEndingsNameTheirNextCommand(RecoveryCase):
                     "why_blocked": "two match"}
         twin = bed.twin([tools(("escalate", {"blocking": True, "questions": [question]}), n=1)])
         self.assertEqual(twin["outcome"], "suspended", twin["reason"])
-        self.assertEqual(twin["next"], [twin["apply_line"]])
+        # twine-run-telemetry: after its apply line, the resume that follows the
+        # planner's relayed answer (recovery's Proposal 2).
+        apply_line, again = twin["next"]
+        self.assertEqual(apply_line, twin["apply_line"])
+        self.assertIn(" --cost-file ", apply_line)
+        self.assertRegex(again, rf"^twine resume {SID} --cap \d+\.\d\d --answer - --state-dir ")
 
     def test_window_exhausted_names_no_command_and_says_why(self):
         bed = self.bed()
@@ -911,8 +918,11 @@ class TheEndingsNameTheirNextCommand(RecoveryCase):
                          tools(("deliver", {"tarball": "response.tar.gz"}), n=2)])
         self.assertEqual((twin["outcome"], twin["move"]), ("stopped", "admit-or-return"))
         admit, again = twin["next"]
-        self.assertEqual(admit, f"bale apply {shlex.quote(twin['tarball'])} "
-                                "--allow-out-of-scope other.txt")
+        cost_file = bed.state / "cost" / f"{SID}.json"
+        self.assertEqual(admit, f"bale apply {shlex.quote(twin['tarball'])} --cost-file "
+                                f"{cost_file} --allow-out-of-scope other.txt")
+        self.assertTrue(cost_file.is_file(), "the admit line is an apply: its file is written")
+        self.assertEqual(twin["cost_file"], str(cost_file))
         self.assertRegex(again, rf"^twine resume {SID} --cap \d+\.\d\d --state-dir ")
         self.assertIn("enumerated in the response's notes.md", twin["_stderr"])
         shown = [l for l in twin["_stderr"].splitlines() if l.startswith("[twine] next: ")]
@@ -1130,6 +1140,10 @@ class TheRecoveryReading(unittest.TestCase):
                       {"outcome": "scope-drift-refused", "drift": {"out_of_scope_paths": [1]}}):
             self.assertIsNone(recovery.admit_line("/t/x.tar.gz", other))
         self.assertIsNone(recovery.admit_line("", line))
+        # with the session's cost file, the admit line is an apply like any other
+        self.assertEqual(recovery.admit_line("/t/r.tar.gz", line, "/s/cost/x.json"),
+                         "bale apply /t/r.tar.gz --cost-file /s/cost/x.json "
+                         "--allow-out-of-scope other.txt")
 
     def test_the_next_lines_by_outcome(self):
         carried = recovery.Carried(state_dir="/s d", bale_root="/b", cwd=None, prices="/p")
@@ -1147,7 +1161,15 @@ class TheRecoveryReading(unittest.TestCase):
         self.assertEqual(nxt(outcome="delivered", stop=None, apply_line="bale apply /t"),
                          ["bale apply /t"])
         self.assertEqual(nxt(outcome="suspended", stop=None, apply_line="bale apply /t"),
-                         ["bale apply /t"])
+                         ["bale apply /t",
+                          resume.replace("--cap 1.50", "--cap 1.50 --answer -")])
+        self.assertEqual(recovery.next_commands(
+            "s", outcome="suspended", stop=None, apply_line="bale apply /t", suggested=None,
+            carried=recovery.Carried(), plannable=False), ["bale apply /t"])
+        self.assertEqual(recovery.next_commands(
+            "s", outcome="suspended", stop=None, apply_line="bale apply /t", suggested=None,
+            carried=recovery.Carried()),
+            ["bale apply /t", "twine resume s --plan"])
         self.assertEqual(nxt(outcome="suspended", stop=None, light_block=True),
                          [resume.replace("--cap 1.50", "--cap 1.50 --answer -")])
         # no suggestion: the plan line, which says why
@@ -1158,6 +1180,12 @@ class TheRecoveryReading(unittest.TestCase):
                              dry_run={"outcome": "scope-drift-refused",
                                       "drift": {"out_of_scope_paths": ["x"]}}),
                          ["bale apply /t/r.tar.gz --allow-out-of-scope x", resume])
+        self.assertEqual(nxt(outcome="stopped", stop=None, tarball="/t/r.tar.gz",
+                             cost_file="/s d/cost/s.json",
+                             dry_run={"outcome": "scope-drift-refused",
+                                      "drift": {"out_of_scope_paths": ["x"]}}),
+                         ["bale apply /t/r.tar.gz --cost-file '/s d/cost/s.json' "
+                          "--allow-out-of-scope x", resume])
 
     def test_the_suggested_cap_is_above_the_floor_and_rounded_up(self):
         """advise() over a session the test writes: one record, priced by the
@@ -1223,7 +1251,7 @@ class TheDocsAndTheTable(unittest.TestCase):
         text = " ".join((REPO_ROOT / "README.md").read_text(encoding="utf-8").split())
         for needle in ("twine resume", "sixteen keys", "four `loop_keys`", "--plan"):
             self.assertTrue(needle in text, f"the README does not say {needle!r}")
-        self.assertEqual((REPO_ROOT / "VERSION").read_text().strip(), "0.25.0")
+        self.assertEqual((REPO_ROOT / "VERSION").read_text().strip(), "0.26.0")
 
 
 # ---------------------------------------------------------------------------

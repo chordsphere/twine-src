@@ -260,7 +260,16 @@ class RunEndToEnd(BedCase):
         self.assertEqual((twin["stop"], twin["move"], twin["actor"]),
                          (None, "operator-applies", "operator"))
         self.assertEqual(twin["tarball"], str(tarball.resolve()))
-        self.assertEqual(twin["apply_line"], f"bale apply {tarball.resolve()}")
+        cost_file = bed.state / "cost" / f"{SID}.json"
+        self.assertEqual(twin["apply_line"],
+                         f"bale apply {tarball.resolve()} --cost-file {cost_file}")
+        self.assertEqual((twin["cost_file"], twin["cost_file_error"]), (str(cost_file), None))
+        self.assertEqual(twin["next"], [twin["apply_line"]])
+        self.assertEqual(json.loads(cost_file.read_text()),
+                         {"tokens_in": 300, "tokens_out": 60, "usd": 0.00042,
+                          "model_tier": None, "calls": 3, "models": ["fake"]})
+        self.assertEqual(oct(cost_file.stat().st_mode & 0o777), "0o600")
+        self.assertEqual(oct(cost_file.parent.stat().st_mode & 0o777), "0o700")
         self.assertEqual(twin["dry_run"]["outcome"], "dry-run")
         self.assertEqual((twin["turns"], twin["tool_calls"], twin["retries"]), (3, 3, 0))
         self.assertEqual(twin["inflight"], "removed")
@@ -273,13 +282,15 @@ class RunEndToEnd(BedCase):
         calls = bed.stub.calls()
         self.assertEqual([c[0] for c in calls], ["open", "apply"])
         self.assertEqual(calls[0], ["open", str(bed.bundle), "--json"])
+        # The dry run, the courier's check, never carries the flag.
         self.assertEqual(calls[1], ["apply", "--dry-run", "--json", str(tarball.resolve())])
         # Human mode: the apply line alone on stdout.
         bed2 = self.bed()
         human = bed2.run(script, json_mode=False)
         self.assertEqual(human.code, 0, human.stderr)
         tarball2 = (bed2.state / "sandbox" / SID / "home" / "response.tar.gz").resolve()
-        self.assertEqual(human.stdout, f"bale apply {tarball2}\n")
+        self.assertEqual(human.stdout, f"bale apply {tarball2} --cost-file "
+                                       f"{bed2.state / 'cost' / (SID + '.json')}\n")
         self.assertIn("run: call 1:", human.stderr)
 
     def test_the_request_is_unpacked_at_request(self):

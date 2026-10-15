@@ -63,6 +63,11 @@ model called. It says whether the session resumes (the rule above and the
 the rule is stated there and in cli-contract.md §19.1). Its twin is
 `command` `"resume"` with `plan` true.
 
+Like `twine run` it appends one `runs.jsonl` line on every outcome (`command`
+`"resume"`, `desk` null; cli-contract.md §20.1) and prints its apply lines with
+the session's cost file (§18.7a) — the file sums every record of the sid, the
+earlier runs' included.
+
 The twin is `twine run`'s (cli-contract.md §18.5), `command` `"resume"`,
 `open` null, `resumed_from` set and `rewarm` the first call's usage. ok
 exactly on `delivered`. Like `run`, it never applies anything (T12) and
@@ -81,7 +86,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from twine import inflight, kill, process, recovery, spend
+from twine import cost, inflight, kill, process, recovery, spend
 from twine.cli import Context
 from twine.commands import run as run_verb
 from twine.commands.carry_bale import BALE_ROOT_ARGUMENT
@@ -144,10 +149,11 @@ def cmd_resume(ctx: Context, args: argparse.Namespace) -> Result:
             f"nothing ran in {report.sid}; it is as it was — still open in bale, its "
             f"transcript and in-flight record kept: fix the fault and resume again, or "
             f"close it with `twine kill {report.sid}`")
-    run_verb.name_next(report, args)
+    run_verb.name_next(report, args, ctx)
     payload = report.payload()
     if report.transcript is not None:
         run_verb._log_end(report)
+    run_verb.write_run_line(ctx, report, payload)
     ctx.info(f"{NAME}: {run_verb.summary_line(report)}")
     run_verb.say_next(ctx, report)
     return Result(report.ok, payload, run_verb.lines(report))
@@ -247,7 +253,7 @@ def resume(ctx: Context, args: argparse.Namespace, report: run_verb.RunReport) -
                                       max_turns=report.max_turns or runloop.DEFAULT_MAX_TURNS,
                                       prices_path=report.prices_path),
         prompt=prompt, moves=prepared.moves, tools=prepared.tools,
-        deliver=lambda path: run_verb.deliver(courier, bale_args, path),
+        deliver=lambda path: run_verb.deliver(courier, bale_args, path, report),
         messages=[*rebuilt, runloop.user_message(prepared.answer)], logged=len(rebuilt),
         window=report.window, progress=lambda line: ctx.info(f"resume: {line}"))
     report.result = the_loop.run()
@@ -674,8 +680,17 @@ def make_plan(ctx: Context, args: argparse.Namespace) -> Plan:
             sid, outcome=story.outcome, stop=plan.stop, move=plan.move,
             apply_line=story.field("apply_line"), light_block=bool(story.field("block")),
             tarball=story.field("tarball"), dry_run=story.field("dry_run"),
-            suggested=plan.suggested, carried=recovery.Carried.of(args), plannable=False)
+            suggested=plan.suggested, carried=recovery.Carried.of(args), plannable=False,
+            cost_file=kept_cost_file(state_dir, sid))
     return plan
+
+
+def kept_cost_file(state_dir: Path, sid: str) -> str | None:
+    """The session's cost file when one is kept (the run that printed an apply
+    line wrote it; the plan writes nothing, so it names the file only when it
+    is there — a `bale apply --cost-file` on an absent file is refused)."""
+    path = cost.cost_path(state_dir, sid)
+    return str(path) if path.is_file() else None
 
 
 def home_facts(state_dir: Path, sid: str, record: dict[str, Any] | None) -> dict[str, Any]:

@@ -74,6 +74,15 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
         # record and the price table — doubles both — never the default.
         self.spend_state = SpendStateDouble()
         self.spend_state.call("json-discipline-sid", input=100, output=10)
+        # `twine transcript` reads a transcript the state directory holds:
+        # two lines of one (the story's own, run-start and run-end).
+        kept = self.spend_state.path / "transcripts"
+        kept.mkdir()
+        (kept / "json-discipline-sid.jsonl").write_text(
+            '{"at": "2026-10-15T00:00:00Z", "seq": 1, "kind": "run-start", "adapter": "fake", '
+            '"model": "fake", "window": {"size": null}, "resumed_from": null}\n'
+            '{"at": "2026-10-15T00:00:01Z", "seq": 2, "kind": "run-end", '
+            '"twin": {"outcome": "ended", "stop": null, "move": null}}\n', encoding="utf-8")
 
     def tearDown(self):
         self.roots.cleanup()
@@ -129,6 +138,10 @@ class EveryVerbHasAJsonTwin(unittest.TestCase):
                      DOUBLE_MODEL, "--input", "100", "--max-output", "100"]
         if name == "runtime show":
             argv.append("usage-accounting")
+        if name == "stats":
+            argv += ["--state-dir", str(self.spend_state.path)]
+        if name == "transcript":
+            argv += ["json-discipline-sid", "--state-dir", str(self.spend_state.path)]
         if name == "run":
             argv += [str(self.bundle), "--cap", "1", "--adapter", "fake", "--state-dir",
                      str(self.spend_state.path), "--bale-root", str(self.stub.root)]

@@ -981,6 +981,19 @@ def apply_line(tarball: str) -> str:
     return "bale apply " + shlex.quote(tarball)
 
 
+COST_FILE_FLAG = "--cost-file"
+
+
+def apply_cost_line(tarball: str, cost_file: str) -> str:
+    """The apply line with the session's cost file (bale 0.4.54's
+    `--cost-file PATH`, which stamps the six keys into the attempt the apply
+    writes): `bale apply <tarball> --cost-file <path>`, both quoted only
+    when the shell needs it. Built beside `apply_line` and from it, so the
+    tarball's spelling is one place's. Never a dry run's: `dry_run_argv`
+    carries no `--cost-file` (the courier's check changes nothing)."""
+    return f"{apply_line(tarball)} {COST_FILE_FLAG} {shlex.quote(cost_file)}"
+
+
 def absolute_path(name: str) -> str:
     """The operator's name for a file made absolute against the current
     directory (`~` expanded, `..` folded, symlinks left as named). No
