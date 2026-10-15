@@ -12,6 +12,11 @@
 # or an unplanned exception) — the planner's artifact. Re-derived on
 # 2026-10-15 for the contract gate (the stub bale answers `contract --json`
 # from the tree's carried line) and bale's --cost-file, before first issue.
+# v2 (2026-10-15, the HOLD of 2026-10-15-twine-run-telemetry-004): v1's desk
+# probe demanded an integer, but bale's recorded `opened` line carries desk
+# null and later desks are strings ("desk-2") — a fixture defect. The probe
+# now wants the open line's own desk, read from the tree; nothing else
+# changed.
 set -u
 export PYTHONDONTWRITEBYTECODE=1
 python3 -I -B - <<'ORACLE'
@@ -77,6 +82,12 @@ def fold(text: str) -> str:
 
 # --- detectors ------------------------------------------------------------------
 
+def open_desk():
+    """The `desk` of the recorded `opened` line the stub bale replays — bale's
+    own value (null for a first desk), read from the tree, never assumed."""
+    return json.loads(OPEN_LINE.read_text(encoding="utf-8").splitlines()[0]).get("desk")
+
+
 def record_problems(line: dict, *, sid: str, command: str, outcome: str, turns: int,
                     tool_calls: int, tool: str | None) -> list[str]:
     out = []
@@ -107,8 +118,9 @@ def record_problems(line: dict, *, sid: str, command: str, outcome: str, turns: 
         out.append("apply is not null (reserved for the T12 session)")
     if command == "resume" and not isinstance(line["resumed_from"], int):
         out.append("a resume's line carries no integer resumed_from")
-    if command == "run" and not isinstance(line["desk"], int):
-        out.append(f"a run's desk is {line['desk']!r}, want the open's desk number")
+    if command == "run" and line["desk"] != open_desk():
+        out.append(f"a run's desk is {line['desk']!r}, want the open line's desk "
+                   f"{open_desk()!r}")
     return out
 
 
@@ -233,7 +245,7 @@ def control(name: str, ok: bool) -> None:
 
 def good_record(**over) -> dict:
     base = {k: None for k in RUN_KEYS}
-    base.update({"record_version": 1, "sid": "s", "command": "run", "desk": 1, "started_at": "t",
+    base.update({"record_version": 1, "sid": "s", "command": "run", "desk": open_desk(), "started_at": "t",
                  "ended_at": "t", "wall_seconds": 1.5, "outcome": "ended", "turns": 2,
                  "tool_calls": 1, "retries": 0, "continuations": 0,
                  "usage": usage(1), "cost_usd": 0.1, "tools": {"shell": {"calls": 1, "errors": 0, "seconds": 0.2}},
@@ -251,6 +263,9 @@ control("record values", bool(record_problems(good_record(turns=9), sid="s", com
                                               outcome="ended", turns=2, tool_calls=1, tool="shell")))
 control("record tools", bool(record_problems(good_record(tools={}), sid="s", command="run",
                                              outcome="ended", turns=2, tool_calls=1, tool="shell")))
+control("record desk", bool(record_problems(good_record(desk="twine-oracle-not-the-open-desk"),
+                                            sid="s", command="run", outcome="ended", turns=2,
+                                            tool_calls=1, tool="shell")))
 good_stats = {"command": "stats", "ok": True, **{k: None for k in STATS_KEYS}}
 good_stats.update({"runs": 2, "by_outcome": {o: 0 for o in OUTCOMES} | {"ended": 2},
                    "by_command": {"run": 1, "resume": 1}, "by_tool": {"shell": {}}, "cost_usd": 0.3})
