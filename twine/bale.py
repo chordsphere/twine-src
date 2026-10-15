@@ -3,17 +3,17 @@
 Twine never imports bale. What it reads from an install is files bale
 leaves on disk and the stdout of bale's non-interactive verbs: the file
 `<root>/bin/VERSION`, compared to the floor in the consumption manifest
-(`share/bale-consumption.toml`), the files under `<root>/schemas/`, hashed
-against the manifest's `[bale.schemas]` (since session
-2026-10-12-twine-pin-floor-002), and — since Arc 1 session 2b-ii — the
-stdout of the two verbs the `carry` hand-offs run, `bale relay <sid> -
---json` (since session 2026-10-08-twine-carry-exchange-json-001; the
-flagless `bale relay <sid> -` before it) and `bale apply --dry-run --json
-<tarball>`. Section 5 is the only place a bale argv is built, so T12
-("twine never merges at rung 1") has one home: `apply` is only ever built
-with `--dry-run --json`, and no other flag reaches it. Likewise `relay`
-is only ever built as `relay <sid> - --json`: the block on stdin, one
-JSON line back.
+(`share/bale-consumption.toml`); since session
+2026-10-15-twine-gate-contract-001, the one line `<root>/bin/bale contract
+--json` prints — bale's own statement of what a consumer reads — checked
+against what twine reads; and — since Arc 1 session 2b-ii — the stdout of
+the two verbs the `carry` hand-offs run, `bale relay <sid> - --json` (since
+session 2026-10-08-twine-carry-exchange-json-001; the flagless `bale relay
+<sid> -` before it) and `bale apply --dry-run --json <tarball>`. Section 5
+is the only place a bale argv is built, so T12 ("twine never merges at
+rung 1") has one home: `apply` is only ever built with `--dry-run --json`,
+and no other flag reaches it. Likewise `relay` is only ever built as
+`relay <sid> - --json`: the block on stdin, one JSON line back.
 
 Since Arc 1 session 4 the manifest also records the three closed
 vocabularies bale declares — telemetry outcomes, closure reasons, and
@@ -21,16 +21,20 @@ the outcomes `bale apply --json` prints — as `[[vocabulary]]` data the
 transition table keys on (twine/transitions.py), and the gate (D2) keeps
 them true: a carry verb drives only a bale the gate admits
 (`Executable.drive_refusal`). Until session 2026-10-12-twine-pin-floor-002
-the gate was an exact pin; since then it is a floor plus the manifest's
-contract (D2 as amended on 2026-10-08): `bin/VERSION` at or above the
-floor — the version the recordings were made at, raised only by a
-recording session — and every schema `[bale.schemas]` names installed
-with that sha256, which holds the two schema-homed vocabularies fixed.
-The third half of the contract is on the line: every verb that reads a
-bale `--json` line checks that each key the manifest lists for that
-surface is present (`missing_keys_failure`, section 6); bale's own rule
-is that existing keys are never renamed or removed, and an extra key is
-free.
+the gate was an exact pin; that session made it a floor plus a sha256 of
+each of bale's eight schema files whole. Since session
+2026-10-15-twine-gate-contract-001 (ruled by the architect on 2026-10-15)
+it is the floor plus bale's contract, and no file under `<root>/schemas/`
+is read: `bin/VERSION` at or above the floor — 0.4.54, the first bale with
+`contract --json` — and the contract line, run through the seam, stating
+exactly the table's three vocabularies, every key each line twine reads
+carries, and every outcome and the one unlock reason twine dispatches on
+(section 4). A bale release then stops twine only when something twine
+reads moved, and the refusal names it. The third half of the contract is
+on the line itself: every verb that reads a bale `--json` line checks that
+each key the manifest lists for that surface is present
+(`missing_keys_failure`, section 6); bale's own rule is that existing keys
+are never renamed or removed, and an extra key is free.
 
 Since Arc 1 session 5b, `twine kill` closes a killed session with one more
 argv built here, `unlock_argv`: `bale unlock <sid> --reason aborted
@@ -45,20 +49,22 @@ one more argv is built here, `open_argv`: exactly `bale open <bundle>
 --json`, or with `--check` exactly `bale open --check <bundle> --json` — the
 two argvs the consumption manifest's open surface records. Never
 `--dry-run`, `--verbose`, `--no-sandbox` or another flag; no other `open`
-argv exists in twine.
+argv exists in twine. And since session 2026-10-15-twine-gate-contract-001
+the gate's own, `contract_argv`: exactly `bale contract --json`.
 
 Sections:
-  1. Install-root resolution     (~line 80)
-  2. The installed version       (~line 135)
-  3. The consumption manifest    (~line 175)
-  4. The gate: the floor and the schemas  (~line 280)
-  5. Running bale: the executable, the gate, the argvs  (~line 435)
-  6. The contract on the line: the listed keys  (~line 635)
+  1. Install-root resolution     (~line 85)
+  2. The installed version       (~line 145)
+  3. The consumption manifest    (~line 180)
+  4. The gate: the floor and bale's contract  (~line 360)
+  5. Running bale: the executable, the gate, the argvs  (~line 795)
+  6. The contract on the line: the listed keys  (~line 1025)
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import re
@@ -69,13 +75,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from twine import CONSUMPTION_MANIFEST
+from twine import CONSUMPTION_MANIFEST, process
 
 log = logging.getLogger("twine.bale")
 
 ENV_ROOT = "TWINE_BALE_ROOT"
 VERSION_RELPATH = Path("bin") / "VERSION"
-SCHEMAS_RELPATH = Path("schemas")
 
 # ---------------------------------------------------------------------------
 # 1. Install-root resolution
@@ -182,26 +187,55 @@ class ManifestError(Exception):
     """share/bale-consumption.toml is missing, unparseable, or malformed."""
 
 
-# A file name [bale.schemas] may name: one path component under schemas/,
-# so the gate never hashes a file outside the install's schemas directory.
-SCHEMA_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+# The keys `[bale]` holds, exactly (session 2026-10-15-twine-gate-contract-001):
+# the floor the gate compares bin/VERSION to, the version whose recordings
+# the tests replay (fixtures/bale-<recordings>/), and the carried contract
+# line the tests replay (a path under fixtures/).
+BALE_TABLE_KEYS = ("floor", "recordings", "contract")
+# Keys `[bale]` once held, refused by name so a stale manifest says what
+# retired rather than reading as an unknown key: the exact pin (retired at
+# session 2026-10-12-twine-pin-floor-002) and the schema hashes (retired at
+# session 2026-10-15-twine-gate-contract-001, when the gate became the floor
+# plus bale's contract).
+RETIRED_BALE_KEYS = {
+    "pin": "retired when D2 became a floor; the key is `floor`",
+    "schemas": "retired when the gate became the floor plus bale's contract "
+               "(`bale contract --json`); the gate reads no file under schemas/",
+}
+# A carried contract line's path: relative, under fixtures/, no `..`, so a
+# manifest can never point a test at a file outside the tree's fixtures.
+CONTRACT_PATH = re.compile(r"fixtures/(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\.json")
 
 
 @dataclass(frozen=True)
 class Manifest:
-    """The parsed consumption manifest (D4): the floor (D2 as amended:
-    the lowest bale twine drives, the version the recordings were made
-    at), the installed schema hashes the gate's second half holds an
-    install to, the surfaces twine reads, and the vocabularies bale
-    declares (keyed by the transition-table axis they are the keys of),
-    as data a test can walk. `data` is the whole TOML document."""
+    """The parsed consumption manifest (D4): the floor (D2 as amended: the
+    lowest bale twine drives — since session
+    2026-10-15-twine-gate-contract-001 the first bale with `bale contract
+    --json`), the version whose recordings the tests replay (`recordings`,
+    which names fixtures/bale-<recordings>/; the floor named it until that
+    session), the carried contract line the tests replay (`contract`, a path
+    under fixtures/), the surfaces twine reads, and the vocabularies bale
+    declares (keyed by the transition-table axis they are the keys of), as
+    data a test can walk. `data` is the whole TOML document."""
 
     path: Path
     floor: str
-    schemas: dict[str, str]
+    recordings: str
+    contract: str
     surfaces: list[dict[str, Any]]
     data: dict[str, Any]
     vocabularies: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+def _version_key(path: Path, bale: dict[str, Any], key: str) -> str:
+    """`[bale] <key>` as a version string of three dotted integers, or a
+    ManifestError naming it."""
+    value = bale.get(key)
+    if not isinstance(value, str) or parse_version(value.strip()) is None:
+        raise ManifestError(f"{path}: [bale] {key} must be a version string of three "
+                            f"dotted integers (got {value!r})")
+    return value.strip()
 
 
 def load_manifest(path: Path = CONSUMPTION_MANIFEST) -> Manifest:
@@ -218,32 +252,77 @@ def load_manifest(path: Path = CONSUMPTION_MANIFEST) -> Manifest:
     bale = data.get("bale")
     if not isinstance(bale, dict):
         raise ManifestError(f"{path}: no [bale] table")
-    if "pin" in bale:
-        # The exact pin retired at session 2026-10-12-twine-pin-floor-002; a
-        # manifest still carrying it is one twine no longer reads, never one
-        # it guesses about.
-        raise ManifestError(f"{path}: [bale] carries `pin`, which retired when D2 "
-                            "became a floor; the key is `floor`")
-    floor = bale.get("floor")
-    if not isinstance(floor, str) or parse_version(floor.strip()) is None:
-        raise ManifestError(f"{path}: [bale] floor must be a version string of three "
-                            f"dotted integers (got {floor!r})")
-    schemas = bale.get("schemas")
-    if not isinstance(schemas, dict) or not schemas or not all(
-            isinstance(k, str) and isinstance(v, str) for k, v in schemas.items()):
-        raise ManifestError(f"{path}: [bale.schemas] must map file names to sha256 strings")
-    unsafe = sorted(k for k in schemas if not SCHEMA_NAME.fullmatch(k))
-    if unsafe:
-        raise ManifestError(f"{path}: [bale.schemas] names {unsafe}, which are not plain "
-                            "file names under schemas/")
+    for key, why in RETIRED_BALE_KEYS.items():
+        if key in bale:
+            # A manifest still carrying a retired key is one twine no longer
+            # reads, never one it guesses about.
+            shown = "[bale.schemas]" if key == "schemas" else f"[bale] `{key}`"
+            raise ManifestError(f"{path}: {shown} {why}")
+    unknown = sorted(k for k in bale if k not in BALE_TABLE_KEYS)
+    if unknown:
+        raise ManifestError(f"{path}: [bale] holds {unknown}; its keys are exactly "
+                            + ", ".join(BALE_TABLE_KEYS))
+    floor = _version_key(path, bale, "floor")
+    recordings = _version_key(path, bale, "recordings")
+    contract = bale.get("contract")
+    if not isinstance(contract, str) or not CONTRACT_PATH.fullmatch(contract):
+        raise ManifestError(f"{path}: [bale] contract must be the carried contract line's "
+                            f"path under fixtures/, a .json file (got {contract!r})")
     surfaces = data.get("surface", [])
     if not isinstance(surfaces, list) or not all(isinstance(s, dict) for s in surfaces):
         raise ManifestError(f"{path}: [[surface]] must be an array of tables")
+    for surface in surfaces:
+        check_surface_contract_fields(path, surface)
     vocabularies = load_vocabularies(path, data.get("vocabulary", []))
-    log.debug("manifest %s: floor %s, %d schemas, %d surfaces, %d vocabularies",
-              path, floor, len(schemas), len(surfaces), len(vocabularies))
-    return Manifest(path, floor.strip(), dict(schemas), list(surfaces), data,
-                    vocabularies)
+    log.debug("manifest %s: floor %s, recordings %s, contract %s, %d surfaces, "
+              "%d vocabularies", path, floor, recordings, contract, len(surfaces),
+              len(vocabularies))
+    return Manifest(path, floor, recordings, contract, list(surfaces), data, vocabularies)
+
+
+def _string_list(value: Any) -> bool:
+    return (isinstance(value, list) and bool(value)
+            and all(isinstance(v, str) and v.strip() for v in value)
+            and len(set(value)) == len(value))
+
+
+def check_surface_contract_fields(path: Path, surface: dict[str, Any]) -> None:
+    """The fields the contract gate reads from a verb `[[surface]]` (session
+    2026-10-15-twine-gate-contract-001), held to their shape:
+
+      contract_lines      the lines of `bale contract --json`'s `json_keys`
+                          the surface's reader reads; required on a verb
+                          surface that lists keys and names a reader, so no
+                          key twine reads goes unchecked against the contract
+      outcome_vocabulary  the contract vocabulary of that line's `outcome`
+                          (`open-outcome`, …), with `outcomes` — its values
+                          as recorded — when one is named
+      reasons             (already recorded) a refusal reason set, a list
+
+    Raises ManifestError naming the surface and the field."""
+    if surface.get("kind") != "verb":
+        return
+    name = f"the {surface.get('verb')!s} surface"
+    reads = bool(surface.get("keys")) and bool(surface.get("read_by"))
+    lines = surface.get("contract_lines")
+    if lines is not None and not _string_list(lines):
+        raise ManifestError(f"{path}: {name}: contract_lines must be a non-empty list of "
+                            "distinct line names")
+    if reads and lines is None:
+        raise ManifestError(f"{path}: {name} lists keys twine reads but no contract_lines "
+                            "(the contract lines whose keys the gate checks)")
+    vocabulary = surface.get("outcome_vocabulary")
+    outcomes = surface.get("outcomes")
+    if (vocabulary is None) != (outcomes is None):
+        raise ManifestError(f"{path}: {name}: outcome_vocabulary and outcomes come together")
+    if vocabulary is not None and (not isinstance(vocabulary, str) or not vocabulary.strip()
+                                   or not _string_list(outcomes)):
+        raise ManifestError(f"{path}: {name}: outcome_vocabulary must name a contract "
+                            "vocabulary and outcomes list its distinct values")
+    reasons = surface.get("reasons")
+    if reasons is not None and not _string_list(reasons):
+        raise ManifestError(f"{path}: {name}: reasons must be a non-empty list of distinct "
+                            "reason codes")
 
 
 def load_vocabularies(path: Path, entries: Any) -> dict[str, dict[str, Any]]:
@@ -276,97 +355,370 @@ def load_vocabularies(path: Path, entries: Any) -> dict[str, dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# 4. The gate: the floor and the schemas
+# 4. The gate: the floor and bale's contract
 # ---------------------------------------------------------------------------
+
+# Running `bale contract --json` (session 2026-10-15-twine-gate-contract-001):
+# bale prints one line of about 8.5 KB from tables it holds in memory, so a
+# run that takes longer than this is stuck and is killed by the seam; a
+# stdout past the cap is not a contract line, whatever it is.
+CONTRACT_TIMEOUT_SECONDS = 30.0
+CONTRACT_STDOUT_CAP_BYTES = 1024 * 1024
+# The `outcome` a contract line carries (bale's CONTRACT_OUTCOMES).
+CONTRACT_OUTCOME = "contract"
+# How much of bale's stderr a refusal quotes when the run itself failed.
+CONTRACT_STDERR_QUOTED = 300
+
+# What twine's code dispatches on, by the contract vocabulary that holds it —
+# the spellings the readers compare a line's `outcome` with, so the gate can
+# hold an install to them. Each reader keeps its own constant and a test holds
+# every one of them to this table (tests/test_bale_check.py), so a reader
+# cannot start dispatching on a spelling the gate does not check:
+#   open-outcome    carry bundle and twine.inflight (opened, second-desk;
+#                   rehearsed under --check; open-refused named and quoted)
+#   relay-outcome   carry exchange (relayed; re-emitted and relay-refused
+#                   each named as what it is)
+#   unlock-outcome  kill (unlocked is the close; unlock-refused carries the
+#                   reason the hand line keys on)
+DISPATCHED_OUTCOMES: dict[str, tuple[str, ...]] = {
+    "open-outcome": ("opened", "second-desk", "rehearsed", "open-refused"),
+    "relay-outcome": ("relayed", "re-emitted", "relay-refused"),
+    "unlock-outcome": ("unlocked", "unlock-refused"),
+}
+# The refusal reasons twine dispatches on, by the twine verb that reads them
+# (a surface's `read_by`; the reader rather than the bale verb, as
+# surface_keys keys, so no bale verb's name is spelled here beyond the argv
+# builders): one — `twine kill`'s hand line is `bale revert <sid>` exactly
+# when the unlock refusal's reason is hold-branch (session
+# 2026-10-07-twine-kill-reason-002). The gate looks it up in the contract's
+# refusal_reasons under the surface's own `verb`.
+DISPATCHED_REASONS: dict[str, tuple[str, ...]] = {"kill": ("hold-branch",)}
 
 
 @dataclass(frozen=True)
-class SchemaVerdict:
-    """The gate's second half: every file `[bale.schemas]` names, looked
-    for under `<root>/schemas/` and hashed. `checked` names every file that
-    was there and hashed (matching or not), `mismatched` those whose
-    sha256 differs from the manifest's, `missing` those not there as a
-    file — each list sorted. `present` is whether `schemas/` itself is a
-    directory; when it is not, every pinned file is missing and the reason
-    says so once. `dir` is the directory looked in."""
+class ContractVerdict:
+    """The gate's second half: what `<root>/bin/bale contract --json` printed,
+    held to what twine reads.
 
-    dir: Path
-    present: bool
-    checked: tuple[str, ...]
-    mismatched: tuple[str, ...]
-    missing: tuple[str, ...]
+    `asked` is whether the gate ran it (it does not below the floor: no bale
+    below 0.4.54 has the verb); `argv` what it ran; `exit_code` bale's exit
+    (None when it never exited on its own, or never ran). `bale_version` is
+    the line's (None when no line could be read); `sha256` the sha256 of
+    stdout as printed (None when nothing was printed). `problems` are the
+    refusing facts, one sentence each; `moved` is the subset that says
+    something twine reads moved in a contract that read cleanly — the
+    vocabularies, a line's keys, an outcome or reason twine dispatches on —
+    which is the one case a recording session is for. `notes` are reported
+    additions: a value a contract vocabulary or refusal-reason set gained
+    that twine records but does not dispatch on, never refused."""
+
+    asked: bool
+    argv: tuple[str, ...]
+    exit_code: int | None
+    bale_version: str | None
+    sha256: str | None
+    problems: tuple[str, ...]
+    moved: tuple[str, ...]
+    notes: tuple[str, ...]
 
     @property
     def ok(self) -> bool:
-        return self.present and not self.mismatched and not self.missing
-
-    def problems(self) -> list[str]:
-        """One sentence per failing fact, for the check's reason."""
-        if not self.present:
-            return [f"no schemas/ directory at {self.dir}"]
-        found = []
-        if self.missing:
-            found.append("schemas missing from schemas/: " + ", ".join(self.missing))
-        if self.mismatched:
-            found.append("schemas that do not hash as the manifest pins them: "
-                         + ", ".join(self.mismatched))
-        return found
+        return self.asked and not self.problems
 
     def as_json(self) -> dict[str, Any]:
-        return {"dir": str(self.dir), "present": self.present, "ok": self.ok,
-                "checked": list(self.checked), "mismatched": list(self.mismatched),
-                "missing": list(self.missing)}
+        """`twine bale check --json`'s `contract` object, exactly these keys."""
+        return {"ok": self.ok, "bale_version": self.bale_version, "sha256": self.sha256,
+                "problems": list(self.problems), "notes": list(self.notes)}
 
-    def summary(self, pinned: int) -> str:
+    def summary(self) -> str:
         """The human line's verdict."""
         if self.ok:
-            return f"all {pinned} hash as the manifest pins them"
-        return "NOT OK — " + "; ".join(self.problems())
+            return (f"ok — bale {self.bale_version}'s line (sha256 {self.sha256}) states "
+                    "everything twine reads")
+        return "NOT OK — " + "; ".join(self.problems)
 
 
-def check_schemas(manifest: Manifest, root: Path) -> SchemaVerdict:
-    """Hash every file the manifest pins under `<root>/schemas/`. Never
-    raises: a file that cannot be read is reported missing (with a log line
-    saying why), never skipped."""
-    where = root / SCHEMAS_RELPATH
-    names = sorted(manifest.schemas)
-    if not where.is_dir():
-        log.info("no schemas directory at %s", where)
-        return SchemaVerdict(where, False, (), (), tuple(names))
-    checked: list[str] = []
-    mismatched: list[str] = []
-    missing: list[str] = []
-    for name in names:
-        path = where / name
-        try:
-            data = path.read_bytes()
-        except OSError as exc:
-            log.info("schema %s not readable as a file: %s", path, exc.strerror or exc)
-            missing.append(name)
+def parse_contract_stdout(stdout: bytes) -> tuple[dict[str, Any] | None, str | None]:
+    """The one JSON object line `bale contract --json` prints, or None and
+    the problem: nothing printed, more than one line, not UTF-8, not JSON,
+    or JSON that is not an object. One line is the bytes up to a single
+    trailing newline (bale ends its line with one); a blank second line is
+    a second line."""
+    if not stdout:
+        return None, "bale contract --json printed nothing"
+    try:
+        text = stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return None, f"bale contract --json printed bytes that are not UTF-8 ({exc.reason})"
+    body = text[:-1] if text.endswith("\n") else text
+    if "\n" in body:
+        return None, (f"bale contract --json printed {body.count(chr(10)) + 1} lines, "
+                      "not one")
+    try:
+        obj = json.loads(body)
+    except json.JSONDecodeError as exc:
+        return None, f"bale contract --json's line is not JSON: {exc}"
+    if not isinstance(obj, dict):
+        return None, (f"bale contract --json's line is JSON but not an object (a "
+                      f"{type(obj).__name__})")
+    return obj, None
+
+
+def _values(table: Any, name: str) -> list[str] | None:
+    """`table[name]["values"]` for a contract vocabulary, or `table[name]`
+    for a refusal-reason set (a list), when it is a list of strings; None
+    when it is absent or not that shape."""
+    if not isinstance(table, dict) or name not in table:
+        return None
+    entry = table[name]
+    values = entry.get("values") if isinstance(entry, dict) else entry
+    if isinstance(values, list) and all(isinstance(v, str) for v in values):
+        return values
+    return None
+
+
+def _quoted(values: list[str]) -> str:
+    return ", ".join(repr(v) for v in values)
+
+
+def _plural(values: list[str], one: str, many: str) -> str:
+    return one if len(values) == 1 else many
+
+
+def contract_findings(manifest: Manifest, line: Mapping[str, Any],
+                      installed: str | None) -> tuple[list[str], list[str], list[str]]:
+    """Hold one contract line (already parsed) to what twine reads. Returns
+    (problems, moved, notes): every refusing fact, the subset that says
+    something twine reads moved, and the reported additions. Pure: the
+    manifest, the line and bin/VERSION's text in, sentences out.
+
+    Refused, each named:
+      - an `outcome` that is not "contract";
+      - a `bale_version` that is not bin/VERSION's text (or cannot be held to
+        it, bin/VERSION not having read);
+      - a `[[vocabulary]]` axis the contract does not state, or states with
+        another set of values — a value added or removed, named with the axis
+        (the transition table must stay total, D17);
+      - a key a verb `[[surface]]` lists in `keys` that the contract's
+        `json_keys` does not give one of the lines its reader reads
+        (`contract_lines`) — or such a line the contract does not state;
+      - an outcome twine dispatches on (DISPATCHED_OUTCOMES) that the
+        contract's vocabulary lacks, and a reason it dispatches on
+        (DISPATCHED_REASONS: hold-branch, by its reader) that the contract's
+        `refusal_reasons` for the surface's verb lacks.
+    Reported, never refused: a value a surface's outcome vocabulary or
+    refusal-reason set gained beyond what the manifest records, or lost when
+    twine does not dispatch on it."""
+    problems: list[str] = []
+    moved: list[str] = []
+    notes: list[str] = []
+
+    def refuse(sentence: str, *, is_move: bool) -> None:
+        problems.append(sentence)
+        if is_move:
+            moved.append(sentence)
+
+    outcome = line.get("outcome")
+    if outcome != CONTRACT_OUTCOME:
+        refuse(f"bale contract --json's line has outcome {outcome!r}, not "
+               f"{CONTRACT_OUTCOME!r}", is_move=False)
+    version = line.get("bale_version")
+    if not isinstance(version, str):
+        refuse(f"bale contract --json's line carries no bale_version string (got "
+               f"{version!r})", is_move=False)
+    elif installed is None:
+        refuse(f"the contract's bale_version {version} cannot be held to bin/VERSION, "
+               "which did not read", is_move=False)
+    elif version != installed:
+        refuse(f"the contract's bale_version {version} disagrees with bin/VERSION, which "
+               f"reads {installed} — the line is not this install's", is_move=False)
+
+    # A section that is not an object is one shape problem, named once; a
+    # section that is an object — even an empty one — is read, and every
+    # thing twine reads that it does not state is named.
+    vocabularies = line.get("vocabularies")
+    has_vocabularies = isinstance(vocabularies, dict)
+    if not has_vocabularies:
+        refuse("bale contract --json's line has no `vocabularies` object", is_move=False)
+        vocabularies = {}
+    for axis, entry in manifest.vocabularies.items():
+        if not has_vocabularies:
+            break
+        stated = _values(vocabularies, axis)
+        if stated is None:
+            refuse(f"the contract states no {axis} vocabulary, which the transition "
+                   "table keys on", is_move=True)
             continue
-        checked.append(name)
-        digest = hashlib.sha256(data).hexdigest()
-        if digest != manifest.schemas[name]:
-            log.info("schema %s hashes %s, the manifest pins %s", path, digest,
-                     manifest.schemas[name])
-            mismatched.append(name)
-    return SchemaVerdict(where, True, tuple(checked), tuple(mismatched), tuple(missing))
+        recorded = list(entry["values"])
+        added = [v for v in stated if v not in recorded]
+        removed = [v for v in recorded if v not in stated]
+        if added:
+            refuse(f"the contract's {axis} vocabulary adds {_quoted(added)}, which the "
+                   "consumption manifest does not record — the transition table would "
+                   f"have no row for {_plural(added, 'it', 'them')} (D17)", is_move=True)
+        if removed:
+            refuse(f"the contract's {axis} vocabulary no longer lists {_quoted(removed)}, "
+                   "which the consumption manifest records and the transition table keys "
+                   "on", is_move=True)
+
+    json_keys = line.get("json_keys")
+    has_json_keys = isinstance(json_keys, dict)
+    if not has_json_keys:
+        refuse("bale contract --json's line has no `json_keys` object", is_move=False)
+        json_keys = {}
+    refusal_reasons = line.get("refusal_reasons")
+    has_reasons = isinstance(refusal_reasons, dict)
+    if not has_reasons:
+        refuse("bale contract --json's line has no `refusal_reasons` object", is_move=False)
+        refusal_reasons = {}
+    for surface in manifest.surfaces:
+        if surface.get("kind") != "verb":
+            continue
+        verb = str(surface.get("verb"))
+        keys = [k for k in surface.get("keys") or [] if isinstance(k, str)]
+        for name in surface.get("contract_lines") or []:
+            if not has_json_keys:
+                break
+            stated = json_keys.get(name)
+            if not isinstance(stated, list):
+                refuse(f"the contract states no keys for bale's {name} line, which twine "
+                       f"reads (the {verb} surface)", is_move=True)
+                continue
+            lacking = [k for k in keys if k not in stated]
+            if lacking:
+                refuse(f"the contract's {name} line lacks the "
+                       f"{_plural(lacking, 'key', 'keys')} {_quoted(lacking)}, which twine "
+                       f"reads (the {verb} surface)", is_move=True)
+        vocabulary = surface.get("outcome_vocabulary")
+        if isinstance(vocabulary, str) and has_vocabularies:
+            dispatched = list(DISPATCHED_OUTCOMES.get(vocabulary, ()))
+            stated = _values(vocabularies, vocabulary)
+            if stated is None:
+                refuse(f"the contract states no {vocabulary} vocabulary, which twine "
+                       f"dispatches on (the {verb} surface)", is_move=True)
+            else:
+                _held(f"the contract's {vocabulary} vocabulary", False, stated,
+                      list(surface.get("outcomes") or []), dispatched,
+                      "an outcome", refuse, notes)
+        reasons = surface.get("reasons")
+        if isinstance(reasons, list) and has_reasons:
+            dispatched = [reason for reader in surface.get("read_by") or []
+                          for reason in DISPATCHED_REASONS.get(reader, ())]
+            stated = _values(refusal_reasons, verb)
+            if stated is None:
+                if dispatched:
+                    refuse(f"the contract states no {verb} refusal reasons, and twine "
+                           f"dispatches on {_quoted(dispatched)}", is_move=True)
+                else:
+                    notes.append(f"the contract states no {verb} refusal reasons, which "
+                                 "the consumption manifest records (reported, not refused: "
+                                 "twine dispatches on none)")
+            else:
+                _held(f"the contract's {verb} refusal reasons", True, stated, list(reasons),
+                      dispatched, "a reason", refuse, notes)
+    return problems, moved, notes
+
+
+def _held(what: str, plural: bool, stated: list[str], recorded: list[str],
+          dispatched: list[str], kind: str, refuse: Callable[..., None],
+          notes: list[str]) -> None:
+    """One outcome vocabulary (`plural` false) or refusal-reason set (`plural`
+    true): a value twine dispatches on that the contract lacks refuses; a
+    value the contract adds beyond what the manifest records, or drops that
+    twine does not dispatch on, is a note."""
+    lack, add, lists = ("lack", "add", "list") if plural else ("lacks", "adds", "lists")
+    for value in dispatched:
+        if value not in stated:
+            refuse(f"{what} {lack} {value!r}, {kind} twine dispatches on", is_move=True)
+    added = [v for v in stated if v not in recorded]
+    if added:
+        notes.append(f"{what} {add} {_quoted(added)}, which the consumption manifest "
+                     "does not record (reported, not refused: twine does not dispatch on "
+                     f"{_plural(added, 'it', 'them')})")
+    dropped = [v for v in recorded if v not in stated and v not in dispatched]
+    if dropped:
+        notes.append(f"{what} no longer {lists} {_quoted(dropped)}, which the "
+                     "consumption manifest records (reported, not refused: twine does "
+                     f"not dispatch on {_plural(dropped, 'it', 'them')})")
+
+
+def check_contract(manifest: Manifest, root: Path, installed: str | None,
+                   run: Callable[..., Any], env: Mapping[str, str] | None = None
+                   ) -> ContractVerdict:
+    """Run `<root>/bin/bale contract --json` — the resolved root's own
+    executable, through the run seam, stdin closed, with a timeout and a
+    stdout cap — and hold its one line to what twine reads
+    (contract_findings). Never raises for anything bale does: a bale that
+    cannot be started, is killed, exits non-zero or prints anything but one
+    JSON object line is a verdict whose problems name it."""
+    argv = contract_argv(root / EXECUTABLE_RELPATH)
+    log.info("asking bale for its contract: %s", " ".join(argv))
+    try:
+        result = run(argv, cwd=None, stdin=None, timeout=CONTRACT_TIMEOUT_SECONDS,
+                     env=None if env is None else dict(env),
+                     stdout_cap=CONTRACT_STDOUT_CAP_BYTES)
+    except process.RunError as exc:
+        problem = f"bale contract --json could not be started: {exc.strerror or exc}"
+        log.info("%s", problem)
+        return ContractVerdict(True, tuple(argv), None, None, None, (problem,), (), ())
+    stdout = bytes(result.stdout or b"")
+    digest = hashlib.sha256(stdout).hexdigest() if stdout else None
+    problems: list[str] = []
+    if result.timed_out:
+        problems.append(f"bale contract --json was killed after "
+                        f"{CONTRACT_TIMEOUT_SECONDS:g}s without exiting")
+    elif result.stdout_capped:
+        problems.append(f"bale contract --json printed more than "
+                        f"{CONTRACT_STDOUT_CAP_BYTES} bytes and was killed")
+    elif result.exit_code != 0:
+        said = bytes(result.stderr or b"").decode("utf-8", "replace").strip()
+        if len(said) > CONTRACT_STDERR_QUOTED:
+            said = said[-CONTRACT_STDERR_QUOTED:]
+        problems.append(f"bale contract --json exited {result.exit_code}"
+                        + (f" (stderr: {said!r})" if said else " with nothing on stderr"))
+    if problems:
+        log.info("contract run failed: %s", "; ".join(problems))
+        return ContractVerdict(True, tuple(argv), result.exit_code, None, digest,
+                               tuple(problems), (), ())
+    line, problem = parse_contract_stdout(stdout)
+    if line is None:
+        log.info("contract line unreadable: %s", problem)
+        return ContractVerdict(True, tuple(argv), result.exit_code, None, digest,
+                               (problem or "bale contract --json printed no line",), (), ())
+    version = line.get("bale_version")
+    found, moved, notes = contract_findings(manifest, line, installed)
+    for sentence in found:
+        log.info("contract: %s", sentence)
+    for sentence in notes:
+        log.info("contract note: %s", sentence)
+    return ContractVerdict(True, tuple(argv), result.exit_code,
+                           version if isinstance(version, str) else None, digest,
+                           tuple(found), tuple(moved), tuple(notes))
+
+
+def contract_not_asked(root: Path, installed: str, floor: str) -> ContractVerdict:
+    """The verdict for an install below the floor: the floor is the first
+    bale with `contract --json`, so the gate does not run a verb the install
+    cannot have — said, never silently skipped."""
+    return ContractVerdict(False, tuple(contract_argv(root / EXECUTABLE_RELPATH)), None,
+                           None, None,
+                           (f"bale contract --json was not run (no bale below the floor "
+                            f"{floor} has it)",), (), ())
 
 
 @dataclass(frozen=True)
 class CheckResult:
     """`twine bale check`'s facts: the floor, what is installed (None when
-    unreadable), where, the schema verdict (None when no install was
+    unreadable), where, the contract verdict (None when no install was
     found), and whether the gate admits the install."""
 
     floor: str
     installed: str | None
     root: Path | None
     source: str | None
-    schemas: SchemaVerdict | None
+    contract: ContractVerdict | None
     ok: bool
     reason: str
-    pinned: int = 0
 
     @property
     def floor_admits(self) -> bool | None:
@@ -382,37 +734,43 @@ class CheckResult:
         return {"floor": self.floor, "installed": self.installed,
                 "root": None if self.root is None else str(self.root),
                 "source": self.source,
-                "schemas": None if self.schemas is None else self.schemas.as_json(),
+                "contract": None if self.contract is None else self.contract.as_json(),
                 "ok": self.ok, "reason": self.reason}
 
     def as_lines(self) -> list[str]:
         where = "no install found" if self.root is None else str(self.root)
-        schemas = ("(not checked: no install)" if self.schemas is None
-                   else self.schemas.summary(self.pinned))
+        contract = ("(not checked: no install)" if self.contract is None
+                    else self.contract.summary())
+        notes = [] if self.contract is None else list(self.contract.notes)
         return [f"floor:     {self.floor} (twine drives this bale or any above it)",
                 f"installed: {self.installed if self.installed else '(unreadable)'}",
                 f"root:      {where}" + (f"  (from {self.source})" if self.source else ""),
-                f"schemas:   {schemas}",
+                f"contract:  {contract}",
+                *(f"note:      {note}" for note in notes),
                 f"check:     {'ok' if self.ok else 'FAIL'} — {self.reason}"]
 
 
-def check(manifest: Manifest, root: Root) -> CheckResult:
-    """The gate (D2 as amended on 2026-10-08): ok exactly when an install
-    was found, its `bin/VERSION` reads and parses as three dotted integers
-    at or above the manifest's floor (compared as a tuple), and every file
-    `[bale.schemas]` names exists under `<root>/schemas/` with that sha256.
+def check(manifest: Manifest, root: Root, run: Callable[..., Any],
+          env: Mapping[str, str] | None = None) -> CheckResult:
+    """The gate (D2; since session 2026-10-15-twine-gate-contract-001 the
+    floor plus bale's contract): ok exactly when an install was found, its
+    `bin/VERSION` reads and parses as three dotted integers at or above the
+    manifest's floor (compared as a tuple), and `<root>/bin/bale contract
+    --json`, run through `run` (the seam), prints one contract line for that
+    version stating everything twine reads (check_contract). No file under
+    `<root>/schemas/` is read.
 
-    Every failing fact is named at once in the reason — a version below
-    the floor and a mismatched schema are two sentences, not the first of
-    them — and nothing raises: a wrong or absent install is a check result,
-    not an internal error.
-    """
-    pinned = len(manifest.schemas)
+    Every failing fact is named at once in the reason — a version that does
+    not parse and a contract that lacks a key are two sentences, not the
+    first of them — and nothing raises: a wrong or absent install is a check
+    result, not an internal error. Below the floor the contract is not asked
+    (the floor is the first bale with the verb), and the reason says so."""
     if root.path is None:
         return CheckResult(manifest.floor, None, None, None, None, False,
-                           f"no bale install found ({root.detail})", pinned)
+                           f"no bale install found ({root.detail})")
     problems: list[str] = []
     installed, detail = read_installed_version(root.path)
+    below = False
     if installed is None:
         problems.append(detail)
     else:
@@ -427,14 +785,21 @@ def check(manifest: Manifest, root: Root) -> CheckResult:
                             "dotted integers, so no install compares at or above it")
         elif parsed < floor:
             problems.append(f"installed {installed} is below the floor {manifest.floor}")
-    schemas = check_schemas(manifest, root.path)
-    problems.extend(schemas.problems())
+            below = True
+    if below and installed is not None:
+        contract = contract_not_asked(root.path, installed, manifest.floor)
+    else:
+        contract = check_contract(manifest, root.path, installed, run, env)
+    problems.extend(contract.problems)
     if problems:
-        return CheckResult(manifest.floor, installed, root.path, root.source, schemas,
-                           False, "; ".join(problems), pinned)
-    return CheckResult(manifest.floor, installed, root.path, root.source, schemas, True,
+        return CheckResult(manifest.floor, installed, root.path, root.source, contract,
+                           False, "; ".join(problems))
+    added = (f"; {len(contract.notes)} addition{'s' if len(contract.notes) != 1 else ''} "
+             "reported, none refused") if contract.notes else ""
+    return CheckResult(manifest.floor, installed, root.path, root.source, contract, True,
                        f"installed {installed} is at or above the floor {manifest.floor}, "
-                       f"and all {pinned} schemas hash as the manifest pins them", pinned)
+                       "and its contract (bale contract --json) states everything twine "
+                       f"reads{added}")
 
 
 # ---------------------------------------------------------------------------
@@ -461,6 +826,9 @@ UNLOCK_REASON = "aborted"
 # floor under it: it starts with a letter or digit, so it can never be
 # read as a flag, and holds no whitespace or shell-significant byte.
 SID_ARGUMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+# The gate's argv after the executable (session 2026-10-15-twine-gate-contract-001):
+# the verb bale 0.4.54 added and `--json`, its only form that prints a line.
+CONTRACT_ARGS = ("contract", "--json")
 
 
 @dataclass(frozen=True)
@@ -491,12 +859,15 @@ class Executable:
         return self.verdict.floor_admits
 
     @property
-    def schemas_match(self) -> bool | None:
-        """Whether every pinned schema is installed with its sha256; None
-        when the gate never looked (no root, or no manifest)."""
-        if self.verdict is None or self.verdict.schemas is None:
+    def contract_ok(self) -> bool | None:
+        """Whether the install's contract (`bale contract --json`) states
+        everything twine reads; None when the gate never asked (no root, no
+        manifest, or an install below the floor). Since session 2026-10-15-twine-gate-contract-001, in
+        the place of `schemas_match`."""
+        if (self.verdict is None or self.verdict.contract is None
+                or not self.verdict.contract.asked):
             return None
-        return self.verdict.schemas.ok
+        return self.verdict.contract.ok
 
     @property
     def drive_refusal(self) -> str | None:
@@ -504,47 +875,60 @@ class Executable:
 
         Twine drives a bale the gate admits — exactly one `twine bale check`
         reports ok — and refuses every other before starting it. The
-        transition table keys on bale's outcome and closure vocabularies; the
-        floor is the version they were read at, the schema hashes hold the
-        two schema-homed ones fixed above it, and the key check on each line
-        catches a listed key gone missing. A bale the gate does not admit may
-        answer in spellings the table has no move for: the surprise D17 rules
-        out. Raising the floor is the deliberate event — a recording session
-        — never an ambient one."""
+        transition table keys on bale's outcome and closure vocabularies, and
+        the readers on the keys and outcomes of four lines; the floor is the
+        first bale that states them (`bale contract --json`), and the gate
+        holds the install's statement to twine's. A bale the gate does not
+        admit may answer in spellings twine has no move for: the surprise D17
+        rules out. When the contract read cleanly and something twine reads
+        moved, the refusal says bale changed it and that a recording session
+        lands the new spelling (the moved facts are in the reason); otherwise
+        it says which bale twine drives."""
         if self.path is None:
             return self.detail
         if self.floor is None or self.verdict is None:
             return ("the floor is unknown (share/bale-consumption.toml is "
-                    "unusable), so twine cannot tell whether any bale keeps the "
-                    "vocabularies its transition table keys on — it drives only a "
-                    "bale at or above the floor whose schemas hash as the manifest "
-                    "pins them (D2)")
-        if not self.verdict.ok:
-            return (f"bale at {self.root.path} is not one twine drives: "
-                    f"{self.verdict.reason}; twine drives only a bale at or above the "
-                    f"floor {self.floor} whose schemas hash as the manifest pins them "
-                    "(D2), since its transition table keys on the vocabularies that "
-                    "keeps — install such a bale, or raise the floor in a recording "
-                    "session")
-        return None
+                    "unusable), so twine cannot tell whether any bale states the "
+                    "spellings its transition table and readers key on — it drives "
+                    "only a bale at or above the floor whose contract (bale contract "
+                    "--json) states everything twine reads (D2)")
+        if self.verdict.ok:
+            return None
+        refusal = f"bale at {self.root.path} is not one twine drives: {self.verdict.reason}"
+        contract = self.verdict.contract
+        if contract is not None and contract.moved:
+            refusal += ("; bale changed something twine reads (named above), so twine "
+                        "would meet spellings it has no move for (D17) — a recording "
+                        "session lands the new spelling")
+        # Anything else that failed — the version, or a contract that could not
+        # be read or is not this install's — is about which bale is installed.
+        other = (self.verdict.floor_admits is not True or contract is None
+                 or len(contract.problems) > len(contract.moved))
+        if other:
+            refusal += (f"; twine drives only a bale at or above the floor {self.floor} "
+                        "whose contract (bale contract --json) states everything twine "
+                        "reads (D2)")
+        return refusal
 
     def as_json(self) -> dict[str, Any]:
         return {"executable": None if self.path is None else str(self.path),
                 "root": None if self.root.path is None else str(self.root.path),
                 "source": self.root.source, "installed": self.installed,
                 "floor": self.floor, "floor_admits": self.floor_admits,
-                "schemas_match": self.schemas_match}
+                "contract_ok": self.contract_ok}
 
 
 def locate_executable(explicit: str | None, env: Mapping[str, str],
-                      which: Callable[[str], str | None]) -> Executable:
+                      which: Callable[[str], str | None],
+                      run: Callable[..., Any]) -> Executable:
     """`<root>/bin/bale`, the root resolved exactly as `bale check` does
     (`--bale-root`, TWINE_BALE_ROOT, then PATH), with the gate's verdict
-    computed by `check` itself, so a carry verb and `bale check` can never
+    computed by `check` itself — `run`, the caller's seam, runs the
+    install's `contract --json` — so a carry verb and `bale check` can never
     disagree about an install. The tests pin TWINE_BALE_ROOT, so a bale on
     the operator's PATH is never what a test runs (cli-contract.md §8).
     Whether the file exists is learned by starting it: a root with no
-    `bin/bale` is a RunError at the seam."""
+    `bin/bale` is a RunError at the seam, which the gate reports."""
     root = resolve_root(explicit, env, which)
     manifest: Manifest | None = None
     try:
@@ -556,11 +940,19 @@ def locate_executable(explicit: str | None, env: Mapping[str, str],
         return Executable(root, None, None, floor,
                           f"no bale install found ({root.detail})", None, manifest)
     installed, detail = read_installed_version(root.path)
-    verdict = None if manifest is None else check(manifest, root)
+    verdict = None if manifest is None else check(manifest, root, run, env)
     path = root.path / EXECUTABLE_RELPATH
     log.info("bale executable: %s (%s; %s; gate %s)", path, root.detail, detail,
              "unknown" if verdict is None else ("admits" if verdict.ok else "refuses"))
     return Executable(root, path, installed, floor, detail, verdict, manifest)
+
+
+def contract_argv(executable: Path) -> list[str]:
+    """`bale contract --json` — the gate's one argv (session
+    2026-10-15-twine-gate-contract-001): the install's own executable, the
+    verb and `--json`, nothing else. bale prints one JSON line stating its
+    vocabularies, refusal reasons and the keys of every `--json` line."""
+    return [str(executable), *CONTRACT_ARGS]
 
 
 def relay_argv(executable: Path, sid: str) -> list[str]:

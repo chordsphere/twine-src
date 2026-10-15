@@ -49,7 +49,8 @@ outcome no bale emits, used to prove twine names an outcome it does not
 know, is spelled NOT_A_BALE_OUTCOME (tests/helpers.py) so no reader takes
 it for bale's. And the carry verbs drive only a bale the gate admits
 (D2; an exact pin until session 2026-10-12-twine-pin-floor-002, a floor
-plus schema hashes since): section 8; and each checks, on the line it
+plus schema hashes until session 2026-10-15-twine-gate-contract-001, the
+floor plus bale's contract since): section 8; and each checks, on the line it
 reads, the keys the consumption manifest lists for its surface: section 9.
 
 Sections:
@@ -83,14 +84,15 @@ from twine.cli import Context, main
 from twine.commands.carry_bale import (BALE_STDOUT_CAP_BYTES, BALE_TIMEOUT_SECONDS,
                                        VOUCH_FAILURE, ExchangeOutcome,
                                        vouch_for_relayed_block)
-from twine.process import RunResult
+from twine.process import RunResult, run_process
 
-from tests.helpers import (ABOVE, BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, FLOOR, RELAY_KEYS,
-                           RELAY_RECORDED_ABSENT_SID, RELAY_RECORDED_SID, RELAY_STDIN_KEY,
-                           FixturePlayer, RecordedRelay, RecordingRunner, Run, StubBale,
-                           TempRoots, block_for_sid, carried_relpath, drop_key,
-                           emission_relpath, fixture_relpath, relay_recording, relayed_block,
-                           run_cli, turn)
+from tests.helpers import (ABOVE, BALE_VOCABULARIES, CONTRACT_VERSION, NOT_A_BALE_OUTCOME,
+                           FLOOR, RELAY_KEYS, RELAY_RECORDED_ABSENT_SID, RELAY_RECORDED_SID,
+                           RELAY_STDIN_KEY, FixturePlayer, RecordedRelay, RecordingRunner, Run,
+                           StubBale, TempRoots, block_for_sid, carried_relpath, contract_line,
+                           drop_contract_key, drop_key, edited_contract, emission_relpath,
+                           fixture_relpath, install_schemas, make_root, relay_recording,
+                           relayed_block, run_cli, turn, write_contract_double)
 
 # ---------------------------------------------------------------------------
 # 1. Helpers and doubles
@@ -163,9 +165,10 @@ class RecordingPlayer(FixturePlayer):
 def run_verb(verb: str, *argv: str, runner, env: dict | None = None,
              stdin: bytes = b"") -> Run:
     """`twine carry <verb> …` in-process, bale reached only through
-    `runner`. TWINE_BALE_ROOT names a temp root with bin/VERSION at the
-    floor and the eight schemas unless `env` says otherwise; nothing is
-    looked up on PATH."""
+    `runner`. TWINE_BALE_ROOT names a temp root the gate admits (bin/VERSION
+    0.4.55, its bin/bale double answering `contract --json` with the carried
+    line — the runner hands that one call to the root's double) unless `env`
+    says otherwise; nothing is looked up on PATH."""
     out, err = io.StringIO(), io.StringIO()
     ctx = Context(env=env if env is not None else {"TWINE_BALE_ROOT": ROOTS.ok.as_posix()},
                   stdout=out, stderr=err, which=lambda name: None,
@@ -1258,8 +1261,9 @@ class EndToEnd(TempCase):
         self.assertEqual((obj["relay"], obj["outcome"]), (RELAYED.line, "relayed"))
         self.assertEqual(obj["bale"]["executable"], str(self.stub.executable))
         self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor"],
-                          obj["bale"]["floor_admits"], obj["bale"]["schemas_match"]),
-                         (FLOOR, FLOOR, True, True))
+                          obj["bale"]["floor_admits"], obj["bale"]["contract_ok"]),
+                         (CONTRACT_VERSION, FLOOR, True, True))
+        self.assertNotIn("schemas_match", obj["bale"])
         self.assertNotIn("pin", obj["bale"])
         self.assertNotIn("pin_matches", obj["bale"])
         self.assertIn("[bale] stub: not bale", run.stderr)
@@ -1349,8 +1353,8 @@ class EndToEnd(TempCase):
     def test_below_the_floor_is_refused_and_never_run(self):
         """D2 as amended (session 2026-10-12-twine-pin-floor-002; was
         test_a_version_other_than_the_pin_is_refused_and_never_run): the stub
-        at 0.4.49, below the floor, is never started — every schema as
-        pinned, so the version alone refuses it."""
+        at 0.4.49, below the floor, is never started — not even for its
+        contract, which no bale below the floor has (contract_ok null)."""
         (self.stub.root / "bin" / "VERSION").write_text("0.4.49\n", encoding="utf-8")
         for argv in (["carry", "response", str(self.tarball())],
                      ["carry", "exchange", str(self.exchange_turn())]):
@@ -1360,16 +1364,18 @@ class EndToEnd(TempCase):
                 self.assertEqual((run.code, obj["ok"], obj["ran"], obj["exit_code"]),
                                  (1, False, False, None))
                 self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor_admits"],
-                                  obj["bale"]["schemas_match"]), ("0.4.49", False, True))
+                                  obj["bale"]["contract_ok"]), ("0.4.49", False, None))
                 self.assertIn(f"installed 0.4.49 is below the floor {FLOOR}", obj["reason"])
                 self.assertEqual(obj["refusals"], [obj["reason"]])
                 self.assertIsNone(self.stub.argv(), "the stub was started")
 
     def test_above_the_floor_is_driven(self):
-        """The stub at 0.4.52 — the operator's install when the floor landed,
-        every schema as pinned — is driven as the floor's own would be:
-        carry exchange relays and carry response dry-runs, ok."""
+        """The stub at 0.4.56 — above the carried line's version, its
+        contract the carried line with that bale_version (a double) — is
+        driven as the floor's own would be: carry exchange relays and carry
+        response dry-runs, ok."""
         (self.stub.root / "bin" / "VERSION").write_text(ABOVE + "\n", encoding="utf-8")
+        write_contract_double(self.stub.root, contract_line(ABOVE))
         run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
                       bale_root=self.stub.root)
         obj = one_line(self, run.stdout, "carry exchange")
@@ -1384,20 +1390,31 @@ class EndToEnd(TempCase):
         self.assertEqual((run.code, obj["ok"], obj["apply_line"]),
                          (0, True, f"bale apply {tarball}"), obj["reason"])
 
-    def test_a_schema_that_does_not_hash_as_pinned_is_refused_and_never_run(self):
-        """At the floor, but one installed schema's bytes differ: the gate's
-        second half refuses it before bale starts, naming the file."""
-        altered = self.stub.root / "schemas" / TempRoots.ALTERED_SCHEMA
-        altered.write_bytes(altered.read_bytes() + b" ")
+    def test_an_altered_schema_is_driven_and_a_moved_contract_is_never_run(self):
+        """Session 2026-10-15-twine-gate-contract-001 (was
+        test_a_schema_that_does_not_hash_as_pinned_is_refused_and_never_run):
+        one installed schema's bytes altered no longer matters — the stub is
+        driven; its contract lacking a key twine reads (a double) refuses it
+        before bale starts, naming the line and the key."""
+        install_schemas(self.stub.root, alter=TempRoots.ALTERED_SCHEMA)
+        run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
+                      bale_root=self.stub.root)
+        obj = one_line(self, run.stdout, "carry exchange")
+        self.assertEqual((run.code, obj["ok"], obj["bale"]["contract_ok"]), (0, True, True),
+                         obj["reason"])
+        write_contract_double(self.stub.root,
+                              edited_contract(drop_contract_key("relay", "block")))
+        stub_calls = len(self.stub.calls())
         run = run_cli("carry", "exchange", str(self.exchange_turn()), "--json",
                       bale_root=self.stub.root)
         obj = one_line(self, run.stdout, "carry exchange")
         self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
-        self.assertEqual((obj["bale"]["floor_admits"], obj["bale"]["schemas_match"]),
+        self.assertEqual((obj["bale"]["floor_admits"], obj["bale"]["contract_ok"]),
                          (True, False))
-        self.assertIn(TempRoots.ALTERED_SCHEMA, obj["reason"])
-        self.assertIn("do not hash as the manifest pins them", obj["reason"])
-        self.assertIsNone(self.stub.argv(), "the stub was started")
+        self.assertIn("the contract's relay line lacks the key 'block', which twine reads "
+                      "(the relay surface)", obj["reason"])
+        self.assertIn("a recording session lands the new spelling", obj["reason"])
+        self.assertEqual(len(self.stub.calls()), stub_calls, "the stub was started")
 
     def test_the_key_check_end_to_end(self):
         """The stub replays a line that is NOT bale's: the relayed recording
@@ -1451,19 +1468,22 @@ class FindingBale(TempCase):
                 self.assertEqual(obj["bale"]["source"], "TWINE_BALE_ROOT")
         self.assertFalse(marker.exists(), "a test reached the bale on PATH")
 
-    def test_an_admitted_root_with_no_bin_bale_could_not_be_started(self):
-        """The VERSION reads the floor and the schemas hash as pinned, but
-        there is no bin/bale: learned by starting it, through the real seam —
-        a refusal, ran false. (Was
-        test_a_pinned_root_with_no_bin_bale_could_not_be_started.)"""
+    def test_a_root_with_no_bin_bale_is_refused_by_the_gate(self):
+        """The VERSION reads above the floor, but there is no bin/bale: learned
+        by starting it, through the real seam — since session
+        2026-10-15-twine-gate-contract-001 when the gate asks for its
+        contract, so the verb is refused before it runs, ran false. (Was
+        test_an_admitted_root_with_no_bin_bale_could_not_be_started.)"""
+        root = make_root(self.dir / "no-exe", CONTRACT_VERSION, executable=False)
         for argv in (["carry", "exchange", str(self.exchange_turn())],
                      ["carry", "response", str(self.tarball())]):
             with self.subTest(verb=argv[1]):
-                run = run_cli(*argv, "--json", bale_root=ROOTS.ok)
+                run = run_cli(*argv, "--json", bale_root=root)
                 obj = one_line(self, run.stdout, " ".join(argv[:2]))
                 self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
-                self.assertIn("could not be started", obj["reason"])
-                self.assertEqual(obj["bale"]["floor_admits"], True)
+                self.assertIn("bale contract --json could not be started", obj["reason"])
+                self.assertEqual((obj["bale"]["floor_admits"], obj["bale"]["contract_ok"]),
+                                 (True, False))
 
     def test_no_bale_anywhere_is_a_refusal(self):
         for verb, arg in (("exchange", str(self.exchange_turn())),
@@ -1515,12 +1535,13 @@ class FindingBale(TempCase):
 class TheGate(TempCase):
     """The carry verbs drive a bale the gate admits — exactly one `twine bale
     check` reports ok: bin/VERSION at or above the floor, as three dotted
-    integers compared as a tuple, and every schema the manifest pins
-    installed with its sha256 — and refuse every other before bale starts,
-    never after. The transition table keys on bale's outcome and closure
-    vocabularies; the floor is the version they were read at and the schema
-    hashes hold the two schema-homed ones fixed. (Was ThePinGates: an exact
-    pin, until the floor.)"""
+    integers compared as a tuple, and its contract (`bale contract --json`)
+    stating everything twine reads — and refuse every other before bale
+    starts, never after. The transition table keys on bale's outcome and
+    closure vocabularies, and the readers on four lines' keys and outcomes;
+    the contract states them, and the gate holds it to twine's. (Was
+    ThePinGates: an exact pin, until the floor; the floor plus schema hashes
+    until session 2026-10-15-twine-gate-contract-001.)"""
 
     def both(self, root: Path) -> list[tuple[str, Run, dict, object]]:
         """Each carry verb at `root`: exchange answered by the relayed
@@ -1543,33 +1564,63 @@ class TheGate(TempCase):
                 with self.subTest(installed=installed, verb=verb):
                     self.assert_refused(run, obj, runner,
                                         f"installed {installed} is below the floor {FLOOR}",
-                                        "(D2)", "raise the floor in a recording session")
+                                        "(D2)", f"twine drives only a bale at or above the "
+                                                f"floor {FLOOR}")
+                    self.assertNotIn("raise the floor", obj["reason"])
                     self.assertEqual((obj["bale"]["floor_admits"], obj["bale"]["floor"]),
                                      (False, FLOOR))
+                    self.assertEqual(runner.gate_calls, [], "its contract was asked")
 
     def test_at_and_above_the_floor_are_driven(self):
-        """Was test_the_pinned_version_is_driven: the floor, 0.4.52 and
-        0.4.100 (above as a tuple, below as a string) are all driven."""
-        for root, installed in ((ROOTS.ok, FLOOR), (ROOTS.above, ABOVE),
+        """Was test_the_pinned_version_is_driven: the floor (0.4.54), the
+        carried line's 0.4.55, 0.4.56 and 0.4.100 (above as a tuple, below as
+        a string) are all driven — each asked for its contract once, through
+        the verb's own seam."""
+        for root, installed in ((ROOTS.at_floor, FLOOR), (ROOTS.ok, CONTRACT_VERSION),
+                                (ROOTS.above, ABOVE),
                                 (ROOTS.far_above, TempRoots.FAR_ABOVE)):
             for verb, run, obj, runner in self.both(root):
                 with self.subTest(installed=installed, verb=verb):
                     self.assertEqual((run.code, obj["ok"], obj["ran"]), (0, True, True),
                                      obj["reason"])
-                    self.assertEqual(len(runner.calls), 1)
+                    self.assertEqual((len(runner.calls), len(runner.gate_calls)), (1, 1))
                     self.assertEqual((obj["bale"]["installed"], obj["bale"]["floor_admits"],
-                                      obj["bale"]["schemas_match"]), (installed, True, True))
+                                      obj["bale"]["contract_ok"]), (installed, True, True))
 
-    def test_schemas_that_do_not_hash_as_pinned_are_refused_before_bale_starts(self):
-        """At the floor, but a schema altered, or no schemas/ at all: the
-        gate's second half refuses, naming what failed."""
-        for root, says in ((ROOTS.bad_schema, TempRoots.ALTERED_SCHEMA),
-                           (ROOTS.no_schemas, "no schemas/ directory")):
+    def test_schemas_altered_or_absent_are_driven(self):
+        """Session 2026-10-15-twine-gate-contract-001 (was
+        test_schemas_that_do_not_hash_as_pinned_are_refused_before_bale_starts):
+        the gate reads no schemas/, so neither matters."""
+        for root in (ROOTS.bad_schema, ROOTS.no_schemas):
+            for verb, run, obj, runner in self.both(root):
+                with self.subTest(root=root.name, verb=verb):
+                    self.assertEqual((run.code, obj["ok"], obj["ran"]), (0, True, True),
+                                     obj["reason"])
+                    self.assertEqual(obj["bale"]["contract_ok"], True)
+
+    def test_a_contract_that_moved_is_refused_before_bale_starts(self):
+        """A contract lacking an open key, adding a telemetry outcome, lacking
+        hold-branch, or naming another version than bin/VERSION: refused
+        before bale starts, the moved thing named — and, when it is
+        something twine reads, the refusal says a recording session lands
+        the new spelling, never to raise the floor."""
+        for root, says, moved in (
+                (ROOTS.lacks_key, "the contract's open-refused line lacks the key 'desk'",
+                 True),
+                (ROOTS.adds_outcome, f"telemetry-outcome vocabulary adds "
+                                     f"{NOT_A_BALE_OUTCOME!r}", True),
+                (ROOTS.lacks_hold_branch, "unlock refusal reasons lack 'hold-branch'", True),
+                (ROOTS.disagrees, f"the contract's bale_version {ABOVE} disagrees with "
+                                  "bin/VERSION", False)):
             for verb, run, obj, runner in self.both(root):
                 with self.subTest(root=root.name, verb=verb):
                     self.assert_refused(run, obj, runner, says, "is not one twine drives")
                     self.assertEqual((obj["bale"]["floor_admits"],
-                                      obj["bale"]["schemas_match"]), (True, False))
+                                      obj["bale"]["contract_ok"]), (True, False))
+                    self.assertEqual("a recording session lands the new spelling"
+                                     in obj["reason"], moved)
+                    self.assertNotIn("raise the floor", obj["reason"])
+                    self.assertEqual(len(runner.gate_calls), 1)
 
     def test_an_unreadable_or_unparsable_version_is_refused_before_bale_starts(self):
         for root, says in ((ROOTS.absent, "bin/VERSION unreadable"),
@@ -1595,18 +1646,20 @@ class TheGate(TempCase):
         """Was test_the_gate_reads_the_pin_from_the_manifest_never_a_literal:
         the floor and the verdict come from the manifest and `check`; with
         the manifest unusable the floor is unknown and nothing is driven."""
-        executable = bale.locate_executable(str(ROOTS.ok), {}, lambda name: None)
+        executable = bale.locate_executable(str(ROOTS.ok), {}, lambda name: None,
+                                            run_process)
         self.assertEqual((executable.floor, executable.drive_refusal), (FLOOR, None))
         self.assertIs(executable.verdict.ok, True)
-        self.assertEqual(set(executable.as_json()),
-                         {"executable", "root", "source", "installed", "floor",
-                          "floor_admits", "schemas_match"})
+        self.assertEqual(list(executable.as_json()),
+                         ["executable", "root", "source", "installed", "floor",
+                          "floor_admits", "contract_ok"])
         unknown = bale.Executable(executable.root, executable.path, FLOOR, None, "")
         self.assertIn("the floor is unknown", unknown.drive_refusal)
         self.assertIsNone(unknown.floor_admits)
         with mock.patch.object(bale, "load_manifest",
                                side_effect=bale.ManifestError("unusable for the test")):
-            gone = bale.locate_executable(str(ROOTS.ok), {}, lambda name: None)
+            gone = bale.locate_executable(str(ROOTS.ok), {}, lambda name: None,
+                                          run_process)
         self.assertEqual((gone.floor, gone.verdict, gone.manifest), (None, None, None))
         self.assertIn("the floor is unknown", gone.drive_refusal)
 

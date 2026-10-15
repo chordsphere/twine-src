@@ -2,8 +2,10 @@
 since session 5c, about whether its state directory resolves or exists, nor,
 since session twine-status-inflight (0.11.0), about what `inflight/` holds.
 Since session 2026-10-12-twine-pin-floor-002, `floor` replaces `pin` (null
-when the manifest is unusable) and `bale` is `bale check`'s object, the
-schema verdict included."""
+when the manifest is unusable) and `bale` is `bale check`'s object — since
+session 2026-10-15-twine-gate-contract-001 the contract verdict included in
+the place of the schema verdict, and the same object `bale check --json`
+prints."""
 
 from __future__ import annotations
 
@@ -18,7 +20,8 @@ from unittest import mock
 
 from twine import CONSUMPTION_MANIFEST, FIXTURES_DIR, __version__, inflight
 
-from tests.helpers import ABOVE, FLOOR, TempRoots, run_cli, run_inprocess
+from tests.helpers import (ABOVE, CONTRACT_SHA256, CONTRACT_VERSION, FLOOR, TempRoots,
+                           run_cli, run_inprocess)
 
 
 class Status(unittest.TestCase):
@@ -47,23 +50,49 @@ class Status(unittest.TestCase):
         self.assertEqual(Path(obj["fixtures"]), FIXTURES_DIR)
         self.assertTrue(obj["fixtures_present"])
         self.assertEqual(obj["bale"]["ok"], True)
-        self.assertEqual(obj["bale"]["installed"], FLOOR)
-        self.assertEqual(set(obj["bale"]), {"floor", "installed", "root", "source",
-                                            "schemas", "ok", "reason"})
-        self.assertEqual((obj["bale"]["floor"], obj["bale"]["schemas"]["ok"]), (FLOOR, True))
+        self.assertEqual(obj["bale"]["installed"], CONTRACT_VERSION)
+        self.assertEqual(list(obj["bale"]), ["floor", "installed", "root", "source",
+                                             "contract", "ok", "reason"])
+        self.assertEqual((obj["bale"]["floor"], obj["bale"]["contract"]),
+                         (FLOOR, {"ok": True, "bale_version": CONTRACT_VERSION,
+                                  "sha256": CONTRACT_SHA256, "problems": [], "notes": []}))
+
+    def test_the_bale_object_is_bale_checks(self):
+        """`twine status`'s `bale` is the very object `twine bale check
+        --json` prints (its dispatcher keys aside), refused or admitted."""
+        for root in (self.roots.ok, self.roots.lacks_key, self.roots.below):
+            with self.subTest(root=root.name):
+                status = json.loads(run_cli("status", "--json", bale_root=root).stdout)
+                check = json.loads(run_cli("bale", "check", "--json", bale_root=root).stdout)
+                del check["command"]
+                self.assertEqual(status["bale"], {k: check[k] for k in status["bale"]})
+                self.assertEqual(set(status["bale"]), set(check))
 
     def test_a_bale_above_the_floor_is_ok_inside(self):
-        """0.4.52, the operator's install when the floor landed, with every
-        schema as pinned: the check inside says ok."""
+        """A bale above the carried line's version whose contract states the
+        same things: the check inside says ok."""
         obj = json.loads(run_cli("status", "--json", bale_root=self.roots.above).stdout)
         self.assertEqual((obj["ok"], obj["bale"]["ok"], obj["bale"]["installed"]),
                          (True, True, ABOVE))
 
-    def test_a_bad_schema_rides_inside_and_status_stays_ok(self):
+    def test_an_altered_schema_is_admitted_inside(self):
+        """The gate reads no schemas/ (session
+        2026-10-15-twine-gate-contract-001): an install with one schema
+        altered is ok inside, and nothing in the object names a schema.
+        (Was test_a_bad_schema_rides_inside_and_status_stays_ok.)"""
         run = run_cli("status", "--json", bale_root=self.roots.bad_schema)
         obj = json.loads(run.stdout)
+        self.assertEqual((run.code, obj["ok"], obj["bale"]["ok"]), (0, True, True))
+        self.assertNotIn("schema", json.dumps({k: v for k, v in obj["bale"].items()
+                                               if k != "root"}))
+
+    def test_a_contract_refusal_rides_inside_and_status_stays_ok(self):
+        run = run_cli("status", "--json", bale_root=self.roots.lacks_key)
+        obj = json.loads(run.stdout)
         self.assertEqual((run.code, obj["ok"], obj["bale"]["ok"]), (0, True, False))
-        self.assertEqual(obj["bale"]["schemas"]["mismatched"], [TempRoots.ALTERED_SCHEMA])
+        self.assertEqual(obj["bale"]["contract"]["problems"],
+                         ["the contract's open-refused line lacks the key 'desk', which "
+                          "twine reads (the open surface)"])
 
     def test_bale_mismatch_rides_inside_and_status_stays_ok(self):
         run = run_cli("status", "--json", bale_root=self.roots.other)

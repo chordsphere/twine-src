@@ -77,7 +77,7 @@ crafter's `--emit-block` emission no longer stands in for relay's stdout
 
 Since session 2026-10-12-twine-pin-051-001 (the pin at 0.4.51): the naming
 rule and the README row shapes live in tests/fixture_rule.py, shared with
-bin/twine-land-recordings (the lander) and re-exported here with PIN (now FLOOR) as the
+bin/twine-land-recordings (the lander) and re-exported here with PIN (now RECORDINGS) as the
 version. Every recording of the pinned version has a `.stderr` sibling and
 an eight-column README row (`recorded_rows`; `recorded_exits` is a view of
 it), and `Recording.stderr` is the sibling's bytes: FixturePlayer answers
@@ -98,7 +98,30 @@ a string comparison would get it wrong), `below` (0.4.49), `bad_schema`
 schemas/) and `unparsable`; `other` stays — 0.4.46, below the floor, with
 schemas, so what refuses it is the version alone. `drop_key(path, key)`
 gives a recorded line with one key deleted (absent, not null), for the key
-check each reader makes."""
+check each reader makes.
+
+Since session 2026-10-15-twine-gate-contract-001 (the gate is the floor plus
+bale's contract; the schema hashes are gone): FLOOR is 0.4.54, the first bale
+with `contract --json`, and no longer names the recordings directory —
+RECORDINGS (0.4.51, the manifest's `[bale] recordings`) does, through every
+path function here, so the tests replay fixtures/bale-0.4.51/ as before.
+Every install root a test builds answers `contract --json` through its own
+`bin/bale`, a double `make_root` writes (StubBale's script answers it too):
+the carried line, fixtures/contract/bale-0.4.55.json, replayed byte-exact
+when the root's `bin/VERSION` is the line's bale_version (CONTRACT_VERSION);
+for any other version, and for every edited line a test needs, bytes built
+from the carried line and named as a double (`contract_line`,
+`edited_contract`), never as bale's. No root carries `schemas/` unless a
+test asks (`install_schemas`, kept to prove the gate admits an install
+whose schemas are absent or altered). TempRoots moves with the floor: `ok`
+is 0.4.55 (the carried line itself), `at_floor` 0.4.54, `above` 0.4.56,
+`far_above` 0.4.100, `below` 0.4.53, `other` 0.4.46; `bad_schema` and
+`no_schemas` are admitted now; four roots refuse on the contract alone
+(`lacks_key`, `adds_outcome`, `lacks_hold_branch`, `disagrees`). The gate
+runs `contract --json` through the run seam, so every run-seam double here
+answers that one argv by running the root's own double for real
+(`answer_contract`) and keeps it out of `calls` — a test's `calls` are the
+verb's bale calls, as before — counting it in `gate_calls`."""
 
 from __future__ import annotations
 
@@ -128,14 +151,27 @@ from tests.fixture_rule import (EMISSION_TOOLS, GROUP_SEP, STDERR_EXT, UNRECORDE
 
 TWINE = REPO_ROOT / "bin" / "twine"
 # The floor (share/bale-consumption.toml [bale] floor): the lowest bale twine
-# drives, and the version the recordings were made at, so it names the
-# fixtures directory too. PIN until session 2026-10-12-twine-pin-floor-002.
-FLOOR = "0.4.51"
-# The schema files the gate hashes, as landed under fixtures/ (byte-exact).
-SCHEMA_FIXTURES = REPO_ROOT / "fixtures" / f"bale-{FLOOR}" / "schemas"
-# The operator's install when the floor landed (probe twine-052-delta): above
-# the floor, every schema as pinned, nothing re-recorded.
-ABOVE = "0.4.52"
+# drives — since session 2026-10-15-twine-gate-contract-001 the first bale
+# with `bale contract --json`. PIN until session 2026-10-12-twine-pin-floor-002,
+# when the floor was also the recordings' version.
+FLOOR = "0.4.54"
+# The version whose recordings the tests replay ([bale] recordings): it names
+# the fixtures directory, fixtures/bale-<RECORDINGS>/ (the floor named it from
+# session 2026-10-12-twine-pin-floor-002 until 2026-10-15-twine-gate-contract-001).
+RECORDINGS = "0.4.51"
+# The carried contract line ([bale] contract), landed byte-exact, and the
+# bale_version it states: the version a root must carry to replay it unedited.
+CONTRACT_RELPATH = "fixtures/contract/bale-0.4.55.json"
+CONTRACT_FIXTURE = REPO_ROOT / CONTRACT_RELPATH
+CONTRACT_VERSION = "0.4.55"
+CONTRACT_BYTES = 8549
+CONTRACT_SHA256 = "bab19c6d19f31f56eba6b4e808e9e4950b15b8b4fbc8781295f1df93111e0334"
+# The schema files the gate hashed until the contract replaced the hashes, as
+# landed under fixtures/ (byte-exact) — kept to prove they no longer matter.
+SCHEMA_FIXTURES = REPO_ROOT / "fixtures" / f"bale-{RECORDINGS}" / "schemas"
+# A version above the carried line's: an install past 0.4.55 whose contract
+# states the same things (an edited line, a double).
+ABOVE = "0.4.56"
 
 # bale's three closed vocabularies — the oracle the consumption manifest's
 # [[vocabulary]] entries and the transition table's bale axes are held to.
@@ -220,10 +256,12 @@ def run_inprocess(*argv: str, env: dict[str, str] | None = None,
 
 
 def install_schemas(root: Path, *, alter: str | None = None) -> Path:
-    """Copy the eight schema fixtures into `<root>/schemas/`, byte-exact, so
-    the gate's second half admits `root`; with `alter`, that one file's
-    bytes are changed (a space appended — still JSON, no longer the pinned
-    hash). Returns the schemas directory."""
+    """Copy the eight schema fixtures (fixtures/bale-0.4.51/schemas/) into
+    `<root>/schemas/`, byte-exact; with `alter`, that one file's bytes are
+    changed (a space appended). Since session
+    2026-10-15-twine-gate-contract-001 the gate reads none of them: a test
+    uses this only to prove an install whose schemas are altered is admitted.
+    Returns the schemas directory."""
     where = root / "schemas"
     where.mkdir(parents=True, exist_ok=True)
     names = sorted(p.name for p in SCHEMA_FIXTURES.glob("*.json"))
@@ -237,52 +275,217 @@ def install_schemas(root: Path, *, alter: str | None = None) -> Path:
     return where
 
 
-def make_root(root: Path, version: str | None, *, schemas: bool = True,
+def carried_contract() -> bytes:
+    """The carried `bale contract --json` line, as landed: bale 0.4.55's
+    bytes, held to the size and sha256 the brief pins."""
+    data = CONTRACT_FIXTURE.read_bytes()
+    if (len(data), hashlib.sha256(data).hexdigest()) != (CONTRACT_BYTES, CONTRACT_SHA256):
+        raise AssertionError(f"{CONTRACT_RELPATH} is not the carried line")
+    return data
+
+
+def _dump_line(obj: dict) -> bytes:
+    """One JSON object line, serialized as bale serializes its line
+    (json.dumps' defaults: the carried line round-trips byte-exact)."""
+    return (json.dumps(obj) + "\n").encode("utf-8")
+
+
+def contract_line(version: str | None = None) -> bytes:
+    """What a test root's `bin/bale contract --json` prints: the carried line
+    byte-exact when `version` is None or CONTRACT_VERSION; otherwise a DOUBLE,
+    not bale's — the carried line with its `bale_version` set to `version`
+    and nothing else changed (an install at another version whose contract
+    states the same things)."""
+    carried = carried_contract()
+    if version is None or version == CONTRACT_VERSION:
+        return carried
+    obj = json.loads(carried)
+    obj["bale_version"] = version
+    return _dump_line(obj)
+
+
+def edited_contract(edit, version: str | None = None) -> bytes:
+    """A DOUBLE, not bale's: contract_line(version) parsed, handed to `edit`
+    (a function that changes the object in place), and serialized as one
+    line again — a key removed, a vocabulary value added or removed,
+    hold-branch removed, a bale_version that disagrees. `edit` must change
+    something, so a double is never the carried line under another name."""
+    before = contract_line(version)
+    obj = json.loads(before)
+    edit(obj)
+    after = _dump_line(obj)
+    if after == before:
+        raise AssertionError("edited_contract's edit changed nothing")
+    return after
+
+
+# The edits the contract-refusing roots and tests share (each a double).
+def drop_contract_key(line: str, key: str):
+    """An edit: `key` removed from json_keys[line]."""
+    def edit(obj: dict) -> None:
+        obj["json_keys"][line].remove(key)
+    return edit
+
+
+def add_vocabulary_value(vocabulary: str, value: str):
+    """An edit: `value` appended to vocabularies[vocabulary].values."""
+    def edit(obj: dict) -> None:
+        obj["vocabularies"][vocabulary]["values"].append(value)
+    return edit
+
+
+def drop_vocabulary_value(vocabulary: str, value: str):
+    """An edit: `value` removed from vocabularies[vocabulary].values."""
+    def edit(obj: dict) -> None:
+        obj["vocabularies"][vocabulary]["values"].remove(value)
+    return edit
+
+
+def drop_refusal_reason(verb: str, reason: str):
+    """An edit: `reason` removed from refusal_reasons[verb].values."""
+    def edit(obj: dict) -> None:
+        obj["refusal_reasons"][verb]["values"].remove(reason)
+    return edit
+
+
+def add_refusal_reason(verb: str, reason: str):
+    """An edit: `reason` appended to refusal_reasons[verb].values."""
+    def edit(obj: dict) -> None:
+        obj["refusal_reasons"][verb]["values"].append(reason)
+    return edit
+
+
+def set_bale_version(version: str):
+    """An edit: the line's bale_version set to `version`."""
+    def edit(obj: dict) -> None:
+        obj["bale_version"] = version
+    return edit
+
+
+# Where make_root keeps what its bin/bale double answers (beside bin/, never
+# a path the gate reads).
+DOUBLE_DIR = "test-double"
+DEFAULT = object()
+
+
+def contract_answer_lines(root: Path) -> list[str]:
+    """bash lines that answer exactly `contract --json` from `root`'s double
+    files (stdout, stderr, exit) and exit — the first lines of every stub
+    `bin/bale` a test writes (make_root's, StubBale's), so the gate's call is
+    answered before anything else the script does, and never recorded as a
+    verb call."""
+    q = shlex.quote
+    where = root / DOUBLE_DIR
+    cat = shutil.which("cat") or "/bin/cat"
+    return [f"if [ \"$#\" = 2 ] && [ \"$1\" = contract ] && [ \"$2\" = --json ]; then",
+            f"  {q(cat)} {q(str(where / 'contract.stdout'))}",
+            f"  {q(cat)} {q(str(where / 'contract.stderr'))} >&2",
+            f"  exit \"$({q(cat)} {q(str(where / 'contract.exit'))})\"",
+            "fi"]
+
+
+def write_contract_double(root: Path, stdout: bytes, *, exit_code: int = 0,
+                          stderr: bytes = b"") -> None:
+    """Set what `root`'s bin/bale double answers to `contract --json`."""
+    where = root / DOUBLE_DIR
+    where.mkdir(parents=True, exist_ok=True)
+    (where / "contract.stdout").write_bytes(stdout)
+    (where / "contract.stderr").write_bytes(stderr)
+    (where / "contract.exit").write_text(f"{int(exit_code)}\n", encoding="ascii")
+
+
+def make_root(root: Path, version: str | None, *, contract=DEFAULT,
+              contract_exit: int = 0, contract_stderr: bytes = b"",
+              executable: bool = True, schemas: bool = False,
               alter: str | None = None) -> Path:
     """A bale install root as the gate reads one: `bin/VERSION` holding
-    `version` and a newline (no file when None), and the schemas unless
-    `schemas` is false (`alter` as install_schemas takes it)."""
+    `version` and a newline (no file when None), and a `bin/bale` that is a
+    DOUBLE, not bale — a bash script that answers `contract --json` with
+    `contract` (default: contract_line(version), the carried line byte-exact
+    at CONTRACT_VERSION, an edited copy at any other parsable version, the
+    carried line otherwise), `contract_stderr` and `contract_exit`, and
+    answers anything else with exit 2. No `bin/bale` when `executable` is
+    false. No `schemas/` unless `schemas` (`alter` as install_schemas takes
+    it) — the gate reads none."""
     (root / "bin").mkdir(parents=True, exist_ok=True)
     if version is not None:
         (root / "bin" / "VERSION").write_text(version + "\n", encoding="utf-8")
-    if schemas:
+    if executable:
+        if contract is DEFAULT:
+            from twine.bale import parse_version
+            contract = contract_line(version if parse_version(version) else None)
+        write_contract_double(root, contract, exit_code=contract_exit,
+                              stderr=contract_stderr)
+        bash = shutil.which("bash") or "/bin/bash"
+        script = root / "bin" / "bale"
+        script.write_text("\n".join([
+            f"#!{bash}",
+            "# A test double written by tests/helpers.py make_root — not bale. It",
+            "# answers `contract --json` only, from the files beside bin/.",
+            *contract_answer_lines(root),
+            "echo \"make_root's double answers contract --json only, not: $*\" >&2",
+            "exit 2"]) + "\n", encoding="utf-8")
+        script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    if schemas or alter is not None:
         install_schemas(root, alter=alter)
     return root
 
 
 class TempRoots:
-    """Bale install roots under one temp dir, each but `absent` and
-    `no_schemas` carrying the eight schemas (install_schemas):
+    """Bale install roots under one temp dir, each a make_root (its
+    `bin/bale` a double answering `contract --json`), none carrying
+    schemas/ unless it says so:
 
-      ok          bin/VERSION at the floor
-      above       0.4.52, the operator's install when the floor landed
-      far_above   0.4.100 — above the floor as a tuple, below it as a string
-      below       0.4.49, below the floor
-      other       0.4.46 (another version, below the floor; kept from the pin)
-      bad_schema  at the floor, ALTERED_SCHEMA's bytes changed
-      no_schemas  at the floor, no schemas/ directory
-      unparsable  bin/VERSION reads `0.4.51-rc1`, not three dotted integers
-      absent      no bin/VERSION and no schemas/
+      ok                 CONTRACT_VERSION (0.4.55): the carried line, byte-exact
+      at_floor           the floor (0.4.54), the line's bale_version edited to it
+      above              ABOVE (0.4.56), likewise edited
+      far_above          0.4.100 — above the floor as a tuple, below it as a string
+      below              0.4.53, below the floor (its contract is never asked)
+      other              0.4.46 (another version, below the floor)
+      bad_schema         0.4.55, the eight schemas with ALTERED_SCHEMA's bytes
+                         changed — admitted: the gate reads no schemas/
+      no_schemas         0.4.55, no schemas/ — admitted (as `ok`, named for it)
+      unparsable         bin/VERSION reads `0.4.55-rc1`, not three dotted
+                         integers (the carried line, which names 0.4.55)
+      absent             no bin/VERSION and no bin/bale
+      lacks_key          0.4.55, the open-refused line without `desk` (a double)
+      adds_outcome       0.4.55, telemetry-outcome + NOT_A_BALE_OUTCOME (a double)
+      lacks_hold_branch  0.4.55, no hold-branch among the unlock reasons (a double)
+      disagrees          bin/VERSION 0.4.55, the line's bale_version ABOVE (a double)
     """
 
     ALTERED_SCHEMA = "exchange-record.schema.json"
     FAR_ABOVE = "0.4.100"
-    BELOW = "0.4.49"
-    UNPARSABLE = "0.4.51-rc1"
+    BELOW = "0.4.53"
+    UNPARSABLE = "0.4.55-rc1"
+    LACKS_KEY = ("open-refused", "desk")
 
-    def __init__(self, floor: str = FLOOR, other: str = "0.4.46") -> None:
+    def __init__(self, other: str = "0.4.46") -> None:
         self._dir = tempfile.TemporaryDirectory(prefix="twine-roots-")
         base = Path(self._dir.name)
-        self.ok = make_root(base / "ok", floor)
+        self.ok = make_root(base / "ok", CONTRACT_VERSION)
+        self.at_floor = make_root(base / "at-floor", FLOOR)
         self.above = make_root(base / "above", ABOVE)
         self.far_above = make_root(base / "far-above", self.FAR_ABOVE)
         self.below = make_root(base / "below", self.BELOW)
         self.other = make_root(base / "other", other)
-        self.bad_schema = make_root(base / "bad-schema", floor, alter=self.ALTERED_SCHEMA)
-        self.no_schemas = make_root(base / "no-schemas", floor, schemas=False)
+        self.bad_schema = make_root(base / "bad-schema", CONTRACT_VERSION,
+                                    alter=self.ALTERED_SCHEMA)
+        self.no_schemas = make_root(base / "no-schemas", CONTRACT_VERSION)
         self.unparsable = make_root(base / "unparsable", self.UNPARSABLE)
         self.absent = base / "absent"
         self.absent.mkdir()
+        self.lacks_key = make_root(base / "lacks-key", CONTRACT_VERSION,
+                                   contract=edited_contract(drop_contract_key(*self.LACKS_KEY)))
+        self.adds_outcome = make_root(
+            base / "adds-outcome", CONTRACT_VERSION,
+            contract=edited_contract(add_vocabulary_value("telemetry-outcome",
+                                                          NOT_A_BALE_OUTCOME)))
+        self.lacks_hold_branch = make_root(
+            base / "lacks-hold-branch", CONTRACT_VERSION,
+            contract=edited_contract(drop_refusal_reason("unlock", "hold-branch")))
+        self.disagrees = make_root(base / "disagrees", CONTRACT_VERSION,
+                                   contract=edited_contract(set_bale_version(ABOVE)))
         self.other_version = other
 
     def cleanup(self) -> None:
@@ -323,7 +526,7 @@ def fixture_relpath(argv: list[str], cwd: str, group: str | None = None) -> str:
     outcome group, `<outcome>` or `<outcome>+<reason>`, None for an argv
     recorded once.
     """
-    return fixture_rule.fixture_relpath_at(FLOOR, argv, cwd, group)
+    return fixture_rule.fixture_relpath_at(RECORDINGS, argv, cwd, group)
 
 
 def recorded_rows() -> dict[str, Row]:
@@ -373,7 +576,7 @@ def emission_relpath(tool: str, argv: list[str]) -> str:
     """fixtures/bale-<pin>/<tool>/<flag[-value…]>[_…].txt for a bale tool
     run with `argv` — fixture_relpath's grouping, with a `-` value (stdin)
     spelled `stdin` so no name carries a bare dash."""
-    return fixture_rule.emission_relpath_at(FLOOR, tool, argv)
+    return fixture_rule.emission_relpath_at(RECORDINGS, tool, argv)
 
 
 def fixtures_version(kind: str) -> str:
@@ -505,21 +708,48 @@ def dies_within(pid: int, seconds: float = 3.0) -> bool:
     return True
 
 
+def is_contract_call(argv) -> bool:
+    """Whether `argv` is the gate's one bale call, `<root>/bin/bale contract
+    --json` (twine.bale.contract_argv)."""
+    argv = [str(a) for a in argv]
+    return (len(argv) == 3 and Path(argv[0]).name == "bale"
+            and argv[1:] == ["contract", "--json"])
+
+
+def answer_contract(argv, *, cwd=None, stdin=None, timeout=None, env=None,
+                    stdout_cap=None):
+    """The gate's `contract --json`, answered for a run-seam double by running
+    the root's own `bin/bale` — the double make_root or StubBale wrote — for
+    real, through the real seam, so a verb run in-process meets exactly the
+    gate a subprocess run meets. A root with no `bin/bale` raises RunError,
+    as the real seam does."""
+    from twine.process import run_process
+    return run_process([str(a) for a in argv], cwd=cwd, stdin=stdin, timeout=timeout,
+                       env=env, stdout_cap=stdout_cap)
+
+
 class RecordingRunner:
     """A run-seam double: records every call and answers with a canned
     RunResult (exit 0, empty output) unless given one. A test that must
     prove nothing executed asserts `calls == []`. Every run-seam double
     here takes the seam's whole signature, `on_spawn` included (session
     5c), and records it; none calls it — a double spawns nothing, so it
-    has no pid to hand over."""
+    has no pid to hand over. The gate's `contract --json` is answered by the
+    root's own double (answer_contract) and counted in `gate_calls`, never in
+    `calls` (session 2026-10-15-twine-gate-contract-001)."""
 
     def __init__(self, result=None) -> None:
         self.calls: list[dict] = []
+        self.gate_calls: list[list[str]] = []
         self.result = result
 
     def __call__(self, argv, *, cwd=None, stdin=None, timeout=None, env=None,
                  stdout_cap=None, on_spawn=None):
         from twine.process import RunResult
+        if is_contract_call(argv):
+            self.gate_calls.append([str(a) for a in argv])
+            return answer_contract(argv, cwd=cwd, stdin=stdin, timeout=timeout,
+                                   env=env, stdout_cap=stdout_cap)
         self.calls.append({"argv": list(argv), "cwd": cwd, "stdin": stdin,
                            "timeout": timeout, "env": env,
                            "stdout_cap": stdout_cap, "on_spawn": on_spawn})
@@ -551,7 +781,8 @@ class FixturePlayer:
     `assumed_exits` (fixtures/ path -> code), so an assumption is always
     visible where it is made (no pinned row lacks its exit; the rule
     stays). An argv with no fixture raises — a test must never reach a
-    live bale."""
+    live bale. The gate's `contract --json` is not a recording: the root's
+    own double answers it (answer_contract), counted in `gate_calls`."""
 
     def __init__(self, repo_root: Path,
                  assumed_exits: dict[str, int] | None = None,
@@ -560,6 +791,7 @@ class FixturePlayer:
         self.repo_root = Path(repo_root).resolve()
         self.scratch_root = None if scratch_root is None else Path(scratch_root).resolve()
         self.calls: list[list[str]] = []
+        self.gate_calls: list[list[str]] = []
         self.rows = recorded_rows()
         self.exits = {path: row.exit for path, row in self.rows.items()}
         self.assumed_exits = dict(assumed_exits or {})
@@ -604,6 +836,10 @@ class FixturePlayer:
                  stdout_cap=None, on_spawn=None):
         from twine.process import RunResult
         argv = [str(a) for a in argv]
+        if is_contract_call(argv):
+            self.gate_calls.append(argv)
+            return answer_contract(argv, cwd=cwd, stdin=stdin, timeout=timeout,
+                                   env=env, stdout_cap=stdout_cap)
         self.calls.append(argv)
         if not argv or Path(argv[0]).name != "bale":
             raise AssertionError(f"FixturePlayer answers bale argvs only: {argv}")
@@ -625,9 +861,12 @@ class FixturePlayer:
 
 class StubBale:
     """A double, not bale: a temp install root whose `bin/bale` is a
-    bash script this class writes, `bin/VERSION` at the floor and the
-    eight schemas (install_schemas; since session
-    2026-10-12-twine-pin-floor-002, so the gate admits it). The
+    bash script this class writes and `bin/VERSION` at CONTRACT_VERSION —
+    since session 2026-10-15-twine-gate-contract-001 the script answers the
+    gate's `contract --json` first, with the carried line (make_root's
+    double files; `write_contract_double(stub.root, …)` changes it), and
+    never records that call (it held the eight schemas from session
+    2026-10-12-twine-pin-floor-002 until then, so the gate admitted it). The
     script records its argv, cwd and (for `relay`) stdin under `record`,
     then replays the bytes of `relay_stdout` (since session
     2026-10-08-twine-carry-exchange-json-001, a `relay --json` recording's
@@ -662,7 +901,7 @@ class StubBale:
         self.record = base / "record"
         (self.root / "bin").mkdir(parents=True)
         self.record.mkdir()
-        make_root(self.root, FLOOR)
+        make_root(self.root, CONTRACT_VERSION)
         q = shlex.quote
         replay = {"relay": relay_stdout, "apply": apply_stdout,
                   "unlock": unlock_stdout, "open": open_stdout}
@@ -671,6 +910,9 @@ class StubBale:
         bash = shutil.which("bash") or "/bin/bash"
         lines = [f"#!{bash}",
                  "# A test double written by tests/helpers.py StubBale — not bale.",
+                 # The gate's `contract --json` first (make_root's double files:
+                 # the carried line at CONTRACT_VERSION), never recorded as a call.
+                 *contract_answer_lines(self.root),
                  f"printf '%s\\n' \"$@\" > {q(str(self.record / 'argv'))}",
                  f"(IFS=$'\\t'; printf '%s\\n' \"$*\") >> {q(str(self.record / 'calls'))}",
                  f"{{ printf -- '--- %s\\n' \"$1\"; env; }} >> {q(str(self.record / 'env'))}",
@@ -914,6 +1156,7 @@ class RecordedUnlock:
                  stdout: bytes | None = None, stderr: bytes | None = None,
                  timed_out: bool = False) -> None:
         self.calls: list[dict] = []
+        self.gate_calls: list[list[str]] = []
         self.recording = (unlock_recording(recording) if isinstance(recording, str)
                           else recording)
         self.stdout = stdout
@@ -924,6 +1167,10 @@ class RecordedUnlock:
                  stdout_cap=None, on_spawn=None):
         from twine.process import RunResult
         argv = [str(a) for a in argv]
+        if is_contract_call(argv):
+            self.gate_calls.append(argv)
+            return answer_contract(argv, cwd=cwd, stdin=stdin, timeout=timeout,
+                                   env=env, stdout_cap=stdout_cap)
         self.calls.append({"argv": argv, "cwd": cwd, "stdin": stdin,
                            "timeout": timeout, "env": env, "stdout_cap": stdout_cap,
                            "on_spawn": on_spawn})
@@ -1113,6 +1360,7 @@ class RecordedRelay:
                  stderr: bytes | None = None, timed_out: bool = False,
                  capped: bool = False) -> None:
         self.calls: list[dict] = []
+        self.gate_calls: list[list[str]] = []
         self.recording = (relay_recording(recording) if isinstance(recording, str)
                           else recording)
         self.stdout = stdout
@@ -1125,6 +1373,10 @@ class RecordedRelay:
                  stdout_cap=None, on_spawn=None):
         from twine.process import RunResult
         argv = [str(a) for a in argv]
+        if is_contract_call(argv):
+            self.gate_calls.append(argv)
+            return answer_contract(argv, cwd=cwd, stdin=stdin, timeout=timeout,
+                                   env=env, stdout_cap=stdout_cap)
         self.calls.append({"argv": argv, "cwd": cwd, "stdin": stdin,
                            "timeout": timeout, "env": env, "stdout_cap": stdout_cap,
                            "on_spawn": on_spawn})

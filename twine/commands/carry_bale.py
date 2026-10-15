@@ -38,9 +38,11 @@ subprocess of their own, and find bale exactly as `bale check` does
 on the operator's PATH is never what a test reaches. Since Arc 1 session
 4 both refuse, before starting it, a bale the gate does not admit (D2;
 twine.bale.Executable.drive_refusal) — since session
-2026-10-12-twine-pin-floor-002 one below the floor, or whose installed
-schemas do not hash as the manifest pins them, where it was an exact pin
-before. Since that session both also check, on the line they read, every
+2026-10-12-twine-pin-floor-002 one below the floor, where it was an exact
+pin before; since session 2026-10-15-twine-gate-contract-001 also one whose
+contract (`bale contract --json`) does not state everything twine reads, in
+the place of the schema hashes the floor session pinned. Since the floor
+session both also check, on the line they read, every
 key the consumption manifest lists for its surface
 (twine.bale.missing_keys_failure). The contract is
 claude/context/cli-contract.md §11.
@@ -605,8 +607,10 @@ def locate(ctx: Context, args: argparse.Namespace,
     (D2: `bale.Executable.drive_refusal` — since session
     2026-10-12-twine-pin-floor-002 exactly the install `twine bale check`
     reports not ok: below the floor, a VERSION that cannot be read or
-    parsed, or schemas that do not hash as the manifest pins them)."""
-    executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which)
+    parsed, or — since session 2026-10-15-twine-gate-contract-001 — a
+    contract, `bale contract --json` run through ctx.run, that does not
+    state everything twine reads)."""
+    executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which, ctx.run)
     refusal = executable.drive_refusal
     if refusal is not None:
         refusals.append(refusal)

@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import ast
 import errno
+import hashlib
 import io
 import json
 import logging
@@ -74,10 +75,12 @@ from twine import REPO_ROOT, TRANSITIONS_TABLE, bale, kill, process
 from twine.cli import Context, main
 from twine.commands import kill as kill_verb
 
-from tests.helpers import (FLOOR, UNLOCK_KEYS, UNLOCK_RECORDED_ABSENT_SID,
-                           UNLOCK_RECORDED_READ_ONLY_SID, UNLOCK_RECORDED_SID, UNLOCK_REFUSED,
-                           RealGroup, RecordedUnlock, Recording, StubBale, TempRoots,
-                           dies_within, drop_key, process_alive, run_cli, unlock_recording)
+from tests.helpers import (ABOVE, CONTRACT_VERSION, FLOOR, UNLOCK_KEYS,
+                           UNLOCK_RECORDED_ABSENT_SID, UNLOCK_RECORDED_READ_ONLY_SID,
+                           UNLOCK_RECORDED_SID, UNLOCK_REFUSED, RealGroup, RecordedUnlock,
+                           Recording, StubBale, TempRoots, contract_line, dies_within,
+                           drop_key, drop_refusal_reason, edited_contract, process_alive,
+                           run_cli, unlock_recording)
 
 # The session the recorded `aborted` close names (and whose HOLD refusal was
 # recorded just before it): a test that wants the closure ok kills it.
@@ -86,27 +89,37 @@ EXE = Path("/double/root/bin/bale")
 
 
 def executable(path: Path = EXE, installed: str = FLOOR, *,
-               schemas_match: bool = True) -> bale.Executable:
+               contract_ok: bool = True) -> bale.Executable:
     """A bale.Executable as locate_executable would build it for a root at
-    `installed` whose schemas hash as pinned (or, `schemas_match` false, one
-    whose exchange-record schema does not) — a value, not a bale: nothing is
-    run but the double the test hands the closure, and no disk is read. The
+    `installed` whose contract — the carried line at that version
+    (tests/helpers.py contract_line) — states everything twine reads (or,
+    `contract_ok` false, one without hold-branch among its unlock reasons, a
+    double) — a value, not a bale: nothing is run but the double the test
+    hands the closure, and nothing is read but the carried fixture. The
     gate's verdict is spelled as bale.check spells it (since session
-    2026-10-12-twine-pin-floor-002), so drive_refusal answers as it would."""
+    2026-10-15-twine-gate-contract-001, its contract half by
+    bale.contract_findings itself), so drive_refusal answers as it would."""
     root = bale.Root(path.parent.parent, "--bale-root", f"--bale-root {path.parent.parent}")
     manifest = bale.load_manifest()
-    names = tuple(sorted(manifest.schemas))
-    bad = () if schemas_match else ("exchange-record.schema.json",)
-    schemas = bale.SchemaVerdict(root.path / "schemas", True, names, bad, ())
     parsed, floor = bale.parse_version(installed), bale.parse_version(FLOOR)
     problems = []
     if parsed is None or floor is None or parsed < floor:
         problems.append(f"installed {installed} is below the floor {FLOOR}")
-    problems.extend(schemas.problems())
-    verdict = bale.CheckResult(FLOOR, installed, root.path, root.source, schemas,
-                               not problems, "; ".join(problems) or "admitted", len(names))
+        contract = bale.contract_not_asked(root.path, installed, FLOOR)
+    else:
+        line = (contract_line(installed) if contract_ok else
+                edited_contract(drop_refusal_reason("unlock", "hold-branch"), installed))
+        found, moved, notes = bale.contract_findings(manifest, json.loads(line), installed)
+        contract = bale.ContractVerdict(True, tuple(bale.contract_argv(path)), 0, installed,
+                                        hashlib.sha256(line).hexdigest(), tuple(found),
+                                        tuple(moved), tuple(notes))
+    problems.extend(contract.problems)
+    verdict = bale.CheckResult(FLOOR, installed, root.path, root.source, contract,
+                               not problems, "; ".join(problems) or "admitted")
     return bale.Executable(root, path, installed, FLOOR, f"bin/VERSION reads {installed}",
                            verdict, manifest)
+
+
 # bale 0.4.51's HOLD-branch refusal, as recorded for this sid (fixtures/
 # bale-0.4.51/scratch/unlock_sid_--json+unlock-refused+hold-branch.json):
 # exit 1 and one `unlock-refused` line whose `reason` is `hold-branch` — the
@@ -1198,7 +1211,9 @@ class AbortedClosure(StateCase):
         not set hold_branch and keeps the unlock line — while the stderr
         still reaches the report and the exit entry, as evidence."""
         others = [r for r in unlock_refusal_reasons() if r != kill.HOLD_BRANCH_REASON]
-        self.assertEqual(len(others), 4, others)
+        # Five since bale 0.4.54 added `cost-file` (recorded from bale 0.4.55's
+        # contract line by session 2026-10-15-twine-gate-contract-001).
+        self.assertEqual(len(others), 5, others)
         for reason in others:
             with self.subTest(reason=reason):
                 closure = self.close(RecordedUnlock(hold_line_with(reason=reason),
@@ -1276,10 +1291,13 @@ class AbortedClosure(StateCase):
 
     def test_a_bale_the_gate_refuses_is_never_started(self):
         """The closure checks the gate itself, so the loop cannot reach a
-        refused bale by forgetting it: below the floor, or a schema that does
-        not hash as pinned. (Was test_an_unpinned_bale_is_never_started.)"""
+        refused bale by forgetting it: below the floor, or — since session
+        2026-10-15-twine-gate-contract-001 — a contract without the one
+        unlock reason the hand line keys on (where it was a schema that did
+        not hash as pinned). (Was test_an_unpinned_bale_is_never_started.)"""
         for exe, says in ((executable(installed="0.4.46"), f"below the floor {FLOOR}"),
-                          (executable(schemas_match=False), "exchange-record.schema.json")):
+                          (executable(contract_ok=False),
+                           "the contract's unlock refusal reasons lack 'hold-branch'")):
             with self.subTest(says=says):
                 runner = RecordedUnlock()
                 closure = self.close(runner, exe=exe)
@@ -1288,7 +1306,7 @@ class AbortedClosure(StateCase):
 
     def test_a_bale_above_the_floor_closes(self):
         runner = RecordedUnlock()
-        closure = self.close(runner, exe=executable(installed="0.4.52"))
+        closure = self.close(runner, exe=executable(installed=ABOVE))
         self.assertTrue(closure.ok, closure.failures)
         self.assertEqual(len(runner.calls), 1)
 
@@ -1626,7 +1644,8 @@ class KillVerb(StateCase):
                           obj["grace_seconds"]),
                          (str(self.state), "--state-dir", str(self.repo), 0.0))
         self.assertEqual((obj["bale"]["floor"], obj["bale"]["floor_admits"],
-                          obj["bale"]["schemas_match"]), (FLOOR, True, True))
+                          obj["bale"]["contract_ok"]), (FLOOR, True, True))
+        self.assertNotIn("schemas_match", obj["bale"])
         self.assertNotIn("pin_matches", obj["bale"])
         self.assertNotIn("Traceback", err)
 
@@ -1643,7 +1662,7 @@ class KillVerb(StateCase):
         other.mkdir()
         group_b = self.group()
         kill.register_running(other, SID, group_b.pgid, group_b.pgid)
-        exe = bale.locate_executable(str(self.roots.ok), {}, lambda n: None)
+        exe = bale.locate_executable(str(self.roots.ok), {}, lambda n: None, process.run_process)
         report = kill.KillReport(sid=SID, state_dir_source="--state-dir", cwd=str(self.repo),
                                  grace_seconds=2.0, bale=exe.as_json())
         report = kill.kill_session(other, SID, run=RecordedUnlock(), executable=exe,
@@ -1772,8 +1791,10 @@ class KillVerb(StateCase):
 
     def test_the_gate_gates_the_closure_alone(self):
         """Session 5c, the sitting's correction to 5b: a bale the gate
-        refuses — below the floor, a schema that does not hash as pinned —
-        or one that is absent, is not a refusal. (Was
+        refuses — below the floor, or (since session
+        2026-10-15-twine-gate-contract-001) a contract lacking hold-branch,
+        where it was a schema that did not hash as pinned — or one that is
+        absent, is not a refusal. (Was
         test_the_pin_gates_the_closure_alone; the floor since session
         2026-10-12-twine-pin-floor-002.) The abort request is written, a
         real group is killed, bale is never reached (the run-seam double
@@ -1781,7 +1802,7 @@ class KillVerb(StateCase):
         refusal in `reason`, the unlock line to finish by hand, and the
         `bale` object saying what was found."""
         for root, found, admits in ((self.roots.other, "0.4.46", False),
-                                    (self.roots.bad_schema, FLOOR, True),
+                                    (self.roots.lacks_hold_branch, CONTRACT_VERSION, True),
                                     (self.roots.absent, None, None),
                                     (self.base / "no-such-root", None, None)):
             with self.subTest(root=root.name):
@@ -1830,14 +1851,15 @@ class KillVerb(StateCase):
         self.assertIn("the abort and the process kill go ahead; the closure will not", err)
 
     def test_an_admitted_bale_closes_as_before(self):
-        """Was test_a_pinned_bale_closes_as_before: at the floor, and above it."""
+        """Was test_a_pinned_bale_closes_as_before: the carried line's version,
+        and above it."""
         group = self.group()
         kill.register_running(self.state, SID, group.pgid, group.pgid)
         code, obj, err, runner = self.json_of("--grace", "2")
         self.assertEqual((code, obj["ok"], obj["closed"], obj["bale"]["floor_admits"]),
                          (0, True, True, True))
         above = self.json_of("--bale-root", str(self.roots.above))[1]
-        self.assertEqual((above["closed"], above["bale"]["installed"]), (True, "0.4.52"))
+        self.assertEqual((above["closed"], above["bale"]["installed"]), (True, ABOVE))
         self.assertEqual(len(runner.calls), 1)
         for pid in group.pids:
             self.assertTrue(dies_within(pid), f"{pid} outlived the kill")

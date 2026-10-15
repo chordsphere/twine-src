@@ -3,10 +3,13 @@ line, is named by the rule, has its stderr sibling and is listed in
 fixtures/README.md with both streams' hashes; every carried paste —
 the ones a format entry points at, and a version's recordings' source
 (under the version that printed each) — differs from what arrived only by
-CRLF. Since session 2026-10-12-twine-pin-floor-002 the floor names the
-directory (the pin did before), and the eight installed schemas the gate
-hashes sit under it in schemas/, byte-exact: listed in their own README
-table, hashed as the manifest pins them, and no recording."""
+CRLF. Since session 2026-10-15-twine-gate-contract-001 the manifest's
+`[bale] recordings` names the directory (the floor did from session
+2026-10-12-twine-pin-floor-002, the pin before), and the eight schemas the
+gate hashed until then sit under it in schemas/, byte-exact, as history:
+listed in their own README table and no recording. The carried contract
+line, the one file under fixtures/contract/, is held to the brief's bytes
+and sha256 and to its README row."""
 
 from __future__ import annotations
 
@@ -15,20 +18,21 @@ import json
 import unittest
 from collections import defaultdict
 
-from twine import FIXTURES_DIR
+from twine import FIXTURES_DIR, REPO_ROOT
 from twine.bale import load_manifest
 
 from tests.fixture_rule import (CARRIED_ROW, RECORDING_ROW, SCHEMA_ROW, SCHEMAS_WHERE,
                                 STDERR_EXT, Row, echoed_argv, format_row, parse_rows,
                                 parse_schema_rows, schemas_relpath_at, stderr_relpath)
-from tests.helpers import (GROUP_SEP, FLOOR, UNLOCK_RECORDED_SID, UNRECORDED, fixture_key,
+from tests.helpers import (CONTRACT_BYTES, CONTRACT_RELPATH, CONTRACT_SHA256, CONTRACT_VERSION,
+                           GROUP_SEP, RECORDINGS, UNLOCK_RECORDED_SID, UNRECORDED, fixture_key,
                            fixture_stem, recorded_exits, recorded_rows, split_group)
 
 README = FIXTURES_DIR / "README.md"
 # The command each table's rows name, by fixture directory.
 COMMAND_PREFIX = {"twine-src": "bale ", "anywhere": "bale ", "scratch": "bale ",
                   "crafter": "craft_response.py "}
-PINNED = f"bale-{FLOOR}"
+PINNED = f"bale-{RECORDINGS}"
 # The 0.4.51 dry run (fixtures/README.md, "bale 0.4.51"): recorded in the
 # scratch repository for its scoped session, with its exit and its stderr.
 DRY_RUN = f"{PINNED}/scratch/apply_--dry-run_--json_tarball+dry-run.json"
@@ -98,7 +102,7 @@ class FixturesParse(unittest.TestCase):
 
     def test_status_fixture_names_the_pinned_version(self):
         obj = json.loads((FIXTURES_DIR / f"{PINNED}/twine-src/status_--json.json").read_bytes())
-        self.assertEqual(obj["version"], FLOOR)
+        self.assertEqual(obj["version"], RECORDINGS)
 
     def test_dry_run_fixture_is_the_recorded_line(self):
         """The 0.4.51 dry run, recorded by probe twine-051-record in the
@@ -119,7 +123,7 @@ class FixturesParse(unittest.TestCase):
 
     def test_version_fixture_is_bale_pin(self):
         text = (FIXTURES_DIR / f"{PINNED}/anywhere/--version.txt").read_text(encoding="utf-8")
-        self.assertEqual(text, f"bale {FLOOR}\n")
+        self.assertEqual(text, f"bale {RECORDINGS}\n")
 
     def test_the_pinned_directory_holds_the_twenty_four(self):
         """The pin bump landed twenty-four recordings — twenty-one bale argvs
@@ -406,10 +410,11 @@ SCHEMAS = {
 
 
 class SchemaFixtures(unittest.TestCase):
-    """The installed schemas the gate's second half hashes (session
-    2026-10-12-twine-pin-floor-002): eight files under the floor's
+    """The installed schemas the gate's second half hashed (session
+    2026-10-12-twine-pin-floor-002, until session
+    2026-10-15-twine-gate-contract-001): eight files under the recordings'
     directory, byte-exact, each listed in fixtures/README.md's schemas
-    table and hashed as the manifest pins it."""
+    table — history, which the manifest no longer pins."""
 
     def setUp(self):
         self.text = README.read_text(encoding="utf-8")
@@ -424,14 +429,15 @@ class SchemaFixtures(unittest.TestCase):
                 self.assertEqual((len(data), hashlib.sha256(data).hexdigest()), SCHEMAS[name])
                 self.assertIsInstance(json.loads(data), dict, "each is a JSON object")
         self.assertEqual(sum(len(d) for d in files.values()), 117394)
-        self.assertEqual(f"fixtures/{PINNED}/{SCHEMAS_WHERE}", schemas_relpath_at(FLOOR))
+        self.assertEqual(f"fixtures/{PINNED}/{SCHEMAS_WHERE}", schemas_relpath_at(RECORDINGS))
 
-    def test_the_manifest_pins_exactly_these_hashes(self):
-        """[bale.schemas] names the same eight with the same sha256 — the
-        gate hashes an install against the manifest, and the fixtures are
-        what the stub roots install, so the three agree."""
-        pinned = load_manifest().schemas
-        self.assertEqual(pinned, {name: sha for name, (_, sha) in SCHEMAS.items()})
+    def test_the_manifest_no_longer_pins_them(self):
+        """[bale.schemas] is gone (session 2026-10-15-twine-gate-contract-001):
+        the gate reads no file under an install's schemas/. (Was
+        test_the_manifest_pins_exactly_these_hashes.)"""
+        manifest = load_manifest()
+        self.assertNotIn("schemas", manifest.data["bale"])
+        self.assertFalse(hasattr(manifest, "schemas"))
 
     def test_each_has_its_row_and_no_row_stands_without_its_file(self):
         """The schemas table lists every file once, by its bytes and sha256;
@@ -446,14 +452,53 @@ class SchemaFixtures(unittest.TestCase):
         self.assertIn("| file | bytes | sha256 |", self.text)
 
     def test_the_readme_names_the_floor_and_the_provenance(self):
-        """The rule's opening names the floor; the schemas section names the
-        tarball they came in by its sha256, and the probe that hashed the
-        operator's 0.4.52 install."""
+        """The rule's opening names the floor and the recordings; the schemas
+        section names the tarball they came in by its sha256, and the probe
+        that hashed the operator's 0.4.52 install."""
         self.assertIn("**at or above the floor**", self.text)
+        self.assertIn("`[bale] recordings`,\n`0.4.51`", self.text)
         self.assertIn("b6e6217244fdb81e0e5cab71230f1db9ead6fc632d1414494832779499e614e1",
                       self.text)
         self.assertIn("twine-052-delta", self.text)
         self.assertIn("re-recorded when the crafter's sha256 moves", self.text)
+
+
+class ContractFixture(unittest.TestCase):
+    """The carried `bale contract --json` line (session
+    2026-10-15-twine-gate-contract-001): the only file under
+    fixtures/contract/, the brief's 8549 bytes and sha256, one JSON object
+    line, listed in fixtures/README.md's "bale contract lines" section —
+    and never under a fixtures/bale-<version>/ directory."""
+
+    def setUp(self):
+        self.text = README.read_text(encoding="utf-8")
+
+    def test_the_line_is_the_briefs_bytes(self):
+        data = (REPO_ROOT / CONTRACT_RELPATH).read_bytes()
+        self.assertEqual((len(data), hashlib.sha256(data).hexdigest()),
+                         (8549, "bab19c6d19f31f56eba6b4e808e9e4950b15b8b4fbc8781295f1df93111e0334"))
+        self.assertEqual((CONTRACT_BYTES, CONTRACT_SHA256),
+                         (len(data), hashlib.sha256(data).hexdigest()))
+        self.assertTrue(data.endswith(b"\n"))
+        self.assertEqual(data.count(b"\n"), 1)
+        obj = json.loads(data)
+        self.assertEqual((obj["outcome"], obj["bale_version"]), ("contract", CONTRACT_VERSION))
+
+    def test_it_is_alone_in_its_family_and_named_by_the_manifest(self):
+        family = sorted(p.relative_to(FIXTURES_DIR).as_posix()
+                        for p in (FIXTURES_DIR / "contract").rglob("*"))
+        self.assertEqual(family, ["contract/bale-0.4.55.json"])
+        self.assertEqual(load_manifest().contract, CONTRACT_RELPATH)
+        self.assertFalse(list(FIXTURES_DIR.glob("bale-*/**/contract*")))
+
+    def test_the_readme_section_and_row(self):
+        self.assertIn("\n## bale contract lines\n", self.text)
+        section = self.text.split("\n## bale contract lines\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("| file | command | date | bytes | sha256 |", section)
+        self.assertIn(f"| `contract/bale-0.4.55.json` | `bale contract --json` | 2026-10-15 "
+                      f"| 8549 | `{CONTRACT_SHA256}` |", section)
+        self.assertIn("bale contract --json > contract-0.4.55.json", section)
+        self.assertNotIn("contract/bale-0.4.55.json", "".join(recorded_rows()))
 
 
 if __name__ == "__main__":

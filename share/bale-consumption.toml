@@ -1,5 +1,6 @@
 # share/bale-consumption.toml — twine's consumption manifest (twine-seed.md
-# D3, D4; T10). Beside the floor and the schema hashes, exactly which bale
+# D3, D4; T10). Beside the floor, the recordings and the carried contract
+# line, exactly which bale
 # surfaces twine reads and which keys of each, so a bale that moves is a
 # mechanical diff of this file against bale's changelog since the floor.
 # Every key twine does not list here is a key bale can change for free;
@@ -19,13 +20,22 @@
 # desk's reading of bale-src's context tarball. That was the last exact
 # pin: session 2026-10-12-twine-pin-floor-002 made it a floor plus this
 # file's key-and-schema contract (D2 as amended at sitting
-# 2026-10-08-open-arc2-003): twine drives any bale at or above the floor
-# (below) whose installed schemas/ hash as the table below pins them, and every verb
-# that reads a bale --json line checks, on that line, the keys its
-# [[surface]] lists. A bale that moves without touching a listed key or a
-# pinned schema needs nothing here (0.4.52 was the first such, admitted
-# with nothing re-recorded); one that does needs a recording session, which
-# raises the floor. twine.bale.load_manifest parses it; tests/ walk it.
+# 2026-10-08-open-arc2-003), and session 2026-10-15-twine-gate-contract-001
+# (ruled by the architect at sitting 2026-10-13-open-hardening-011: "i thought
+# we got rid of the pin sessions by pinning a contract?") replaced the schema
+# hashes with bale's own contract: twine drives any bale at or above the floor
+# (0.4.54, the first with `bale contract --json`) whose contract line states
+# what this file says twine reads — the three [[vocabulary]] sets exactly,
+# every listed key on each line a reader reads (`contract_lines`), and every
+# outcome and the one unlock reason twine's code dispatches on — and every
+# verb that reads a bale --json line checks, on that line, the keys its
+# [[surface]] lists. A bale that moves nothing twine reads needs nothing here
+# (0.4.52 through 0.4.55 needed nothing: the operator's 0.4.54 and 0.4.55
+# changed only the telemetry schema's cost block and the post_pack hook); a
+# value bale adds to an outcome or refusal-reason set twine does not dispatch
+# on is reported, never refused; one that moves something twine reads is
+# refused, named, and needs a recording session, which lands the new
+# spelling. twine.bale.load_manifest parses it; tests/ walk it.
 #
 # Entry shape, [[surface]]:
 #   kind             "file" (a path under the install root twine reads),
@@ -53,6 +63,10 @@
 #   read_by          the twine verb(s) that read it (registered verb names;
 #                    `carry probe` reads the probe it runs and the
 #                    probe-output it verifies — session 2026-10-02-twine-carry-probe-002)
+#   carried          kind = verb, instead of `fixture`: a carried output outside
+#                    the fixtures/bale-<version>/ rule — the `contract` surface's
+#                    line (session 2026-10-15-twine-gate-contract-001), the path
+#                    the bale table's `contract` key names
 #   fixture          the recorded output under fixtures/, when one exists —
 #                    named by the rule, its outcome group included when the
 #                    argv was recorded with more than one outcome
@@ -82,7 +96,21 @@
 #   reasons          kind = verb, optional: a closed set one of the surface's
 #                    keys takes that is NOT a transition-table axis (the
 #                    unlock refusal's `reason`; since 0.4.51 the relay
-#                    refusal's too), with its home in `reasons_home`
+#                    refusal's too), with its home in `reasons_home`; the
+#                    gate holds it to the contract's refusal_reasons[verb]:
+#                    a reason twine dispatches on (hold-branch) must be
+#                    there, and a reason bale adds is reported, not refused
+#   contract_lines   kind = verb, required when `keys` and `read_by` are both
+#                    non-empty (session 2026-10-15-twine-gate-contract-001):
+#                    the lines of `bale contract --json`'s json_keys the
+#                    reader reads — every listed key must be in each
+#   outcome_vocabulary, outcomes
+#                    kind = verb, optional, together: the contract vocabulary
+#                    the line's `outcome` takes and its values as recorded
+#                    (bale 0.4.55's contract). Every outcome twine's code
+#                    dispatches on (twine.bale.DISPATCHED_OUTCOMES) must be
+#                    in the contract's set; a value bale adds is reported,
+#                    not refused
 #   written_against  the bale version the entry was written against
 #
 #   kind = format carries, instead of path/verb/argv/cwd/stdout/fixture:
@@ -124,8 +152,8 @@
 #   axis             the transition-table axis these values are the keys of
 #   values           bale's spellings, in the order bale declares them
 #   home             the installed file that declares them: a schema under
-#                    schemas/ (its sha256 is pinned in [bale.schemas]), or a
-#                    bale source file
+#                    schemas/, or a bale source file (as bale's contract
+#                    states it; the gate reads the contract, never the file)
 #   home_sha256      kind of home = a source file: its sha256 as read
 #   pointer          where in `home`: a JSON pointer to the enum, or the
 #                    function whose docstring owns the vocabulary
@@ -135,40 +163,34 @@
 #   written_against  the bale version the values were read from
 #   read_at          the probe(s) or readings that read them, never recalled
 
-# The floor (D2 as amended, session 2026-10-12-twine-pin-floor-002): the
-# lowest bale twine drives — the version the recordings under fixtures/
-# were made at, so fixtures/bale-<floor>/ is their directory — raised only
-# by a recording session. Compared to <root>/bin/VERSION as three dotted
-# integers (a tuple: 0.4.100 is above 0.4.51). The key was `pin`, an exact
-# version, until that session; twine no longer reads it.
+# The [bale] table (session 2026-10-15-twine-gate-contract-001), exactly these
+# three keys; twine.bale.load_manifest refuses any other, and names `pin` and
+# [bale.schemas] as retired.
+#
+#   floor       the lowest bale twine drives: 0.4.54, the first bale with
+#               `bale contract --json` (bale-src, 2026-10-13). Compared to
+#               <root>/bin/VERSION as three dotted integers (a tuple: 0.4.100
+#               is above 0.4.54). It was 0.4.51 — the recordings' version —
+#               from session 2026-10-12-twine-pin-floor-002, and `pin`, an
+#               exact version, before that.
+#   recordings  the version whose recordings the tests replay: the directory
+#               fixtures/bale-<recordings>/ (unchanged at 0.4.51 — bale changed
+#               nothing twine reads since). The floor named it until this
+#               session; a recording session moves it.
+#   contract    the carried `bale contract --json` line the tests replay, byte-
+#               exact, as the install roots they build answer it
+#               (fixtures/README.md, "bale contract lines"): bale 0.4.55's,
+#               8549 bytes, sha256 bab19c6d…0334.
+#
+# The schema hashes ([bale.schemas], eight sha256 of bale's schema files
+# whole, from session 2026-10-12-twine-pin-floor-002) are gone: the gate reads
+# no file under <root>/schemas/. They refused the operator's 0.4.54 for a
+# telemetry-schema change (the attempt's `cost` block) twine reads nothing of.
+# The files stay under fixtures/bale-0.4.51/schemas/ as history.
 [bale]
-floor = "0.4.51"
-
-# The gate's second half: sha256 of each schema file as installed
-# (<root>/schemas/*.json). An install at or above the floor is driven only
-# when every file below is there with this hash, which holds the two
-# schema-homed vocabularies fixed; the files themselves are under
-# fixtures/bale-0.4.51/schemas/ (landed byte-exact by session
-# 2026-10-12-twine-pin-floor-002 from bale-src's context tarball of
-# 2026-10-07 at 0.4.51; probe twine-floor-schemas hashed the operator's
-# 0.4.52 install's on 2026-10-12, all eight equal). Read at bale
-# 0.4.45 by probe twine-core-fixtures (2026-10-01); UNCHANGED at 0.4.49 —
-# the desk of sitting 2026-10-06-continue-twine-002 hashed 0.4.49's eight
-# schemas/*.json from bale-src's context tarball on 2026-10-07 and every
-# one equals the value below — and UNCHANGED at 0.4.51, re-hashed this time
-# by a probe: twine-051-record (2026-10-08) hashed the eight installed
-# files at /home/chordsphere/bale/schemas and every one equals the value
-# below, so the values stand and the two schema-homed vocabularies below
-# stand with them.
-[bale.schemas]
-"bundle-manifest.schema.json" = "3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23"
-"changelog-record.schema.json" = "7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c"
-"diagnostics.schema.json" = "bfeef3cc0a6b91b47b1c1c9084ca47349b23a6661b10c848da3b4ef28b413521"
-"escalation-record.schema.json" = "16729aae82e20425f91b9fb343de6a74d00fa417ce3cd718767413deee550c41"
-"exchange-record.schema.json" = "c9c291899103c4a73768ef930697722b89c5c3ef8f5b388c78c36741316cddc8"
-"request-manifest.schema.json" = "70a0c2bd3b6b0d4cf17bc97010c2b7d58931527b7b3100aa984ca3576c075e3d"
-"response-manifest.schema.json" = "02d2b6413d078e031641c99e09a9fea909555bdfcb9b2a8a110dbdce63f5817e"
-"telemetry-record.schema.json" = "b79d7bf75c10f5799484f906954461e7379ef6d4a870bb7df8c08ce050b38825"
+floor = "0.4.54"
+recordings = "0.4.51"
+contract = "fixtures/contract/bale-0.4.55.json"
 
 [[surface]]
 kind = "file"
@@ -234,6 +256,23 @@ fixture = "fixtures/bale-0.4.51/anywhere/--version.txt"
 written_against = "0.4.51"
 note = "not used by twine bale check, which reads bin/VERSION instead; recorded so a reviewer can see the two agree"
 
+# --- the verb the gate runs (session 2026-10-15-twine-gate-contract-001) ---
+
+[[surface]]
+kind = "verb"
+verb = "contract"
+flags = ["--json"]
+argv = ["contract", "--json"]
+cwd = "anywhere"
+stdout = "exactly one JSON object line, exit 0: outcome \"contract\", bale_version, vocabularies, refusal_reasons, json_keys, json_key_homes"
+keys = ["outcome", "bale_version", "vocabularies", "refusal_reasons", "json_keys"]
+key_owner = "the contract line's own json_keys[\"contract\"] (CONTRACT_REPORT_KEYS in bin/bale_report.py: outcome, bale_version, vocabularies, refusal_reasons, json_keys, json_key_homes)"
+contract_lines = ["contract"]
+read_by = ["bale check", "status"]
+carried = "fixtures/contract/bale-0.4.55.json"
+written_against = "0.4.55"
+note = "the gate's second half (twine.bale.check_contract; cli-contract §5): run as <root>/bin/bale contract --json through the run seam, in twine's own directory (`bale help contract` at 0.4.55: repo-free, works in any directory, takes no lock, writes nothing, exits 0; '[bale] ' lines on stderr, which twine does not read on a clean exit), stdin closed, a 30 s timeout, by `twine bale check`, `twine status` and — through twine.bale.locate_executable — every verb that drives bale (carry exchange, carry response, carry bundle, kill, run, resume); `read_by` names the two that report it, since each other verb's own surface keeps its reader unique. New at bale 0.4.54; not recorded under fixtures/bale-<version>/ (no recorder paste derives it) but carried: the operator's 0.4.55 line, landed byte-exact at `carried` and named by [bale] contract (fixtures/README.md, \"bale contract lines\"). The gate reads outcome, bale_version, vocabularies (the three [[vocabulary]] axes, and the outcome_vocabulary of each surface below that names one), refusal_reasons (each surface's `reasons`, by its verb) and json_keys (each surface's contract_lines); json_key_homes is free"
+
 # --- the verbs the carry hand-offs run (session 2026-10-03-twine-carry-bale-002) ---
 
 [[surface]]
@@ -245,6 +284,7 @@ cwd = "scratch"
 stdout = "exactly one JSON object line; outcome \"dry-run\" when the response would apply (nothing staged, branched or committed); a *-refused outcome with exit 1, the line still on stdout, when the plan would refuse"
 keys = ["outcome"]
 vocabulary = "apply-outcome"
+contract_lines = ["apply"]
 read_by = ["carry response"]
 fixture = "fixtures/bale-0.4.51/scratch/apply_--dry-run_--json_tarball+dry-run.json"
 also_recorded = [
@@ -263,6 +303,9 @@ cwd = "scratch"
 stdout = "exactly one JSON object line on every path, refusals included: outcome \"relayed\" (exit 0) once the round is recorded, the counterpart's paste block in `block`; \"re-emitted\" (exit 0) when run without an input; \"relay-refused\" (exit 1, a `reason` code and a `cause` saying why, `block` null) on an input that is not a record or a sid not open; '[bale] ' lines on stderr — on a refusal, `[bale] error: <cause>`"
 keys = ["outcome", "sid", "block", "cause"]
 key_owner = "format_relay_json docstring in bin/bale_report.py (outcome, sid, round, from, awaiting, kind, preserved, block, log, clipboard, cause, telemetry, reason)"
+contract_lines = ["relay", "relay-refused"]
+outcome_vocabulary = "relay-outcome"
+outcomes = ["relayed", "re-emitted", "relay-refused"]
 reasons = ["not-open", "held-branch", "not-found", "not-an-object", "trailer-mismatch", "malformed-block", "wrong-session", "schema", "stale-round", "skipped-round", "planner-round-one", "unresolved-answer", "thread-changed", "no-rounds", "unreadable-record", "unreadable-input", "no-sid", "not-a-repo", "system-dir", "config-invalid", "no-git", "unclassified"]
 reasons_home = "RELAY_REFUSAL_REASONS in bin/bale_report.py (bale 0.4.50): the closed set the refusal line's `reason` takes, in bale's order, `unclassified` the fallback — recorded here on the surface, not as a [[vocabulary]] axis; twine reads no `reason` from this line yet (it dispatches on `outcome` and quotes `cause`), and a courier axis keyed on it is a later session's"
 read_by = ["carry exchange"]
@@ -285,6 +328,9 @@ cwd = "scratch"
 stdout = "exactly one JSON object line: outcome \"opened\" (exit 0) with the minted sid, the request tarball, the session dir and the paste-ready `opener`; \"second-desk\" (exit 0) when the same bundle is already open and this chat joins it as a desk; \"rehearsed\" (exit 0) under --check, nothing written; since bale 0.4.50 \"open-refused\" (exit 1) with a `reason` code and a `cause`, `[bale] error: <cause>` on stderr"
 keys = ["outcome", "sid", "tarball", "opener", "desk", "bundle", "reason", "cause"]
 key_owner = "format_open_json docstring in bin/bale_report.py (outcome, sid, tarball, log, session_dir, context_files, readme_path, readme_heading, readme_sha256, checkpoint_file_path, checkpoint_file_sha256, branch, applied_latest, sweep, include_group, opener, bundle, members, rehearsal, checkpoint_dry_run, desk, reason, cause)"
+contract_lines = ["open", "open-refused"]
+outcome_vocabulary = "open-outcome"
+outcomes = ["opened", "second-desk", "rehearsed", "open-refused"]
 read_by = ["carry bundle"]
 fixture = "fixtures/bale-0.4.51/scratch/open_bundle_--json+opened.json"
 also_recorded = [
@@ -321,8 +367,11 @@ stdout = "exactly one JSON object line on a close (exit 0, outcome \"unlocked\",
 keys = ["outcome", "sid", "closure_reason", "telemetry", "reason", "message", "open_sessions"]
 key_owner = "format_unlock_json docstring in bin/bale_report.py (outcome, sid, log, closure_reason, session_dir_wiped, branch_preserved, telemetry, debris, sweep, reason, message, open_sessions)"
 vocabulary = "closure-reason"
-reasons = ["hold-branch", "not-open", "several-open", "not-a-repo", "integration-json"]
-reasons_home = "UNLOCK_REFUSAL_REASONS in bin/bale_report.py (bale 0.4.47): the closed set the refusal line's `reason` takes — recorded here on the surface, not as a [[vocabulary]] axis (the transition table keys on three bale axes and the stop set; an unlock-reason axis is a table design, the courier axis of transitions-004's Proposals)"
+contract_lines = ["unlock", "unlock-refused"]
+outcome_vocabulary = "unlock-outcome"
+outcomes = ["unlocked", "no-op", "unlock-refused"]
+reasons = ["hold-branch", "not-open", "several-open", "not-a-repo", "integration-json", "cost-file"]
+reasons_home = "UNLOCK_REFUSAL_REASONS in bin/bale_report.py (bale 0.4.47): the closed set the refusal line's `reason` takes — recorded here on the surface, not as a [[vocabulary]] axis (the transition table keys on three bale axes and the stop set; an unlock-reason axis is a table design, the courier axis of transitions-004's Proposals). `cost-file` is new at bale 0.4.54 (bale-src 2026-10-13-cost-mirror-005's `--cost-file PATH`), recorded from bale 0.4.55's contract line by session 2026-10-15-twine-gate-contract-001; twine passes no --cost-file and dispatches on hold-branch alone"
 read_by = ["kill"]
 read_at = ["twine-unlock-contract", "twine-unlock-code"]
 fixture = "fixtures/bale-0.4.51/scratch/unlock_sid_--reason-aborted_--json.json"
@@ -419,7 +468,11 @@ note = "no trailer; _inline_lines indents an inlined line that starts '=== RELAY
 # claude/changelog/0.4.50.json and 0.4.51.json, bin/bale_report.py at sha256
 # 1f4f2c75…, format_apply_json at line 3426) — again a reading, not a
 # probe; the schema homes' hashes were taken by probe twine-051-record —
-# and found unchanged on all three axes.
+# and found unchanged on all three axes. Since session
+# 2026-10-15-twine-gate-contract-001 the gate holds every install it admits to
+# these values exactly, as its own `bale contract --json` states them; bale
+# 0.4.55's carried line (fixtures/contract/bale-0.4.55.json) states all three
+# equal value for value, in this order.
 
 [[vocabulary]]
 axis = "telemetry-outcome"
@@ -430,7 +483,7 @@ also_at = ["/properties/attempts/items/properties/outcome"]
 excluded = []
 read_by = ["transitions"]
 written_against = "0.4.51"
-read_at = ["twine-table-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49; the schema's hash unchanged since the probe) — not a probe", "the desk's reading of bale-src's context tarball (2026-10-08, bale 0.4.51) — not a probe; the schema's hash re-taken by probe twine-051-record (2026-10-08), unchanged"]
+read_at = ["twine-table-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49; the schema's hash unchanged since the probe) — not a probe", "the desk's reading of bale-src's context tarball (2026-10-08, bale 0.4.51) — not a probe; the schema's hash re-taken by probe twine-051-record (2026-10-08), unchanged", "bale 0.4.55's contract line (fixtures/contract/bale-0.4.55.json, carried 2026-10-15) — equal value for value"]
 note = "the outcome of each telemetry attempt, mirrored to the envelope. 'rejected' is written when apply exits non-zero through an error path (bin/bale_apply.py:3901-3905 at 0.4.45) and 'relay-refused' when bale relay does (bin/bale_relay.py:204-209 at 0.4.45); 'unlocked' is the registry-close outcome whatever command drove it, its closure_reason saying why"
 
 [[vocabulary]]
@@ -442,7 +495,7 @@ also_at = []
 excluded = ["null: the enum's tenth member, meaning the session is not closed; not a reason, so not a key"]
 read_by = ["kill", "transitions"]
 written_against = "0.4.51"
-read_at = ["twine-table-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49; the schema's hash unchanged since the probe) — not a probe", "the desk's reading of bale-src's context tarball (2026-10-08, bale 0.4.51) — not a probe; the schema's hash re-taken by probe twine-051-record (2026-10-08), unchanged"]
+read_at = ["twine-table-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49; the schema's hash unchanged since the probe) — not a probe", "the desk's reading of bale-src's context tarball (2026-10-08, bale 0.4.51) — not a probe; the schema's hash re-taken by probe twine-051-record (2026-10-08), unchanged", "bale 0.4.55's contract line (fixtures/contract/bale-0.4.55.json, carried 2026-10-15) — equal value for value"]
 note = "why a session closed, stamped on unlock and revert events; `bale unlock --help` lists the same nine as --reason choices, and an omitted reason infers 'closed-read-only' for an empty recorded scope, 'abandoned' otherwise (the 0.4.49 and 0.4.51 recordings show both: the read-only session closed closed-read-only without a reason, the scoped one aborted with one). Two spell with underscores (no_response, malformed_response); bale's spelling is the key"
 
 [[vocabulary]]
@@ -455,5 +508,5 @@ also_at = ["`bale apply --help`, the --json text"]
 excluded = []
 read_by = ["transitions"]
 written_against = "0.4.51"
-read_at = ["twine-apply-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49: bin/bale_report.py at sha256 20871bc6…, `def format_apply_json` at line 3040, the same nine outcomes) — not a probe", "the desk's reading of bale-src's context tarball (2026-10-08, bale 0.4.51: bin/bale_report.py at the sha256 above, the installed file's as probe twine-051-record hashed it, `def format_apply_json` at line 3426, the same nine outcomes) — not a probe"]
+read_at = ["twine-apply-vocab", "the desk's reading of context-bale-src.tar.gz (2026-10-07, bale 0.4.49: bin/bale_report.py at sha256 20871bc6…, `def format_apply_json` at line 3040, the same nine outcomes) — not a probe", "the desk's reading of bale-src's context tarball (2026-10-08, bale 0.4.51: bin/bale_report.py at the sha256 above, the installed file's as probe twine-051-record hashed it, `def format_apply_json` at line 3426, the same nine outcomes) — not a probe", "bale 0.4.55's contract line (fixtures/contract/bale-0.4.55.json, carried 2026-10-15: home bin/bale_report.py, pointer APPLY_OUTCOMES) — equal value for value"]
 note = "the outcome `bale apply --json` prints, one terminal reporting point each: exit 0 for applied, bailout, clarification and dry-run; exit 1 for held, reverted and the three *-refused (the *-refused also under --dry-run — the scope-drift one recorded at 0.4.49 and 0.4.51). Error paths print nothing on stdout and exit non-zero (telemetry 'rejected'). With pack's 'packed' bale calls these the whole outcome vocabulary; 'packed' is pack's, not apply's, and is not a key here"

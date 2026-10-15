@@ -53,9 +53,12 @@ D15's kill "must work when the harness itself is wedged", and an install
 the gate refuses is one way it can be — while the closure, whose vocabulary
 the gate exists for (D17), is only ever attempted with a bale the gate
 admits (`close_aborted` checks `Executable.drive_refusal` itself). Until
-session 2026-10-12-twine-pin-floor-002 the gate was an exact pin; it is now
-a floor plus schema hashes, and the unlock line's listed keys are checked
-when it is read.
+session 2026-10-12-twine-pin-floor-002 the gate was an exact pin; it was then
+a floor plus schema hashes, and since session
+2026-10-15-twine-gate-contract-001 it is the floor plus bale's contract
+(`bale contract --json`, which states the unlock line's keys, outcomes and
+the hold-branch reason the hand line keys on); the unlock line's listed
+keys are checked again when it is read.
 
 What it never does: merge, apply or revert anything (T12 — `bale unlock`
 performs no git operation); run any `unlock` argv but the one; retry a
