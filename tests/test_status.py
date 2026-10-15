@@ -122,9 +122,10 @@ class Status(unittest.TestCase):
 
 STATE_KEYS = ("state_dir", "state_dir_source", "state_dir_reason", "state_dir_exists",
               "state_present", "inflight_sids", "inflight_faults")
-# Seven since Arc 2 R4: `twine run` keeps transcripts/ and sandbox/ there too.
+# Seven since Arc 2 R4: `twine run` keeps transcripts/ and sandbox/ there too;
+# eight since twine-run-telemetry: runs.jsonl, a file, after sandbox.
 PRESENT_KEYS = ("spend_jsonl", "prices_toml", "abort", "running", "inflight", "transcripts",
-                "sandbox")
+                "sandbox", "runs_jsonl")
 # Two sids twine accepts (twine.kill.is_sid), and their record files' names.
 SID = "2026-10-08-twine-status-inflight-004"
 OTHER_SID = "2026-10-08-twine-exchange-vouch-005"
@@ -192,20 +193,21 @@ class StateDirectory(unittest.TestCase):
                           "state_present": {"spend_jsonl": True, "prices_toml": False,
                                             "abort": True, "running": False,
                                             "inflight": False, "transcripts": False,
-                                            "sandbox": False},
+                                            "sandbox": False, "runs_jsonl": False},
                           "inflight_sids": [], "inflight_faults": []})
         self.assertEqual(tuple(obj["state_present"]), PRESENT_KEYS)
         out = run_inprocess("status", "--state-dir", str(state)).stdout
         self.assertIn(f"state dir:            {state}  (from --state-dir)", out)
         self.assertIn("state present:        spend.jsonl, abort/  "
-                      "(missing: prices.toml, running/, inflight/, transcripts/, sandbox/)",
-                      out)
+                      "(missing: prices.toml, running/, inflight/, transcripts/, sandbox/, "
+                      "runs.jsonl)", out)
         (state / "prices.toml").write_text("")
         (state / "running").unlink()
         (state / "running").mkdir()
         (state / "inflight").mkdir()
         (state / "transcripts").mkdir()
         (state / "sandbox").mkdir()
+        (state / "runs.jsonl").write_text("")
         obj = self.status("--state-dir", str(state))
         self.assertEqual(obj["state_present"], dict.fromkeys(PRESENT_KEYS, True))
         self.assertNotIn("missing", run_inprocess("status", "--state-dir", str(state)).stdout)
@@ -317,7 +319,7 @@ class InflightRecords(unittest.TestCase):
         obj = self.status()
         self.assertEqual(tuple(obj["state_present"]),
                          ("spend_jsonl", "prices_toml", "abort", "running", "inflight",
-                          "transcripts", "sandbox"))
+                          "transcripts", "sandbox", "runs_jsonl"))
         self.assertEqual(tuple(k for k in obj if k in STATE_KEYS), STATE_KEYS)
 
     def test_a_record_is_read_and_its_sid_listed(self):
@@ -327,7 +329,7 @@ class InflightRecords(unittest.TestCase):
                           obj["inflight_faults"]), (True, [SID], []))
         out = self.human()
         self.assertIn("state present:        inflight/  (missing: spend.jsonl, prices.toml, "
-                      "abort/, running/, transcripts/, sandbox/)", out)
+                      "abort/, running/, transcripts/, sandbox/, runs.jsonl)", out)
         self.assertIn(f"in-flight record:     {SID}\n", out)
         self.assertNotIn("in-flight fault", out)
 
@@ -350,7 +352,7 @@ class InflightRecords(unittest.TestCase):
                           obj["inflight_faults"]), (False, [], []))
         self.assertIn("state present:        spend.jsonl  "
                       "(missing: prices.toml, abort/, running/, inflight/, transcripts/, "
-                      "sandbox/)", self.human())
+                      "sandbox/, runs.jsonl)", self.human())
 
     def test_an_empty_inflight_directory_is_present_with_nothing_in_it(self):
         self.records.mkdir(parents=True)

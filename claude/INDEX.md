@@ -91,7 +91,13 @@ project's inventory.
   run` writes: one JSON line per step, append-only, never a record of intent
   — TQ-1; `context/runtime-contract.md` §7.6; since R5 what `twine resume`
   rebuilds a conversation from, §7.9, and the home keeps escalate's
-  clarification responses under `escalations/<k>/`) — not in this repository: twine's state directory (`--state-dir`, else
+  clarification responses under `escalations/<k>/`) and, since
+  twine-run-telemetry, `<state-dir>/runs.jsonl` (one line per run that has a
+  sid, on every outcome: the twin plus durations by tool, the events and the
+  desk — read by `twine stats`; `context/cli-contract.md` §20) and
+  `<state-dir>/cost/<sid>.json` (the session's cost snapshot, bale's six
+  `--cost-file` keys, written before every apply line twine prints, §18.7a)
+  — not in this repository: twine's state directory (`--state-dir`, else
   `$TWINE_STATE_DIR`, else `${XDG_STATE_HOME:-$HOME/.local/state}/twine`).
   The spend stream is twine's durable usage record (D15, N4): append-only,
   one JSON line per model call, tokens by class and a nullable
@@ -169,7 +175,11 @@ project's inventory.
   `runtime` fields. Since Arc 2 R5 also §18's `--window` and the twin's
   `window`, `resumed_from` and `rewarm`, and §19, `twine resume` (cold
   resume of a kept session: the flags, every refusal before anything
-  starts, no `bale open`, the sequence, the twin, the tests).
+  starts, no `bale open`, the sequence, the twin, the tests). Since
+  twine-run-telemetry also §18.7a (the cost file and `--cost-file` on every
+  apply line), §20 (`runs.jsonl`, its pinned record, and `twine stats`) and §21
+  (`twine transcript`, a run's story), and §4's eighth `state_present`
+  boolean, `runs_jsonl`.
 - `context/runtime-contract.md` — the runtime's contract, the sibling of
   `cli-contract.md` (Arc 2 R1; §1 and §2 ratified 2026-10-12; §5 Arc 2 R2's;
   §6 Arc 2 R3's; §7 R4's; §7.9 and the window's lines R5's):

@@ -23,7 +23,7 @@ import os
 import platform
 from typing import Any
 
-from twine import CONSUMPTION_MANIFEST, FIXTURES_DIR, REPO_ROOT, __version__, spend
+from twine import CONSUMPTION_MANIFEST, FIXTURES_DIR, REPO_ROOT, __version__, runs, spend
 from twine.bale import ManifestError, check, load_manifest, resolve_root
 from twine.cli import Context
 from twine.inflight import INFLIGHT_SUBDIR, list_inflight
@@ -81,7 +81,8 @@ def state_dir_facts(flag: str | None, env: dict[str, str]) -> dict[str, Any]:
     refusal text when none resolves (a null `state_dir` is never silent),
     `state_dir_exists`, and `state_present` — whether `spend.jsonl` and
     `prices.toml` exist as files and `abort/`, `running/` and `inflight/` as
-    directories, all false when the directory itself does not. Then the
+    directories (and, since twine-run-telemetry, `runs.jsonl` as the
+    eighth, a file), all false when the directory itself does not. Then the
     in-flight records (session `twine-status-inflight`): `inflight_sids`,
     the sids whose records read, sorted, and `inflight_faults`, one sentence
     per entry in `inflight/` that is not a record, naming it — both `[]`
@@ -109,7 +110,8 @@ def state_dir_facts(flag: str | None, env: dict[str, str]) -> dict[str, Any]:
                "running": os.path.isdir(where.path / RUNNING_SUBDIR),
                "inflight": os.path.isdir(where.path / INFLIGHT_SUBDIR),
                "transcripts": os.path.isdir(where.path / TRANSCRIPTS_SUBDIR),
-               "sandbox": os.path.isdir(where.path / SANDBOX_SUBDIR)}
+               "sandbox": os.path.isdir(where.path / SANDBOX_SUBDIR),
+               "runs_jsonl": os.path.isfile(runs.runs_path(where.path))}
     if not exists:
         present = {key: False for key in present}
     # Listed only when the directory is there to list; list_inflight reads
@@ -160,7 +162,8 @@ def state_dir_lines(facts: dict[str, Any]) -> list[str]:
         return [head + "  (does not exist)"]
     names = {"spend_jsonl": "spend.jsonl", "prices_toml": "prices.toml",
              "abort": "abort/", "running": "running/", "inflight": "inflight/",
-             "transcripts": "transcripts/", "sandbox": "sandbox/"}
+             "transcripts": "transcripts/", "sandbox": "sandbox/",
+             "runs_jsonl": "runs.jsonl"}
     there = [names[k] for k, yes in facts["state_present"].items() if yes]
     missing = [names[k] for k, yes in facts["state_present"].items() if not yes]
     return [head,
@@ -248,7 +251,8 @@ COMMANDS = (
                     "(--state-dir, else $TWINE_STATE_DIR, else XDG, else "
                     "$HOME; null, with the reason, when none does), whether "
                     "it exists, whether spend.jsonl, prices.toml, abort/, "
-                    "running/, inflight/, transcripts/ and sandbox/ are in "
+                    "running/, inflight/, transcripts/ and sandbox/ and runs.jsonl "
+                    "are in "
                     "it, the sids whose in-flight records read, and every "
                     "file in inflight/ that is not a record, named, and the "
                     "sids of the transcripts and sandbox homes `twine run` "

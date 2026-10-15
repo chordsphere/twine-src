@@ -1397,6 +1397,21 @@ is a later session's. On `suspended`, `ended`, `stopped`, `killed` and the
 `cap-*` outcomes the record and the home are kept, for `twine resume` (§7.9)
 and for the planner.
 
+**On every outcome, once the run has a sid**, `twine run` and `twine resume`
+append **one line to `<state-dir>/runs.jsonl`** (twine-run-telemetry;
+`cli-contract.md` §20.1) — `delivered`, `suspended`, `ended`, `stopped`,
+`killed`, `cap-reached`, `cap-unchecked`, and `refused` after the open — so a
+rate over the runs has no numerator-only exits. The line is the twin's names
+plus what the loop tallies and the twin does not carry: per tool `calls`,
+`errors` and wall `seconds` around `run_tool` (a probe hop's included), the
+`continue-turn` moves made, and the heartbeat lines printed (`LoopResult.tools`,
+`.continuations`, `.heartbeats`). The loop never reads the file. Where the
+loop's `deliver` hands the courier's line back, twine has first written the
+session's cost file and the apply line it returns names it (§18.7a): the
+loop's `apply_line` on `delivered` and on escalate's clarification form is
+`bale apply <tarball> --cost-file <path>`, and the `run-end` twin and the
+`carry_response` the `move` line carries say the same.
+
 ### 7.8 What it does not do
 
 It applies nothing (T12: the only apply argv is `bale apply --dry-run

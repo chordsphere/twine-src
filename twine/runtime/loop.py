@@ -701,6 +701,13 @@ class LoopResult:
     # The run's first call's usage, the five classes (R5: on a resumed run
     # this is D23's re-warm cost, the twin's `rewarm`); None until made.
     first_usage: dict[str, Any] | None = None
+    # twine-run-telemetry: what `runs.jsonl` records beside the counts above —
+    # the continuations asked for (`continue-turn`), the heartbeat lines
+    # printed, and per tool that ran its calls, its errors and the wall
+    # seconds spent around `run_tool` (the tool's own time, not the model's).
+    continuations: int = 0
+    heartbeats: int = 0
+    tools: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class Loop:
@@ -809,6 +816,7 @@ class Loop:
                 try:
                     self.progress(f"call {n}: tool {name}: still running, "
                                   f"{format_seconds(self.clock() - began)}{tail}")
+                    self.result.heartbeats += 1
                 except Exception as exc:   # a view that cannot be written is not the tool's
                     log.warning("the heartbeat line could not be written: %s", exc)
                     return
@@ -816,11 +824,24 @@ class Loop:
         thread = threading.Thread(target=beat, name=f"twine-heartbeat-{n}", daemon=True)
         self.progress(f"call {n}: tool {name}: running{tail}")
         thread.start()
+        result: ToolResult | None = None
         try:
-            return run_tool(self.sandbox, name, arguments, registry=self.tools)
+            result = run_tool(self.sandbox, name, arguments, registry=self.tools)
+            return result
         finally:
             done.set()
             thread.join()
+            self.note_tool(name, result, self.clock() - began)
+
+    def note_tool(self, name: str, result: ToolResult | None, seconds: float) -> None:
+        """One tool call into the run's `tools` tally (what `runs.jsonl`
+        keeps): calls, errors and wall seconds, measured around `run_tool`.
+        A call that raised (no result) counts as an error."""
+        entry = self.result.tools.setdefault(name, {"calls": 0, "errors": 0, "seconds": 0.0})
+        entry["calls"] += 1
+        if result is None or result.is_error:
+            entry["errors"] += 1
+        entry["seconds"] = round(entry["seconds"] + max(0.0, seconds), 3)
 
     # --- ending ------------------------------------------------------------
 
@@ -1127,6 +1148,7 @@ class Loop:
                                 f"({MAX_CONTINUATIONS} continuations); twine continues no "
                                 "more")
         self._continuations += 1
+        self.result.continuations += 1
         blocks = assistant_blocks(turn)
         if blocks:
             self.messages.append(assistant_message(blocks))

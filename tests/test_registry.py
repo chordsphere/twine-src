@@ -40,13 +40,14 @@ class RegistryParity(unittest.TestCase):
     def test_this_sessions_verbs_are_registered(self):
         """Since Arc 1 session 3 the set holds `carry bundle` too, since
         Arc 2 R1 the two `runtime` verbs, since R3 `runtime tools`, since R4
-        `run`, and since R5 `resume`."""
+        `run`, since R5 `resume`, and since twine-run-telemetry `stats` and
+        `transcript`."""
         self.assertEqual(set(load_registry()),
                          {"commands", "status", "bale check", "take", "carry probe",
                           "carry exchange", "carry response", "carry bundle",
                           "transitions", "spend totals", "spend check", "kill",
                           "runtime list", "runtime show", "runtime tools", "run",
-                          "resume"})
+                          "resume", "stats", "transcript"})
 
     def test_verb_names_are_space_joined_paths(self):
         for name, cmd in load_registry().items():

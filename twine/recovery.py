@@ -340,14 +340,18 @@ def resume_line(sid: str, cap: str | None, carried: Carried, *,
     return " ".join(parts)
 
 
-def admit_line(tarball: str, dry_run: Mapping[str, Any] | None) -> str | None:
+def admit_line(tarball: str, dry_run: Mapping[str, Any] | None,
+               cost_file: str | None = None) -> str | None:
     """bale's own admit line for a delivery its dry run refused as
     `scope-drift-refused`: `bale apply <tarball> --allow-out-of-scope <path>`
     once per path of the line's `drift.out_of_scope_paths` (bale's refusal
     prints the same line, one flag per drifted path) — the `bale apply
     <tarball>` part is `twine.bale.apply_line`'s, the one place an apply line
     is spelled. None for any other outcome, or when the line names no path.
-    Twine never runs it (T12)."""
+    With a `cost_file` the line is `bale apply <tarball> --cost-file <path>
+    --allow-out-of-scope <path>...` (an admit line is an apply: it carries
+    the session's cost file as every apply line does). Twine never runs it
+    (T12)."""
     if not isinstance(dry_run, Mapping) or dry_run.get("outcome") != SCOPE_DRIFT:
         return None
     drift = dry_run.get("drift")
@@ -356,24 +360,32 @@ def admit_line(tarball: str, dry_run: Mapping[str, Any] | None) -> str | None:
         return None
     if not all(isinstance(p, str) and p for p in paths):
         return None
-    return " ".join([bale.apply_line(tarball),
-                     *(f"{ADMIT_FLAG} {shlex.quote(p)}" for p in paths)])
+    base = bale.apply_line(tarball) if cost_file is None else bale.apply_cost_line(
+        tarball, cost_file)
+    return " ".join([base, *(f"{ADMIT_FLAG} {shlex.quote(p)}" for p in paths)])
 
 
 def next_commands(sid: str, *, outcome: str | None, stop: str | None, move: str | None = None,
                   apply_line: str | None = None, light_block: bool = False,
                   tarball: str | None = None, dry_run: Mapping[str, Any] | None = None,
                   suggested: Decimal | None, carried: Carried,
-                  plannable: bool = True) -> list[str]:
+                  plannable: bool = True, cost_file: str | None = None) -> list[str]:
     """The `next` list of an ending (cli-contract.md §18.7, §19.4). With no
     suggested cap the resume line is `twine resume SID --plan` — the command
     that says why — unless `plannable` is False (the plan itself is asking:
-    a plan whose next line is a plan names nothing)."""
+    a plan whose next line is a plan names nothing). escalate's clarification
+    form on `suspended` names the resume that follows the planner's relayed
+    answer (`--answer -`) after its apply line. `apply_line` is the line the
+    ending printed (with its `--cost-file`, when one was written); `cost_file`
+    is the file bale's admit line carries."""
     if outcome == DELIVERED:
         return [apply_line] if apply_line else []
     if outcome == SUSPENDED:
         if apply_line:
-            return [apply_line]
+            cap = None if suggested is None else f"{suggested:.2f}"
+            if cap is None and not plannable:
+                return [apply_line]
+            return [apply_line, resume_line(sid, cap, carried, answer_stdin=True)]
         cap = None if suggested is None else f"{suggested:.2f}"
         if cap is None and not plannable:
             return []
@@ -384,7 +396,7 @@ def next_commands(sid: str, *, outcome: str | None, stop: str | None, move: str 
     if cap is None and not plannable:
         return []
     again = resume_line(sid, cap, carried)
-    admit = admit_line(tarball or "", dry_run)
+    admit = admit_line(tarball or "", dry_run, cost_file)
     return [admit, again] if admit else [again]
 
 

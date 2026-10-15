@@ -60,7 +60,12 @@
 > the contract surface and the bump procedure, §7's recordings directory,
 > schemas and contract-line family, §8's roots, §11.1's `contract_ok` and
 > gate, §12's telemetry row, §14.1, §14.5, §15.2 and §16's "when a
-> recording session is needed"); a later session that changes a line
+> recording session is needed") and by `2026-10-15-twine-run-telemetry-004`
+> (§20, `runs.jsonl` and `twine stats`; §21, `twine transcript`; §18.7a, the
+> cost file and the `--cost-file` on every apply line twine prints; §4's
+> eighth `state_present` boolean, §2's verb list, and the lines of §18.5,
+> §18.6, §18.7, §19.4 and §19.5 naming the new twin names, the line and the
+> apply line); a later session that changes a line
 > changes it here in the same response.
 
 ## 1. The entrypoint
@@ -107,8 +112,9 @@
   §13) — `kill` (`twine/commands/kill.py`, §14) and, since Arc 2 R1, the
   `runtime` group — `runtime list` and `runtime show`, and since R3
   `runtime tools` (`twine/commands/runtime.py`, §17) — and, since Arc 2
-  R4, `run` (`twine/commands/run.py`, §18), and since R5 `resume`
-  (`twine/commands/resume.py`, §19). One group's verbs
+  R4, `run` (`twine/commands/run.py`, §18), since R5 `resume`
+  (`twine/commands/resume.py`, §19), and since twine-run-telemetry `stats`
+  (§20) and `transcript` (§21), both in `twine/commands/telemetry.py`. One group's verbs
   may live in several modules; the parser assembles the group from all
   of them.
 - `twine commands --json` emits
@@ -155,7 +161,7 @@ session 3's):
 | `state_dir_source` | `"--state-dir"`, `"TWINE_STATE_DIR"`, `"XDG_STATE_HOME"` or `"HOME"`; `null` when none resolves |
 | `state_dir_reason` | `null` when one resolves; otherwise the refusal text (`spend.SpendError`'s message) — a null `state_dir` is never silent |
 | `state_dir_exists` | whether it exists and is a directory; `null` when none resolves |
-| `state_present` | `null` when none resolves; otherwise an object with seven booleans, in this order — `spend_jsonl`, `prices_toml`, `abort`, `running`, `inflight`, `transcripts`, `sandbox` (the last two since Arc 2 R4) — whether `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`, `<state-dir>/abort/`, `<state-dir>/running/`, `<state-dir>/inflight/`, `<state-dir>/transcripts/` and `<state-dir>/sandbox/` exist (the two files as files, the five directories as directories: a file named `inflight` reads false); all false when the directory itself does not exist |
+| `state_present` | `null` when none resolves; otherwise an object with eight booleans, in this order — `spend_jsonl`, `prices_toml`, `abort`, `running`, `inflight`, `transcripts`, `sandbox` (the last two since Arc 2 R4), `runs_jsonl` (since twine-run-telemetry) — whether `<state-dir>/spend.jsonl`, `<state-dir>/prices.toml`, `<state-dir>/abort/`, `<state-dir>/running/`, `<state-dir>/inflight/`, `<state-dir>/transcripts/`, `<state-dir>/sandbox/` and `<state-dir>/runs.jsonl` (§20.1) exist (the three files as files, the five directories as directories: a file named `inflight` reads false); human mode names `runs.jsonl` on the `state present:` line with the rest; all false when the directory itself does not exist |
 | `inflight_sids` | the sids whose `<state-dir>/inflight/<sid>.json` reads as an in-flight record (`twine.inflight.read_inflight` accepts it, §15.7), sorted; `[]` when `inflight/` is absent, not a directory, or holds no record; `null` when no state directory resolves (session `twine-status-inflight`) |
 | `inflight_faults` | one string per entry in `inflight/` that is not a record, in name order, each naming the entry by its basename and saying why (below); `[]` when every entry reads (or there is none, or no `inflight/`); `null` when no state directory resolves |
 | `transcript_sids`, `transcript_faults` | (Arc 2 R4) the sids of the `<sid>.jsonl` files in `<state-dir>/transcripts/` — the transcripts `twine run` keeps (§18) — sorted, and one sentence per other entry there; `[]` when there is no `transcripts/`; `null` when no state directory resolves |
@@ -2879,7 +2885,7 @@ that dry run is not clean.
 | `retries` | backoff retries taken |
 | `block` | on `suspended`: the light block text, or — on escalate's clarification form — the exchange paste block (`BALE EXCHANGE BEGIN <sid>` … `END`, `tools/craft_response.py --emit-block` on the filled manifest, TARBALL.md §5.9.2's second transport), beside `tarball`, `apply_line` and `dry_run`; else null |
 | `tarball` | the delivered response tarball's absolute path (also on a dry run that was not clean); else null |
-| `apply_line` | on `delivered`: `carry response`'s line; else null |
+| `apply_line` | on `delivered` (and on escalate's clarification form on `suspended`): the line that applies the response, `bale apply <tarball> --cost-file <path>` (§18.7a) — the plain `bale apply <tarball>` when its cost file could not be written; else null |
 | `dry_run` | `carry response`'s `dry_run` object when it ran; else null |
 | `usage` | the five classes summed over the run's own calls (`thinking` the sum of the non-null values, null only when every call's was; 0 with no calls) |
 | `cost_usd` | the run's own cost (a JSON number) when its calls are priced; 0 with no calls; else null |
@@ -2898,8 +2904,11 @@ it is known or no window was made), `check` (the last pre-call check's twin, §1
 `running` (`pid`, `pgid`, `setsid`, `registered`, `cleared`, `note` — null
 before the group was led), `request` (where the request was unpacked, how
 many members, the top directory stripped), `network` (the sandbox's),
-`transcript_faults`, `inflight_error`, `state_dir`, `state_dir_source` — and
-last of them, since twine-run-recovery, **`next`**: a list of command strings,
+`transcript_faults`, `inflight_error`, `state_dir`, `state_dir_source`, and —
+since twine-run-telemetry — `cost_file` (the cost file an apply line of this
+run names, §18.7a; null when no apply line was printed or the file could not be
+written) and `cost_file_error` (why it could not be, else null) — and last of
+them, since twine-run-recovery, **`next`**: a list of command strings,
 the command each ending names (§18.7; empty for the endings that name none).
 The twin is also the transcript's `run-end` line.
 
@@ -2911,7 +2920,10 @@ tool's group that outlived its run, which `twine kill` must still reach
 removed and the sandbox home kept (the response tarball lives there until
 the operator applies it; removing homes is a later session's). On every
 other outcome both are kept, for R5's resume and for the planner. The
-transcript and the spend stream are never removed.
+transcript and the spend stream are never removed — nor `runs.jsonl`, to which
+every run that has a sid, whatever its outcome, appends **one `runs.jsonl`
+line** (§20.1), and nor the cost file (§18.7a), a snapshot replaced each time
+an apply line is printed.
 
 ### 18.7 Human mode
 
@@ -2959,13 +2971,18 @@ operator needs to judge a run without opening the transcript:
   <tarball> --allow-out-of-scope <path> …` built from the dry run's `drift`
   (the remedy bale's refusal prints: one flag per out-of-scope path), and the
   resume line that returns the work to the worker — after a line saying the
-  departures are enumerated in the response's `notes.md`; **twine never runs
+  departures are enumerated in the response's `notes.md`; bale's admit line
+  is an apply, so it carries the session's cost file, `bale apply <tarball>
+  --cost-file <path> --allow-out-of-scope <path> …` (written first, §18.7a;
+  the plain line when it cannot be written); **twine never runs
   the admit line** (T12): it hands the operator bale's choice. `killed` names
   no command and says in words that the way on is a respawn from the request
   (a kill is a close); `window-exhausted` none, and says the way on is the
-  planner's split. `delivered` and the clarification form's `suspended` name
-  the apply line, a light block's `suspended` `twine resume SID --cap
-  <suggested> --answer -`.
+  planner's split. `delivered` names the apply line (with `--cost-file`,
+  §18.7a); the clarification form's `suspended` names it and then, as a second
+  line, the resume that follows the planner's relayed answer, `twine resume
+  SID --cap <suggested> --answer -` (a light block's `suspended` names that
+  resume line alone).
 
 On stdout at the end: **the apply line alone**
 on `delivered`; **the light block alone** on `suspended` — or, on escalate's
@@ -2973,6 +2990,46 @@ clarification form (R5), the clarification response's apply line alone (its
 exchange paste block is the twin's `block`, not stdout's);
 otherwise one line, `run <sid>: <outcome>, stop <key>, move <move> (<actor>'s), shape
 <shape> — <reason>` (the parts that apply), or `run <BUNDLE>: refused — …`.
+
+#### 18.7a The cost file, and `--cost-file` on every apply line
+
+Whenever twine prints a `bale apply` line — `delivered`'s, escalate's
+clarification form's on `suspended`, bale's admit line on a scope-drift
+refusal, and the same lines in the `next` list — it first writes
+`<state-dir>/cost/<sid>.json` (the directory 0700, the file 0600, replaced
+atomically through a temporary file and a rename: **a snapshot, not a log**)
+and the line becomes `bale apply <tarball> --cost-file <path>` (the admit line
+with its `--allow-out-of-scope` flags after), both arguments shell-quoted, built
+by `twine.bale.apply_cost_line` beside `apply_line`. `bale apply --dry-run`,
+the courier's check, **never** carries the flag, and neither does `twine kill`'s
+`bale unlock` (a recorded argv). `twine carry response`, which is given a
+tarball and no session or state directory, prints the plain line.
+
+The file is one JSON object with **exactly six keys**, bale's own
+(`--cost-file`, bale 0.4.54, whose `telemetry-record` schema refuses any other
+key): `tokens_in`, `tokens_out`, `usd`, `model_tier`, `calls`, `models`. They
+are summed over **every** `spend.jsonl` record whose `sid` is the session's —
+the whole spend, every run, resume and desk, as `twine spend totals --sid`
+counts the session's own calls — by bale's definitions: `tokens_in` is every
+token the model read as prompt, cache hits and cache writes included
+(`input + cache_read + cache_write`, twine's classes being disjoint);
+`tokens_out` is every token the model generated, thinking included (`output +
+thinking`, thinking 0 when the provider did not report it); `usd` is the cost
+in dollars, priced as `spend totals` prices it, **null when any record is
+unpriced** (a partial sum is never reported as a total); `calls` is the number
+of records; `models` the records' model strings, sorted and unique;
+`model_tier` is **always null** — it is an effort-policy allocation, not a
+model id, and twine allocates none.
+
+A cost file that cannot be written — a spend stream with a line that is not a
+usage record (a sum would be a guess), a directory that cannot be made — is a
+warning on stderr (`warning: no cost file was written (<why>); the apply line
+printed is the plain one, without --cost-file`), the plain apply line printed
+and the twin's `cost_file_error` saying why: an apply is never held up by
+telemetry. A price file that is absent or does not price a model is not a
+failure: `usd` is null. `twine resume --plan` writes nothing, so its `next`
+carries `--cost-file` on an admit line only when the file is already there
+(the run that printed the line wrote it).
 
 ### 18.8 Tests
 
@@ -3114,7 +3171,7 @@ exit 1. The outcomes are `run`'s (§18.4). The twin is `run`'s (§18.5): the
 same fixed names in the same order, then the same names beside them —
 `command` `"resume"`, `open` null, `resumed_from` the `seq` of the line
 before the resumed run's `run-start`, `rewarm` the first call's usage (D23),
-`usage`, `cost_usd`, `turns` and `tool_calls` this run's own, and `next` (§18.5, §18.7) last. The twin is
+`usage`, `cost_usd`, `turns` and `tool_calls` this run's own, `cost_file` and `cost_file_error` (§18.5, §18.7a), and `next` (§18.5, §18.7) last. The twin is
 also the transcript's `run-end` line.
 
 **`--plan`'s twin** (`twine resume SID --plan --json`): `command` `"resume"`,
@@ -3137,7 +3194,7 @@ a conversation); exit 0 then, whether or not the session resumes.
 | `suggested_cap_usd` | a number of dollars at two decimals, **strictly above `spend_usd + next_call_worst_usd`** so the resumed run's first call is admitted; null when not resumable or not priceable. Above that floor the rule is: `spend_usd` + a re-warm of the window at the cache-write price (the last `window` line's `used` tokens, or the input estimate with none) + 40 calls at `per_call_usd` (0 with no mean) + `next_call_worst_usd`, rounded up to the cent, and one cent more when that is not above the floor. Human mode states the sum |
 | `last_tools` | the last ten `tool-call` lines of the transcript, each `{"call", "name", "what"}`, `what` the command, path, slug or the like cut at 110 characters (`...` where cut) |
 | `home` | `{"path", "exists", "entries"}`: the sandbox home the record names (else the state directory's own), whether it exists, and its top-level names sorted |
-| `next` | a list of command strings, `run`'s rule (§18.7) — the resume line with the suggested cap and `--answer -` for a light block; bale's admit line then the resume line for a refused-delivery session (read from the last `run-end` twin's `dry_run.drift` and `tarball`); the apply line for a delivered one; empty when not resumable (and for `killed`, `window-exhausted`, and a session whose cap cannot be suggested) |
+| `next` | a list of command strings, `run`'s rule (§18.7) — the resume line with the suggested cap and `--answer -` for a light block; bale's admit line then the resume line for a refused-delivery session (read from the last `run-end` twin's `dry_run.drift` and `tarball`); the apply line for a delivered one (with its `--cost-file` as the run printed it; a refused delivery's admit line carries `--cost-file` when the file is kept, §18.7a), and, after the apply line of a clarification form, the `--answer -` resume line; empty when not resumable (and for `killed`, `window-exhausted`, and a session whose cap cannot be suggested) |
 | `reason` | the last run's own `reason`; when `ok` is false, the reason it could not be read (as `why`) |
 
 Human mode prints the facts one per line — outcome, reason, resumable, the
@@ -3150,7 +3207,7 @@ lines last, on stdout.
 As `run`'s (§18.6, §18.7): the running record cleared (unless a tool's group
 outlived its run); on `delivered` the in-flight record removed and the home
 kept; otherwise both kept — a resumed run can suspend again, and a
-transcript carries any number of runs. Human mode prints `[twine] resume: …`
+transcript carries any number of runs; each `twine resume` that has a sid appends **one `runs.jsonl` line** (§20.1), `command` `"resume"`. Human mode prints `[twine] resume: …`
 progress lines on stderr and on stdout the apply line alone on `delivered`,
 the light block or the clarification response's apply line alone on
 `suspended`, otherwise one `resume <sid>: <outcome>, …` line; after the summary line, the `next:` lines (§18.7).
@@ -3202,3 +3259,158 @@ line is bale's `--allow-out-of-scope` for the recorded path, never run); a
 resumed run's raw file not overwriting the first run's; `twine.recovery`'s
 own parsing, rounding and admit-line construction in-process; the three
 moves' descriptions naming `twine resume`.
+
+## 20. `runs.jsonl` and `twine stats [--since DATE] [--sid SID] [--state-dir DIR] [--json]` (twine-run-telemetry)
+
+Telemetry that matches bale's: where bale keeps one record per session under
+`claude/telemetry/` and aggregates it with `bale stats`, twine keeps **one
+line per run** in `<state-dir>/runs.jsonl` and aggregates it with `twine
+stats`. The record is the run twin (§18.5) plus what the twin does not carry:
+the desk, the times, durations by tool and the events the stderr warnings name.
+The same line is the input a cost mirror reads (bale's `--cost-file`, §18.7a,
+is the per-session sum; this is the per-run record behind it). It is never
+read by the loop and never rewritten.
+
+### 20.1 The record: `<state-dir>/runs.jsonl`
+
+Written like `spend.jsonl` (§13.3): one `os.write` of one LF-terminated line to
+a file opened `O_APPEND`, created 0600, then `fsync`. (A file whose last line
+is torn — no LF — is appended to all the same, an LF first ending the torn
+line, which the reader then names as a fault.) **One line per run that has a
+sid**, on every outcome — PLANNER.md §17's rule that cost records cover every
+session exit, or the aggregate computes rates over a numerator-only dataset:
+every `twine run` whose open returned a sid and every `twine resume` (a sid
+twine accepts, in a state directory that exists), whether `delivered`,
+`suspended`, `ended`, `stopped`, `killed`, `cap-reached`, `cap-unchecked`, or
+`refused` after the open. A refusal before a sid exists (a bad flag, a refused
+open that named none) writes nothing. A line that cannot be written is a
+warning on stderr and never changes the run's outcome. (A run that dies of an
+internal error — exit 2 — writes no line: it has no outcome.)
+
+The line is one object with **exactly these keys, in this order**
+(`twine.runs.KEYS`; the record format is pinned whole):
+
+| key | value |
+|---|---|
+| `record_version` | `1` |
+| `sid` | string |
+| `command` | `"run"` or `"resume"` |
+| `desk` | integer or null — the open's desk: bale spells the first desk null and later ones `desk-N`, so `N`; null for the first desk and on a resume (no open) |
+| `started_at` | UTC ISO 8601 with offset (`2026-10-15T22:19:22+00:00`), when the verb started |
+| `ended_at` | the same, when the line is written |
+| `wall_seconds` | number: from the verb's start (before `bale open` on a run) to the line's write, three decimals |
+| `outcome` | one of the eight (§18.4) |
+| `stop`, `move`, `actor`, `shape`, `reason` | string or null — the twin's |
+| `turns`, `tool_calls`, `retries` | integers — the twin's |
+| `continuations` | integer: the `continue-turn` moves the run made |
+| `usage` | `{"input", "output", "thinking", "cache_read", "cache_write"}` — the twin's |
+| `cost_usd` | number or null — the twin's |
+| `cap_usd` | number or null — the twin's (the absolute cap) |
+| `adapter`, `model` | string or null — the twin's |
+| `window` | `{"size", "used", "warned", "source"}` or null — the twin's |
+| `resumed_from` | integer or null — the twin's |
+| `rewarm` | the twin's `rewarm` object, or null |
+| `tools` | `{"<tool name>": {"calls": integer, "errors": integer, "seconds": number}}` — one entry per tool that ran (a probe hop included), in order of first use, measured around `run_tool`: wall seconds of the tool, not the model's; `{}` when none ran |
+| `events` | `{"window_warned": 0\|1, "continuations": integer, "retries": integer, "heartbeats": integer, "transcript_faults": integer, "inflight_error": 0\|1, "group_survivors": 0\|1}` — the window warning the worker was given, the continuations, the retries, the heartbeat lines printed (§18.7), the transcript lines that could not be written, whether the in-flight record could not be written or removed, whether a tool's group outlived the run (the running record kept for `twine kill`) |
+| `transcript` | string or null — the twin's |
+| `sandbox` | string or null — the twin's |
+| `inflight` | `"removed"`, `"kept"` or null — the twin's |
+| `cost_file` | string or null — the cost file this run wrote for an apply line (§18.7a), else null |
+| `apply` | null — reserved: the T12 session fills it with the apply outcome |
+
+`runs.jsonl` never carries `ANTHROPIC_API_KEY`: a line is built from the twin,
+which never holds it (the standing sentinel test covers the state directory).
+`twine status` names the file as the eighth `state_present` boolean (§4).
+
+### 20.2 `twine stats`
+
+A read-only aggregation over `runs.jsonl` — the shape of `bale stats`: it
+**writes nothing and creates nothing** (not the state directory either), and
+**an absent or empty file is an honest empty report, not an error** (exit 0).
+`--since DATE` (ISO `YYYY-MM-DD`, inclusive, against `started_at`'s UTC date)
+and `--sid SID` restrict membership; both together intersect. `--state-dir
+DIR` resolves as everywhere (§13.2).
+
+The twin, `command` `"stats"`: `ok` is true unless the state directory does not
+resolve, the file cannot be read, or `--since` is not a date (exit 1, the keys
+still all present, `reason` saying why). Exactly these keys in this order after
+`command` and `ok`:
+
+| key | value |
+|---|---|
+| `path` | the file (`<state-dir>/runs.jsonl`); null when no state directory resolves |
+| `runs` | the lines that are records and are members (after `--since` and `--sid`) |
+| `faults` | one string per line of the file that is not a record — `line N: <why>` (blank, torn, not UTF-8, not JSON, not an object, a duplicate key, or not a record: the keys, their order or a type) — whether or not it is a member (a bad line has no sid to filter by); the reading goes on |
+| `sessions` | distinct sids among the members |
+| `by_outcome` | outcome → count, **every one of the eight present**, 0 where none |
+| `by_command` | `{"run", "resume"}` → count |
+| `turns`, `tool_calls`, `retries` | sums |
+| `cost_usd` | the sum of the non-null costs |
+| `unpriced_runs` | members whose `cost_usd` is null |
+| `wall_seconds` | the sum |
+| `by_tool` | tool → `{"calls", "errors", "seconds"}` summed, sorted by name |
+| `delivered` | `{"runs", "mean_cost_usd", "mean_turns", "mean_wall_seconds"}` over the delivered members — the means null when none delivered (`mean_cost_usd` over those that were priced, null when none was) |
+| `since` | the date as given, or null |
+| `sid` | the sid as given, or null |
+| `reason` | why not ok, else null |
+
+Human mode: one line per key, in that order — `key: value` — with `faults`
+(one indented line per fault), `by_outcome`, `by_command`, `by_tool` and
+`delivered` as an indented line per entry under their key. Each fault (the first fifty) is also a
+`[twine]` line on stderr.
+
+### 20.3 Tests
+
+`tests/test_telemetry.py`: the record's keys and order, its validator, the
+append (0600, never rewritten, a torn tail ended), the reader's faults; a run
+of every outcome leaving one line, `refused` after the open and none before;
+the delivered line key for key against the twin; the tools' counts and errors,
+the heartbeats, the continuations; `runs_jsonl` in `status`; `twine stats` over
+an absent, an empty and a populated file, `--sid`, `--since` and both, a bad
+line, an unreadable file, no state directory, human mode; `stats` and
+`transcript` leaving the state directory's bytes and modes as they were.
+
+## 21. `twine transcript SID [--from SEQ] [--state-dir DIR] [--json]` (twine-run-telemetry)
+
+Reads `<state-dir>/transcripts/<sid>.jsonl` (§18, `runtime-contract.md` §7.5)
+and renders the run's story — what used to take a hand-written probe — and
+**writes nothing**. A transcript is a log: a line that is not a JSON object is
+reported, never fatal, and a torn last line is reported, not refused.
+
+Human mode: one line per transcript line, `<seq> <kind> [call <n>] <summary>`
+(the bracketed `[call <n>]` only on a line that has a call), the summary per
+kind:
+
+| kind | summary |
+|---|---|
+| `run-start` | `<adapter>, model <model>, window <size or unknown>, ` then `not resumed` or `resumed from line <n>` |
+| `check` | `estimate <n> (<basis>), admitted` — or `refused (<stop>)` |
+| `request` | `<messages_total> messages, <n> appended`, and `, sent: false` when the line says so |
+| `turn` | `stop <stop>`, or `asks for <tool names>` |
+| `window` | `<used> of <size>` (`unknown`), and ` (warned)` |
+| `tool-call` | the tool's name and its argument summary cut at 80 characters (`...` where cut; the command for `shell`, the path for the file tools — the progress lines' own, §18.7) |
+| `tool-result` | `ok` or `error`, and `<n> characters` of the content |
+| `move` | `<move>: <did>` (just `<did>` when the line names no move) |
+| `retry` | `<stop>, attempt <n>, wait <seconds>s` |
+| `abort` | the abort file's path |
+| `adapter-error` | `<error>: <message>` |
+| `run-end` | the twin's outcome, `stop <stop>` and `move <move>` when it has them (`internal error` for the line a defect wrote) |
+
+A kind twine does not know is listed with no summary. `--from SEQ` starts at
+the line whose `seq` is SEQ (lines with a smaller one are not shown; `lines` is
+still what was read).
+
+The twin, `command` `"transcript"`: `ok` is false when the sid is not one twine
+accepts, no state directory resolves, the file is absent or it cannot be read
+(exit 1, every key present, `reason` saying why); then exactly `sid`, `path`
+(null when none resolves), `lines` (physical lines read, torn and bad ones
+included), `runs` (the `run-start` lines — a resumed session has one per run),
+`faults` (one string per line that is not a JSON object, `line N: <why>`),
+`story` (a list of `{"seq", "kind", "call", "summary"}` — the human lines'
+parts; `call` null where the line has none) and `reason`.
+
+The reading is `twine.transcript_view`; it shares no code with the resume's
+`twine.transcript.read_lines`, which skips and logs what it cannot read.
+Tests: `tests/test_telemetry.py` (the story against the transcript line for
+line, human mode, `--from`, a resumed transcript, a torn last line, the
+refusals, nothing written).
