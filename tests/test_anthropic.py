@@ -949,6 +949,234 @@ class Doubles(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# 6b. The ceiling inside a block (twine-run-ergonomics, finding 2)
+# ---------------------------------------------------------------------------
+#
+# The stream that ended at the output ceiling with a block open is not
+# recorded (the architect's, by probe). Every specimen below is DERIVED, not
+# recorded: max_tokens_stream's bytes with its last content_block_stop
+# removed, and streams assembled from that recording's own head and tail.
+
+MAX_TOKENS_TAIL_MARKER = b"event: message_delta"
+
+
+def sse(name: str, data: dict) -> bytes:
+    return f"event: {name}\ndata: {json.dumps(data)}\n\n".encode()
+
+
+def derived_open_text() -> tuple[int, dict, bytes]:
+    """DERIVED specimen: max_tokens_stream with its last (only)
+    content_block_stop removed: block 0 is open at message_stop."""
+    r = rec("max_tokens_stream")
+    start = r.response.index(b"event: content_block_stop")
+    end = r.response.index(MAX_TOKENS_TAIL_MARKER)
+    return r.status, r.headers, r.response[:start] + r.response[end:]
+
+
+def derived_ceiling(blocks: bytes, stop_reason: str = "max_tokens") -> tuple[int, dict, bytes]:
+    """DERIVED specimen: max_tokens_stream's message_start and its message_delta
+    and message_stop around `blocks` (events written here), the stop_reason
+    replaced when asked."""
+    r = rec("max_tokens_stream")
+    head = r.response[:r.response.index(b"event: content_block_start")]
+    tail = r.response[r.response.index(MAX_TOKENS_TAIL_MARKER):]
+    tail = tail.replace(b'"stop_reason":"max_tokens"', f'"stop_reason":"{stop_reason}"'.encode())
+    return r.status, r.headers, head + blocks + tail
+
+
+def block_start(index: int, block: dict) -> bytes:
+    return sse("content_block_start", {"type": "content_block_start", "index": index,
+                                       "content_block": block})
+
+
+def block_delta(index: int, delta: dict) -> bytes:
+    return sse("content_block_delta", {"type": "content_block_delta", "index": index,
+                                       "delta": delta})
+
+
+def block_stop(index: int) -> bytes:
+    return sse("content_block_stop", {"type": "content_block_stop", "index": index})
+
+
+def tool_block(index: int, *pieces: str, stop: bool = False) -> bytes:
+    body = block_start(index, {"type": "tool_use", "id": f"toolu_cut{index}",
+                               "name": "write_file", "input": {}})
+    for piece in pieces:
+        body += block_delta(index, {"type": "input_json_delta", "partial_json": piece})
+    return body + (block_stop(index) if stop else b"")
+
+
+def text_block(index: int, text: str, *, stop: bool = True) -> bytes:
+    return (block_start(index, {"type": "text", "text": ""})
+            + block_delta(index, {"type": "text_delta", "text": text})
+            + (block_stop(index) if stop else b""))
+
+
+class TheCeilingInsideABlock(unittest.TestCase):
+
+    def read(self, double, **kw) -> Outcome:
+        status, headers, body = double
+        return read_stream(status, headers, [body[i:i + 11] for i in range(0, len(body), 11)],
+                           **kw)
+
+    def test_the_derived_specimen_is_the_recording_with_its_last_stop_removed(self):
+        recorded = rec("max_tokens_stream").response
+        _, _, derived = derived_open_text()
+        self.assertEqual(recorded.count(b"event: content_block_stop"), 1)
+        self.assertNotIn(b"content_block_stop", derived)
+        self.assertEqual(len(recorded) - len(derived),
+                         len(recorded[recorded.index(b"event: content_block_stop"):
+                                      recorded.index(MAX_TOKENS_TAIL_MARKER)]))
+
+    def test_an_open_text_block_at_max_tokens_is_a_max_tokens_turn(self):
+        o = self.read(derived_open_text())
+        whole = read(rec("max_tokens_stream"))
+        self.assertEqual(o.stop, "max-tokens")
+        self.assertEqual(o.stop, whole.stop)
+        self.assertEqual(o.raw_stop_reason, "max_tokens")
+        self.assertFalse(o.malformed)
+        self.assertIsNone(o.raw)
+        self.assertIsNone(o.cut_tool_call)
+        # carried as far as it got: the same text the closed stream has
+        self.assertEqual([dict(b) for b in o.content], [dict(b) for b in whole.content])
+        self.assertEqual((o.text, o.usage), (whole.text, whole.usage))
+        turn = o.to_turn()
+        self.assertEqual((turn.stop, turn.text, turn.tool_calls), ("max-tokens", "Rope is made",
+                                                                  ()))
+
+    def test_with_any_other_stop_reason_an_open_block_is_still_malformed(self):
+        for stop_reason in ("end_turn", "tool_use", "stop_sequence", "refusal"):
+            with self.subTest(stop_reason=stop_reason):
+                double = derived_ceiling(text_block(0, "half", stop=False), stop_reason)
+                o = self.read(double)
+                self.assertEqual(o.stop, "malformed-shape")
+                self.assertTrue(o.malformed)
+                self.assertIn("message_stop with block(s) [0] still open", o.reason)
+        o = self.read(derived_ceiling(text_block(0, "half", stop=False), "max_tokens"))
+        self.assertEqual(o.stop, "max-tokens")
+
+    def test_an_open_tool_use_block_whose_input_does_not_parse_is_not_carried(self):
+        pieces = ('{"path": "big.txt", ', '"content": "the first of many lines')
+        double = derived_ceiling(text_block(0, "Writing it.") + tool_block(1, *pieces))
+        o = self.read(double)
+        self.assertEqual(o.stop, "max-tokens")
+        self.assertEqual([b["type"] for b in o.content], ["text"])
+        self.assertEqual(o.tool_calls, ())
+        self.assertEqual(o.cut_tool_call, {"id": "toolu_cut1", "name": "write_file",
+                                           "partial_json": "".join(pieces)})
+        self.assertIn("'write_file' tool_use block whose input was not complete", o.reason)
+        turn = o.to_turn()
+        self.assertEqual((turn.stop, turn.tool_calls), ("max-tokens", ()))
+        self.assertEqual(dict(turn.cut_tool_call), o.cut_tool_call)
+        self.assertEqual(turn.content, o.content)
+        for split in (1, 5):
+            status, headers, body = double
+            again = read_stream(status, headers, [body[i:i + split]
+                                                  for i in range(0, len(body), split)])
+            self.assertEqual((again.content, again.cut_tool_call), (o.content, o.cut_tool_call))
+
+    def test_a_tool_use_block_that_opened_and_wrote_nothing_is_not_carried_either(self):
+        o = self.read(derived_ceiling(tool_block(0)))
+        self.assertEqual((o.stop, o.content), ("max-tokens", ()))
+        self.assertEqual(o.cut_tool_call, {"id": "toolu_cut0", "name": "write_file",
+                                           "partial_json": ""})
+
+    def test_closed_tool_use_blocks_stay_and_an_open_one_whose_input_parses_is_carried(self):
+        closed = tool_block(0, '{"path": "a.txt", "content": "A"}', stop=True)
+        done = tool_block(1, '{"path": "b.txt", ', '"content": "B"}')   # no stop: it parsed
+        o = self.read(derived_ceiling(closed + done))
+        self.assertEqual(o.stop, "max-tokens")
+        self.assertEqual([b["input"]["path"] for b in o.content], ["a.txt", "b.txt"])
+        self.assertIsNone(o.cut_tool_call)
+        # the turn asks for no tools (it was cut): the loop answers both "not run"
+        self.assertEqual(o.to_turn().tool_calls, ())
+
+    def test_an_open_thinking_block_is_carried_as_far_as_it_got(self):
+        thinking = (block_start(0, {"type": "thinking", "thinking": "", "signature": ""})
+                    + block_delta(0, {"type": "thinking_delta", "thinking": "Let me see"}))
+        o = self.read(derived_ceiling(thinking))
+        self.assertEqual(o.stop, "max-tokens")
+        self.assertEqual([b["type"] for b in o.content], ["thinking"])
+        self.assertEqual(o.content[0]["thinking"], "Let me see")
+        self.assertEqual(o.to_turn().thinking, "Let me see")
+
+    def test_a_malformed_stream_that_is_not_a_ceiling_keeps_its_reason(self):
+        o = self.read(message_double("max_tokens_stream", b'{"type":"message_delta"',
+                                     b'{"type":"nonsense_delta"'))
+        self.assertEqual(o.stop, "malformed-shape")
+        self.assertIn("without a message_delta", o.reason)
+
+
+class TheRawBody(unittest.TestCase):
+    """The response body, kept for a call that ends malformed-shape — and for
+    no other (twine-run-ergonomics, finding 2). The adapter hands it over on
+    the Outcome and the Turn; the loop writes it (tests/test_run.py)."""
+
+    def call(self, double, *, split: int = 7) -> Turn:
+        status, headers, body = double
+        transport = RecordedTransport((status, headers, body), split=split)
+        a = AnthropicAdapter(env=ENV, transport=transport)
+        return a.call(Request(({"role": "user", "content": "x"},)))
+
+    def test_a_stream_that_ends_malformed_keeps_every_byte_it_drew(self):
+        double = message_double("text_stream", b'{"type":"message_delta"',
+                                b'{"type":"nonsense_delta"')
+        # the reader keeps drawing after a fault, to the end of the stream
+        turn = self.call(double, split=5)
+        self.assertEqual(turn.stop, "malformed-shape")
+        self.assertEqual(turn.raw, double[2])
+
+    def test_the_open_block_at_another_stop_keeps_the_stream(self):
+        double = derived_ceiling(text_block(0, "half", stop=False), "end_turn")
+        turn = self.call(double)
+        self.assertEqual((turn.stop, turn.raw), ("malformed-shape", double[2]))
+
+    def test_a_json_body_that_is_not_a_message_keeps_the_body(self):
+        r = rec("text")
+        body = b'{"type": "message", "content": "not a list"}'
+        turn = self.call((200, r.headers, body))
+        self.assertEqual((turn.stop, turn.raw), ("malformed-shape", body))
+
+    def test_a_200_of_an_unknown_content_type_keeps_the_body(self):
+        turn = self.call((200, {"content-type": "text/html"}, b"<html>hi</html>"))
+        self.assertEqual((turn.stop, turn.raw), ("malformed-shape", b"<html>hi</html>"))
+
+    def test_nothing_is_kept_for_any_other_outcome(self):
+        for name in ("text", "text_stream", "tool_use_stream", "max_tokens_stream",
+                     "thinking_stream", "error_401", "error_400", "error_404_model"):
+            with self.subTest(recording=name):
+                r = rec(name)
+                turn = self.call((r.status, r.headers, r.response))
+                self.assertIsNone(turn.raw)
+                self.assertIsNone(turn.cut_tool_call)
+        turn = self.call(derived_open_text())
+        self.assertEqual((turn.stop, turn.raw), ("max-tokens", None))
+        status, headers, body = error_double(529, "overloaded_error", "busy")
+        self.assertIsNone(self.call((status, headers, body)).raw)
+
+    def test_a_transport_that_fails_mid_stream_keeps_nothing(self):
+        def broken():
+            yield b"event: message_start\n"
+            raise ConnectionResetError("reset")
+        transport = RecordedTransport((200, rec("text_stream").headers, broken))
+        turn = AnthropicAdapter(env=ENV, transport=transport).call(
+            Request(({"role": "user", "content": "x"},)))
+        self.assertEqual(turn.stop, "network-failure")
+        self.assertIsNone(turn.raw)
+
+    def test_the_outcome_json_is_unchanged(self):
+        """The pinned as_json() gains no key: the raw body and the cut call
+        ride beside it."""
+        o = read(rec("text"))
+        self.assertEqual(set(o.as_json()), {
+            "stop", "reason", "text", "tool_calls", "thinking", "content", "usage",
+            "retry_after", "request_id", "raw_stop_reason", "status", "usage_fault"})
+        self.assertEqual(set(o.to_turn().as_json()), {
+            "text", "thinking", "tool_calls", "stop", "usage", "provider_stop", "content",
+            "retry_after", "request_id", "reason"})
+
+
 class _Capture(logging.Handler):
     def __init__(self) -> None:
         super().__init__(level=logging.DEBUG)

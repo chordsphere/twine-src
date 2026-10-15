@@ -40,6 +40,11 @@ The loop composes what R1–R3 built and Arc 1's spine:
                `deliver` does — `deliver` hands the tarball to the courier's
                `carry response` (the `deliver` callable the verb passes), a
                failed tool goes back to the model as its result
+  the view     the operator's only live view, `progress` lines on stderr
+               (cli-contract.md §18.7): a returned turn's line carries the
+               run's cost, the wall time and the window; a tool's line what
+               it ran; a heartbeat every HEARTBEAT_SECONDS while one runs;
+               and the verb's last line, the summary
   the story    every step is a transcript line (twine.transcript) before
                the next begins; when the run ends, what was never sent goes
                in one last `request` line, `sent: false`, so the lines'
@@ -69,7 +74,9 @@ import json
 import logging
 import math
 import pkgutil
+import re
 import tarfile
+import threading
 import time
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -83,7 +90,7 @@ from twine.runtime.sandbox import Sandbox
 from twine.runtime.terms import ToolSpec
 from twine.runtime.tooling import ToolRegistry, ToolResult, plain, run_tool
 from twine.runtime.window import Window
-from twine.transcript import Transcript, TranscriptError
+from twine.transcript import Transcript, TranscriptError, write_raw
 from twine.transitions import (STOP_ADAPTER_DEFECT, STOP_AXIS, STOP_WINDOW_EXHAUSTED, Move,
                                Table)
 
@@ -145,6 +152,12 @@ ABORT_POLL_SECONDS = 1.0
 # all of it; the request line carries what was sent).
 TRANSCRIPT_TEXT_CAP = 64 * 1024
 
+# The operator's live view (cli-contract.md §18.7): a heartbeat line every
+# this many seconds while a tool runs, and a tool's argument cut at this many
+# characters in a progress line.
+HEARTBEAT_SECONDS = 30
+PROGRESS_ARGUMENT_CHARS = 80
+
 # Where the request is unpacked in the sandbox home (D11).
 REQUEST_DIR = "request"
 # The tool the loop runs a probe block in the final text through (D13).
@@ -186,10 +199,21 @@ the request — and calling deliver with its path. The courier checks it with \
 bale; nothing is applied by you or by twine.
 
 A question for the planner is the escalate tool: it suspends you until the \
-answer comes back. A fact from the operator's machine is the probe tool: it \
-runs a read-only probe block against the real repository and returns its \
-paste-back. A turn that ends with neither a tool call nor a deliver ends the \
-session without a response."""
+answer comes back; with blocking: true it writes a clarification response \
+for a gap that blocks trustworthy work, where the default is a light block \
+of one to three short questions. A fact from the operator's machine is the \
+probe tool: it runs a read-only probe block against the real repository and \
+returns its paste-back. A turn that ends with neither a tool call nor a \
+deliver ends the session without a response.
+
+How to work here. List your home first: a previous desk's work may already \
+be in it. Read ranges of a file, never the whole of a large one: every byte \
+you print is read again on every later call. Write a large file in parts, a \
+piece per call, rather than in one call. Never put a command in the \
+background and poll it; run it to its end, and give it a timeout if it can \
+be slow. The request carries no schemas: the lint judges your manifest, so \
+run it on the response before you deliver. The context window does not \
+compact; when it runs thin, the last line of a tool result says so."""
 
 
 @dataclass(frozen=True)
@@ -260,6 +284,9 @@ def estimate_appended_tokens(messages: Sequence[Mapping[str, Any]]) -> int:
 CONTINUE_TEXT = ("Your last turn stopped at the output limit before it was finished. "
                  "Continue exactly where it stopped; do not repeat what you already "
                  "wrote.")
+CUT_CALL_TEXT = ("The {name} call you were writing was cut off before its input was "
+                 "complete, so it was not run. Make it again in smaller pieces: write a "
+                 "large file in parts, never all in one call.")
 NOT_RUN_CUT = ("not run: the turn was cut off at the output limit before this call was "
                "complete; call it again if you still need it")
 NOT_RUN_ENDED = "not run: the session ended at an earlier call in the same turn ({why})"
@@ -305,19 +332,27 @@ def tool_result_message(results: Sequence[tuple[str, str, bool]]) -> dict[str, A
 
 
 def continue_message(blocks: list[dict[str, Any]],
-                     noted: Callable[[str], str] = lambda text: text) -> dict[str, Any]:
+                     noted: Callable[[str], str] = lambda text: text,
+                     cut_tool_call: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """The user turn that continues a cut-off turn (decision 3): a
     `tool_result` for every `tool_use` block the partial turn holds — the
     API refuses a tool_use left unanswered — saying it was not run, then the
     request to continue. The partial content itself is kept as the assistant
     turn before it, unedited; ending on a user turn needs no prefill, which
     not every model allows. `noted` is the window's (R5): on a warned run
-    each text the model reads here ends with the warning line."""
+    each text the model reads here ends with the warning line.
+    `cut_tool_call` is the turn's, when the output ceiling cut a tool call
+    off before its input was complete (that call is not among `blocks`, so
+    no "not run" result answers it): the text then says so beside the
+    request to continue, so the model writes a large file in parts."""
     content: list[dict[str, Any]] = [
         {"type": "tool_result", "tool_use_id": b.get("id"), "content": noted(NOT_RUN_CUT),
          "is_error": True}
         for b in blocks if b.get("type") == "tool_use"]
-    content.append({"type": "text", "text": noted(CONTINUE_TEXT)})
+    text = CONTINUE_TEXT
+    if cut_tool_call is not None:
+        text += " " + CUT_CALL_TEXT.format(name=cut_tool_call.get("name") or "tool")
+    content.append({"type": "text", "text": noted(text)})
     return {"role": "user", "content": content}
 
 
@@ -340,6 +375,86 @@ def result_for_transcript(result: ToolResult) -> dict[str, Any]:
         if isinstance(value, str):
             out[key] = clip(value)
     return out
+
+
+# ---------------------------------------------------------------------------
+# 3b. The operator's live view (cli-contract.md §18.7)
+# ---------------------------------------------------------------------------
+
+
+def format_cost(cost: Decimal | float | None) -> str:
+    """A run's cost as the progress lines print it: `$<n>` with at least two
+    decimals (four under a cent, so a first cheap call is not `$0.00`), and
+    `$?` when the run cannot be priced (a model the price file lacks, no
+    price file)."""
+    if cost is None:
+        return "$?"
+    value = Decimal(str(cost)) if isinstance(cost, float) else cost
+    return f"${value:.4f}" if 0 < value < Decimal("0.01") else f"${value:.2f}"
+
+
+def format_seconds(seconds: float) -> str:
+    """Wall time as the progress lines print it: whole seconds, `<n>s`."""
+    return f"{max(0, round(seconds))}s"
+
+
+def summary_text(outcome: str, *, stop: str | None, move: str | None, calls: int,
+                 tool_calls: int, retries: int, cost: Decimal | float | None,
+                 seconds: float) -> str:
+    """The run's last progress line (cli-contract.md §18.7): `summary:`, then
+    in this order the outcome, the stop and the move when there are any, the
+    calls, the tool calls, the retries, the cost as `$<n>` and the wall time
+    as `<n>s`."""
+    parts = [outcome]
+    if stop is not None:
+        parts.append(f"stop {stop}")
+    if move is not None:
+        parts.append(f"move {move}")
+    parts += [f"{calls} calls", f"{tool_calls} tool calls", f"{retries} retries",
+              format_cost(cost), format_seconds(seconds)]
+    return "summary: " + ", ".join(parts)
+
+
+def one_line(text: str, limit: int = PROGRESS_ARGUMENT_CHARS) -> str:
+    """`text` as one progress-line fragment: whitespace runs (a command's
+    newlines among them) folded to one space, cut after `limit` characters
+    with `...` where it was cut. No colour, no cursor movement: a line is
+    plain text (N6)."""
+    folded = re.sub(r"\s+", " ", text).strip()
+    return folded if len(folded) <= limit else folded[:limit] + "..."
+
+
+def tool_argument(name: str, arguments: Mapping[str, Any]) -> str:
+    """What a tool call runs, for its progress line, cut at 80 characters:
+    `shell`'s command, a file tool's path, `probe`'s slug, `escalate`'s
+    question count and form, `deliver`'s path; empty for a tool this does
+    not know, or arguments that do not have the key (the call is refused
+    and the result says why)."""
+    def text(key: str, default: str = "") -> str:
+        value = arguments.get(key, default)
+        return value if isinstance(value, str) else ""
+
+    if name == "shell":
+        shown = text("command")
+    elif name in ("read_file", "write_file"):
+        shown = text("path")
+    elif name == "list_dir":
+        shown = text("path", ".")
+    elif name == "probe":
+        report = shapes.find_blocks(text("block"))
+        probes = [b for b in report.blocks if b.kind == shapes.PROBE]
+        shown = str(probes[0].fields.get("slug")) if probes and probes[0].fields.get(
+            "slug") else "(no readable slug)"
+    elif name == "escalate":
+        asked = arguments.get("questions")
+        count = len(asked) if isinstance(asked, (list, tuple)) else 0
+        form = "blocking" if arguments.get("blocking") is True else "light"
+        shown = f"{count} question{'' if count == 1 else 's'}, {form}"
+    elif name == "deliver":
+        shown = text("tarball")
+    else:
+        shown = ""
+    return one_line(shown)
 
 
 # ---------------------------------------------------------------------------
@@ -599,11 +714,16 @@ class Loop:
                  window: Window | None = None, logged: int = 0,
                  sleep: Callable[[float], None] = time.sleep,
                  abort: Callable[[Path, str], bool] = kill.abort_requested,
-                 progress: Callable[[str], None] = lambda line: None) -> None:
+                 progress: Callable[[str], None] = lambda line: None,
+                 clock: Callable[[], float] = time.monotonic,
+                 heartbeat_seconds: float = HEARTBEAT_SECONDS) -> None:
         """`window` is the run's (R5; unknown when not given); `logged` how
         many of `messages` are in the transcript's `request` lines already —
         a resumed run's rebuilt conversation (R5), so its first `request`
-        line carries only what this run appended."""
+        line carries only what this run appended. `clock` (monotonic
+        seconds) times the run for the progress lines and `heartbeat_seconds`
+        is the heartbeat's interval while a tool runs (HEARTBEAT_SECONDS;
+        a test shortens it)."""
         if not 0 <= logged <= len(messages):
             raise ValueError(f"logged={logged} is not between 0 and the {len(messages)} "
                              "message(s) given")
@@ -619,6 +739,9 @@ class Loop:
         self.sleep = sleep
         self.abort = abort
         self.progress = progress
+        self.clock = clock
+        self.heartbeat_seconds = heartbeat_seconds
+        self._started: float | None = None   # the clock when run() began
         self.window = window if window is not None else Window.unknown(
             "the loop was given no window")
         self.result = LoopResult(outcome=STOPPED)
@@ -636,6 +759,66 @@ class Loop:
             self.transcript.append(kind, **event)
         except TranscriptError:
             pass
+
+    # --- the operator's live view -----------------------------------------
+
+    def elapsed(self) -> float:
+        """Wall seconds since `run()` began (0 before it)."""
+        return 0.0 if self._started is None else self.clock() - self._started
+
+    def cost(self) -> Decimal | None:
+        """What the run has cost so far, exactly: its records priced from the
+        price file; None when it cannot be priced."""
+        s = self.settings
+        return run_cost(self.result.records, s.prices_path or s.state_dir / spend.PRICES_NAME)
+
+    def standing(self) -> str:
+        """`$<cost>, <n>s` — what a progress line about a returned turn
+        carries beside its words — and `window <used> of <size>` when the
+        window's size is known."""
+        text = f"{format_cost(self.cost())}, {format_seconds(self.elapsed())}"
+        if self.window.known:
+            text += f", window {self.window.used} of {self.window.size}"
+        return text
+
+    def summary(self) -> str:
+        """The run's last progress line (cli-contract.md §18.7): `summary:`,
+        then the outcome, the stop and move when there are any, the calls,
+        the tool calls, the retries, the cost and the wall time."""
+        r = self.result
+        return summary_text(r.outcome, stop=r.stop, move=r.move, calls=r.turns,
+                            tool_calls=r.tool_calls, retries=r.retries, cost=self.cost(),
+                            seconds=self.elapsed())
+
+    def run_tool_beating(self, n: int, name: str,
+                         arguments: Mapping[str, Any]) -> ToolResult:
+        """`run_tool`, with the operator's heartbeat: while the tool runs, a
+        line every `heartbeat_seconds` naming it and the seconds elapsed,
+        from a thread that writes nothing else and is stopped and joined
+        before this returns (so no heartbeat lands after the tool's own
+        line). The tool itself is run on the calling thread, as ever."""
+        shown = tool_argument(name, arguments)
+        tail = f" — {shown}" if shown else ""
+        began = self.clock()
+        done = threading.Event()
+
+        def beat() -> None:
+            while not done.wait(self.heartbeat_seconds):
+                try:
+                    self.progress(f"call {n}: tool {name}: still running, "
+                                  f"{format_seconds(self.clock() - began)}{tail}")
+                except Exception as exc:   # a view that cannot be written is not the tool's
+                    log.warning("the heartbeat line could not be written: %s", exc)
+                    return
+
+        thread = threading.Thread(target=beat, name=f"twine-heartbeat-{n}", daemon=True)
+        self.progress(f"call {n}: tool {name}: running{tail}")
+        thread.start()
+        try:
+            return run_tool(self.sandbox, name, arguments, registry=self.tools)
+        finally:
+            done.set()
+            thread.join()
 
     # --- ending ------------------------------------------------------------
 
@@ -668,6 +851,7 @@ class Loop:
         assistant turn of an end-turn — goes into one last `request` line
         with `sent: false`, so the lines' `appended`, joined, are the whole
         conversation a resume rebuilds (R5)."""
+        self._started = self.clock()
         try:
             return self._run()
         finally:
@@ -816,23 +1000,47 @@ class Loop:
                                          extra=extra)
         except (spend.SpendError, spend.RecordError, OSError) as exc:
             message = getattr(exc, "message", None) or str(exc)
-            self.log_line("turn", call=n, turn=turn.as_json(), spend_error=message)
+            self.log_line("turn", call=n, turn=turn.as_json(), spend_error=message,
+                          **self.kept(n, turn))
             return self.end(STOPPED, reason=f"call {n}'s usage could not be appended to "
                                             f"the spend stream ({message}); the run stops "
                                             "rather than spend what it cannot count")
         self.result.records.append(record)
         if self.result.first_usage is None:
             self.result.first_usage = turn.usage.as_json()
-        self.log_line("turn", call=n, turn=turn.as_json())
+        self.log_line("turn", call=n, turn=turn.as_json(), **self.kept(n, turn))
         was_warned = self.window.warned
         self.log_line("window", **self.window.count(n, turn.usage))
         if self.window.warned and not was_warned:
             self.progress(f"call {n}: the window runs thin — {self.window.used} of "
                           f"{self.window.size} input tokens in use "
-                          f"({self.window.percent()}%); the worker is warned from here on")
+                          f"({self.window.percent()}%); the worker is warned from here on "
+                          f"[{self.standing()}]")
         self.progress(f"call {n}: " + ("asks for " + ", ".join(c.name for c in turn.tool_calls)
-                                       if turn.continues else f"stop {turn.stop}"))
+                                       if turn.continues else f"stop {turn.stop}")
+                      + f" — {self.standing()}")
         return turn
+
+    def kept(self, n: int, turn: Turn) -> dict[str, Any]:
+        """What the transcript's `turn` line carries beside `turn` for what the
+        adapter kept (runtime-contract.md §7.6): `raw`, the path of the
+        response body written to `<sid>.call-<N>.raw` — handed over only by a
+        call that ended malformed-shape, so nothing is written for any other
+        — and `cut_tool_input`, the tool call the output ceiling cut off
+        before its input was complete. A body that cannot be written is
+        named (`raw: null`, `raw_error`), never silent."""
+        extra: dict[str, Any] = {}
+        if turn.raw is not None:
+            s = self.settings
+            try:
+                extra["raw"] = str(write_raw(s.state_dir, s.sid, n, turn.raw))
+            except (TranscriptError, ValueError) as exc:
+                log.error("call %d: %s", n, exc)
+                extra["raw"] = None
+                extra["raw_error"] = str(exc)
+        if turn.cut_tool_call is not None:
+            extra["cut_tool_input"] = dict(turn.cut_tool_call)
+        return extra
 
     # --- the moves -----------------------------------------------------------
 
@@ -874,7 +1082,7 @@ class Loop:
         self.log_line("retry", call=self.result.turns, stop=turn.stop, move=move.name,
                       attempt=attempt, wait_seconds=wait, retry_after=turn.retry_after)
         self.progress(f"call {self.result.turns}: {turn.stop} — retry {attempt} of "
-                      f"{MAX_RETRIES} in {wait:g}s")
+                      f"{MAX_RETRIES} in {wait:g}s [{self.standing()}]")
         if self.wait(wait):
             return self.killed(f"while waiting to retry call {self.result.turns}")
         return None
@@ -905,7 +1113,7 @@ class Loop:
         blocks = assistant_blocks(turn)
         if blocks:
             self.messages.append(assistant_message(blocks))
-        self.messages.append(continue_message(blocks, self.window.noted))
+        self.messages.append(continue_message(blocks, self.window.noted, turn.cut_tool_call))
         self.log_line("move", call=self.result.turns, stop=turn.stop, move=move.name,
                       actor=move.actor,
                       did=f"asked the model to continue ({self._continuations} of "
@@ -959,11 +1167,12 @@ class Loop:
         call_id = f"final-text-probe-{n}"
         self.log_line("tool-call", call=n, id=call_id, name=PROBE_TOOL,
                       arguments={"block": block}, source="final-text")
-        result = run_tool(self.sandbox, PROBE_TOOL, {"block": block}, registry=self.tools)
+        result = self.run_tool_beating(n, PROBE_TOOL, {"block": block})
         self.result.tool_calls += 1
         self.log_line("tool-result", call=n, id=call_id, result=result_for_transcript(result))
         self.progress(f"call {n}: ran the probe block in the final text "
-                      f"({'error' if result.is_error else 'ok'})")
+                      f"({'error' if result.is_error else 'ok'}) — "
+                      f"{tool_argument(PROBE_TOOL, {'block': block})}")
         self.messages.append(user_message(self.window.noted(result.content)))
         self.log_line("move", call=n, stop=turn.stop, move=move.name, actor=move.actor,
                       shape=shapes.PROBE, did="ran the probe and fed its output back")
@@ -988,12 +1197,14 @@ class Loop:
             arguments = dict(call.arguments)
             self.log_line("tool-call", call=n, id=call.id, name=call.name,
                           arguments=arguments)
-            result = run_tool(self.sandbox, call.name, arguments, registry=self.tools)
+            result = self.run_tool_beating(n, call.name, arguments)
             self.result.tool_calls += 1
             self.log_line("tool-result", call=n, id=call.id,
                           result=result_for_transcript(result))
+            shown = tool_argument(call.name, arguments)
             self.progress(f"call {n}: tool {call.name}: "
-                          f"{'error' if result.is_error else 'ok'}")
+                          f"{'error' if result.is_error else 'ok'}"
+                          + (f" — {shown}" if shown else ""))
             results.append((call.id, noted(result.content), result.is_error))
             if result.is_error:
                 tool_move = self.moves.table.moves.get(MOVE_TOOL_ERROR)
@@ -1026,9 +1237,10 @@ class Loop:
         the courier's `carry response` as a delivery is handed (the dry run),
         then end `suspended` with the tarball, the apply line and the dry run
         — the operator applies it, bale suspends the session and prints the
-        planner's paste block, and `twine resume` continues on the answer. A
-        dry run that is not clean ends the run `stopped`, as a bad delivery
-        does."""
+        planner's paste block, and `twine resume` continues on the answer. The
+        twin's `block` is the exchange paste block the tool rendered
+        (runtime-contract.md §6.6). A dry run that is not clean ends the run
+        `stopped`, as a bad delivery does."""
         path = (self.sandbox.home / str(result.fields.get("path"))).resolve()
         self.progress(f"call {n}: escalate wrote the clarification response {path}; "
                       "checking it with bale (dry run)")
@@ -1041,7 +1253,8 @@ class Loop:
                       carry_response=delivery.twin)
         if delivery.ok:
             return self.end(SUSPENDED, move=move, tarball=delivery.tarball,
-                            apply_line=delivery.apply_line, dry_run=delivery.dry_run)
+                            apply_line=delivery.apply_line, dry_run=delivery.dry_run,
+                            block=result.fields.get("block"))
         return self.end(STOPPED, move=move, tarball=delivery.tarball,
                         dry_run=delivery.dry_run,
                         reason=f"the clarification response did not pass the dry run "
@@ -1112,5 +1325,6 @@ def run_cost(records: Sequence[spend.UsageRecord], prices_path: Path) -> Decimal
 __all__ = ["ADAPTER_DEFECT", "CAP_REACHED", "CAP_UNCHECKED", "DELIVERED", "Delivery", "ENDED",
            "KILLED", "Loop", "LoopError", "LoopResult", "LoopSettings", "MoveBook", "OUTCOMES",
            "REFUSED", "STOPPED", "SUSPENDED", "SystemPrompt", "WINDOW_EXHAUSTED",
-           "adapter_class", "estimate_appended_tokens", "estimate_input_tokens", "run_cost",
-           "system_prompt", "unpack_request", "usage_sum"]
+           "adapter_class", "estimate_appended_tokens", "estimate_input_tokens", "format_cost",
+           "format_seconds", "run_cost", "summary_text", "system_prompt", "tool_argument",
+           "unpack_request", "usage_sum"]

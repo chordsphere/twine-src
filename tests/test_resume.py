@@ -167,7 +167,7 @@ class SuspendThenResume(ResumeCase):
         self.assertEqual((start["kind"], start["resumed_from"], start["open"]),
                          ("run-start", before[-1]["seq"], None))
         self.assertEqual((start["adapter"], start["model"], start["max_tokens"],
-                          start["thinking"]), ("fake", "fake", 16000, "adaptive"))
+                          start["thinking"]), ("fake", "fake", 32000, "adaptive"))
         first = self.of(lines[len(before):], "request")[0]
         self.assertEqual(first["messages_total"], last_total + 1)
         self.assertEqual(first["appended"], [{"role": "user",
@@ -204,6 +204,19 @@ class SuspendThenResume(ResumeCase):
         self.assertEqual(messages[1]["role"], "assistant")
         self.assertIn("=== LIGHT BEGIN", messages[1]["content"][0]["text"])
         self.assertEqual(messages[2], {"role": "user", "content": "as assumed\n"})
+
+    def test_the_last_progress_line_of_a_resume_is_its_summary(self):
+        """twine-run-ergonomics, item 6: after every other line, `summary:`
+        — this run's calls, tool calls, retries, cost and wall time."""
+        bed = self.bed()
+        self.suspended(bed)
+        twin = bed.resume_twin(self.DELIVER)
+        last = twin["_stderr"].rstrip("\n").split("\n")[-1]
+        self.assertRegex(last, r"^\[twine\] resume: summary: delivered, move operator-applies, "
+                               r"2 calls, 2 tool calls, 0 retries, \$\d+\.\d\d(\d\d)?, \d+s$")
+        for line in twin["_stderr"].splitlines():
+            if "call 1:" in line and "asks for" in line:
+                self.assertRegex(line, r"\$\d+\.\d\d(\d\d)?, \d+s")
 
     def test_the_answer_from_stdin_and_human_mode(self):
         bed = self.bed()
@@ -276,8 +289,16 @@ class TheClarificationForm(ResumeCase):
         questions = [dict(QUESTION, question=f"question {n}?") for n in range(1, 5)]
         twin = bed.twin([tools(("escalate", {"questions": questions, "blocking": True}),
                                ("shell", {"command": "touch never-run"}), n=1)])
-        self.assertEqual((twin["outcome"], twin["stop"], twin["block"]),
-                         ("suspended", None, None), twin["reason"])
+        self.assertEqual((twin["outcome"], twin["stop"]), ("suspended", None), twin["reason"])
+        # twine-run-ergonomics, item 7: the twin's `block` is the exchange
+        # paste block, beside the tarball, the apply line and the dry run.
+        from twine import shapes
+        found = shapes.find_blocks(twin["block"]).blocks
+        self.assertEqual([b.kind for b in found], ["exchange"])
+        self.assertTrue(found[0].ok, found[0].error)
+        self.assertEqual((found[0].fields["sid"], found[0].fields["from"]), (SID, "worker"))
+        self.assertEqual([q["question"] for q in found[0].fields["record"]["questions"]],
+                         [f"question {n}?" for n in range(1, 5)])
         home = (bed.state / "sandbox" / SID / "home").resolve()
         tarball = home / "escalations" / "1" / f"response-{SID}.tar.gz"
         self.assertEqual(twin["tarball"], str(tarball))
@@ -434,7 +455,7 @@ class ResumeRefusals(ResumeCase):
         twin = bed.resume_twin([stop("end-turn")], "--model", "other", "--max-tokens", "99",
                                "--thinking", "off")
         self.assert_refused(twin, "--model other differs from the transcript's 'fake'",
-                            "--max-tokens 99 differs from the transcript's 16000",
+                            "--max-tokens 99 differs from the transcript's 32000",
                             "--thinking off differs from the transcript's 'adaptive'",
                             "D12")
 

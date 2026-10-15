@@ -24,6 +24,14 @@ written does not stop the run that writes it (TranscriptError, which the
 loop logs and carries in its twin); the spend stream and the running record
 are what the cap and the kill stand on.
 
+Beside it, since twine-run-ergonomics, a call that ends `malformed-shape`
+keeps the response body the transport drew:
+
+    <state-dir>/transcripts/<sid>.call-<N>.raw      (0600, N the call number)
+
+written by `write_raw` and named in the `turn` line's `raw` key — nothing is
+kept for any other outcome. It is a response body, so the key is never in it.
+
 Nothing here reads a key or the process environment, or spawns anything.
 """
 
@@ -32,6 +40,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -42,6 +51,11 @@ log = logging.getLogger("twine.transcript")
 
 TRANSCRIPTS_SUBDIR = "transcripts"
 SUFFIX = ".jsonl"
+# The raw response body kept for a call that ended malformed-shape:
+# `<sid>.call-<N>.raw`, beside the transcript.
+RAW_INFIX = ".call-"
+RAW_SUFFIX = ".raw"
+RAW_NAME = re.compile(r"^(?P<sid>.+)\.call-(?P<call>[1-9][0-9]*)\.raw$")
 # The three keys every line opens with, in this order.
 LINE_KEYS = ("at", "seq", "kind")
 
@@ -68,6 +82,42 @@ def transcript_path(state_dir: Path, sid: str) -> Path:
     if not is_sid(sid):
         raise ValueError(f"session id {sid!r} is not one twine names a transcript by")
     return transcripts_dir(state_dir) / f"{sid}{SUFFIX}"
+
+
+def raw_path(state_dir: Path, sid: str, call: int) -> Path:
+    """`<state-dir>/transcripts/<sid>.call-<N>.raw`, the response body kept
+    for call N when it ended `malformed-shape`. Raises ValueError for a sid
+    twine would not name a file by, or a call that is not a positive int."""
+    if not is_sid(sid):
+        raise ValueError(f"session id {sid!r} is not one twine names a transcript by")
+    if type(call) is not int or call < 1:
+        raise ValueError(f"call {call!r} is not a positive call number")
+    return transcripts_dir(state_dir) / f"{sid}{RAW_INFIX}{call}{RAW_SUFFIX}"
+
+
+def write_raw(state_dir: Path, sid: str, call: int, data: bytes) -> Path:
+    """Keep `data` — the response body of call `call`, as drawn — at
+    `raw_path`, mode 0600 (the directory 0700 when it has to be made). A
+    file of the same name (a resumed run's numbering restarts) is replaced.
+    Returns the path; raises TranscriptError naming it when it cannot be
+    written."""
+    path = raw_path(state_dir, sid, call)
+    try:
+        path.parent.mkdir(mode=DIR_MODE, parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, FILE_MODE)
+        try:
+            os.fchmod(fd, FILE_MODE)
+            written = 0
+            while written < len(data):
+                written += os.write(fd, data[written:])
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        raise TranscriptError(f"cannot keep the raw response of call {call} at {path}: "
+                              f"{exc.strerror or exc}") from exc
+    log.info("%s: kept the raw response of call %d (%d bytes)", path, call, len(data))
+    return path
 
 
 def read_lines(path: Path) -> Iterator[dict[str, Any]]:
@@ -209,6 +259,9 @@ def list_transcripts(state_dir: Path) -> tuple[tuple[str, ...], tuple[str, ...]]
     for name in names:
         shown = name if name.isprintable() else repr(name)
         stem = name[:-len(SUFFIX)] if name.endswith(SUFFIX) else None
+        kept = RAW_NAME.match(name)
+        if kept is not None and is_sid(kept.group("sid")) and os.path.isfile(directory / name):
+            continue    # a kept raw response (`<sid>.call-<N>.raw`): not a transcript, no fault
         if stem is not None and is_sid(stem) and os.path.isfile(directory / name):
             sids.append(stem)
         else:

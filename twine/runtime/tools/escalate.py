@@ -37,15 +37,25 @@ it:
      is an error result naming it;
   4. the tarball is built as a response tarball is (TARBALL.md §5.1, one
      top directory `response-NNN/`, NNN the sid's counter), named
-     `response-<sid>.tar.gz` (§10.1 step 11).
+     `response-<sid>.tar.gz` (§10.1 step 11);
+  5. the exchange paste block — TARBALL.md §5.9.2's second transport, the
+     same record for a courier who pastes — is rendered by the crafter in
+     the cage, `request/tools/craft_response.py --emit-block
+     <dir>/manifest.json`, and read back with twine.shapes: exactly one
+     `exchange` block, intact, for the sid — or the call is an error naming
+     why (a crafter that cannot render it is an error result, as one that
+     cannot scaffold is).
 
 The work lands under `escalations/<k>/` in the home, `k` the first number
 not yet taken, so a session that escalates in several rounds keeps every
 round. The result: `kind: "clarification"`, `suspend: true`, `questions`
 (the count), `path` (the tarball, relative to the home) and `sha256`; the
 loop treats it as `deliver` and suspend — `carry response` on the tarball,
-then `suspended` with the apply line (runtime-contract.md §7.4). `path`
-and `sha256` are null on the light form.
+then `suspended` with the apply line (runtime-contract.md §7.4), and the run's
+twin carries the block beside it. `block` is the paste block's text and the
+result's `content` is the sentence it always was followed by the block;
+`path`, `sha256` and `block` are null on the light form (whose `content` is
+the block) and on an error.
 """
 
 from __future__ import annotations
@@ -154,7 +164,7 @@ def light(sandbox: Sandbox, given: list[Mapping[str, str]]) -> ToolResult:
         return TOOL.error(f"escalate: the light block would not reach the packer intact: "
                           f"{problem}", questions=len(given))
     return TOOL.ok(text, kind=KIND_LIGHT, suspend=True, questions=len(rows), path=None,
-                   sha256=None)
+                   sha256=None, block=None)
 
 
 # ---------------------------------------------------------------------------
@@ -235,10 +245,11 @@ def summary(sid: str, goal: str | None, count: int) -> str:
             "comes back (twine resume).")
 
 
-def write_clarification(sandbox: Sandbox, rows: list[dict[str, str]]) -> tuple[str, str, str]:
-    """Steps 1–4 of the module docstring. Returns the tarball's path
-    relative to the home, its sha256 and what the lint said; raises
-    ClarificationFault naming what went wrong."""
+def write_clarification(sandbox: Sandbox, rows: list[dict[str, str]]
+                        ) -> tuple[str, str, str, str]:
+    """Steps 1–5 of the module docstring. Returns the tarball's path
+    relative to the home, its sha256, what the lint said and the exchange
+    paste block; raises ClarificationFault naming what went wrong."""
     home = sandbox.home
     sid = sandbox.sid
     if not (home / CRAFTER).is_file():
@@ -301,7 +312,40 @@ def write_clarification(sandbox: Sandbox, rows: list[dict[str, str]]) -> tuple[s
         raise ClarificationFault(f"escalate: cannot build {sandbox.relative(tarball)}: "
                                  f"{exc}") from exc
     digest = hashlib.sha256(tarball.read_bytes()).hexdigest()
-    return sandbox.relative(tarball), digest, lint
+    # 5. The paste block: the same record for the courier who pastes.
+    block = exchange_block(sandbox, f"{rel}/manifest.json")
+    return sandbox.relative(tarball), digest, lint, block
+
+
+def exchange_block(sandbox: Sandbox, manifest: str) -> str:
+    """The exchange paste block of the filled clarification manifest at
+    `manifest` (relative to the home), rendered by the request-carried
+    crafter's `--emit-block` in the cage, and read back: exactly one
+    `exchange` block, its trailer intact, for the sandbox's sid. stdout is
+    the block and only the block. ClarificationFault names why not."""
+    rendered = run_in_cage(sandbox, [CRAFTER, "--emit-block", manifest],
+                           "the crafter's --emit-block")
+    if rendered.exit_code != 0:
+        raise ClarificationFault("escalate: the crafter could not render the exchange paste "
+                                 f"block (--emit-block exited {rendered.exit_code}): "
+                                 f"{said(rendered)}")
+    try:
+        text = rendered.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ClarificationFault(f"escalate: the crafter's --emit-block output is not "
+                                 f"UTF-8: {exc}") from exc
+    blocks = shapes.find_blocks(text).blocks
+    if len(blocks) != 1 or blocks[0].kind != shapes.EXCHANGE:
+        raise ClarificationFault("escalate: the crafter's --emit-block output reads as "
+                                 f"{[b.kind for b in blocks]}, not one exchange block")
+    block = blocks[0]
+    if not block.ok:
+        raise ClarificationFault(f"escalate: the crafter's exchange block is not intact: "
+                                 f"{block.error}")
+    if block.fields.get("sid") != sandbox.sid:
+        raise ClarificationFault(f"escalate: the crafter's exchange block names session "
+                                 f"{block.fields.get('sid')!r}, not {sandbox.sid!r}")
+    return text if text.endswith("\n") else text + "\n"
 
 
 def lint_findings(result: process.RunResult) -> str:
@@ -327,16 +371,16 @@ def clarification(sandbox: Sandbox, given: list[Mapping[str, str]]) -> ToolResul
         return TOOL.error("escalate: " + "; ".join(faults), kind=KIND_CLARIFICATION,
                           questions=len(given))
     try:
-        path, sha, lint = write_clarification(sandbox, rows)
+        path, sha, lint, block = write_clarification(sandbox, rows)
     except ClarificationFault as exc:
         log.error("%s", exc)
         return TOOL.error(str(exc), kind=KIND_CLARIFICATION, questions=len(rows))
     return TOOL.ok(f"escalate: wrote the clarification response {path} ({len(rows)} "
                    f"question(s); sha256 {sha}; {lint}). The courier checks it with bale and "
                    "the session suspends; the planner's answer comes back as your next turn. "
-                   "Do no more work in this turn.",
+                   "Do no more work in this turn.\n" + block,
                    kind=KIND_CLARIFICATION, suspend=True, questions=len(rows), path=path,
-                   sha256=sha)
+                   sha256=sha, block=block)
 
 
 # ---------------------------------------------------------------------------
@@ -395,8 +439,8 @@ TOOL = Tool(
             "additionalProperties": False,
         }),
     leaves_cage=False,
-    result_keys=("kind", "suspend", "questions", "path", "sha256"),
+    result_keys=("kind", "suspend", "questions", "path", "sha256", "block"),
     error_defaults={"kind": KIND_LIGHT, "suspend": False, "questions": None, "path": None,
-                    "sha256": None},
+                    "sha256": None, "block": None},
     execute=execute,
 )

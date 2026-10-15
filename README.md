@@ -186,8 +186,9 @@ Arc 1 (the courier) session 1 landed twine's core:
   `HOME`, `TMPDIR`, `LANG`, never `ANTHROPIC_API_KEY`; the network off
   through `unshare -rn` where this machine allows it, and said plainly
   where it does not (`network: "unconfined"`, the reason). `shell` runs
-  `bash -c` there with a timeout that reaches its children and a 256 KiB
-  stdout cap. Every process a tool starts is registered with the
+  `bash -c` there with a timeout that reaches its children; what the model
+  reads back of its stdout (and of its stderr) is cut at 32 KiB, the cut
+  marked, and the command itself is stopped only at the seam's 256 KiB cap. Every process a tool starts is registered with the
   kill-switch's running record while it runs and cleared after, so
   `twine kill` reaches tools too. `probe` is the one tool that leaves the
   cage: it runs a read-only probe block against the real repository and

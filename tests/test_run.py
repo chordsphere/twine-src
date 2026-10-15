@@ -35,6 +35,7 @@ import os
 import re
 import tarfile
 import tempfile
+import threading
 import unittest
 from decimal import Decimal
 from pathlib import Path
@@ -50,6 +51,7 @@ from twine.runtime.boundary import Boundary, SpawnSettings, Turn
 from twine.runtime.sandbox import Sandbox
 from twine.runtime.terms import ThinkingSettings, ToolCall
 from twine.runtime.tooling import load_tool_registry
+from twine.runtime.window import Window
 from twine.spend import Tokens
 from twine.transitions import load_table
 
@@ -753,9 +755,11 @@ class LoopBed:
     real transcript in a temporary state directory, a fake sleep, a
     scripted abort and a recorded `deliver`."""
 
-    def __init__(self, test: unittest.TestCase, script: list, *, thinking: bool = True,
+    def __init__(self, test: unittest.TestCase, script: list | None, *, thinking: bool = True,
                  max_turns: int = 200, cap: str = "5", abort_after: int | None = None,
-                 prices: bool = True) -> None:
+                 prices: bool = True, adapter=None, progress=None, window=None,
+                 heartbeat_seconds: float = runloop.HEARTBEAT_SECONDS,
+                 max_tokens: int = 16000) -> None:
         self._dir = tempfile.TemporaryDirectory(prefix="twine-loop-")
         test.addCleanup(self._dir.cleanup)
         self.state = Path(self._dir.name) / "state"
@@ -770,7 +774,8 @@ class LoopBed:
         settings = ThinkingSettings(enabled=True, adaptive=True) if thinking else \
             ThinkingSettings(enabled=False)
         fake = runloop.adapter_class("fake")
-        self.adapter = fake(SpawnSettings(FAKE_MODEL, 16000, settings), script)
+        self.adapter = adapter if adapter is not None else fake(
+            SpawnSettings(FAKE_MODEL, 16000, settings), script)
         self.slept: list[float] = []
         self.delivered: list[Path] = []
         self.abort_checks = 0
@@ -781,10 +786,12 @@ class LoopBed:
             transcript=self.transcript,
             settings=runloop.LoopSettings(sid=SID, state_dir=self.state,
                                           cap_usd=Decimal(cap), model=FAKE_MODEL,
-                                          max_tokens=16000, max_turns=max_turns),
+                                          max_tokens=max_tokens, max_turns=max_turns),
             prompt=self.prompt, moves=runloop.MoveBook(the_table()), tools=self.tools,
             deliver=self.deliver, messages=[runloop.user_message("the opener")],
-            sleep=self.slept.append, abort=self.abort)
+            sleep=self.slept.append, abort=self.abort, window=window,
+            heartbeat_seconds=heartbeat_seconds,
+            **({} if progress is None else {"progress": progress}))
 
     def abort(self, state_dir, sid) -> bool:
         self.abort_checks += 1
@@ -1262,6 +1269,476 @@ class TheFakeScriptsNewKeys(unittest.TestCase):
             with self.subTest(bad=bad):
                 with self.assertRaises(FakeScriptError):
                     FakeScript.from_data([stop("end-turn", **bad)])
+
+
+# ---------------------------------------------------------------------------
+# 4. twine-run-ergonomics: the reader's stop reason, the raw stream, the
+#    continuation, the note, the default, the progress lines
+# ---------------------------------------------------------------------------
+
+
+class StreamTransport:
+    """A transport double answering each call with the next (status, headers,
+    body) — the bodies DERIVED specimens of tests/test_anthropic.py or its
+    recordings — and keeping every request body it was sent."""
+
+    def __init__(self, *answers) -> None:
+        self.answers = list(answers)
+        self.bodies: list[dict] = []
+
+    def __call__(self, method, url, headers, body):
+        self.bodies.append(json.loads(body))
+        status, headers, data = self.answers.pop(0)
+        return status, headers, [data[i:i + 97] for i in range(0, len(data), 97)]
+
+
+def anthropic_bed(test: unittest.TestCase, *answers, **kw) -> tuple["LoopBed", StreamTransport]:
+    """A LoopBed whose adapter is the real Anthropic adapter over `answers`."""
+    transport = StreamTransport(*answers)
+    prompt = runloop.system_prompt(load_tool_registry())
+    adapter = anthropic.AnthropicAdapter(env={anthropic.KEY_VARIABLE: SENTINEL_KEY},
+                                         transport=transport, model=FAKE_MODEL,
+                                         system=prompt.note)
+    return LoopBed(test, None, adapter=adapter, **kw), transport
+
+
+def transcript_lines(bed: "LoopBed", kind: str) -> list[dict]:
+    return [l for l in transcripts.read_lines(bed.transcript.path) if l["kind"] == kind]
+
+
+class TheCeilingInsideABlockInTheLoop(unittest.TestCase):
+    """Items 1 and 2: the loop's side of the reader's rule. The streams are
+    DERIVED specimens (tests/test_anthropic.py names them so), not recordings."""
+
+    def specimens(self):
+        from tests import test_anthropic as T
+        return T
+
+    def cut_write(self):
+        T = self.specimens()
+        pieces = ('{"path": "big.txt", ', '"content": "the first of many lines')
+        return T.derived_ceiling(T.text_block(0, "Writing it.") + T.tool_block(1, *pieces))
+
+    def finished(self):
+        r = self.specimens().rec("text_stream")
+        return r.status, r.headers, r.response
+
+    def test_a_cut_tool_call_is_continued_and_asked_for_in_parts(self):
+        bed, transport = anthropic_bed(self, self.cut_write(), self.finished())
+        result = bed.run()
+        self.assertEqual((result.outcome, result.turns, result.retries), ("ended", 2, 0))
+        first, second = transport.bodies
+        # The conversation as the second call carries it: the partial turn
+        # without the call that never completed, then the one user turn.
+        self.assertEqual([m["role"] for m in second["messages"]],
+                         ["user", "assistant", "user"])
+        self.assertEqual(second["messages"][1]["content"],
+                         [{"type": "text", "text": "Writing it."}])
+        asked = second["messages"][2]["content"]
+        self.assertEqual(len(asked), 1)
+        self.assertEqual(asked[0]["type"], "text")
+        self.assertTrue(asked[0]["text"].startswith(runloop.CONTINUE_TEXT + " "))
+        self.assertIn("The write_file call you were writing was cut off before its input was "
+                      "complete", asked[0]["text"])
+        self.assertIn("write a large file in parts", asked[0]["text"])
+        # The continued conversation goes through build_request and the
+        # boundary unchanged: the body is build_request's, to the byte.
+        expected = anthropic.build_request(
+            model=FAKE_MODEL, max_tokens=anthropic.DEFAULT_MAX_TOKENS,
+            system=bed.prompt.note, messages=bed.loop.messages[:3],
+            tools=[anthropic.tool_dict(t) for t in bed.prompt.tools],
+            thinking=anthropic.DEFAULT_THINKING, stream=True)
+        self.assertEqual(second, expected)
+        self.assertEqual(first["messages"][0]["content"][0]["text"], "the opener")
+        # The transcript: the partial input under its key; nothing raw.
+        turn = transcript_lines(bed, "turn")[0]
+        self.assertEqual(turn["turn"]["stop"], "max-tokens")
+        self.assertEqual(turn["cut_tool_input"], {
+            "id": "toolu_cut1", "name": "write_file",
+            "partial_json": '{"path": "big.txt", "content": "the first of many lines'})
+        self.assertNotIn("raw", turn)
+        self.assertEqual([c["name"] for c in turn["turn"]["content"]
+                          if c.get("type") == "tool_use"], [])
+        self.assertNotIn("cut_tool_input", transcript_lines(bed, "turn")[1])
+        moves = [l for l in transcript_lines(bed, "move") if l["move"] == "continue-turn"]
+        self.assertEqual(len(moves), 1)
+
+    def test_a_closed_tool_call_before_the_cut_is_answered_not_run(self):
+        T = self.specimens()
+        closed = T.tool_block(0, '{"path": "a.txt", "content": "A"}', stop=True)
+        cut = T.tool_block(1, '{"path": "b.txt", "content": "B')
+        bed, transport = anthropic_bed(self, T.derived_ceiling(closed + cut), self.finished())
+        bed.run()
+        second = transport.bodies[1]
+        assistant = second["messages"][1]["content"]
+        self.assertEqual([b["type"] for b in assistant], ["tool_use"])
+        answers = second["messages"][2]["content"]
+        self.assertEqual([b["type"] for b in answers], ["tool_result", "text"])
+        self.assertEqual((answers[0]["tool_use_id"], answers[0]["is_error"]),
+                         (assistant[0]["id"], True))
+        self.assertIn("not run", answers[0]["content"])
+        self.assertIn("cut off before its input was complete", answers[1]["text"])
+
+    def test_a_ceiling_in_a_text_block_is_continued_with_the_plain_request(self):
+        T = self.specimens()
+        bed, transport = anthropic_bed(self, T.derived_open_text(), self.finished())
+        bed.run()
+        second = transport.bodies[1]
+        self.assertEqual(second["messages"][1]["content"],
+                         [{"type": "text", "text": "Rope is made"}])
+        [asked] = second["messages"][2]["content"]
+        self.assertEqual((asked["type"], asked["text"]), ("text", runloop.CONTINUE_TEXT))
+
+    def test_the_continuation_says_it_with_the_window_line_on_a_warned_run(self):
+        T = self.specimens()
+        turn = Turn(text="", thinking=None, tool_calls=(), stop="max-tokens",
+                    usage=Tokens(1, 1, None, 0, 0),
+                    cut_tool_call={"id": "t", "name": "shell", "partial_json": "{"})
+        message = runloop.continue_message([], lambda text: text + " [window]", turn.cut_tool_call)
+        self.assertEqual(message["content"][-1]["text"],
+                         runloop.CONTINUE_TEXT + " " + runloop.CUT_CALL_TEXT.format(name="shell")
+                         + " [window]")
+        self.assertEqual(runloop.continue_message([])["content"][-1]["text"],
+                         runloop.CONTINUE_TEXT)
+
+    def test_a_malformed_shape_keeps_the_raw_stream(self):
+        T = self.specimens()
+        double = T.derived_ceiling(T.text_block(0, "half", stop=False), "end_turn")
+        bed, transport = anthropic_bed(self, double)
+        result = bed.run()
+        self.assertEqual((result.outcome, result.stop, result.move, result.actor),
+                         ("stopped", "malformed-shape", "respawn-from-request", "planner"))
+        path = transcripts.raw_path(bed.state, SID, 1)
+        self.assertEqual(path, bed.state / "transcripts" / f"{SID}.call-1.raw")
+        self.assertEqual(path.read_bytes(), double[2])
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        turn = transcript_lines(bed, "turn")[0]
+        self.assertEqual(turn["raw"], str(path))
+        self.assertEqual(turn["turn"]["stop"], "malformed-shape")
+        self.assertIn("message_stop with block(s) [0] still open", turn["turn"]["reason"])
+        self.assertNotIn(SENTINEL_KEY, path.read_text(encoding="utf-8"))
+        # a kept raw response is not a fault of the state directory
+        self.assertEqual(transcripts.list_transcripts(bed.state), ((SID,), ()))
+
+    def test_nothing_is_kept_for_any_other_outcome(self):
+        T = self.specimens()
+        bed, _ = anthropic_bed(self, self.cut_write(), self.finished())
+        bed.run()
+        self.assertEqual(sorted(p.name for p in (bed.state / "transcripts").iterdir()),
+                         [f"{SID}.jsonl"])
+        for line in transcript_lines(bed, "turn"):
+            self.assertNotIn("raw", line)
+
+    def test_the_call_number_names_the_file(self):
+        T = self.specimens()
+        bad = T.derived_ceiling(T.text_block(0, "half", stop=False), "end_turn")
+        ok = T.rec("tool_use_stream")
+        # call 1 is a read_file the loop runs (the home has no such file: an
+        # error result, which goes back); call 2 is the malformed one
+        bed, _ = anthropic_bed(self, (ok.status, ok.headers, ok.response), bad)
+        result = bed.run()
+        self.assertEqual((result.stop, result.turns), ("malformed-shape", 2))
+        self.assertTrue(transcripts.raw_path(bed.state, SID, 2).is_file())
+        self.assertFalse(transcripts.raw_path(bed.state, SID, 1).exists())
+        self.assertEqual(transcript_lines(bed, "turn")[1]["raw"],
+                         str(transcripts.raw_path(bed.state, SID, 2)))
+
+    def test_a_raw_file_that_cannot_be_written_is_named_not_silent(self):
+        T = self.specimens()
+        bad = T.derived_ceiling(T.text_block(0, "half", stop=False), "end_turn")
+        bed, _ = anthropic_bed(self, bad)
+        transcripts.raw_path(bed.state, SID, 1).mkdir(parents=True)   # a directory in its place
+        with self.assertLogs("twine.runtime.loop", "ERROR"):
+            result = bed.run()
+        self.assertEqual(result.stop, "malformed-shape")
+        turn = transcript_lines(bed, "turn")[0]
+        self.assertIsNone(turn["raw"])
+        self.assertIn("cannot keep the raw response of call 1", turn["raw_error"])
+
+    def test_the_transcript_writer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = transcripts.write_raw(Path(tmp), SID, 7, b"\xff bytes")
+            self.assertEqual((path.name, path.read_bytes(), path.stat().st_mode & 0o777),
+                             (f"{SID}.call-7.raw", b"\xff bytes", 0o600))
+            transcripts.write_raw(Path(tmp), SID, 7, b"x")   # replaced, never appended
+            self.assertEqual(path.read_bytes(), b"x")
+            for call in (0, -1, True, "1"):
+                with self.assertRaises(ValueError):
+                    transcripts.raw_path(Path(tmp), SID, call)
+            with self.assertRaises(ValueError):
+                transcripts.raw_path(Path(tmp), "not a sid", 1)
+            (Path(tmp) / "transcripts" / "junk.call-x.raw").write_text("x")
+            sids, faults = transcripts.list_transcripts(Path(tmp))
+            self.assertEqual(sids, ())
+            self.assertEqual(len(faults), 1)
+            self.assertIn("junk.call-x.raw is not a transcript", faults[0])
+
+
+class TheSurfaceNoteSaysWhatItMust(unittest.TestCase):
+    """Item 4: the note's six new things, by the stems the sitting's oracle
+    looks for — case-insensitive, markdown stripped — and still nothing about
+    the model, the provider, the task or the sid."""
+
+    STEMS = (("list", "first"), ("range",), ("in parts",), ("background",),
+             ("lint", "judge"), ("window",), ("blocking",))
+
+    @staticmethod
+    def plain(text: str) -> str:
+        return re.sub(r"\s+", " ", re.sub(r"[`*_#>\[\]]", "", text)).lower()
+
+    def test_every_stem_is_there(self):
+        note = self.plain(runloop.SURFACE_NOTE)
+        for stems in self.STEMS:
+            for stem in stems:
+                with self.subTest(stem=stem):
+                    self.assertIn(stem, note)
+
+    def test_each_thing_is_said_in_its_place(self):
+        note = self.plain(runloop.SURFACE_NOTE)
+        for phrase in ("list your home first", "a previous desk's work may already be in it",
+                       "read ranges of a file, never the whole of a large one",
+                       "every byte you print is read again on every later call",
+                       "write a large file in parts",
+                       "never put a command in the background and poll it",
+                       "the request carries no schemas: the lint judges your manifest",
+                       "the context window does not compact",
+                       "blocking: true"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, note)
+
+    def test_the_old_items_stand_and_the_note_names_nothing_it_must_not(self):
+        note = runloop.SURFACE_NOTE
+        for needle in ("request/", "read_file", "list_dir", "deliver", "craft_response.py",
+                       "escalate", "probe", "response_lint.py"):
+            self.assertIn(needle, note)
+        lowered = note.lower()
+        for needle in ("anthropic", "claude", "openai", "haiku", "sonnet", "opus", "model",
+                       "provider", "task", SID, "twine-0"):
+            with self.subTest(must_not_say=needle):
+                self.assertNotIn(needle, lowered)
+
+    def test_the_run_start_line_carries_the_note(self):
+        bed = Bed()
+        self.addCleanup(bed.cleanup)
+        bed.twin([stop("end-turn", "done")])
+        start = next(l for l in bed.transcript() if l["kind"] == "run-start")
+        note = self.plain(start["system"]["note"])
+        for stems in self.STEMS:
+            for stem in stems:
+                self.assertIn(stem, note)
+
+
+class TheDefaultCeiling(unittest.TestCase):
+
+    def test_the_default_is_32000_and_the_help_says_so(self):
+        from twine.commands import run as run_verb
+        self.assertEqual(run_verb.DEFAULT_MAX_TOKENS, 32000)
+        result = run_cli("run", "--help")
+        self.assertIn("(default 32000", " ".join(result.stdout.split()))
+
+    def test_a_run_without_the_flag_starts_with_32000(self):
+        bed = Bed()
+        self.addCleanup(bed.cleanup)
+        twin = bed.twin([stop("end-turn", "done")])
+        start = next(l for l in bed.transcript() if l["kind"] == "run-start")
+        self.assertEqual(start["max_tokens"], 32000)
+        self.assertEqual(twin["outcome"], "ended")
+        again = Bed()
+        self.addCleanup(again.cleanup)
+        again.twin([stop("end-turn", "done")], "--max-tokens", "500")
+        self.assertEqual(next(l for l in again.transcript()
+                              if l["kind"] == "run-start")["max_tokens"], 500)
+
+
+COST = r"\$\d+\.\d\d(?:\d\d)?"
+
+
+class TheProgressLines(BedCase):
+    """Item 6: the operator's live view, read from the run's stderr."""
+
+    SCRIPT = [tools(("shell", {"command": "echo hello"}), n=1, input=1_000_000, output=500_000),
+              tools(("write_file", {"path": "notes/draft.txt", "content": "x"}), n=2),
+              tools(("shell", {"command": DELIVER_SHELL}), n=3),
+              tools(("deliver", {"tarball": "response.tar.gz"}), n=4)]
+
+    def stderr(self, script=None, *extra, **kw) -> list[str]:
+        bed = self.bed()
+        twin = bed.twin(script or self.SCRIPT, "--window", "2000000", *extra, "--cap", "20",
+                        **kw) if False else bed.twin(script or self.SCRIPT, "--window",
+                                                     "2000000", *extra, cap="20", **kw)
+        self.assertEqual(twin["outcome"], "delivered", twin["reason"])
+        return twin["_stderr"].splitlines()
+
+    def test_every_returned_turn_carries_cost_time_and_window(self):
+        lines = self.stderr()
+        turns = [l for l in lines if re.search(r"run: call \d+: (asks for|stop) ", l)]
+        self.assertEqual(len(turns), 4, lines)
+        for line in turns:
+            with self.subTest(line=line):
+                self.assertRegex(line, rf"{COST}, \d+s, window \d+ of 2000000$")
+        self.assertRegex(turns[0], r"^\[twine\] run: call 1: asks for shell — "
+                                   r"\$2\.00, \d+s, window 1000000 of 2000000$")
+
+    def test_every_tool_line_carries_what_the_tool_ran(self):
+        lines = self.stderr()
+        self.assertIn("[twine] run: call 1: tool shell: running — echo hello", lines)
+        self.assertIn("[twine] run: call 1: tool shell: ok — echo hello", lines)
+        self.assertIn("[twine] run: call 2: tool write_file: ok — notes/draft.txt", lines)
+        self.assertIn("[twine] run: call 4: tool deliver: ok — response.tar.gz", lines)
+        # a tool line is one line, whatever the command's newlines
+        for line in lines:
+            self.assertNotIn("\x1b", line, "no colour, no cursor movement (N6)")
+
+    def test_a_long_command_is_cut_at_80_characters(self):
+        command = "echo " + "x" * 120
+        lines = self.stderr([tools(("shell", {"command": command}), n=1),
+                             tools(("shell", {"command": DELIVER_SHELL}), n=2),
+                             tools(("deliver", {"tarball": "response.tar.gz"}), n=3)])
+        shown = [l for l in lines if "call 1: tool shell: ok" in l]
+        self.assertEqual(len(shown), 1)
+        self.assertTrue(shown[0].endswith(f"— {command[:80]}..."), shown[0])
+        self.assertNotIn(command[:81], shown[0])
+
+    def test_the_last_progress_line_is_the_summary(self):
+        lines = self.stderr()
+        self.assertRegex(lines[-1], rf"^\[twine\] run: summary: delivered, move operator-applies, "
+                                    rf"4 calls, 4 tool calls, 0 retries, {COST}, \d+s$")
+        self.assertEqual(sum(": summary: " in l and "run: " in l for l in lines), 1)
+
+    def test_the_summary_names_the_stop_and_the_move_and_the_retries(self):
+        bed = self.bed()
+        twin = bed.twin([stop("overloaded", retry_after=0), stop("model-refusal",
+                                                               reason="no")])
+        last = twin["_stderr"].splitlines()[-1]
+        self.assertRegex(last, rf"^\[twine\] run: summary: stopped, stop model-refusal, move "
+                               rf"reword-brief, 2 calls, 0 tool calls, 1 retries, {COST}, \d+s$")
+
+    def test_an_unpriced_run_is_costed_with_a_question_mark(self):
+        """The run's cost is priced from the price file each time a line
+        needs it: a file that has gone, or no row for the model, is `$?`."""
+        lines: list[str] = []
+        bed = LoopBed(self, [tools(("list_dir", {}), n=1), stop("end-turn", "done")],
+                      progress=lines.append)
+        bed.run()
+        self.assertRegex(bed.loop.summary(), rf"{COST}, \d+s$")
+        (bed.state / "prices.toml").unlink()
+        self.assertRegex(bed.loop.standing(), r"^\$\?, \d+s$")
+        self.assertRegex(bed.loop.summary(), r"^summary: ended, 2 calls, 1 tool calls, "
+                                             r"0 retries, \$\?, \d+s$")
+
+    def test_without_a_known_window_the_turn_line_has_none(self):
+        bed = self.bed()
+        twin = bed.twin([tools(("list_dir", {}), n=1), stop("end-turn", "done")])
+        turn = next(l for l in twin["_stderr"].splitlines() if "call 1: asks for" in l)
+        self.assertRegex(turn, rf"— {COST}, \d+s$")
+        self.assertNotIn("window", turn)
+
+    def test_a_refusal_ends_on_a_summary_too(self):
+        bed = self.bed()
+        result = bed.run(None)       # the fake without a script: refused
+        lines = result.stderr.splitlines()
+        self.assertRegex(lines[-1], rf"^\[twine\] run: summary: refused, 0 calls, 0 tool calls, "
+                                    rf"0 retries, {COST}, 0s$")
+        self.assertEqual(result.code, 1)
+
+    def test_the_tool_arguments(self):
+        probe = fenced_probe(filled_probe())
+        cases = [("shell", {"command": "ls  -la\n  /tmp"}, "ls -la /tmp"),
+                 ("read_file", {"path": "a/b.txt"}, "a/b.txt"),
+                 ("write_file", {"path": "c.txt", "content": "x" * 999}, "c.txt"),
+                 ("list_dir", {"path": "request"}, "request"),
+                 ("list_dir", {}, "."),
+                 ("probe", {"block": probe}, "twine-take-fixture"),
+                 ("probe", {"block": "not a block"}, "(no readable slug)"),
+                 ("escalate", {"questions": [{}]}, "1 question, light"),
+                 ("escalate", {"questions": [{}, {}], "blocking": True}, "2 questions, blocking"),
+                 ("deliver", {"tarball": "out/r.tar.gz"}, "out/r.tar.gz"),
+                 ("shell", {}, ""), ("no_such_tool", {"x": 1}, ""), ("shell", {"command": 3}, "")]
+        for name, arguments, shown in cases:
+            with self.subTest(name=name, arguments=arguments):
+                self.assertEqual(runloop.tool_argument(name, arguments), shown)
+        self.assertEqual(runloop.tool_argument("shell", {"command": "é" * 100}), "é" * 80 + "...")
+        self.assertEqual(runloop.tool_argument("shell", {"command": "é" * 80}), "é" * 80)
+
+    def test_the_formats(self):
+        D = Decimal
+        self.assertEqual([runloop.format_cost(x) for x in (None, D(0), D("0.5"), D("4.5499"),
+                                                           D("0.0042"), 12.3, 0.0)],
+                         ["$?", "$0.00", "$0.50", "$4.55", "$0.0042", "$12.30", "$0.00"])
+        self.assertEqual([runloop.format_seconds(x) for x in (0, 0.4, 0.6, 32.5, 321, -1)],
+                         ["0s", "0s", "1s", "32s", "321s", "0s"])
+        self.assertEqual(runloop.summary_text("ended", stop=None, move=None, calls=1,
+                                              tool_calls=0, retries=0, cost=D("1"), seconds=2),
+                         "summary: ended, 1 calls, 0 tool calls, 0 retries, $1.00, 2s")
+
+
+class TheHeartbeat(unittest.TestCase):
+
+    def test_the_constant_is_thirty_seconds(self):
+        self.assertEqual(runloop.HEARTBEAT_SECONDS, 30)
+        bed = LoopBed(self, [stop("end-turn", "x")])
+        self.assertEqual(bed.loop.heartbeat_seconds, 30)
+
+    def test_a_slow_tool_is_heard_from_while_it_runs_and_not_after(self):
+        lines: list[str] = []
+        bed = LoopBed(self, [tools(("shell", {"command": "sleep 0.7"}), n=1),
+                             stop("end-turn", "done")], progress=lines.append,
+                      heartbeat_seconds=0.1)
+        bed.run()
+        beats = [l for l in lines if "still running" in l]
+        self.assertGreaterEqual(len(beats), 3, lines)
+        for beat in beats:
+            self.assertRegex(beat, r"^call 1: tool shell: still running, \d+s — sleep 0\.7$")
+        began = lines.index("call 1: tool shell: running — sleep 0.7")
+        ended = lines.index("call 1: tool shell: ok — sleep 0.7")
+        self.assertTrue(all(began < lines.index(b) < ended for b in beats[:1]))
+        self.assertEqual(max(i for i, l in enumerate(lines) if "still running" in l) < ended,
+                         True, "no heartbeat after the tool's own line")
+        self.assertEqual([t.name for t in threading.enumerate()
+                          if t.name.startswith("twine-heartbeat")], [])
+
+    def test_a_quick_tool_makes_no_noise_at_the_default_interval(self):
+        lines: list[str] = []
+        bed = LoopBed(self, [tools(("list_dir", {}), n=1), stop("end-turn", "done")],
+                      progress=lines.append)
+        bed.run()
+        self.assertEqual([l for l in lines if "still running" in l], [])
+
+    def test_the_heartbeat_counts_the_clock_it_is_given(self):
+        lines: list[str] = []
+        ticks = iter(range(0, 1000, 33))     # 33 s per reading: a 33-second tool
+        bed = LoopBed(self, [tools(("shell", {"command": "sleep 0.3"}), n=1),
+                             stop("end-turn", "done")], progress=lines.append,
+                      heartbeat_seconds=0.1)
+        bed.loop.clock = lambda: next(ticks)
+        bed.run()
+        beats = [l for l in lines if "still running" in l]
+        self.assertTrue(beats)
+        self.assertRegex(beats[0], r"still running, \d+s")
+
+    def test_a_progress_callback_that_fails_does_not_fail_the_tool(self):
+        calls = []
+
+        def flaky(line: str) -> None:
+            calls.append(line)
+            if "still running" in line:
+                raise OSError("stderr closed")
+        bed = LoopBed(self, [tools(("shell", {"command": "sleep 0.4"}), n=1),
+                             stop("end-turn", "done")], progress=flaky, heartbeat_seconds=0.05)
+        with self.assertLogs("twine.runtime.loop", "WARNING"):
+            result = bed.run()
+        self.assertEqual((result.outcome, result.tool_calls), ("ended", 1))
+
+    def test_the_loop_s_own_summary(self):
+        lines: list[str] = []
+        bed = LoopBed(self, [tools(("list_dir", {}), n=1), stop("end-turn", "done")],
+                      progress=lines.append, window=Window.from_flag(1000))
+        result = bed.run()
+        self.assertRegex(bed.loop.summary(), rf"^summary: ended, 2 calls, 1 tool calls, "
+                                             rf"0 retries, {COST}, \d+s$")
+        self.assertRegex(next(l for l in lines if "call 1: asks for" in l),
+                         rf"— {COST}, \d+s, window 100 of 1000$")
+        self.assertEqual(result.outcome, "ended")
 
 
 if __name__ == "__main__":
