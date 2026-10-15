@@ -1,7 +1,10 @@
 """share/bale-consumption.toml (D3, D4) as data a test can walk. Since session
 2026-10-12-twine-pin-floor-002 `[bale]` carries `floor` and no `pin` (D2 as
-amended), and the schema hashes are the fixtures' (fixtures/bale-<floor>/
-schemas/)."""
+amended); since session 2026-10-15-twine-gate-contract-001 exactly `floor`,
+`recordings` and `contract`, and no `[bale.schemas]` — the schema hashes are
+gone from the manifest, and the eight files under fixtures/bale-0.4.51/
+schemas/ stay as history, held here to the hashes they always had. Every
+recording a surface names is under fixtures/bale-<recordings>/."""
 
 from __future__ import annotations
 
@@ -16,8 +19,8 @@ from twine.bale import ManifestError, load_manifest
 from twine.registry import load_registry
 
 from tests.fixture_rule import assign_groups
-from tests.helpers import (BALE_VOCABULARIES, GROUP_SEP, OPEN_KEYS, OPEN_RECORDINGS, FLOOR,
-                           RELAY_KEYS, RELAY_RECORDINGS, UNLOCK_KEYS, UNLOCK_RECORDINGS, Role,
+from tests.helpers import (BALE_VOCABULARIES, CONTRACT_VERSION, GROUP_SEP, OPEN_KEYS,
+                           OPEN_RECORDINGS, FLOOR, RECORDINGS, RELAY_KEYS, RELAY_RECORDINGS, UNLOCK_KEYS, UNLOCK_RECORDINGS, Role,
                            TempRoots, carried_relpath, emission_relpath, fixture_key,
                            fixture_relpath, fixture_stem, open_recording, relay_recording,
                            split_group, unlock_recording)
@@ -30,9 +33,10 @@ SCHEMA_FILES = {
     "response-manifest.schema.json", "telemetry-record.schema.json",
 }
 # The eight schema hashes, unchanged from 0.4.45 through 0.4.49 to 0.4.51
-# (the manifest's header says who hashed them and when — at 0.4.51 a probe,
-# twine-051-record); pinned here so a silent edit of the manifest's table
-# fails by name.
+# (a probe, twine-051-record, hashed them at 0.4.51), which the manifest's
+# [bale.schemas] pinned from session 2026-10-12-twine-pin-floor-002 until
+# session 2026-10-15-twine-gate-contract-001 removed the table: history now,
+# held to the files under fixtures/bale-0.4.51/schemas/, which never change.
 SCHEMA_SHA256 = {
     "bundle-manifest.schema.json": "3384ebcd52a08044356f30f1031f4389e9b4427d81602173b0c59f4f9f9cea23",
     "changelog-record.schema.json": "7b6d351c052dad8588b05e7592da78f9e9052a671ad6dae9395bfd6d531c5b5c",
@@ -55,8 +59,10 @@ VOCABULARY_REQUIRED = {"axis", "values", "home", "pointer", "also_at", "excluded
 README_ROW = re.compile(r"^\| `(?P<file>[^`]+)` \| `(?P<cmd>[^`]+)` \|", re.M)
 # The unlock refusal's reason codes at 0.4.49, unchanged at 0.4.51
 # (UNLOCK_REFUSAL_REASONS in bin/bale_report.py, read by the desk): the
-# closed set `reason` takes.
-UNLOCK_REASONS = ["hold-branch", "not-open", "several-open", "not-a-repo", "integration-json"]
+# closed set `reason` takes — and since bale 0.4.54 a sixth, `cost-file`, as
+# bale 0.4.55's contract line states (session 2026-10-15-twine-gate-contract-001).
+UNLOCK_REASONS = ["hold-branch", "not-open", "several-open", "not-a-repo", "integration-json",
+                  "cost-file"]
 # The relay refusal's reason codes since bale 0.4.50 (RELAY_REFUSAL_REASONS in
 # bin/bale_report.py, read by the desk of sitting 2026-10-08-open-arc2-003 from
 # bale-src's context tarball; brief of session 2026-10-12-twine-pin-051-001,
@@ -88,44 +94,35 @@ class ManifestParses(unittest.TestCase):
     def test_tomllib_parses_it(self):
         with CONSUMPTION_MANIFEST.open("rb") as fh:
             data = tomllib.load(fh)
-        self.assertEqual(data["bale"]["floor"], FLOOR)
+        self.assertEqual(data["bale"], {"floor": FLOOR, "recordings": RECORDINGS,
+                                        "contract": "fixtures/contract/bale-0.4.55.json"})
         self.assertNotIn("pin", data["bale"])
-        self.assertEqual(set(data["bale"]), {"floor", "schemas"})
+        self.assertNotIn("schemas", data["bale"])
 
     def test_load_manifest(self):
         m = load_manifest()
-        self.assertEqual(m.floor, FLOOR)
+        self.assertEqual((m.floor, m.recordings), (FLOOR, RECORDINGS))
         self.assertEqual(m.path, CONSUMPTION_MANIFEST)
+        self.assertTrue((REPO_ROOT / m.contract).is_file())
+        self.assertTrue((REPO_ROOT / "fixtures" / f"bale-{m.recordings}").is_dir())
 
-    def test_eight_schemas_with_sha256s(self):
-        m = load_manifest()
-        self.assertEqual(set(m.schemas), SCHEMA_FILES)
-        for name, digest in m.schemas.items():
-            self.assertRegex(digest, SHA256, name)
-
-    def test_the_schema_hashes_are_unchanged_at_the_floor(self):
-        """0.4.51's eight schemas hash to 0.4.45's values — re-hashed by a
-        probe, twine-051-record (2026-10-08), where 0.4.49's were the desk's
-        reading of bale-src's context tarball; the header says so, and since
-        session 2026-10-12-twine-pin-floor-002 it says the hashes are the
-        gate's second half and where the files themselves are. (Was
-        test_the_schema_hashes_are_unchanged_at_the_pin.)"""
-        self.assertEqual(load_manifest().schemas, SCHEMA_SHA256)
+    def test_the_header_says_the_schema_hashes_are_gone(self):
         text = CONSUMPTION_MANIFEST.read_text(encoding="utf-8")
-        comment = text.split("\n[bale.schemas]\n", 1)[0].rsplit("\nfloor = ", 1)[1]
-        self.assertIn("UNCHANGED at 0.4.51", comment)
-        self.assertIn("re-hashed this time\n# by a probe: twine-051-record", comment)
-        self.assertIn("The gate's second half", comment)
-        self.assertIn("fixtures/bale-0.4.51/schemas/", comment)
+        comment = text.split("\n[bale]\n", 1)[0]
+        self.assertIn("The schema hashes ([bale.schemas]", comment)
+        self.assertIn("are gone", comment)
+        self.assertIn("fixtures/bale-0.4.51/schemas/ as history", comment)
+        self.assertIn("i thought\n# we got rid of the pin sessions by pinning a contract?",
+                      text)
 
-    def test_the_schema_fixtures_hash_as_the_manifest_says(self):
-        """The eight files under fixtures/bale-<floor>/schemas/ are the
-        manifest's [bale.schemas], file for file and hash for hash — so the
-        stub roots, which install them, are roots the gate admits."""
-        where = REPO_ROOT / "fixtures" / f"bale-{FLOOR}" / "schemas"
+    def test_the_schema_fixtures_keep_the_hashes_they_always_had(self):
+        """The eight files under fixtures/bale-0.4.51/schemas/ are history the
+        gate no longer reads; they still hash as 0.4.45 through 0.4.51 did."""
+        where = REPO_ROOT / "fixtures" / f"bale-{RECORDINGS}" / "schemas"
         on_disk = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                    for p in where.iterdir() if p.is_file()}
-        self.assertEqual(on_disk, load_manifest().schemas)
+        self.assertEqual(set(on_disk), SCHEMA_FILES)
+        self.assertEqual(on_disk, SCHEMA_SHA256)
 
 
 class SurfacesAreWalkable(unittest.TestCase):
@@ -147,7 +144,11 @@ class SurfacesAreWalkable(unittest.TestCase):
                 self.assertTrue(required <= set(s), f"missing {required - set(s)}")
                 self.assertIsInstance(s["keys"], list)
                 self.assertTrue(all(isinstance(k, str) for k in s["keys"]))
-                self.assertEqual(s["written_against"], FLOOR)
+                # Written against the recordings' version — the contract
+                # surface against the carried line's, 0.4.55.
+                self.assertEqual(s["written_against"],
+                                 CONTRACT_VERSION if s.get("verb") == "contract"
+                                 else RECORDINGS)
 
     def test_bin_version_is_a_surface_read_by_bale_check(self):
         files = [s for s in self.manifest.surfaces if s["kind"] == "file"]
@@ -191,6 +192,14 @@ class SurfacesAreWalkable(unittest.TestCase):
                         entries.append(row)
                     self.assertEqual(expected_relpaths(entries),
                                      [e["fixture"] for e in entries])
+                elif "carried" in s:
+                    # Carried, not recorded (the contract line, session
+                    # 2026-10-15-twine-gate-contract-001): outside every
+                    # fixtures/bale-<version>/ directory, which the lander owns.
+                    expected = fixture_relpath(s["argv"], s["cwd"])
+                    self.assertFalse((REPO_ROOT / expected).exists(), expected)
+                    self.assertTrue((REPO_ROOT / s["carried"]).is_file(), s["carried"])
+                    self.assertFalse(s["carried"].startswith("fixtures/bale-"), s["carried"])
                 else:
                     expected = fixture_relpath(s["argv"], s["cwd"])
                     self.assertFalse((REPO_ROOT / expected).exists(),
@@ -238,12 +247,12 @@ class SurfacesAreWalkable(unittest.TestCase):
                           "--no-readme", "--json"])
         self.assertEqual(fixture_relpath(["pack", "g", "--slug", "ro", "--read-only",
                                           "--no-readme", "--json"], "scratch"),
-                         f"fixtures/bale-{FLOOR}/scratch/"
+                         f"fixtures/bale-{RECORDINGS}/scratch/"
                          "pack_goal_--slug-ro_--read-only_--no-readme_--json.json")
         self.assertEqual(fixture_relpath(["open", "--check", "/b", "--json"], "repo"),
-                         f"fixtures/bale-{FLOOR}/twine-src/open_--check_bundle_--json.json")
+                         f"fixtures/bale-{RECORDINGS}/twine-src/open_--check_bundle_--json.json")
         self.assertEqual(fixture_relpath(["open", "/b", "--json"], "scratch", "opened"),
-                         f"fixtures/bale-{FLOOR}/scratch/open_bundle_--json+opened.json")
+                         f"fixtures/bale-{RECORDINGS}/scratch/open_bundle_--json+opened.json")
         # A flag-led unlock or pack has no positional to replace.
         self.assertEqual(fixture_key(["pack", "--json"]), ["pack", "--json"])
         self.assertEqual(fixture_key(["unlock", "--integration", "--json"]),
@@ -310,7 +319,7 @@ class SurfacesAreWalkable(unittest.TestCase):
         self.assertIn("UNLOCK_REFUSAL_REASONS", unlock["reasons_home"])
         self.assertNotIn("unlock-reason", self.manifest.vocabularies, "not a table axis")
         self.assertEqual(fixture_relpath(unlock["argv"], unlock["cwd"]),
-                         f"fixtures/bale-{FLOOR}/scratch/unlock_sid_--reason-aborted_--json.json")
+                         f"fixtures/bale-{RECORDINGS}/scratch/unlock_sid_--reason-aborted_--json.json")
         self.assertEqual(unlock["fixture"], unlock_recording("aborted").relpath)
         also = {(r["outcome"], r.get("reason")): r["fixture"] for r in unlock["also_recorded"]}
         self.assertEqual(also, {
@@ -327,13 +336,30 @@ class SurfacesAreWalkable(unittest.TestCase):
     def test_every_json_verb_the_pin_bump_recorded_is_a_surface(self):
         """status and stats (the brief of session core-002), and the verbs
         the 0.4.49 probes, and at 0.4.51 the recorder, recorded under
-        --json."""
+        --json — and since session 2026-10-15-twine-gate-contract-001 the
+        gate's own, `contract --json`, carried rather than recorded."""
         argvs = {tuple(s["argv"]) for s in self.verbs()}
         self.assertIn(("status", "--json"), argvs)
         self.assertIn(("stats", "--json"), argvs)
         verbs_with_json = {s["verb"] for s in self.verbs() if "--json" in s["flags"]}
         self.assertEqual(verbs_with_json, {"status", "stats", "apply", "relay", "open",
-                                           "pack", "unlock"})
+                                           "pack", "unlock", "contract"})
+
+    def test_the_contract_surface_is_the_carried_line(self):
+        """The gate's surface (session 2026-10-15-twine-gate-contract-001):
+        `contract --json`, carried at the path [bale] contract names (no
+        fixture under fixtures/bale-<version>/), read by `bale check` and
+        `status`, and the keys the gate reads are the line's own keys, as
+        its json_keys["contract"] states them."""
+        entry = next(s for s in self.verbs() if s["verb"] == "contract")
+        self.assertEqual((entry["argv"], entry["cwd"], entry["read_by"]),
+                         (["contract", "--json"], "anywhere", ["bale check", "status"]))
+        self.assertEqual(entry["carried"], self.manifest.contract)
+        self.assertNotIn("fixture", entry)
+        line = json.loads((REPO_ROOT / entry["carried"]).read_bytes())
+        self.assertEqual(entry["contract_lines"], ["contract"])
+        self.assertEqual(entry["keys"], line["json_keys"]["contract"][:5])
+        self.assertLessEqual(set(entry["keys"]), set(line))
 
     def test_one_format_entry_per_kind_take_parses(self):
         formats = [s["format"] for s in self.manifest.surfaces if s["kind"] == "format"]
@@ -444,7 +470,7 @@ class SurfacesAreWalkable(unittest.TestCase):
                     self.assertEqual([(b.kind, b.ok) for b in blocks],
                                      [(s["format"], True)])
                     if path.parent.name == "crafter":
-                        self.assertEqual(s["fixtures_version"], FLOOR,
+                        self.assertEqual(s["fixtures_version"], RECORDINGS,
                                          "a crafter emission is re-recorded at the pin")
                         cmd = readme_cmds[rel.removeprefix("fixtures/")]
                         expected = emission_relpath("crafter", cmd.split()[1:])
@@ -467,13 +493,13 @@ class SurfacesAreWalkable(unittest.TestCase):
         paste as its specimen)."""
         by_format = {s["format"]: s for s in self.manifest.surfaces if s["kind"] == "format"}
         self.assertEqual({k: v["fixtures_version"] for k, v in by_format.items()},
-                         {"probe": FLOOR, "light": FLOOR, "exchange": FLOOR,
+                         {"probe": RECORDINGS, "light": RECORDINGS, "exchange": RECORDINGS,
                           "probe-output": "0.4.45", "relay": "0.4.45"})
-        carried = REPO_ROOT / f"fixtures/bale-{FLOOR}/carried"
+        carried = REPO_ROOT / f"fixtures/bale-{RECORDINGS}/carried"
         self.assertEqual(sorted(p.name for p in carried.iterdir()),
                          ["probe-output_twine-051-record.txt"])
         named = {rel for s in by_format.values() for rel in s["fixtures"]}
-        self.assertFalse(any(rel.startswith(f"fixtures/bale-{FLOOR}/carried/") for rel in named))
+        self.assertFalse(any(rel.startswith(f"fixtures/bale-{RECORDINGS}/carried/") for rel in named))
         self.assertIn("bale-0.4.51/carried/", by_format["probe-output"]["note"])
 
     def test_no_wanted_surface_remains(self):
@@ -600,7 +626,7 @@ class VocabulariesAreWalkable(unittest.TestCase):
             with self.subTest(axis=entry.get("axis")):
                 self.assertTrue(VOCABULARY_REQUIRED <= set(entry),
                                 VOCABULARY_REQUIRED - set(entry))
-                self.assertEqual(entry["written_against"], FLOOR)
+                self.assertEqual(entry["written_against"], RECORDINGS)
                 self.assertTrue(entry["read_at"] and entry["note"])
                 for listed in ("values", "also_at", "excluded", "read_by", "read_at"):
                     self.assertIsInstance(entry[listed], list, listed)
@@ -611,18 +637,24 @@ class VocabulariesAreWalkable(unittest.TestCase):
         self.assertEqual({axis: v["values"] for axis, v in self.manifest.vocabularies.items()},
                          BALE_VOCABULARIES)
 
-    def test_each_home_is_an_installed_file_twine_pins(self):
-        """A schema home is one of the eight whose sha256 [bale.schemas]
-        pins; a source-file home records the sha256 as read at the pin —
-        bin/bale_report.py's at 0.4.51 (the installed file's, as probe
-        twine-051-record hashed it), format_apply_json at line 3426."""
+    def test_each_home_is_the_one_bales_contract_states(self):
+        """Each home is the one bale 0.4.55's contract line states for the axis
+        (a schema under schemas/ with the same JSON pointer, or
+        bin/bale_report.py); a source-file home records the sha256 as read at
+        0.4.51 — bin/bale_report.py's (the installed file's, as probe
+        twine-051-record hashed it), format_apply_json at line 3426. (Was
+        test_each_home_is_an_installed_file_twine_pins, when a schema home
+        had to be one [bale.schemas] pinned.)"""
+        stated = json.loads((REPO_ROOT / self.manifest.contract).read_bytes())["vocabularies"]
         for entry in self.entries:
             with self.subTest(axis=entry["axis"]):
                 home = entry["home"]
+                self.assertEqual(home, stated[entry["axis"]]["home"])
                 if home.startswith("schemas/"):
-                    self.assertIn(home.removeprefix("schemas/"), self.manifest.schemas)
+                    self.assertIn(home.removeprefix("schemas/"), SCHEMA_FILES)
                     self.assertNotIn("home_sha256", entry)
                     self.assertTrue(entry["pointer"].startswith("/properties/"))
+                    self.assertEqual(entry["pointer"], stated[entry["axis"]]["pointer"])
                 else:
                     self.assertTrue(home.startswith("bin/"), home)
                     self.assertRegex(entry["home_sha256"], SHA256)
@@ -639,11 +671,13 @@ class VocabulariesAreWalkable(unittest.TestCase):
         for entry in self.entries:
             with self.subTest(axis=entry["axis"]):
                 self.assertTrue(entry["read_at"][0].startswith("twine-"))
-                for version in ("0.4.49", FLOOR):
+                for version in ("0.4.49", RECORDINGS):
                     self.assertTrue(any("not a probe" in r and version in r
                                         for r in entry["read_at"][1:]), entry["read_at"])
                 if entry["home"].startswith("schemas/"):
                     self.assertTrue(any("twine-051-record" in r for r in entry["read_at"]))
+                self.assertIn("bale 0.4.55's contract line (fixtures/contract/bale-0.4.55.json",
+                              entry["read_at"][-1])
 
     def test_null_is_excluded_from_the_closure_reasons_by_name(self):
         closure = self.manifest.vocabularies["closure-reason"]
@@ -744,38 +778,66 @@ class ManifestRefusals(unittest.TestCase):
         with self.assertRaises(ManifestError):
             load_manifest(p)
 
+    # The [bale] table every refusal case below starts from: the three keys,
+    # valid (session 2026-10-15-twine-gate-contract-001).
+    BALE = (f'[bale]\nfloor = "{FLOOR}"\nrecordings = "{RECORDINGS}"\n'
+            'contract = "fixtures/contract/bale-0.4.55.json"\n')
+
+    def refuses(self, name: str, text: str, says: str) -> None:
+        p = self.scratch / name
+        p.write_text(text, encoding="utf-8")
+        with self.assertRaises(ManifestError) as caught:
+            load_manifest(p)
+        self.assertIn(says, str(caught.exception))
+
+    def test_the_three_keys_alone_load(self):
+        p = self.scratch / "ok.toml"
+        p.write_text(self.BALE, encoding="utf-8")
+        m = load_manifest(p)
+        self.assertEqual((m.floor, m.recordings, m.contract, m.surfaces, m.vocabularies),
+                         (FLOOR, RECORDINGS, "fixtures/contract/bale-0.4.55.json", [], {}))
+
     def test_missing_floor(self):
         """No floor is refused; so is the retired `pin` in its place, by
         name, and a floor that is not three dotted integers. (Was
         test_missing_pin.)"""
-        schemas = '[bale.schemas]\n"a.schema.json" = "' + "0" * 64 + '"\n'
+        floor = f'floor = "{FLOOR}"\n'
         for name, bale, says in (("nofloor.toml", "", "floor must be"),
-                                 ("pin.toml", f'pin = "{FLOOR}"\n', "carries `pin`"),
+                                 ("pin.toml", f'pin = "{FLOOR}"\n', "[bale] `pin` retired"),
                                  ("short.toml", 'floor = "0.4"\n', "three dotted integers")):
             with self.subTest(case=name):
-                p = self.scratch / name
-                p.write_text("[bale]\n" + bale + schemas, encoding="utf-8")
-                with self.assertRaises(ManifestError) as caught:
-                    load_manifest(p)
-                self.assertIn(says, str(caught.exception))
+                self.refuses(name, self.BALE.replace(floor, bale), says)
 
-    def test_schemas_must_be_plain_names_and_not_empty(self):
-        """The gate hashes `<root>/schemas/<name>`, so a name with a path
-        separator is refused (never a file outside schemas/), and an empty
-        table is refused (a gate that hashes nothing admits anything)."""
-        for body, says in (('[bale.schemas]\n"../x.json" = "' + "0" * 64 + '"\n',
-                            "not plain file names"),
-                           ("[bale.schemas]\n", "must map file names")):
-            with self.subTest(says=says):
-                p = self.scratch / "schemas.toml"
-                p.write_text(f'[bale]\nfloor = "{FLOOR}"\n' + body, encoding="utf-8")
-                with self.assertRaises(ManifestError) as caught:
-                    load_manifest(p)
-                self.assertIn(says, str(caught.exception))
+    def test_the_schema_hashes_are_refused_as_retired(self):
+        """[bale.schemas] is refused by name, whatever it holds — the gate
+        reads no file under schemas/ since session
+        2026-10-15-twine-gate-contract-001. (Was
+        test_schemas_must_be_plain_names_and_not_empty.)"""
+        for body in ('[bale.schemas]\n"a.schema.json" = "' + "0" * 64 + '"\n',
+                     "[bale.schemas]\n"):
+            with self.subTest(body=body):
+                self.refuses("schemas.toml", self.BALE + body,
+                             "[bale.schemas] retired when the gate became the floor plus "
+                             "bale's contract")
+
+    def test_recordings_and_contract_are_checked(self):
+        for name, old, new, says in (
+                ("rec.toml", f'recordings = "{RECORDINGS}"\n', "", "recordings must be"),
+                ("rec2.toml", f'recordings = "{RECORDINGS}"', 'recordings = "x"',
+                 "recordings must be"),
+                ("con.toml", 'contract = "fixtures/contract/bale-0.4.55.json"\n', "",
+                 "contract must be"),
+                ("con2.toml", "fixtures/contract/bale-0.4.55.json", "contract/bale.json",
+                 "contract must be"),
+                ("con3.toml", "fixtures/contract/bale-0.4.55.json",
+                 "fixtures/contract/bale-0.4.55.txt", "contract must be"),
+                ("extra.toml", 'recordings = "', 'note = "x"\nrecordings = "',
+                 "its keys are exactly floor, recordings, contract")):
+            with self.subTest(case=name):
+                self.refuses(name, self.BALE.replace(old, new), says)
 
     def test_malformed_vocabularies_refuse_naming_why(self):
-        head = (f'[bale]\nfloor = "{FLOOR}"\n[bale.schemas]\n'
-                '"a.schema.json" = "' + "0" * 64 + '"\n')
+        head = self.BALE
         cases = {
             "no axis": '[[vocabulary]]\nvalues = ["a"]\nhome = "h"\n',
             "two [[vocabulary]] entries": ('[[vocabulary]]\naxis = "x"\nvalues = ["a"]\nhome = "h"\n'
@@ -786,11 +848,21 @@ class ManifestRefusals(unittest.TestCase):
         }
         for needle, body in cases.items():
             with self.subTest(case=needle):
-                p = self.scratch / "vocab.toml"
-                p.write_text(head + body, encoding="utf-8")
-                with self.assertRaises(ManifestError) as caught:
-                    load_manifest(p)
-                self.assertIn(needle, str(caught.exception))
+                self.refuses("vocab.toml", head + body, needle)
+
+    def test_malformed_contract_fields_on_a_surface_refuse(self):
+        verb = ('[[surface]]\nkind = "verb"\nverb = "v"\nkeys = ["outcome"]\n'
+                'read_by = ["kill"]\n')
+        for needle, body in {
+                "no contract_lines": verb,
+                "contract_lines must be": verb + 'contract_lines = ["a", "a"]\n',
+                "come together": verb + 'contract_lines = ["v"]\noutcomes = ["x"]\n',
+                "outcome_vocabulary must name": (verb + 'contract_lines = ["v"]\n'
+                                                 'outcome_vocabulary = "v-outcome"\n'
+                                                 'outcomes = []\n'),
+                "reasons must be": verb + 'contract_lines = ["v"]\nreasons = "x"\n'}.items():
+            with self.subTest(case=needle):
+                self.refuses("surface.toml", self.BALE + body, needle)
 
 
 if __name__ == "__main__":

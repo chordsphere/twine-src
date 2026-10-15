@@ -35,7 +35,8 @@ from twine.bale import load_manifest
 from twine.cli import Context, main
 from twine.process import RunError
 
-from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, FLOOR, Run, TempRoots,
+from tests.helpers import (BALE_VOCABULARIES, NOT_A_BALE_OUTCOME, FLOOR, RECORDINGS, Run,
+                           TempRoots,
                            run_cli)
 
 # ---------------------------------------------------------------------------
@@ -196,10 +197,21 @@ class TheTableIsTotal(unittest.TestCase):
         manifest's version is the floor, which the table reports as `floor`;
         the vocabularies did not move, so the table is untouched again. R2
         (renamed from test_the_table_is_written_against_a_version_the_floor_
-        keeps) owned the table and restated it at the floor."""
+        keeps) owned the table and restated it at the floor.
+
+        Since session 2026-10-15-twine-gate-contract-001 the floor (0.4.54,
+        the first bale with `contract --json`) and the version the
+        vocabularies were re-read at part: the table's 0.4.51 is the
+        manifest's `recordings` now, and the floor is 0.4.54. The table is
+        untouched by that session's constraint, so its header still calls
+        0.4.51 the floor — stale prose the next table edit restates (that
+        session's notes.md proposal); what holds the bale axes true above
+        the floor is the gate's contract check, which admits only an install
+        whose three vocabularies equal the manifest's."""
         table = load()
-        self.assertEqual((table.written_against, table.floor), (FLOOR, FLOOR))
-        self.assertEqual(FLOOR, "0.4.51")
+        self.assertEqual((table.written_against, table.floor), (RECORDINGS, FLOOR))
+        self.assertEqual((RECORDINGS, FLOOR), ("0.4.51", "0.4.54"))
+        self.assertEqual(table.written_against, load_manifest().recordings)
         header = TRANSITIONS_TABLE.read_text(encoding="utf-8").split("\n[table]\n", 1)[0]
         self.assertNotIn("equal to the manifest's pin", header)
         self.assertIn("the manifest's floor", header)
@@ -462,8 +474,8 @@ class DetectorsFire(unittest.TestCase):
         manifest = load_manifest()
         bumped = copy.deepcopy(manifest.vocabularies)
         bumped["telemetry-outcome"]["values"].append("newly-invented-by-bale")
-        manifest = type(manifest)(manifest.path, manifest.floor, manifest.schemas,
-                                  manifest.surfaces, manifest.data, bumped)
+        manifest = type(manifest)(manifest.path, manifest.floor, manifest.recordings,
+                                  manifest.contract, manifest.surfaces, manifest.data, bumped)
         self.assertEqual([(p.kind, p.axis, p.key) for p in self.problems(raw_table(),
                                                                           manifest)],
                          [("missing-row", "telemetry-outcome", "newly-invented-by-bale")])
@@ -477,8 +489,8 @@ class DetectorsFire(unittest.TestCase):
         vocab["command"] = {"axis": "command", "values": ["apply", "retry"],
                             "home": "schemas/telemetry-record.schema.json"}
         del vocab["closure-reason"]
-        edited = type(manifest)(manifest.path, manifest.floor, manifest.schemas,
-                                manifest.surfaces, manifest.data, vocab)
+        edited = type(manifest)(manifest.path, manifest.floor, manifest.recordings,
+                                manifest.contract, manifest.surfaces, manifest.data, vocab)
         kinds = sorted((p.kind, p.axis) for p in self.problems(raw_table(), edited))
         self.assertIn(("missing-axis", "command"), kinds)
         self.assertIn(("missing-vocabulary", "closure-reason"), kinds)
@@ -757,8 +769,10 @@ class TheVerb(unittest.TestCase):
         # The table says the floor since Arc 2 R2 (0.4.49 until then: untouched
         # at the 0.4.51 pin bump and at the floor); the verb reports both. The
         # manifest's version is the floor, reported as `floor`, and no `pin`
-        # key is left (session 2026-10-12-twine-pin-floor-002).
-        self.assertEqual((obj["written_against"], obj["floor"]), (FLOOR, FLOOR))
+        # key is left (session 2026-10-12-twine-pin-floor-002). Since session
+        # 2026-10-15-twine-gate-contract-001 the two part: the table's
+        # 0.4.51 is the manifest's recordings, the floor 0.4.54.
+        self.assertEqual((obj["written_against"], obj["floor"]), (RECORDINGS, FLOOR))
         stop_axis = obj["axes"][-1]
         self.assertEqual((stop_axis["name"], stop_axis["loop_keys"]), ("stop", LOOP_KEYS))
         self.assertEqual(obj["counts"]["mappings"], len(obj["mappings"]))

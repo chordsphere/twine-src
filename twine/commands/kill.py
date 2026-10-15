@@ -21,9 +21,10 @@ where the runtime does not look stops nothing; `--cwd` is not a directory;
 `--grace` is not a non-negative number of at most 600 seconds.
 
 The bale is located first, so the report says what was found, but a bale
-that is absent, unreadable or one the gate refuses (below the floor, or
-schemas that do not hash as pinned; an exact pin before session
-2026-10-12-twine-pin-floor-002) is **not a refusal** (session 5c, the
+that is absent, unreadable or one the gate refuses (below the floor, or a
+contract — `bale contract --json` — that does not state everything twine
+reads; schema hashes from session 2026-10-12-twine-pin-floor-002 until
+session 2026-10-15-twine-gate-contract-001, an exact pin before) is **not a refusal** (session 5c, the
 sitting's correction to 5b): the abort request and the process kill run
 with any bale or none — D15's kill must work when the harness itself is
 wedged, and an install the gate refuses is one way it can be. The gate
@@ -112,7 +113,7 @@ def cmd_kill(ctx: Context, args: argparse.Namespace) -> Result:
     # The bale is located first so the report says what was found, but its
     # drive refusal does not join `refusals`: the gate (D2) gates the closure
     # alone (close_aborted checks it), never the abort or the signal.
-    executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which)
+    executable = bale.locate_executable(args.bale_root, ctx.env, ctx.which, ctx.run)
     report.bale = executable.as_json()
     if report.refusals:
         for problem in report.refusals:
@@ -174,7 +175,8 @@ COMMANDS = (
                     "or name the survivors and stop; then, only when nothing of "
                     "them is alive, close the session in bale with `bale unlock "
                     "SID --reason aborted --json`, run in --cwd with a bale the "
-                    "gate admits (at or above the floor, schemas as pinned), "
+                    "gate admits (at or above the floor, its contract stating "
+                    "everything twine reads), "
                     "once. The abort and the kill run with any bale or none; "
                     "only the closure needs the gate. ok when all three "
                     "landed. Otherwise the report says where it stopped and gives "

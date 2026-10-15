@@ -41,7 +41,9 @@ from twine import FIXTURES_DIR, REPO_ROOT, shapes
 from tests.fixture_rule import (CollisionError, Role, assign_groups, echoed_argv,
                                 echoed_tokens, fixture_relpath_at, parse_rows, schemas_relpath_at,
                                 stderr_relpath)
-from tests.helpers import FLOOR, fenced_probe, recorded_rows, run_cli
+# The version whose recordings the tests replay ([bale] recordings; the floor
+# named it until session 2026-10-15-twine-gate-contract-001).
+from tests.helpers import RECORDINGS as RECORDED_AT, fenced_probe, recorded_rows, run_cli
 
 # ---------------------------------------------------------------------------
 # 1. Helpers
@@ -49,7 +51,7 @@ from tests.helpers import FLOOR, fenced_probe, recorded_rows, run_cli
 
 LANDER = REPO_ROOT / "bin" / "twine-land-recordings"
 RECORDER = REPO_ROOT / "bin" / "twine-record-fixtures"
-PASTE_REL = f"fixtures/bale-{FLOOR}/carried/probe-output_twine-051-record.txt"
+PASTE_REL = f"fixtures/bale-{RECORDED_AT}/carried/probe-output_twine-051-record.txt"
 PASTE = REPO_ROOT / PASTE_REL
 RECORDINGS = 24
 HEADER = re.compile(r"^== recording: (\S+) \((.*)\)$", re.M)
@@ -222,7 +224,7 @@ class LanderChecksTheLandedTree(unittest.TestCase):
         another version checks that version's directory, which does not
         hold these files."""
         self.assertIn("install bin/VERSION: 0.4.51\n", paste_text())
-        ok = lander(PASTE_REL, "--check", "--version", FLOOR)
+        ok = lander(PASTE_REL, "--check", "--version", RECORDED_AT)
         self.assertEqual(ok.returncode, 0, ok.stderr)
         other = lander(PASTE_REL, "--check", "--version", "0.4.49")
         self.assertEqual(other.returncode, 1)
@@ -234,7 +236,7 @@ class LanderChecksTheLandedTree(unittest.TestCase):
         lander would print it (recorded_rows is the same parser), and they
         are the pinned section's rows, all of them."""
         pinned = {k: r for k, r in recorded_rows().items()
-                  if k.startswith(f"fixtures/bale-{FLOOR}/")}
+                  if k.startswith(f"fixtures/bale-{RECORDED_AT}/")}
         self.assertEqual(len(pinned), RECORDINGS)
         self.assertEqual(len(HEADER.findall(paste_text())), RECORDINGS)
 
@@ -258,8 +260,8 @@ class LanderRefuses(unittest.TestCase):
         self.assertEqual(self.check().returncode, 0)
 
     def test_an_altered_recording_is_named(self):
-        for rel in (f"fixtures/bale-{FLOOR}/scratch/relay_sid_stdin_--json+relayed.json",
-                    f"fixtures/bale-{FLOOR}/twine-src/unlock_sid_--json+unlock-refused+not-open.stderr"):
+        for rel in (f"fixtures/bale-{RECORDED_AT}/scratch/relay_sid_stdin_--json+relayed.json",
+                    f"fixtures/bale-{RECORDED_AT}/twine-src/unlock_sid_--json+unlock-refused+not-open.stderr"):
             with self.subTest(file=rel):
                 path = self.tree.path(rel)
                 original = path.read_bytes()
@@ -270,27 +272,27 @@ class LanderRefuses(unittest.TestCase):
                 self.assertIn(f"NOT OK — {rel} differs from the paste's bytes", run.stderr)
 
     def test_a_missing_file_an_extra_file_and_a_wrong_row_are_named(self):
-        missing = f"fixtures/bale-{FLOOR}/anywhere/--version.stderr"
+        missing = f"fixtures/bale-{RECORDED_AT}/anywhere/--version.stderr"
         self.tree.path(missing).unlink()
         run = self.check()
         self.assertEqual(run.returncode, 1)
         self.assertIn(f"{missing} is not in the tree", run.stderr)
         self.tree.path(missing).write_bytes(b"")
-        extra = f"fixtures/bale-{FLOOR}/scratch/not-from-the-paste.json"
+        extra = f"fixtures/bale-{RECORDED_AT}/scratch/not-from-the-paste.json"
         self.tree.path(extra).write_bytes(b"{}\n")
         run = self.check()
         self.assertEqual(run.returncode, 1)
-        self.assertIn(f"{extra} is under fixtures/bale-{FLOOR}/ but the paste does not derive it",
+        self.assertIn(f"{extra} is under fixtures/bale-{RECORDED_AT}/ but the paste does not derive it",
                       run.stderr)
         self.tree.path(extra).unlink()
         readme = self.tree.path("fixtures/README.md")
         text = readme.read_text(encoding="utf-8")
         row = next(line for line in text.splitlines()
-                   if line.startswith(f"| `bale-{FLOOR}/scratch/unlock_--json.json`"))
+                   if line.startswith(f"| `bale-{RECORDED_AT}/scratch/unlock_--json.json`"))
         readme.write_text(text.replace(row, row.replace("| 39 |", "| 40 |")), encoding="utf-8")
         run = self.check()
         self.assertEqual(run.returncode, 1)
-        self.assertIn(f"fixtures/README.md's row for bale-{FLOOR}/scratch/unlock_--json.json "
+        self.assertIn(f"fixtures/README.md's row for bale-{RECORDED_AT}/scratch/unlock_--json.json "
                       "differs", run.stderr)
 
     def test_a_bad_trailer_is_refused(self):
@@ -351,9 +353,9 @@ class LanderLands(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         landed = sorted(p.relative_to(self.root).as_posix()
                         for p in self.root.rglob("*") if p.is_file())
-        schemas = schemas_relpath_at(FLOOR) + "/"
+        schemas = schemas_relpath_at(RECORDED_AT) + "/"
         ours = sorted(p.relative_to(REPO_ROOT).as_posix()
-                      for p in (FIXTURES_DIR / f"bale-{FLOOR}").rglob("*")
+                      for p in (FIXTURES_DIR / f"bale-{RECORDED_AT}").rglob("*")
                       if p.is_file()
                       and not p.relative_to(REPO_ROOT).as_posix().startswith(schemas))
         self.assertFalse([r for r in landed if r.startswith(schemas)])
@@ -426,7 +428,7 @@ class LanderLands(unittest.TestCase):
     def test_landing_again_is_idempotent_and_never_replaces_other_bytes(self):
         self.assertEqual(lander(PASTE_REL, "--tree", str(self.root)).returncode, 0)
         self.assertEqual(lander(PASTE_REL, "--tree", str(self.root)).returncode, 0)
-        target = self.root / f"fixtures/bale-{FLOOR}/scratch/unlock_--json.json"
+        target = self.root / f"fixtures/bale-{RECORDED_AT}/scratch/unlock_--json.json"
         target.write_bytes(b"{}\n")
         run = lander(PASTE_REL, "--tree", str(self.root))
         self.assertEqual(run.returncode, 1)

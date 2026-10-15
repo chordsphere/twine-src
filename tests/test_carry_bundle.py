@@ -61,15 +61,17 @@ import threading
 import unittest
 from pathlib import Path
 
-from twine import REPO_ROOT, bale, inflight
+from twine import REPO_ROOT, bale, inflight, process
 from twine.cli import Context, main
 from twine.commands.carry_bale import BALE_STDOUT_CAP_BYTES
 from twine.commands.carry_bundle import BUNDLE_TIMEOUT_SECONDS
 from twine.process import RunResult
 
-from tests.helpers import (ABOVE, NOT_A_BALE_OUTCOME, OPEN_KEY, OPEN_KEYS, OPEN_RECORDED_SID,
-                           FLOOR, FixturePlayer, RecordingRunner, Run, StubBale, TempRoots,
-                           open_recording, run_cli)
+from tests.helpers import (ABOVE, CONTRACT_VERSION, NOT_A_BALE_OUTCOME, OPEN_KEY, OPEN_KEYS,
+                           OPEN_RECORDED_SID, FLOOR, FixturePlayer, RecordingRunner, Run,
+                           StubBale, TempRoots, answer_contract, contract_line,
+                           drop_contract_key, edited_contract, install_schemas,
+                           is_contract_call, open_recording, run_cli, write_contract_double)
 
 # ---------------------------------------------------------------------------
 # 1. Helpers and doubles
@@ -165,8 +167,8 @@ class Case(unittest.TestCase):
                  state: bool = True, cwd: Path | None = None) -> Run:
         """`twine carry bundle …` in-process, bale reached only through
         `runner`; --cwd the scratch repository and --state-dir this test's
-        unless the test says otherwise; TWINE_BALE_ROOT a root at the floor,
-        with the eight schemas."""
+        unless the test says otherwise; TWINE_BALE_ROOT a root the gate
+        admits (0.4.55, its bin/bale double answering `contract --json`)."""
         # Defaults go first, so a test's `--` (before a dash-led BUNDLE)
         # stays the last option boundary.
         args = list(argv)
@@ -247,15 +249,18 @@ class RefusedBeforeBale(Case):
     def test_no_bale_found_or_one_the_gate_refuses_is_refused(self):
         """Was test_no_bale_found_or_not_the_pin_is_refused: since session
         2026-10-12-twine-pin-floor-002 the gate refuses a bale below the
-        floor, one whose VERSION cannot be read, and one whose schemas do
-        not hash as pinned."""
+        floor and one whose VERSION cannot be read; since session
+        2026-10-15-twine-gate-contract-001 also one whose contract lacks a
+        key the open line owes twine (where it refused schemas that did not
+        hash as pinned)."""
         for env, needle in (({}, "no bale install found"),
                             ({"TWINE_BALE_ROOT": ROOTS.other.as_posix()},
                              f"installed {ROOTS.other_version} is below the floor {FLOOR}"),
                             ({"TWINE_BALE_ROOT": ROOTS.absent.as_posix()},
                              "bin/VERSION unreadable"),
-                            ({"TWINE_BALE_ROOT": ROOTS.bad_schema.as_posix()},
-                             TempRoots.ALTERED_SCHEMA)):
+                            ({"TWINE_BALE_ROOT": ROOTS.lacks_key.as_posix()},
+                             "the contract's open-refused line lacks the key 'desk', which "
+                             "twine reads (the open surface)")):
             with self.subTest(needle=needle):
                 runner = OpenDouble()
                 run, obj = self.twin(str(self.bundle), runner=runner, env=env)
@@ -939,10 +944,20 @@ class NotOk(Case):
                 self.assertEqual((obj["open"], obj["outcome"]), (None, None))
 
     def test_a_bale_that_cannot_be_started_is_a_refusal_after_the_argv(self):
-        """The pinned root has no bin/bale: the real seam cannot start it."""
+        """The gate admits the root — its contract answered through the real
+        seam — but the open cannot be started (gone between the two calls):
+        the seam's RunError, a refusal after the argv, nothing recorded.
+        Since session 2026-10-15-twine-gate-contract-001 a root with no
+        bin/bale at all is refused by the gate itself (it asks for the
+        contract), so the start failure is the runner's, named here."""
+        def run(argv, **kwargs):
+            if is_contract_call(argv):
+                return answer_contract(argv, **{k: v for k, v in kwargs.items()
+                                                if k != "on_spawn"})
+            raise process.RunError(f"cannot start {argv[0]}: No such file or directory")
         out, err = io.StringIO(), io.StringIO()
         ctx = Context(env={"TWINE_BALE_ROOT": ROOTS.ok.as_posix()}, stdout=out, stderr=err,
-                      which=lambda n: None, stdin=io.BytesIO(b""))
+                      which=lambda n: None, stdin=io.BytesIO(b""), run=run)
         code = main(["carry", "bundle", str(self.bundle), "--cwd", str(self.repo),
                      "--state-dir", str(self.state), "--json"], ctx=ctx)
         obj = json.loads(out.getvalue())
@@ -1317,7 +1332,8 @@ class EndToEnd(Case):
         obj = json.loads(run.stdout)
         self.assertEqual(set(obj), TWIN_KEYS)
         self.assertEqual((run.code, obj["ok"], obj["sid"], obj["bale"]["installed"]),
-                         (0, True, SID, FLOOR))
+                         (0, True, SID, CONTRACT_VERSION))
+        self.assertEqual((obj["bale"]["floor"], obj["bale"]["contract_ok"]), (FLOOR, True))
         self.assertEqual(obj["stderr"], "[bale] stub: not bale\n")
 
     def test_below_the_floor_is_refused_and_never_run(self):
@@ -1333,8 +1349,10 @@ class EndToEnd(Case):
         self.assertFalse(self.state.exists())
 
     def test_above_the_floor_is_driven(self):
-        """The stub at 0.4.52, every schema as pinned: opened and recorded."""
+        """The stub at 0.4.56, its contract the carried line at that version
+        (a double): opened and recorded."""
         (self.stub.root / "bin" / "VERSION").write_text(ABOVE + "\n", encoding="utf-8")
+        write_contract_double(self.stub.root, contract_line(ABOVE))
         run = run_cli("carry", "bundle", str(self.bundle), "--cwd", str(self.repo),
                       "--state-dir", str(self.state), "--json", bale_root=self.stub.root)
         obj = json.loads(run.stdout)
@@ -1342,16 +1360,25 @@ class EndToEnd(Case):
                          obj["reason"])
         self.assertTrue((self.state / "inflight" / f"{SID}.json").is_file())
 
-    def test_a_schema_that_does_not_hash_as_pinned_is_refused_and_never_run(self):
-        altered = self.stub.root / "schemas" / TempRoots.ALTERED_SCHEMA
-        altered.write_bytes(altered.read_bytes() + b" ")
+    def test_a_contract_that_moved_is_refused_and_never_run(self):
+        """Session 2026-10-15-twine-gate-contract-001 (was
+        test_a_schema_that_does_not_hash_as_pinned_is_refused_and_never_run):
+        an altered schema is no refusal; a contract whose open line lacks a
+        key carry bundle reads (a double) is, before bale starts, naming it,
+        and saying a recording session lands the new spelling."""
+        install_schemas(self.stub.root, alter=TempRoots.ALTERED_SCHEMA)
+        write_contract_double(self.stub.root, edited_contract(drop_contract_key("open",
+                                                                                "opener")))
         run = run_cli("carry", "bundle", str(self.bundle), "--state-dir", str(self.state),
                       "--json", bale_root=self.stub.root)
         obj = json.loads(run.stdout)
         self.assertEqual((run.code, obj["ok"], obj["ran"]), (1, False, False))
-        self.assertIn(TempRoots.ALTERED_SCHEMA, obj["reason"])
-        self.assertEqual(obj["bale"]["schemas_match"], False)
+        self.assertIn("the contract's open line lacks the key 'opener'", obj["reason"])
+        self.assertIn("a recording session lands the new spelling", obj["reason"])
+        self.assertNotIn(TempRoots.ALTERED_SCHEMA, obj["reason"])
+        self.assertEqual(obj["bale"]["contract_ok"], False)
         self.assertIsNone(self.stub.argv(), "the stub was started")
+        self.assertFalse(self.state.exists())
 
 
 class EndToEndRefusalAndTarball(Case):

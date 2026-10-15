@@ -25,10 +25,13 @@ project's inventory.
   reader needs the one-paragraph picture; the seed wins on any detail.
 
 ## Schemas & data contracts
-- `../share/bale-consumption.toml` — the floor (D2 as amended: twine
-  drives any bale at or above it whose installed schemas hash as pinned)
-  and the consumption manifest (D3, D4): the installed schema hashes (the
-  gate's second half), one
+- `../share/bale-consumption.toml` — the `[bale]` table, exactly `floor`
+  (D2: twine drives any bale at or above it whose `bale contract --json`
+  states what twine reads — the gate's second half since session
+  `2026-10-15-twine-gate-contract-001`, where the installed schema hashes
+  were), `recordings` (the `fixtures/bale-<version>/` the tests replay) and
+  `contract` (the carried contract line) — and the consumption manifest
+  (D3, D4): one
   `[[surface]]` per bale surface twine reads — files, verbs (with every
   further recorded outcome of a verb as `also_recorded`), and the text
   formats `take` parses, each naming the version that emitted its
@@ -37,16 +40,22 @@ project's inventory.
   0.4.45 manifest carried are surfaces now), and `[[vocabulary]]` for
   bale's three closed vocabularies the transition table keys on
   (telemetry outcomes, closure reasons, `bale apply --json` outcomes).
-  `[bale] floor = "0.4.51"` since session `2026-10-12-twine-pin-floor-002`
-  (an exact `pin` before); each surface's `keys` are checked present on
-  the line its reader reads. Pull when a session reads a new bale surface
-  or raises the floor; the header comment spells the entry shapes.
+  `[bale] floor = "0.4.54"`, `recordings = "0.4.51"` and `contract =
+  "fixtures/contract/bale-0.4.55.json"` since session
+  `2026-10-15-twine-gate-contract-001` (a floor of 0.4.51 plus
+  `[bale.schemas]` from session `2026-10-12-twine-pin-floor-002`, an exact
+  `pin` before); each verb surface's `keys` are checked in the contract on
+  the lines it names (`contract_lines`) and again present on the line its
+  reader reads, and its `outcomes` and `reasons` against the contract's.
+  Pull when a session reads a new bale surface, dispatches on a new bale
+  spelling, or lands a recording; the header comment spells the entry
+  shapes.
 - `../share/transitions.toml` — the transition table (D17): four axes
   (the three bale vocabularies and twine's stop set), one row per key,
   each naming a declared move with its actor (twine, operator or
   planner); no default case. Pull when a session dispatches on an
-  outcome or a stop, adds a stop, maps a provider's words, or raises the
-  floor; the header comment spells the shape and `twine transitions`
+  outcome or a stop, adds a stop, maps a provider's words, or lands a
+  recording; the header comment spells the shape and `twine transitions`
   checks it is total. Its `stop` axis is the runtime boundary's stop set,
   read through `twine.transitions.stop_keys`, with its `loop_keys` (the
   loop's, refused from an adapter: `twine.transitions.loop_keys`); since
@@ -128,7 +137,7 @@ project's inventory.
   on, its group wait and its spawn hook; the probe machinery itself is
   `../twine/probing.py`, shared with the runtime's `probe` tool), §11 — the bale hand-offs
   (`carry exchange`, `carry response`),
-  how bale is found and the gate (a floor plus schema hashes, and the
+  how bale is found and the gate (the floor plus bale's contract, and the
   key check on each line), T12's one `apply` argv —
   §12, `transitions` (the table's axes, its ok rule and the problems
   that name a fault), and §13, `spend totals` and `spend check` (the cost
@@ -142,10 +151,11 @@ project's inventory.
   courier opens a bundle with the one `open` argv, never retried; the
   opener on stdout; the in-flight record and the tarball a second desk
   needs; the four recorded open lines the tests replay, a refusal among
-  them), §16, recording a version (the recorder, the lander and the
-  procedure that raises the floor), the manifest and fixture shapes (§5
-  the gate, §6 the floor, the key check and when a moved install needs a
-  recording) (per-run fixture names, by
+  them), §16, recording a version (the recorder, the lander and when the
+  gate's refusal calls for one), the manifest and fixture shapes (§5
+  the gate — the floor plus `bale contract --json` — §6 the `[bale]`
+  table, the key check and when a moved install needs a recording, §7
+  the contract-line family) (per-run fixture names, by
   role; outcome groups; stderr siblings), how the tests run. Default inclusion for any session
   that adds a verb, runs a subprocess, routes a courier's block, or
   touches spend, the kill-switch or the in-flight record. Since Arc 2 R1
@@ -204,11 +214,16 @@ project's inventory.
   recording printed: a `.stderr` sibling per file and two more columns
   per row; a version's recordings come from one carried paste-back, the
   recorder's, which lands under its `carried/` as their source. Since
-  session `2026-10-12-twine-pin-floor-002` the floor names the directory
-  the tests replay, and the eight installed schemas the gate hashes sit
-  under it in `schemas/`, byte-exact, with a `| file | bytes | sha256 |`
-  table of their own (not recordings: the lander leaves them alone). One
-  section per bale version, earlier sections kept as history. Since Arc 2
+  session `2026-10-15-twine-gate-contract-001` the manifest's `[bale]
+  recordings` names the directory the tests replay (the floor did from
+  session `2026-10-12-twine-pin-floor-002`), and the eight schemas the
+  gate hashed until then sit under it in `schemas/`, byte-exact, as
+  history, with a `| file | bytes | sha256 |` table of their own (not
+  recordings: the lander leaves them alone). One section per bale version,
+  earlier sections kept as history; then "bale contract lines": the
+  carried `bale contract --json` line, `fixtures/contract/bale-0.4.55.json`,
+  with its command, date, bytes and sha256 — the line the tests' install
+  roots answer with, never under a `fixtures/bale-<version>/` directory. Since Arc 2
   R1 a last section, "Provider recordings": `fixtures/anthropic/`, a
   provider's recorded `usage` object (one JSON object line per model per
   day) under its own rule, beside bale's, with its provenance and a
@@ -230,8 +245,9 @@ project's inventory.
   siblings, the paste) and prints the README rows and manifest lines, or
   with `--check` writes nothing and exits 0 exactly when the tree holds
   what the paste derives. Its naming rule is `../tests/fixture_rule.py`,
-  shared with the tests; `--check` leaves the floor's `schemas/` alone.
-  Pull both when raising the floor.
+  shared with the tests; `--check` leaves the recordings' `schemas/` alone.
+  Pull both when the gate refuses an install for something twine reads
+  that moved (a recording session).
 - `../bin/twine-land-provider-recordings` — the provider lander (Arc 2
   R2), the sibling for a model provider's wire: lands a provider-recording
   paste-back under `fixtures/anthropic/` (request, response and meta per

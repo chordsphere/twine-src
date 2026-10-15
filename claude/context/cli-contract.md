@@ -52,8 +52,16 @@
 > `2026-10-13-twine-runtime-window-009` (Arc 2 R5: §19, `twine resume`,
 > §2's verb list, and §18's `--window`, refusals, outcomes, twin keys, human
 > mode and tests; the window, escalate's clarification form and cold resume
-> themselves are `runtime-contract.md` §6.6, §7.4–§7.6 and §7.9); a later
-> session that changes a line changes it here in the same response.
+> themselves are `runtime-contract.md` §6.6, §7.4–§7.6 and §7.9) and by
+> `2026-10-15-twine-gate-contract-001` (the gate as the floor plus bale's
+> contract, ruled by the architect at the sitting
+> `2026-10-13-open-hardening-011`: §2's `bale check` line, §4's `bale`
+> object, §5 rewritten, §6's `[bale]` table, `contract_lines`, `outcomes`,
+> the contract surface and the bump procedure, §7's recordings directory,
+> schemas and contract-line family, §8's roots, §11.1's `contract_ok` and
+> gate, §12's telemetry row, §14.1, §14.5, §15.2 and §16's "when a
+> recording session is needed"); a later session that changes a line
+> changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -86,9 +94,11 @@
 - Verb names are the full space-joined path: `"bale check"`. The JSON
   `command` key carries the same string.
 - Verbs today: `commands`, `status`, `bale check` (the gate, D2: since
-  session `2026-10-12-twine-pin-floor-002` a **floor** — any bale at or
-  above it whose installed schemas hash as the manifest pins them — where
-  it was an exact pin; §5), `take`, the
+  session `2026-10-15-twine-gate-contract-001` the **floor plus bale's
+  contract** — any bale at or above the floor whose `bale contract --json`
+  states everything twine reads — where it was a floor plus schema hashes
+  from session `2026-10-12-twine-pin-floor-002`, and an exact pin before;
+  §5), `take`, the
   `carry` group — `carry probe` (`twine/commands/carry.py`), `carry
   exchange` and `carry response` (`twine/commands/carry_bale.py`), `carry
   bundle` (`twine/commands/carry_bundle.py`, §15) —
@@ -140,7 +150,7 @@ session 3's):
 | `consumption_manifest` | absolute path of `share/bale-consumption.toml` |
 | `fixtures` | absolute path of `fixtures/`; `fixtures_present` says whether it exists |
 | `floor` | the manifest's `[bale] floor` (since session `2026-10-12-twine-pin-floor-002`; `pin` before, and no `pin` key now), or null when the manifest is unusable |
-| `bale` | the `bale check` result object (§5), or null when the manifest is unusable |
+| `bale` | the `bale check` result object (§5) — the same object, `floor` through `reason`, that `twine bale check --json` prints; since session `2026-10-15-twine-gate-contract-001` its `contract` in the place of `schemas` — or null when the manifest is unusable |
 | `state_dir` | the directory `spend.resolve_state_dir` resolves (§13.2's rules: `--state-dir`, else `$TWINE_STATE_DIR`, else XDG, else `$HOME`), as a string; `null` when none resolves (session 5c) |
 | `state_dir_source` | `"--state-dir"`, `"TWINE_STATE_DIR"`, `"XDG_STATE_HOME"` or `"HOME"`; `null` when none resolves |
 | `state_dir_reason` | `null` when one resolves; otherwise the refusal text (`spend.SpendError`'s message) — a null `state_dir` is never silent |
@@ -218,63 +228,125 @@ them.
 
 ## 5. `twine bale check [--json] [--bale-root DIR]` (D2)
 
-The gate. Since session `2026-10-12-twine-pin-floor-002` (D2 as amended
-at the sitting `2026-10-08-open-arc2-003`) it is a **floor** plus the
-manifest's schema hashes, where it was an exact pin: twine drives any bale
-at or above the floor whose installed schemas hash as the manifest pins
-them. The floor is the version the recordings were made at, raised only
-by a recording session (§6, §16).
+The gate. Since session `2026-10-15-twine-gate-contract-001` it is the
+**floor plus bale's contract**, ruled by the architect at the sitting
+`2026-10-13-open-hardening-011` ("i thought we got rid of the pin sessions
+by pinning a contract?"): twine drives any bale at or above the floor whose
+own `bale contract --json` states everything twine reads, and the schema
+hashes are gone. From session `2026-10-12-twine-pin-floor-002` it was the
+floor plus a sha256 of each of bale's eight schema files whole, which
+refused the operator's 0.4.54 for a telemetry-schema change twine reads
+nothing of; before that an exact pin. A bale release now stops twine only
+when something twine reads moved, and the refusal names it — the one case
+a recording session is for (§16).
 
 - Resolves the install root, first rule that answers: `--bale-root`,
   else the environment variable `TWINE_BALE_ROOT`, else `command -v
   bale` followed to its real path and up to the directory holding
   `bin/` (`~/.local/bin/bale` → `~/bale/bin/bale` → `~/bale`).
 - Reads `<root>/bin/VERSION`, strips it, and parses it as **three dotted
-  integers** (no leading zero, no suffix: `0.4.51-rc1` does not parse);
-  compares it to the manifest's `[bale] floor` **as a tuple** — `0.4.100`
-  is above `0.4.51`, though a string comparison says otherwise.
-- Hashes, with sha256, every file `[bale.schemas]` names under
-  `<root>/schemas/`. A file `[bale.schemas]` does not name is free.
-- **ok**, exit 0, exactly when the root resolves, `bin/VERSION` reads and
-  parses, compares at or above the floor, and every named schema exists
-  under `<root>/schemas/` with that hash. Otherwise not ok, exit 1, one
-  JSON line, no traceback, the reason naming **each failing fact at once**,
-  `; `-joined, in this order: no install found (alone); `bin/VERSION`
-  unreadable or empty, or `<path> reads '<text>', which is not a version
-  of three dotted integers`, or `installed <v> is below the floor
-  <floor>`; then `no schemas/ directory at <root>/schemas`, or `schemas
-  missing from schemas/: <names>` and `schemas that do not hash as the
-  manifest pins them: <names>`. ok's reason: `installed <v> is at or above
-  the floor <floor>, and all 8 schemas hash as the manifest pins them`.
-- JSON: `floor`, `installed` (null when unreadable), `root` (null when
-  no install was found), `source` (`"--bale-root"`, `"TWINE_BALE_ROOT"`,
-  `"PATH"`, or null), `schemas`, `ok`, `reason` — **no `pin` key**.
-  `schemas` is null when no install was found, else an object: `dir`
-  (`<root>/schemas`), `present` (whether it is a directory), `ok`,
-  `checked` (every named file found and hashed, matching or not, sorted),
-  `mismatched` and `missing` (sorted; with no `schemas/`, every named file
-  is missing and the reason says so once).
+  integers** (no leading zero, no suffix: `0.4.55-rc1` does not parse);
+  compares it to the manifest's `[bale] floor` — `0.4.54`, the first bale
+  with `contract --json` — **as a tuple**: `0.4.100` is above `0.4.54`,
+  though a string comparison says otherwise.
+- Runs **`<root>/bin/bale contract --json`** — the resolved root's own
+  executable (`twine.bale.contract_argv`, the gate's one argv, built in
+  `twine/bale.py` section 5 beside the others), through the run seam
+  (`Context.run`, §10.6), stdin closed, a 30-second timeout and a 1 MiB
+  stdout cap — **unless the version parsed below the floor**: no bale below
+  0.4.54 has the verb, so it is not run, and the reason says so. It holds
+  bale's one line to what twine reads (`twine.bale.check_contract`,
+  `contract_findings`):
+  - bale exits 0 and prints **exactly one JSON object line** (a single
+    trailing newline; a blank second line is a second line) whose
+    `outcome` is `"contract"` and whose `bale_version` equals
+    `bin/VERSION`'s text;
+  - each `[[vocabulary]]` axis of the manifest (§6) is in the contract's
+    `vocabularies` with **the same set of values** — a value added or
+    removed refuses, naming the axis and the value (the transition table
+    must stay total, D17);
+  - every key a verb `[[surface]]` lists in `keys` is in the contract's
+    `json_keys` for every line its `contract_lines` names — open: `open`
+    and `open-refused`; relay: `relay` and `relay-refused`; unlock:
+    `unlock` and `unlock-refused`; apply: `apply`; and the contract's own
+    `contract` — a missing key refuses, naming the line and the key, and so
+    does a line the contract does not state;
+  - every outcome twine's code dispatches on
+    (`twine.bale.DISPATCHED_OUTCOMES`: `opened`, `second-desk`,
+    `rehearsed`, `open-refused`; `relayed`, `re-emitted`, `relay-refused`;
+    `unlocked`, `unlock-refused` — a test holds each reader's own constant
+    to it) is in the surface's `outcome_vocabulary` (`open-outcome`,
+    `relay-outcome`, `unlock-outcome`), and `hold-branch`, the one unlock
+    reason twine dispatches on (`DISPATCHED_REASONS`, by its reader,
+    `kill`), is in `refusal_reasons.unlock` — a missing one refuses, naming
+    it.
+  A value **added** to `open-outcome`, `relay-outcome`, `unlock-outcome`
+  or a refusal-reason set the manifest records (a surface's `reasons`), or
+  a recorded value twine does not dispatch on that the contract dropped, is
+  **reported, never refused**: a note. **The gate reads no file under
+  `<root>/schemas/`**: an install with none, with one altered, or with a
+  ninth is judged on its contract alone.
+- **ok**, exit 0, exactly when the root resolves, `bin/VERSION` reads,
+  parses and compares at or above the floor, and the contract check finds
+  nothing. Otherwise not ok, exit 1, one JSON line, no traceback, the
+  reason naming **each failing fact at once**, `; `-joined, in this order:
+  no install found (alone); `bin/VERSION` unreadable or empty, or `<path>
+  reads '<text>', which is not a version of three dotted integers`, or
+  `installed <v> is below the floor <floor>` (then `bale contract --json
+  was not run (no bale below the floor <floor> has it)`); then the
+  contract's facts — the run's (`could not be started: …`, `was killed
+  after 30s without exiting`, `printed more than 1048576 bytes and was
+  killed`, `exited <n> (stderr: '…')` with stderr's last 300 characters,
+  `printed nothing`, `printed <n> lines, not one`, `printed bytes that are
+  not UTF-8`, `'s line is not JSON: …`, `… is JSON but not an object`),
+  then the line's (`outcome '<x>', not 'contract'`, `the contract's
+  bale_version <x> disagrees with bin/VERSION, which reads <v> — the line
+  is not this install's`), then what moved (`the contract's <axis>
+  vocabulary adds '<v>', which the consumption manifest does not record —
+  the transition table would have no row for it (D17)` or `… no longer
+  lists '<v>' …`; `the contract's <line> line lacks the key '<k>', which
+  twine reads (the <verb> surface)`; `the contract's <vocabulary>
+  vocabulary lacks '<v>', an outcome twine dispatches on`; `the contract's
+  unlock refusal reasons lack 'hold-branch', a reason twine dispatches
+  on`). ok's reason: `installed <v> is at or above the floor <floor>, and
+  its contract (bale contract --json) states everything twine reads`, with
+  `; <n> addition(s) reported, none refused` when there are notes.
+- JSON: `floor`, `installed` (null when unreadable), `root` (null when no
+  install was found), `source` (`"--bale-root"`, `"TWINE_BALE_ROOT"`,
+  `"PATH"`, or null), `contract`, `ok`, `reason`, in that order — **no
+  `pin` key, no `schemas` key**. `contract` is null when no install was
+  found, else exactly `{"ok", "bale_version", "sha256", "problems",
+  "notes"}`: whether the contract check passed (false when it was not
+  run), the line's `bale_version` (null when no line could be read), the
+  sha256 of stdout's bytes as printed (null when nothing was printed), the
+  refusing facts and the reported additions (lists of strings). `twine
+  status`'s `bale` (§4) is the same object.
 - Human mode: `floor: <floor> (twine drives this bale or any above it)`,
-  `installed:`, `root:`, `schemas: all 8 hash as the manifest pins them`
-  or `schemas: NOT OK — <the schema facts>`, then `check: ok — …` or
+  `installed:`, `root:`, `contract: ok — bale <v>'s line (sha256 <hex>)
+  states everything twine reads` or `contract: NOT OK — <the contract's
+  facts>`, one `note:` line per reported addition, then `check: ok — …` or
   `check: FAIL — <reason>`.
 
 ## 6. The consumption manifest (D3, D4)
 
-`share/bale-consumption.toml`, parsed by `tomllib`: `[bale] floor` —
-`0.4.51`, the version the recordings were made at (session
-`2026-10-12-twine-pin-floor-002` made it a floor; until then the key was
-`pin`, an exact version — `0.4.51` since session
-`2026-10-12-twine-pin-051-001`, the last exact pin — and `load_manifest`
-now refuses a `[bale]` that still carries `pin`, by name) — a
-`[bale.schemas]` table of the eight installed schema files to their sha256
-(unchanged from 0.4.45 through 0.4.51, hashed at 0.4.51 by a probe; the
-header says who hashed them and when; the files themselves are
-`fixtures/bale-0.4.51/schemas/`, §7), which is **the gate's second half**
-(§5), one `[[surface]]` per bale surface twine reads (the file
+`share/bale-consumption.toml`, parsed by `tomllib`: a `[bale]` table of
+exactly three keys (since session `2026-10-15-twine-gate-contract-001`) —
+`floor = "0.4.54"`, the first bale with `bale contract --json` (§5);
+`recordings = "0.4.51"`, the version whose recordings the tests replay, so
+`fixtures/bale-<recordings>/` is their directory (§7; the floor named it
+from session `2026-10-12-twine-pin-floor-002` until this one); and
+`contract = "fixtures/contract/bale-0.4.55.json"`, the carried contract
+line the tests replay (§7) — and `load_manifest` refuses any other key,
+naming the two retired ones: `pin`, the exact version (`0.4.51` at the last
+exact pin, session `2026-10-12-twine-pin-051-001`), and `[bale.schemas]`,
+the eight schema files' sha256 that were the gate's second half from
+session `2026-10-12-twine-pin-floor-002` until this one (the files stay
+under `fixtures/bale-0.4.51/schemas/` as history, §7); then one
+`[[surface]]` per bale surface twine reads (the file
 `bin/VERSION` and each recorded `--json` verb: `kind`, `verb`, `flags`,
 `argv`, `cwd`, `stdout`, `keys` — the JSON keys twine reads, `[]`
-where none yet — `key_owner`, `read_by`, `fixture`, `written_against`;
+where none yet — `key_owner`, `read_by`, `fixture` — or, for the contract surface, `carried` —
+`written_against`;
 a per-run value in `argv` is written `<role>` (§7); a verb recorded
 under more than one outcome, or under another argv of it, lists each
 further recording as an `also_recorded` row — `argv`, `cwd`, `outcome`,
@@ -287,10 +359,22 @@ surface, whose stand-in was the crafter's exchange emission; no verb is
 `unrecorded` at 0.4.49 or 0.4.51, the shapes staying for the next such gap; `read_at`, the probes
 that read a contract from bale's source, stays where one did; `reasons`
 with `reasons_home` records a closed set a key takes that is not a
-table axis — the unlock refusal's five reason codes (§14.5) and, since
+table axis — the unlock refusal's six reason codes (§14.5; `cost-file`,
+new at bale 0.4.54, recorded from bale 0.4.55's contract line) and, since
 0.4.51, the relay refusal's twenty-two (`RELAY_REFUSAL_REASONS`, bale
 0.4.50, in bale's order with the fallback `unclassified`; twine reads no
 relay `reason` — it dispatches on `outcome` and quotes `cause`, §11.2);
+since session `2026-10-15-twine-gate-contract-001`, `contract_lines` —
+required on a verb surface that lists keys and names a reader — the lines
+of the contract's `json_keys` that reader reads (`open` and
+`open-refused`; `relay` and `relay-refused`; `unlock` and
+`unlock-refused`; `apply`), and, together, `outcome_vocabulary` and
+`outcomes`, the contract vocabulary a line's `outcome` takes and its
+values as bale 0.4.55's contract states them (open, relay and unlock),
+which the gate holds the contract to (§5); one verb surface is new,
+`contract --json` itself (the gate's, read by `bale check` and `status`;
+`carried` in the place of `fixture`, the path `[bale] contract` names;
+its keys the five the gate reads, its `contract_lines` `contract`);
 and, `kind = "format"`, each text format `take` parses out of a paste:
 `format`, `locator`, `home`, `emitted_by`, `fixtures`, `fixtures_version`
 — the bale version that emitted those files: for a crafter emission the
@@ -307,14 +391,16 @@ header for the next gap — and
 `[[vocabulary]]` for each closed set of spellings bale declares that
 the transition table keys on (§12): `axis` (the table axis whose keys
 they are), `values` (bale's spellings, in bale's order), `home` (the
-installed schema, whose hash `[bale.schemas]` pins, or the bale source
-file, with its `home_sha256`), `pointer`, `also_at`, `excluded` (enum
+installed schema or the bale source file, with its `home_sha256`, as the
+contract line states it), `pointer`, `also_at`, `excluded` (enum
 members that are not keys — the closure enum's `null`), `read_by`,
 `written_against`, `read_at` (the probes or readings that read them).
 Three are recorded for 0.4.51, unchanged from 0.4.45 value for value:
 `telemetry-outcome` (13), `closure-reason` (9) and `apply-outcome` (9,
 `format_apply_json`'s docstring, at `bin/bale_report.py` line 3426 of
-0.4.51 — line 3040 of 0.4.49); a verb surface whose key takes one of them names it as
+0.4.51 — line 3040 of 0.4.49) — and bale 0.4.55's contract line states all
+three equal, value for value, which every install the gate admits must
+too (§5); a verb surface whose key takes one of them names it as
 `vocabulary` (`apply`'s `outcome` is `apply-outcome`). A recording
 session (a pin bump, until the floor) re-reads them — by probe, or, as the bumps to 0.4.49 and 0.4.51 did, from
 bale-src's context tarball, `read_at` saying which and that it was not a
@@ -339,11 +425,15 @@ is a recorded surface read by nothing yet. The
 file's header comment spells the entry shapes;
 `tests/test_consumption_manifest.py` walks them. `twine.bale.load_manifest`
 refuses a `[[vocabulary]]` entry without an axis or a home, a second
-entry for one axis, or values that are empty or repeat; and (since session
+entry for one axis, or values that are empty or repeat; (since session
 `2026-10-12-twine-pin-floor-002`) a `[bale]` without a `floor` of three
-dotted integers, one still carrying `pin`, an empty `[bale.schemas]` (a
-gate that hashed nothing would admit anything), and a schema name that is
-not a plain file name under `schemas/`.
+dotted integers or one still carrying `pin`; and (since session
+`2026-10-15-twine-gate-contract-001`) a `[bale]` holding any key but the
+three, `[bale.schemas]` by name, a `recordings` that is not three dotted
+integers, a `contract` that is not a `.json` path under `fixtures/` (no
+`..`), and a verb surface whose `contract_lines`, `outcome_vocabulary`,
+`outcomes` or `reasons` is malformed — or that lists keys and a reader but
+no `contract_lines`.
 
 **The keys on the line** (same session; D2 as amended). Every verb that
 reads a bale `--json` line checks, **on that line**, that each key the
@@ -359,25 +449,33 @@ line lacks the key(s) '<k>'[, …], which the consumption manifest lists for
 the <verb> surface (bale <argv>); existing keys are never removed, so this
 bale is not the contract twine reads`, appended beside whatever else the
 line fails. One helper, `twine.bale.missing_keys_failure`, called from the
-four readers. The two schema-homed vocabularies are held fixed by the
-gate (their schema's hash is pinned in `[bale.schemas]`); the one homed in
-`bin/bale_report.py` (`apply-outcome`) is held by twine naming an outcome
-it does not know (§11.3), which it always has.
+four readers. Since session `2026-10-15-twine-gate-contract-001` the same
+keys are checked first in the gate, against the contract's `json_keys`
+(§5), so a bale that dropped one is refused before it is run, and the
+check on the line stays as the line's own proof. All three vocabularies —
+the two schema-homed and `apply-outcome` — are held to the manifest's
+values by the gate, as the contract states them (where the schema hashes
+held the two schema-homed ones, and twine naming an outcome it does not
+know (§11.3) held `apply-outcome`, which it still does).
 
-**Moving the install under the floor** (the bump procedure, same session).
-An install that moves without touching a key this file lists or a schema
-it pins **needs nothing**: the gate admits it, the key check passes, and
-nothing is re-recorded — 0.4.52 was the first (probe `twine-052-delta`,
-2026-10-12: `bin/bale`, `bale_report.py`, `bale_relay.py`, `bale_open.py`
-and all eight schemas byte-identical to 0.4.51's; only the crafter moved).
-An install that touches one — a schema's hash, a listed key, or a
-vocabulary twine dispatches on — **needs a recording session** (§16): the
-recordings are re-made at the new version, the vocabularies re-read, the
-fixtures land under `fixtures/bale-<new>/`, and the session **raises the
-floor** to that version. Until it lands, the gate refuses an install whose
-schemas moved, and the key check refuses a line that lost a listed key —
-named, never a surprise (D17). The floor is never raised without a
-recording, and never lowered.
+**Moving the install above the floor** (the bump procedure; since session
+`2026-10-15-twine-gate-contract-001`). An install that moves nothing twine
+reads **needs nothing**: the gate admits it on its contract and nothing is
+re-recorded — 0.4.52 was the first (probe `twine-052-delta`, 2026-10-12:
+`bin/bale`, `bale_report.py`, `bale_relay.py`, `bale_open.py` and all eight
+schemas byte-identical to 0.4.51's), and 0.4.54 and 0.4.55, whose
+telemetry schema's `cost` block moved (refused by the schema hashes until
+this session), followed. A value bale adds to an outcome vocabulary or a
+refusal-reason set twine does not dispatch on is a note, not a refusal.
+An install that moves something twine reads — a `[[vocabulary]]` value, a
+listed key of a line a reader reads, an outcome or the reason twine
+dispatches on — is **refused by the gate, naming it**, and **needs a
+recording session** (§16), which lands the new spelling: the recordings
+re-made at the new version under `fixtures/bale-<new>/`, `recordings` moved
+to it, the vocabularies and the carried contract line re-read, and the
+transition table and readers given the new spelling. The floor is the
+first bale with the contract verb, and moves only if twine comes to need a
+verb a later bale added; it is never lowered.
 
 ## 7. Fixtures
 
@@ -394,24 +492,44 @@ assigned by the same collision rule. `<where>` is `twine-src/` (the packing repo
 0.4.49, `scratch/` — a throwaway repository a probe created and removed,
 where the verbs that write (pack, open, relay, unlock, apply) were
 recorded; its facts are in the README's section. Every `.json` fixture is
-one object line with a trailing newline. The tests read the floor's
-directory (`FLOOR` in `tests/helpers.py`, `PIN` until session
-`2026-10-12-twine-pin-floor-002`: the floor is the version the recordings
-were made at, so it names the directory); earlier versions' directories
-and README sections stay as history.
+one object line with a trailing newline. The tests read the recordings'
+directory (`RECORDINGS` in `tests/helpers.py`, the manifest's `[bale]
+recordings`, since session `2026-10-15-twine-gate-contract-001`; `FLOOR`
+from session `2026-10-12-twine-pin-floor-002`, when the floor was the
+version the recordings were made at, and `PIN` before — `FLOOR` is the
+gate's floor now, 0.4.54, and names no directory); earlier versions'
+directories and README sections stay as history.
 
-**The schemas** (same session). The eight files the gate hashes (§5)
-land byte-exact under the floor's directory, `fixtures/bale-0.4.51/schemas/<name>.json`,
-named as installed — from the operator's `bale-src` context tarball of
-2026-10-07 at 0.4.51, every hash equal to the manifest's and to the
-operator's 0.4.52 install's. They are not recordings: no argv printed
-them, they have no stderr sibling, the lander neither derives nor checks
-them (`tests/fixture_rule.py` `SCHEMAS_WHERE`, §16), and the README lists
-them in a table of their own (`| file | bytes | sha256 |`), which
-`tests/test_fixtures.py` holds to the files and to `[bale.schemas]`. Every
-stub install root the tests build copies them (`tests/helpers.py`
-`install_schemas`), so the gate admits a stub exactly as it admits the
-operator's install.
+**The schemas** (session `2026-10-12-twine-pin-floor-002`; history since
+session `2026-10-15-twine-gate-contract-001`). The eight files the gate
+hashed until the contract replaced the hashes stay byte-exact under
+`fixtures/bale-0.4.51/schemas/<name>.json`, named as installed — from the
+operator's `bale-src` context tarball of 2026-10-07 at 0.4.51. They are
+not recordings: no argv printed them, they have no stderr sibling, the
+lander neither derives nor checks them (`tests/fixture_rule.py`
+`SCHEMAS_WHERE`, §16), and the README lists them in a table of their own
+(`| file | bytes | sha256 |`), which `tests/test_fixtures.py` holds to the
+files. No gate reads them; a test copies them into a stub root only to
+prove an install with one altered is admitted (`tests/helpers.py`
+`install_schemas`).
+
+**The contract lines** (session `2026-10-15-twine-gate-contract-001`). A
+new family beside `fixtures/anthropic/`: `fixtures/contract/bale-<V>.json`,
+the one line `bale contract --json` printed at version `<V>`, landed
+byte-exact from the operator's attachment — never under a
+`fixtures/bale-<V>/` directory, since no recorder paste derives it and the
+lander's `--check` refuses any file there its paste does not derive. One
+is carried, `bale-0.4.55.json` (8549 bytes, sha256 `bab19c6d…0334`), named
+by `[bale] contract` and listed in `fixtures/README.md`'s "bale contract
+lines" section (`| file | command | date | bytes | sha256 |`), which
+`tests/test_fixtures.py` holds to the file. Every stub install root the
+tests build answers `contract --json` through its own `bin/bale` double
+(`tests/helpers.py` `make_root`): this line, replayed byte-exact, when the
+root's `bin/VERSION` is the line's `bale_version`; for another version,
+and for every edited line a test needs (a key removed, a vocabulary value
+added or removed, `hold-branch` removed, a `bale_version` that disagrees, a
+non-zero exit, two lines, not JSON), bytes built from it and named as a
+double (`contract_line`, `edited_contract`), never as bale's.
 
 A **per-run value** — a session id read out of a block, a tarball's
 path, a bundle file, a pack's goal — never enters a name: `fixture_key(argv)`
@@ -483,10 +601,14 @@ player, a double that replays a recording (`RecordedUnlock`,
 temp root (`tests/helpers.py` `StubBale`, passed as `--bale-root`). `bash` is required: `carry probe`'s tests run real probe scripts,
 each derived from the crafter's recorded scaffold by filling its
 placeholders mechanically (`tests/helpers.py` `filled_probe`). `bale check` is tested against temp roots the tests build
-(`tests/helpers.py` `TempRoots`, each carrying the eight schema fixtures
-unless it says otherwise: `bin/VERSION` at the floor, above it (0.4.52),
-far above it (0.4.100), below it (0.4.49 and 0.4.46), unparsable, absent;
-at the floor with one schema altered, and with no `schemas/`), never a
+(`tests/helpers.py` `TempRoots`, each a `bin/VERSION` and a `bin/bale`
+double answering `contract --json` (§7) — since session
+`2026-10-15-twine-gate-contract-001`: the carried line's 0.4.55, the floor
+0.4.54, above it (0.4.56), far above it (0.4.100), below it (0.4.53 and
+0.4.46), unparsable, absent; 0.4.55 with one schema altered and with no
+`schemas/`, both admitted; and four refused on the contract alone — a key
+gone from the open-refused line, a telemetry outcome added, `hold-branch`
+gone, a `bale_version` that disagrees), never a
 real install, and every CLI subprocess runs with `TWINE_BALE_ROOT`
 pinned to a temp directory so a bale on `PATH` cannot leak into a
 verdict. The probe the tests run ends before the recorded scaffold's
@@ -498,7 +620,11 @@ such directories, never the real default
 (§13.9, §14.8, §15.7); no test runs a real `bale unlock`, `bale open` or
 `bale relay` — the kill's tests replay the recorded unlock lines (§14.7),
 `carry bundle`'s the recorded open lines (§15.6), and `carry exchange`'s
-the recorded relay lines (§11.4). The recorder and the lander (§16) are
+the recorded relay lines (§11.4). The gate's `contract --json` goes
+through the same seam: every run-seam double answers that one argv by
+running the root's own `bin/bale` double for real (`answer_contract`),
+and keeps it out of the `calls` a test asserts on (`gate_calls` counts
+it). The recorder and the lander (§16) are
 tested in `tests/test_recordings.py`: the lander as a subprocess against
 the landed paste-back and edited copies of it and of `fixtures/` in temp
 trees; the recorder as a script (`bash -n`, its header read by `take`, its
@@ -829,35 +955,51 @@ The executable is `<root>/bin/bale`, the root resolved exactly as `bale
 check` resolves it (§5): `--bale-root DIR`, else `TWINE_BALE_ROOT`, else
 `command -v bale` followed to its real path and up. No root found is a
 refusal; so, since session 5b, is a current directory that no longer
-exists when `--cwd` is not given; a root with no runnable `bin/bale` is learned by starting it,
-also a refusal (`ran` false). What is known of the install is reported
-in `bale`: `executable`, `root`, `source`, `installed`, `floor`,
-`floor_admits` (whether `installed` is at or above the floor, compared as a
-tuple; null when either is unknown or does not parse) and `schemas_match`
-(whether every schema the manifest pins is installed with its hash; null
-when the gate never looked) — `pin` and `pin_matches` until session
-`2026-10-12-twine-pin-floor-002`, and neither key now.
+exists when `--cwd` is not given; a root with no runnable `bin/bale` is learned by starting it —
+since session `2026-10-15-twine-gate-contract-001` when the gate asks for
+its contract, so the gate refuses it — also a refusal (`ran` false). What
+is known of the install is reported in `bale`, in this order:
+`executable`, `root`, `source`, `installed`, `floor`, `floor_admits`
+(whether `installed` is at or above the floor, compared as a tuple; null
+when either is unknown or does not parse) and `contract_ok` (whether the
+install's `bale contract --json` states everything twine reads, §5; null
+when the gate never asked — no root, the manifest unusable, or an install
+below the floor) — `contract_ok` in the place of `schemas_match` since that
+session, `schemas_match` from session `2026-10-12-twine-pin-floor-002`, and
+`pin` and `pin_matches` before; none of the three now. The same `bale`
+object rides in `carry bundle`'s (§15) and `kill`'s (§14) twins.
 
 **The gate** (D2; decided by session `2026-10-03-twine-transitions-004`,
 superseding carry-bale-002's report-only reading; a floor since session
 `2026-10-12-twine-pin-floor-002`, D2 as amended at the sitting
-`2026-10-08-open-arc2-003`, where it was an exact pin). Both verbs drive
-exactly the installs `bale check` admits (§5) and refuse every other
-before bale is started: one below the floor, one whose `bin/VERSION`
-cannot be read or does not parse as three dotted integers, one whose
-installed schemas are missing or do not hash as `[bale.schemas]` pins
-them, and any bale when the floor itself is unknown (the manifest
-unusable) — `ok` false, `ran` false, exit 1, the reason, in the floor's
-words, in `refusals` beside any other (`twine.bale.Executable.drive_refusal`,
-which reads `bale check`'s own verdict, so the two cannot disagree). The
-transition table (§12) keys on bale's outcome and closure vocabularies:
-the floor is the version they were read at, the schema hashes hold the
-two schema-homed ones fixed above it, and the key check on each line
-(§6) catches a listed key gone. A bale the gate refuses may answer in a
+`2026-10-08-open-arc2-003`, where it was an exact pin; the floor plus
+bale's contract since session `2026-10-15-twine-gate-contract-001`, where
+it was the floor plus schema hashes). Both verbs drive exactly the
+installs `bale check` admits (§5) and refuse every other before bale is
+started: one below the floor, one whose `bin/VERSION` cannot be read or
+does not parse as three dotted integers, one whose contract cannot be
+read, names another version, or does not state everything twine reads,
+and any bale when the floor itself is unknown (the manifest unusable) —
+`ok` false, `ran` false, exit 1, the reason in `refusals` beside any other
+(`twine.bale.Executable.drive_refusal`, which reads `bale check`'s own
+verdict, so the two cannot disagree; the gate's own `contract --json` runs
+through the verb's seam, `ctx.run`). The refusal is `bale at <root> is not
+one twine drives: <the gate's reason>`, then — when the contract read
+cleanly and something twine reads moved — `; bale changed something twine
+reads (named above), so twine would meet spellings it has no move for
+(D17) — a recording session lands the new spelling`, and — when anything
+else failed (the version, or a contract that could not be read or is not
+this install's) — `; twine drives only a bale at or above the floor
+<floor> whose contract (bale contract --json) states everything twine
+reads (D2)`. It never says to raise the floor. The transition table (§12)
+keys on bale's outcome and closure vocabularies, and the readers on four
+lines' keys and outcomes: the contract states them, the gate holds the
+install's statement to twine's, and the key check on each line (§6)
+catches a listed key gone. A bale the gate refuses may answer in a
 spelling the table has no move for, which is the surprise D17 rules out.
-Raising the floor is a recording session (§6, §16) — never ambient. There
-is no override flag. `bale check` and `status` report the verdict; they
-drive nothing.
+Landing a new spelling is a recording session (§6, §16) — never ambient.
+There is no override flag. `bale check` and `status` report the verdict;
+they drive nothing.
 
 bale runs in `--cwd DIR` (default: the current
 directory — the repo whose session the block or tarball belongs to),
@@ -1117,7 +1259,7 @@ Four axes, rendered in this order:
 
 | axis | keys | source |
 |---|---|---|
-| `telemetry-outcome` | the 13 telemetry outcomes of the bale at the floor (0.4.51's; unchanged since 0.4.45, and held fixed above the floor by the schema's pinned hash) | §6 `[[vocabulary]]` |
+| `telemetry-outcome` | the 13 telemetry outcomes bale declares (0.4.51's, as recorded; unchanged since 0.4.45, and held fixed above the floor by the gate's contract check, §5 — by the schema's pinned hash until session `2026-10-15-twine-gate-contract-001`) | §6 `[[vocabulary]]` |
 | `closure-reason` | the 9 closure reasons of the bale at the floor (0.4.51's; unchanged since 0.4.45, held as above; `null`, "not closed", is not a key) | §6 `[[vocabulary]]` |
 | `apply-outcome` | the 9 outcomes `bale apply --json` prints | §6 `[[vocabulary]]` |
 | `stop` | twine's API-side stop set, declared in the table: `end-turn`, `max-tokens`, `model-refusal`, `window-exhausted`, `rate-limited`, `overloaded`, `network-failure`, `timeout`, `tool-error`, `malformed-shape`, `request-refused`, `provider-error`, `cap-reached`, `killed`, `cap-unchecked`, `adapter-defect` (16; `cap-unchecked` added by session 5b, `request-refused` and `provider-error` by Arc 2 R2, `adapter-defect` by session 2026-10-13-twine-table-adapter-defect-007); its `loop_keys` are `cap-reached`, `cap-unchecked`, `killed`, `adapter-defect` | the table's `keys` |
@@ -1585,8 +1727,11 @@ signal sent, no bale started:
   (a named refusal, not a usage error).
 
 A bale that is absent, unreadable or one the gate refuses (§11.1: below
-the floor, a version that does not parse, schemas that do not hash as
-pinned; not the pin, until session `2026-10-12-twine-pin-floor-002`) is
+the floor, a version that does not parse, a contract that does not state
+everything twine reads — the unlock line's keys, its outcomes and the
+`hold-branch` reason among them; schemas that did not hash as pinned from
+session `2026-10-12-twine-pin-floor-002` until session
+`2026-10-15-twine-gate-contract-001`, not the pin before) is
 **not a refusal** (session 5c, the sitting's correction to 5b, on the
 worker's reading of D15: the kill must work when the harness itself is
 wedged, and an install the gate refuses is one of the ways it can be; the
@@ -1816,8 +1961,10 @@ Run through the seam (§10.6), with a bale the gate admits (§11.1), in
 with twine's environment, stdin `/dev/null`, a 120-second timeout and a 1
 MiB stdout cap, and only with a bale the gate admits: `close_aborted`
 checks the gate itself (`Executable.drive_refusal`) and fails without
-starting a bale it refuses — below the floor, or schemas that do not hash
-as pinned — so the loop cannot reach one by forgetting the gate. **This
+starting a bale it refuses — below the floor, or a contract that does
+not state what twine reads (since session
+`2026-10-15-twine-gate-contract-001`; schemas that did not hash as pinned
+before) — so the loop cannot reach one by forgetting the gate. **This
 is the only `unlock` argv twine builds**
 (`twine.bale.unlock_argv`; a test asserts no other code builds one): the
 sid always explicit — `bale unlock` with no sid closes whichever one session
@@ -2030,9 +2177,10 @@ false, exit 1, **bale not started**, nothing written:
 - `--cwd` is not a directory, or, without `--cwd`, the current directory no
   longer exists;
 - no bale is found or startable, or the gate refuses it — below the
-  floor, a `bin/VERSION` that cannot be read or does not parse, schemas
-  that do not hash as pinned (§11.1; an exact pin until session
-  `2026-10-12-twine-pin-floor-002`);
+  floor, a `bin/VERSION` that cannot be read or does not parse, a contract
+  that does not state everything twine reads (§11.1; an exact pin until
+  session `2026-10-12-twine-pin-floor-002`, schema hashes until session
+  `2026-10-15-twine-gate-contract-001`);
 - **without `--check` only:** no state directory resolves (§13.2's rules
   and refusals, `no-state-dir` and `bad-argument`, as `twine spend` and
   `twine kill` resolve it), or the one that resolves exists and is not a
@@ -2338,16 +2486,28 @@ directory is a temporary one; the in-process runs carry an environment
 with no state variables, so a verb without `--state-dir` refuses rather
 than touch the real default.
 
-## 16. Recording a version (raising the floor): the recorder and the lander
+## 16. Recording a version (landing a new spelling): the recorder and the lander
 
 Since session `2026-10-12-twine-pin-051-001` a recording session is
 mechanical: one probe records every bale surface twine reads, and one tool
 lands what it printed. Neither is a twine verb — they are maintenance tools
 under `bin/`, run by the operator and the worker of a recording session (a
 pin bump, until session `2026-10-12-twine-pin-floor-002` made the gate a
-floor; under the floor a recording session is needed only when an install
-moves a listed key, a pinned schema or a vocabulary, §6, and it raises the
-floor) — and neither changes what any verb does.
+floor; then a floor raise when an install moved a listed key, a pinned
+schema or a vocabulary) — and neither changes what any verb does.
+
+**When a recording session is needed** (since session
+`2026-10-15-twine-gate-contract-001`): **when the gate refuses an install
+because bale moved something twine reads**, and the refusal names it (§5,
+§11.1: `bale changed something twine reads … — a recording session lands
+the new spelling`) — a `[[vocabulary]]` value added or removed, a key a
+reader reads gone from a line it reads, or an outcome or the one reason
+twine dispatches on gone. Nothing else needs one: an install whose
+contract states everything twine reads is driven whatever else moved
+(its schemas, its other lines, a value added that twine does not dispatch
+on, which is a note), and a refusal that is not a move — below the floor,
+a contract that cannot be read or names another version — is fixed by
+installing a bale the gate admits, not by recording.
 
 **`bin/twine-record-fixtures [SLUG]`** — the recorder: a bash probe (its
 header `# PROBE twine-record-fixtures: …`, so `take` reads it as one), run
@@ -2413,22 +2573,25 @@ script is in). Then:
 - **with `--check`** it writes nothing and exits 0 exactly when every
   derived file is in the tree byte-exact, no other file sits under
   `fixtures/bale-<V>/` — its `schemas/` subdirectory aside (since session
-  `2026-10-12-twine-pin-floor-002`: the installed schemas the gate hashes,
-  §7, which no recording derives and `tests/test_fixtures.py` holds to
-  their own rows) — `fixtures/README.md` carries each derived row
+  `2026-10-12-twine-pin-floor-002`: the installed schemas the gate hashed
+  until session `2026-10-15-twine-gate-contract-001`, §7, history now,
+  which no recording derives and `tests/test_fixtures.py` holds to their
+  own rows) — `fixtures/README.md` carries each derived row
   exactly, and the carried row carries the paste's line endings, bytes and
   hashes (for the landed LF paste, the CRLF form it arrived in: every LF
   turned back into CRLF); otherwise exit 1, naming the first difference.
   Exit 2 is a usage error or a paste that cannot be read.
 
-**The recording procedure**, the session that raises the floor (§6 says
-when one is needed; until session `2026-10-12-twine-pin-floor-002`, the
-session that moved the pin):
+**The recording procedure**, the session that lands a new spelling (the
+paragraph above says when one is needed; the floor raise from session
+`2026-10-12-twine-pin-floor-002` until session
+`2026-10-15-twine-gate-contract-001`, and before that the session that
+moved the pin):
 
 1. The operator runs the recorder from `~/twine-src` with the new bale on
    PATH — `bin/twine-record-fixtures > <slug>.txt` — and attaches the
    paste-back to the recording worker's chat, with the new version's
-   eight `schemas/*.json` when their hashes moved.
+   `bale contract --json` line (`bale contract --json > contract-<V>.json`).
 2. The worker runs the lander on the attachment, which lands the
    recordings, the siblings and the paste under `fixtures/bale-<V>/` and
    prints the rows and the manifest lines.
@@ -2437,12 +2600,17 @@ session that moved the pin):
    and each surface's `fixture` and `also_recorded` in
    `share/bale-consumption.toml` — the surface's `fixture` the recording of
    twine's own argv.
-4. The worker raises `[bale] floor` to `<V>` and every `written_against`,
-   lands the version's schemas byte-exact under `fixtures/bale-<V>/schemas/`
-   (with their README table) and sets `[bale.schemas]` to their hashes,
-   re-reads the vocabularies (a probe, or bale-src's context tarball,
-   `read_at` saying which) and moves `FLOOR` in `tests/helpers.py` and
-   whatever the recordings' facts move in the tests and this contract.
+4. The worker moves `[bale] recordings` to `<V>` and every
+   `written_against`, lands the contract line byte-exact as
+   `fixtures/contract/bale-<V>.json` (with its README row) and points
+   `[bale] contract` at it, gives the manifest the moved spelling (the
+   `[[vocabulary]]` values, a surface's `keys`, `outcomes` or `reasons`)
+   and the transition table and the readers whatever moves it needs,
+   re-reads the vocabularies (from the contract line, a probe, or
+   bale-src's context tarball, `read_at` saying which) and moves
+   `RECORDINGS` and `CONTRACT_*` in `tests/helpers.py` and whatever the
+   recordings' facts move in the tests and this contract. `[bale] floor`
+   moves only when twine starts to need a verb a later bale added.
 5. The suite runs, and `bin/twine-land-recordings --check
    fixtures/bale-<V>/carried/probe-output_<slug>.txt` exits 0 from the tree
    root — the session's `validation.sh` runs it, and the checkpoint may.

@@ -36,8 +36,10 @@ same.
 Refused before bale starts, every reason named at once: BUNDLE empty, or —
 when it names no existing file — beginning with `-`; `--cwd` not a
 directory (or the current directory gone); no bale found or startable, or
-one the gate does not admit (D2: below the floor, or schemas that do not
-hash as pinned — the floor since session 2026-10-12-twine-pin-floor-002);
+one the gate does not admit (D2: below the floor — since session
+2026-10-12-twine-pin-floor-002 — or, since session
+2026-10-15-twine-gate-contract-001, a contract that does not state
+everything twine reads);
 and, without `--check` only, no state directory resolving
 (as `twine spend` and `twine kill` resolve it) or one that exists and is not
 a directory — an open that could not be recorded is refused before it

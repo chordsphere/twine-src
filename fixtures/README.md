@@ -28,33 +28,42 @@ holds the wire itself — fifteen request/response pairs the architect
 recorded on 2026-10-13 — landed by their own lander,
 `bin/twine-land-provider-recordings`, beside `bin/twine-land-recordings`.
 
-**The floor, and what it means here** (since session
+**The floor, the recordings and the contract, and what they mean here**
+(since session `2026-10-15-twine-gate-contract-001`; the floor since
 `2026-10-12-twine-pin-floor-002`, D2 as amended at the sitting
-`2026-10-08-open-arc2-003`). twine no longer drives one exact bale: it
-drives any bale **at or above the floor** — `share/bale-consumption.toml`'s
-`[bale] floor`, `0.4.51` — whose installed `schemas/*.json` hash as the
-manifest's `[bale.schemas]` pins them, and every verb that reads a bale
+`2026-10-08-open-arc2-003`). twine drives any bale
+**at or above the floor** — `share/bale-consumption.toml`'s `[bale] floor`,
+`0.4.54`, the first bale with `bale contract --json` — whose contract line states
+everything twine reads (contract §5), and every verb that reads a bale
 `--json` line checks that line for the keys the manifest lists for its
-surface. The floor is the version **the recordings were made at**, so
-`fixtures/bale-<floor>/` is the directory the tests replay, and it is
-raised only by a recording session (contract §16). An install that moves
-without touching a listed key or a pinned schema needs nothing here:
-0.4.52 was the first, admitted with nothing re-recorded (probe
-`twine-052-delta`, 2026-10-12, found its `bin/bale`, `bale_report.py`,
-`bale_relay.py`, `bale_open.py` and all eight schemas byte-identical to
-0.4.51's). Until that session the directory was named by the exact pin;
-the sections below that say "the pin" are that history.
+surface. The floor no longer names this directory: `[bale] recordings`,
+`0.4.51`, is the version **the recordings were made at**, so
+`fixtures/bale-<recordings>/` is the directory the tests replay, moved only
+by a recording session (contract §16), and `[bale] contract` names the
+carried contract line the tests' install roots answer with (`contract/`,
+"bale contract lines", below). An install that moves nothing twine reads
+needs nothing here: 0.4.52 was the first (probe `twine-052-delta`,
+2026-10-12, found its `bin/bale`, `bale_report.py`, `bale_relay.py`,
+`bale_open.py` and all eight schemas byte-identical to 0.4.51's), and
+0.4.54 and 0.4.55 followed, their contract stating every vocabulary, key
+and outcome twine reads as 0.4.51 recorded them. From session
+`2026-10-12-twine-pin-floor-002` until session
+`2026-10-15-twine-gate-contract-001` the floor named the directory, and
+before that the exact pin; the sections below that say "the pin" or "the
+floor's directory" are that history.
 
-**The schemas** (same session). The eight files the gate hashes land
-byte-exact under the floor's directory, `fixtures/bale-0.4.51/schemas/`,
-named as installed. They are not recordings — no argv printed them, they
-have no `.stderr` sibling, and `bin/twine-land-recordings` neither derives
-nor checks them (`tests/fixture_rule.py` `SCHEMAS_WHERE`) — so they have a
-table of their own, `| file | bytes | sha256 |`, in the 0.4.51 section,
-and `tests/test_fixtures.py` holds them to it and to the manifest. The
-tests' stub install roots copy them (`tests/helpers.py`
-`install_schemas`), so the gate admits a stub as it admits the operator's
-install.
+**The schemas** (session `2026-10-12-twine-pin-floor-002`; history since
+`2026-10-15-twine-gate-contract-001`). The eight files the gate hashed
+until the contract replaced the hashes stay byte-exact under
+`fixtures/bale-0.4.51/schemas/`, named as installed. They are not
+recordings — no argv printed them, they have no `.stderr` sibling, and
+`bin/twine-land-recordings` neither derives nor checks them
+(`tests/fixture_rule.py` `SCHEMAS_WHERE`) — so they keep a table of their
+own, `| file | bytes | sha256 |`, in the 0.4.51 section, and
+`tests/test_fixtures.py` holds them to it. The gate reads no file under an
+install's `schemas/` now; the tests copy these files into a stub root only
+to prove an install with them altered (or absent) is admitted
+(`tests/helpers.py` `install_schemas`).
 
 **stderr, and where a version's recordings come from** (since session
 `2026-10-12-twine-pin-051-001`, the pin at 0.4.51). Every recording of a
@@ -518,13 +527,17 @@ what `bin/twine-land-recordings --check` reads.
 
 ### The installed schemas (session `2026-10-12-twine-pin-floor-002`)
 
-The eight `schemas/*.json` files the gate's second half hashes, landed
-byte-exact under the floor's directory. They came from the operator's
+The eight `schemas/*.json` files the gate's second half hashed from session
+`2026-10-12-twine-pin-floor-002` until session
+`2026-10-15-twine-gate-contract-001` replaced the hashes with bale's
+contract (history now: no gate reads them), landed byte-exact under what
+was then the floor's directory. They came from the operator's
 `bale-src` context tarball of 2026-10-07 at 0.4.51, carried into the
 session as `bale-0.4.51-schemas.tar.gz` (sha256
 `b6e6217244fdb81e0e5cab71230f1db9ead6fc632d1414494832779499e614e1`,
 117,394 bytes of JSON in eight files). Every hash below is the one
-`share/bale-consumption.toml` pins in `[bale.schemas]` — unchanged since
+`share/bale-consumption.toml` pinned in `[bale.schemas]` until session
+`2026-10-15-twine-gate-contract-001` removed the table — unchanged since
 0.4.45 — and equals what probe `twine-052-delta` (2026-10-12) hashed in the
 operator's 0.4.52 install's `schemas/` and in the `bale-src` tree at head
 `3c85138`; probe `twine-floor-schemas` (2026-10-12T14:10:33Z) hashed the
@@ -542,6 +555,39 @@ stderr: file, bytes, sha256.
 | `bale-0.4.51/schemas/request-manifest.schema.json` | 15000 | `70a0c2bd3b6b0d4cf17bc97010c2b7d58931527b7b3100aa984ca3576c075e3d` |
 | `bale-0.4.51/schemas/response-manifest.schema.json` | 26227 | `02d2b6413d078e031641c99e09a9fea909555bdfcb9b2a8a110dbdce63f5817e` |
 | `bale-0.4.51/schemas/telemetry-record.schema.json` | 49179 | `b79d7bf75c10f5799484f906954461e7379ef6d4a870bb7df8c08ce050b38825` |
+
+## bale contract lines
+
+**What they are** (since session `2026-10-15-twine-gate-contract-001`). The
+one JSON line `bale contract --json` prints: bale's own statement of what a
+consumer reads — `outcome` (`"contract"`), `bale_version`, `vocabularies`
+(each closed set of spellings with its `home`, `pointer` and `values`),
+`refusal_reasons` (per verb), `json_keys` (the ordered top-level keys of
+every `--json` line) and `json_key_homes`. The gate (contract §5) runs the
+install's own and holds it to what twine reads; the tests replay the
+carried line below, byte-exact, as the stub install roots they build answer
+`contract --json` (`tests/helpers.py` `make_root`, `contract_line`), and
+build every edited line a test needs from it, named as a double, never as
+bale's. It lands under `fixtures/contract/`, never under a
+`fixtures/bale-<version>/` directory: no recorder paste derives it, and the
+lander's `--check` refuses any file there its paste does not derive.
+
+**`contract/bale-0.4.55.json`** — the operator's bale 0.4.55, run as
+`bale contract --json > contract-0.4.55.json` from `~/twine-src` on 2026-10-15
+and attached to the chat that opened session
+`2026-10-15-twine-gate-contract-001`; landed byte-exact (one line, its
+trailing newline included), after checking it was the line probe
+`gate-contract-011` read: 8549 bytes, sha256 `bab19c6d…0334`. It states the
+transition table's three vocabularies equal to `share/bale-consumption.toml`'s
+`[[vocabulary]]` value for value; the open, relay, unlock and apply lines'
+keys a superset of what each reader lists; `open-outcome`, `relay-outcome`
+and `unlock-outcome` holding every outcome twine dispatches on; and the
+unlock refusal reasons six, `cost-file` new at 0.4.54 beside `hold-branch`.
+`[bale] contract` names it.
+
+| file | command | date | bytes | sha256 |
+|---|---|---|---|---|
+| `contract/bale-0.4.55.json` | `bale contract --json` | 2026-10-15 | 8549 | `bab19c6d19f31f56eba6b4e808e9e4950b15b8b4fbc8781295f1df93111e0334` |
 
 ## Provider recordings
 

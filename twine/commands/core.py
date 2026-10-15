@@ -2,15 +2,17 @@
 
 These are twine's own facts — what verbs exist, whether twine itself is
 intact, whether the gate admits the bale install (since session
-2026-10-12-twine-pin-floor-002 a floor plus schema hashes, D2 as amended;
-an exact pin before), and (session 5c) where
+2026-10-15-twine-gate-contract-001 the floor plus bale's contract, `bale
+contract --json` run through ctx.run; a floor plus schema hashes from
+session 2026-10-12-twine-pin-floor-002, an exact pin before), and (session 5c) where
 twine's state directory resolves and what of it exists — since session
 `twine-status-inflight` (0.11.0) including the in-flight records `carry
 bundle` keeps there, read through `twine.inflight.list_inflight` — and since
 Arc 2 R4 the transcripts and sandbox homes `twine run` keeps there (counts and
 sids, as the in-flight records are listed). No bale
-repo state is read here (that is Arc 1 session 3's), and nothing here
-writes: `status` never creates the state directory it reports, nor
+repo state is read here (that is Arc 1 session 3's) — the one bale verb
+run here is the install's `contract --json`, which reads none — and nothing
+here writes: `status` never creates the state directory it reports, nor
 anything in it.
 """
 
@@ -59,15 +61,16 @@ def _state_dir_argument() -> Argument:
 
 
 def cmd_bale_check(ctx: Context, args: argparse.Namespace) -> Result:
-    """The gate (D2 as amended): the installed bin/VERSION at or above the
-    consumption manifest's floor, and every schema `[bale.schemas]` names
-    installed with that sha256. A missing install, an unreadable or
-    unparsable VERSION, a version below the floor, or a missing or
-    mismatched schema is a not-ok result (exit 1) naming every failing fact
-    at once, never a traceback."""
+    """The gate (D2; since session 2026-10-15-twine-gate-contract-001): the
+    installed bin/VERSION at or above the consumption manifest's floor, and
+    the install's `bale contract --json`, run through ctx.run, stating
+    everything twine reads. A missing install, an unreadable or unparsable
+    VERSION, a version below the floor, or a contract that cannot be read,
+    is not this install's, or lacks something twine reads is a not-ok
+    result (exit 1) naming every failing fact at once, never a traceback."""
     manifest = load_manifest(CONSUMPTION_MANIFEST)
     root = resolve_root(args.bale_root, ctx.env, ctx.which)
-    result = check(manifest, root)
+    result = check(manifest, root, ctx.run, ctx.env)
     return Result(result.ok, result.as_json(), result.as_lines())
 
 
@@ -214,7 +217,7 @@ def cmd_status(ctx: Context, args: argparse.Namespace) -> Result:
         return Result(False, payload, lines)
     payload["floor"] = manifest.floor
     root = resolve_root(getattr(args, "bale_root", None), ctx.env, ctx.which)
-    result = check(manifest, root)
+    result = check(manifest, root, ctx.run, ctx.env)
     payload["bale"] = result.as_json()
     payload["ok_reason"] = "manifest parses and the floor resolves"
     lines.append(f"floor:                {manifest.floor}")
@@ -252,18 +255,24 @@ COMMANDS = (
                     "keeps. Nothing is created or written."),
     Command(
         name="bale check",
-        summary="check the installed bale against the floor and schema "
-                "hashes in share/bale-consumption.toml",
+        summary="check the installed bale against the floor in "
+                "share/bale-consumption.toml and its contract against what "
+                "twine reads",
         handler=cmd_bale_check,
         arguments=(_bale_root_argument(),),
         description="Resolve the bale install root (--bale-root, else "
                     "$TWINE_BALE_ROOT, else `command -v bale`), read "
                     "<root>/bin/VERSION and compare it, as three dotted "
-                    "integers, to the floor; hash every file the manifest's "
-                    "[bale.schemas] names under <root>/schemas/. Exit 0 when "
-                    "the version is at or above the floor and every schema "
-                    "hashes as pinned; 1 otherwise — below the floor, an "
-                    "unreadable or unparsable VERSION, no schemas/, a missing "
-                    "or mismatched schema, or no install found — each failing "
-                    "fact named."),
+                    "integers, to the floor; run <root>/bin/bale contract "
+                    "--json and hold its one line to what twine reads: the "
+                    "transition table's three vocabularies (the same values), "
+                    "the keys of each line twine reads, and every outcome and "
+                    "the one unlock reason twine dispatches on. No file under "
+                    "<root>/schemas/ is read. Exit 0 when the version is at or "
+                    "above the floor and the contract states all of it (a value "
+                    "bale added that twine does not dispatch on is reported, "
+                    "not refused); 1 otherwise — below the floor, an "
+                    "unreadable or unparsable VERSION, a contract that cannot "
+                    "be read or names another version, something twine reads "
+                    "moved, or no install found — each failing fact named."),
 )

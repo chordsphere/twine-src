@@ -15,8 +15,9 @@ the rule names recordings, it builds no argv, and it is not twine's code.
 Pure and stdlib-only: no import of twine, no file read except where a
 function says so, so the lander can import it under `python3 -I -S -B`
 without loading the CLI. Every path function takes the version
-explicitly; tests/helpers.py's wrappers pass FLOOR (PIN until session
-2026-10-12-twine-pin-floor-002).
+explicitly; tests/helpers.py's wrappers pass RECORDINGS, the manifest's
+`[bale] recordings` (FLOOR from session 2026-10-12-twine-pin-floor-002 until
+session 2026-10-15-twine-gate-contract-001, PIN before).
 """
 
 from __future__ import annotations
@@ -39,10 +40,11 @@ EMISSION_TOOLS = {"crafter": "tools/craft_response.py"}
 # A recording's stderr lands beside its stdout file: the same name with
 # this extension in place of `.json`/`.txt` (since bale 0.4.51).
 STDERR_EXT = ".stderr"
-# The installed schemas the gate hashes (share/bale-consumption.toml
-# [bale.schemas]) land byte-exact under the floor's directory, in this
-# subdirectory, named as installed (since session
-# 2026-10-12-twine-pin-floor-002). They are not recordings — no argv printed
+# The installed schemas the gate hashed (share/bale-consumption.toml
+# [bale.schemas], from session 2026-10-12-twine-pin-floor-002 until session
+# 2026-10-15-twine-gate-contract-001; history now) landed byte-exact under
+# the then floor's directory, in this subdirectory, named as installed. They
+# are not recordings — no argv printed
 # them, the recorder does not derive them, and they have no stderr sibling —
 # so the lander leaves this subdirectory alone and fixtures/README.md lists
 # them in a table of their own (SCHEMA_ROW).
@@ -314,7 +316,7 @@ def parse_rows(text: str) -> dict[str, Row]:
     return rows
 
 
-# A schema fixture's row (fixtures/README.md, the floor's schemas table):
+# A schema fixture's row (fixtures/README.md, the 0.4.51 schemas table):
 # file, bytes, sha256 — three columns, which RECORDING_ROW (a backticked
 # command in its second) and CARRIED_ROW never match.
 SCHEMA_ROW = re.compile(
@@ -324,7 +326,8 @@ SCHEMA_ROW = re.compile(
 
 def schemas_relpath_at(version: str) -> str:
     """fixtures/bale-<version>/schemas — where the schema files the gate
-    hashes land for the version the floor names."""
+    hashed (until session 2026-10-15-twine-gate-contract-001; history now)
+    landed, under the recordings' version."""
     return f"fixtures/bale-{version}/{SCHEMAS_WHERE}"
 
 

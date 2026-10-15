@@ -12,7 +12,8 @@ Modules:
             --json discipline (one JSON line on stdout, exit 0/1/2)
   bale      the bale surface twine reads: install-root resolution,
             bin/VERSION, the consumption manifest, the gate (D2, D4: the
-            floor and the schema hashes) and the key check on bale's lines
+            floor and bale's contract, `bale contract --json`) and the key
+            check on bale's lines
   shapes    the bale shapes in text: find, parse and verify every block a
             courier carries (probe, probe-output, light, exchange, relay);
             pure, executes nothing — `twine take` is the verb over it

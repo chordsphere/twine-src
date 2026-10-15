@@ -27,10 +27,14 @@ Arc 1 (the courier) session 1 landed twine's core:
   every file in `inflight/` that is not one, named, and since 0.19.0 the
   sids of the transcripts and sandbox homes `twine run` keeps; it never
   creates the directory, and writes nothing),
-  `bale check` (the gate, D2: since 0.14.0 a floor — ok when the
-  installed bale's `bin/VERSION` is at or above the floor, `0.4.51`, and
-  every schema the manifest pins is installed under `schemas/` with its
-  sha256; each failing fact named otherwise),
+  `bale check` (the gate, D2: since 0.23.0 the floor plus bale's
+  contract — ok when the installed bale's `bin/VERSION` is at or above the
+  floor, `0.4.54`, and its own `bale contract --json` states everything
+  twine reads: the transition table's three vocabularies, the keys of each
+  line twine reads, and the outcomes and the one unlock reason it
+  dispatches on; no file under `schemas/` is read, and a value bale adds
+  that twine does not dispatch on is reported, not refused; each failing
+  fact named otherwise, the moved thing among them),
   and `take` (session 2a): read a pasted turn, find each bale shape in
   it — probe, probe output, light block, exchange block, relay block —
   verify its integrity trailer and report, executing nothing.
@@ -48,8 +52,8 @@ Arc 1 (the courier) session 1 landed twine's core:
   run, prints the one `bale apply <path>` line for you to run. twine
   never applies anything itself: the merge stays yours. Both drive only
   a bale the gate admits — exactly one `bale check` reports ok; one below
-  the floor, whose `bin/VERSION` cannot be read, or whose schemas do not
-  hash as pinned is refused before bale starts (D2) — and both check, on
+  the floor, whose `bin/VERSION` cannot be read, or whose contract does
+  not state what twine reads is refused before bale starts (D2) — and both check, on
   the line bale answers with, every key the consumption manifest lists
   for that surface: a line lacking one is not ok, the key named.
 - `carry bundle` (session 3, the last courier row): carries a planner's
@@ -84,7 +88,8 @@ Arc 1 (the courier) session 1 landed twine's core:
   it, nothing is retried) and `provider-error` (retried with backoff) are
   new — and names its three `loop_keys` (`cap-reached`, `cap-unchecked`,
   `killed`: the loop's, never an adapter's); the table's
-  `written_against` is the floor; and the table carries the first
+  `written_against` is the version its bale axes were re-read at (0.4.51,
+  the manifest's `recordings` since 0.23.0); and the table carries the first
   provider's mapping — every Anthropic stop reason, HTTP status and error
   type, and the conditions no provider word names, each onto a stop key —
   as `[[mapping]]` rows the adapter reads.
@@ -218,25 +223,31 @@ Arc 1 (the courier) session 1 landed twine's core:
   a file. `--adapter fake --script FILE` runs the same loop with no model,
   from a scripted list of turns (how the tests drive it). Contract §18 and
   `runtime-contract.md` §7.
-- `share/bale-consumption.toml` — the floor (`0.4.51`: twine drives any
-  bale at or above it whose installed schemas hash as pinned — an exact
-  pin until 0.14.0) and the consumption manifest: the schema hashes, every
-  bale surface twine reads and the keys it reads from each (checked
-  present on every line), and the three vocabularies the transition table
-  keys on, as data. An install that moves without touching a listed key
-  or a pinned schema needs nothing — 0.4.52 was the first, admitted with
-  nothing re-recorded; one that does needs a recording session, which
-  raises the floor (contract §6, §16).
+- `share/bale-consumption.toml` — the `[bale]` table — `floor` (`0.4.54`,
+  the first bale with `bale contract --json`: twine drives any bale at or
+  above it whose contract states what twine reads), `recordings`
+  (`0.4.51`, the directory under `fixtures/` the tests replay) and
+  `contract` (the carried contract line) — and the consumption manifest:
+  every bale surface twine reads, the keys it reads from each (checked in
+  the contract and again present on every line), the contract lines each
+  reader reads, the outcomes and refusal reasons it records, and the three
+  vocabularies the transition table keys on, as data. The schema hashes
+  (from 0.14.0, an exact pin before) are gone since 0.23.0. An install
+  that moves nothing twine reads needs nothing — 0.4.52 through 0.4.55 so
+  far; one that does is refused, the moved thing named, and needs a
+  recording session, which lands the new spelling (contract §5, §6, §16).
 - `fixtures/` — recorded `bale … --json` outputs from the floor's
   version (twenty-four at 0.4.51, each with the stderr bale printed beside
   it, including every outcome of `bale unlock --json` the kill-switch's
   tests replay, the four `bale open --json` lines `carry bundle`'s tests
   replay and `bale relay <sid> - --json` under twine's own argv), the
   crafter's emissions, and carried pastes of bale output — among them the
-  recorder's paste-back the 0.4.51 recordings were landed from — and the
-  eight `schemas/*.json` the gate hashes, under `fixtures/bale-0.4.51/schemas/`,
-  byte-exact; the only bale the tests ever see. Earlier versions'
-  recordings stay as history. Since Arc 2 R1, `fixtures/anthropic/` holds
+  recorder's paste-back the 0.4.51 recordings were landed from — the
+  eight `schemas/*.json` the gate hashed until 0.23.0, under
+  `fixtures/bale-0.4.51/schemas/`, kept as history, and since 0.23.0
+  `fixtures/contract/bale-0.4.55.json`, the carried `bale contract --json`
+  line the tests' install roots answer with; the only bale the tests ever
+  see. Earlier versions' recordings stay as history. Since Arc 2 R1, `fixtures/anthropic/` holds
   provider recordings under a rule of their own — the Messages API `usage`
   object `from_anthropic` is held to, and since R2 the wire of 2026-10-13:
   fifteen requests and responses (four of them streams), each with a meta
@@ -292,9 +303,10 @@ python3 -I -S bin/twine run <stem>.bale-bundle --model M --cap USD [--json]   # 
 python3 -I -S bin/twine run <stem>.bale-bundle --adapter fake --script turns.json --cap USD   # the same loop, no model
 ```
 
-A recording session — needed only when an install moves a listed key or
-a pinned schema, and it raises the floor (contract §16) — runs the two
-maintenance tools beside them:
+A recording session — needed only when the gate refuses an install
+because bale moved something twine reads, the refusal naming it; it lands
+the new spelling (contract §16) — runs the two maintenance tools beside
+them:
 
 ```
 bin/twine-record-fixtures [SLUG] > paste-back.txt       # in ~/twine-src, the new bale on PATH: record every surface
@@ -328,8 +340,9 @@ python3 -B -m unittest discover -s tests -t .
 No network, no bale install, no third-party module (bash is needed —
 `carry probe`'s and the tools' tests run real scripts, and the sandbox's
 use `unshare` where the machine has it, asserting either outcome): `bale check` is
-exercised against temp roots the tests build, each carrying the schema
-fixtures so the gate admits it as it admits your install, and the recorded
+exercised against temp roots the tests build, each with a `bin/bale` double
+that answers `contract --json` with the carried line (or an edited copy,
+named as a double) so the gate admits it as it admits your install, and the recorded
 outputs under `fixtures/` — with doubles, named as such, for the bale
 outputs nobody has recorded yet — stand in for a live bale. A `bale` on
 your `PATH` is never the one a test runs. Nor does a test reach a model:
