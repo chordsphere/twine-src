@@ -1,0 +1,324 @@
+{
+  "record_version": 1,
+  "session_id": "2026-10-15-twine-run-ergonomics-002",
+  "created_at": "2026-10-15T16:31:55+00:00",
+  "attempts": [
+    {
+      "at": "2026-10-15T16:31:55+00:00",
+      "outcome": "opened",
+      "command": "pack",
+      "closure_reason": null,
+      "tarball": null,
+      "validation": null,
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests/test_anthropic.py",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "tests/test_runtime_tools.py",
+        "tests/test_window.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/runtime/adapters/anthropic.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/tools/escalate.py",
+        "twine/runtime/tools/shell.py",
+        "twine/transcript.py"
+      ],
+      "overridden_paths": [],
+      "overridden_path_sources": {},
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null,
+        "calls": null,
+        "models": null
+      },
+      "change_paths": [],
+      "feedback": null,
+      "log": ".bale/logs/2026-10-15-twine-run-ergonomics-002.log",
+      "bundle": {
+        "stem": "2026-10-15-twine-run-ergonomics",
+        "brief_sha256": "5ea64150c9ed3ae65a5a487e525b9b7b7e0957b7c9e07fefc3e970283d5c7db6",
+        "checkpoint_sha256": "25863136b128304379097bbdbba2d0fecb90c1f3036040475971ccd4aae3a59a",
+        "manifest_sha256": "9bc52e1ea8f79511601b08d0031352e9db6cd74082cd35ec163cc97b736e3321"
+      },
+      "provenance": {
+        "work_class": "code",
+        "packer": "chordsphere",
+        "packed_at": "2026-10-15T16:31:54+00:00"
+      }
+    },
+    {
+      "at": "2026-10-15T21:35:46+00:00",
+      "outcome": "applied",
+      "command": "apply",
+      "closure_reason": null,
+      "tarball": "response-2026-10-15-twine-run-ergonomics-002.tar.gz",
+      "validation": {
+        "state": "PASS",
+        "exit_code": 0,
+        "claims": {
+          "unit suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine runtime tools --json": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "fixtures/, share/, twine-seed.md and bin/twine are byte-identical to the request's": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "twine/probing.py and the 256 KiB caps are untouched": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "VERSION is 0.24.0": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "defaults, caps and the surface note's stems": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "docs name the new default, the raw file, the shell cap and the progress lines": {
+            "value": "pass",
+            "claim_basis": "observed"
+          },
+          "the ergonomics tests, by class (progress, heartbeat, reader, note, default)": {
+            "value": "pass",
+            "claim_basis": "observed"
+          }
+        },
+        "claim_verdict": {
+          "unit suite (python3 -I -B -m unittest discover -s tests -t .)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine runtime tools --json": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "fixtures/, share/, twine-seed.md and bin/twine are byte-identical to the request's": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "twine/probing.py and the 256 KiB caps are untouched": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "VERSION is 0.24.0": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "defaults, caps and the surface note's stems": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "docs name the new default, the raw file, the shell cap and the progress lines": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          },
+          "the ergonomics tests, by class (progress, heartbeat, reader, note, default)": {
+            "claim": "pass",
+            "verdict": "pass",
+            "agreement": "agree"
+          }
+        },
+        "reconciliation_parsed": true,
+        "validation_will_run": [
+          "file syntax (python)",
+          "unit suite (python3 -I -B -m unittest discover -s tests -t .)",
+          "twine runtime tools --json",
+          "fixtures/, share/, twine-seed.md and bin/twine are byte-identical to the request's",
+          "twine/probing.py and the 256 KiB caps are untouched",
+          "VERSION is 0.24.0",
+          "defaults, caps and the surface note's stems",
+          "docs name the new default, the raw file, the shell cap and the progress lines",
+          "the ergonomics tests, by class (progress, heartbeat, reader, note, default)"
+        ]
+      },
+      "scope_kind": "write-forecast",
+      "scope": [
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests/test_anthropic.py",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "tests/test_runtime_tools.py",
+        "tests/test_window.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/runtime/adapters/anthropic.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/tools/escalate.py",
+        "twine/runtime/tools/shell.py",
+        "twine/transcript.py"
+      ],
+      "overridden_paths": [
+        "README.md",
+        "twine/runtime/boundary.py"
+      ],
+      "overridden_path_sources": {
+        "README.md": "prompt",
+        "twine/runtime/boundary.py": "prompt"
+      },
+      "required_check_overrides": [],
+      "base_drift_overrides": [],
+      "sandbox_escaped": false,
+      "network_grant_exercised": false,
+      "sandbox_confined": true,
+      "sandbox_off_source": null,
+      "cost": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "usd": null,
+        "model_tier": null,
+        "calls": null,
+        "models": null
+      },
+      "change_paths": [
+        "README.md",
+        "VERSION",
+        "claude/context/cli-contract.md",
+        "claude/context/runtime-contract.md",
+        "tests/test_anthropic.py",
+        "tests/test_resume.py",
+        "tests/test_run.py",
+        "tests/test_runtime_tools.py",
+        "twine/commands/resume.py",
+        "twine/commands/run.py",
+        "twine/runtime/adapters/anthropic.py",
+        "twine/runtime/boundary.py",
+        "twine/runtime/loop.py",
+        "twine/runtime/tools/escalate.py",
+        "twine/runtime/tools/shell.py",
+        "twine/transcript.py"
+      ],
+      "feedback": {
+        "mechanical": {
+          "response_kind": "normal",
+          "schema_valid": true,
+          "mirror_agreement": {
+            "changes_to_files": true,
+            "files_to_changes": true
+          },
+          "claims_subset": true,
+          "provenance": {
+            "bale_version": "0.4.55",
+            "contract_docs": {
+              "AGENT.md": "31dcdded2a8fd175f7778c2bd1be09688e89e76b8fd4cd62b7646aacfa2782c4",
+              "TARBALL.md": "3037b905ee561af44f27cc83ec45d832feb7d429a98d4e07b4482a518cda6e94",
+              "DOCS.md": "90cc9aad0670610b7865a54db33975103580cdd3354d000b8db07f8a6e956d0c",
+              "CODE.md": "49a145323bfc472a22dd8be56565d6e7767fd1ffbd33c36cda95e7e3e149ab75",
+              "PLANNER.md": "a8e5714e51049768e52bb5bc0ede9338db1175e7095d9b2bdd0d314ab3e01078"
+            },
+            "packer": "chordsphere",
+            "work_class": "code",
+            "checkpoint": {
+              "path": "claude/checkpoints/2026-10-15-twine-run-ergonomics-002.sh",
+              "sha256": "25863136b128304379097bbdbba2d0fecb90c1f3036040475971ccd4aae3a59a"
+            },
+            "checkpoint_scope_admitted": false,
+            "packed_at": "2026-10-15T16:31:54+00:00",
+            "base_files": {
+              "VERSION": "d1994e4942b06ec398ed7d9fa91ecce4079cd3f85ffe9e04588866291263149c",
+              "claude/context/cli-contract.md": "78edf51d85cb9c3f7ee3830599aef5d8d0b35e72ff254bbe6e1b57213a920818",
+              "claude/context/runtime-contract.md": "5d287679b379fcab1b97bb1feaeb6413020d7108e9c58efe394cd1bf3068d52e",
+              "tests/test_anthropic.py": "c3d016bdc2c1c9c52073fd257d30a1848d35a3cb7e9e6af23e8d3c0f2eddc105",
+              "tests/test_resume.py": "72d227fb4bfc714a524b13a8a5c4437ec5da9f4c3da13182726f933c2e1472e6",
+              "tests/test_run.py": "1d658e84a447a34b6cadc887e20481a867efef3b3b9ed61d4487b63e9cc55805",
+              "tests/test_runtime_tools.py": "e74117f27c8e673cd6d077c24d6b0516995967ce916089981eb505b69500f074",
+              "tests/test_window.py": "807c640d216487fc37ca3deaa672cd102dee769b2e121315bc516eb3e9e373ee",
+              "twine/commands/resume.py": "f86972ab90ac8ee625799db007de0225ac85b4330797b99ffc4d17ac43426ab3",
+              "twine/commands/run.py": "047c724a2e64a7b0c522c02977254f4f38b7af06451eca2262da4891af20c162",
+              "twine/runtime/adapters/anthropic.py": "4ca0bbae5bebbecc2c913fe7b54cb22da9cc4ef85427a44817baa7708138e321",
+              "twine/runtime/loop.py": "34d5aee381578e4255d072a86a622db4088f241d66721a17993a9df655eff5a9",
+              "twine/runtime/tools/escalate.py": "54e9ec454ad4331f4d2124474ccfefe02a3b7652144f8d43a4864c2725954d0e",
+              "twine/runtime/tools/shell.py": "d63f1bf675028b08c7c2c2b65651882c07d3d2c04baff0eb654e76314b032c6b",
+              "twine/transcript.py": "a2ea611fcc6348e958142f51f32d4b1aeb46e71d464b5e8fb8127a9a732d3bd6"
+            },
+            "model_identity": "unknown:unknown"
+          }
+        },
+        "self_reported": {
+          "assumptions": [
+            "--round for the clarification block is left at the crafter's default 1",
+            "an open thinking block carried with signature '' may be refused by the API on the next call (not observable here)"
+          ],
+          "judgment_calls": [
+            "Turn carries raw and cut_tool_call (boundary.py) so the loop writes the raw file",
+            "summary line also printed on a refusal",
+            "tool lines print a start and an end line, both with the argument",
+            "the open-thinking-block rule follows the brief literally"
+          ],
+          "budget_pressure": "none",
+          "includes_missing": [],
+          "compaction_occurred": {
+            "occurred": false
+          },
+          "docs_read": [
+            "AGENT.md",
+            "TARBALL.md",
+            "README.md (the brief)",
+            "twine/runtime/loop.py",
+            "twine/runtime/adapters/anthropic.py",
+            "twine/runtime/tools/escalate.py",
+            "twine/runtime/tools/shell.py",
+            "claude/context/runtime-contract.md",
+            "claude/context/cli-contract.md"
+          ],
+          "forecast_departures": [
+            {
+              "path": "README.md",
+              "why": "one sentence stated shell's 256 KiB stdout cap, which this session changes"
+            },
+            {
+              "path": "twine/runtime/boundary.py",
+              "why": "Turn must carry the raw body and the cut tool call to the loop; no other path through the boundary exists"
+            }
+          ]
+        }
+      },
+      "log": ".bale/logs/2026-10-15-twine-run-ergonomics-002.log",
+      "clarification": {
+        "rounds": 0,
+        "records": []
+      },
+      "corrects": null,
+      "checkpoint": {
+        "configured": true,
+        "state": "PASS",
+        "exit_code": 0,
+        "script": {
+          "path": "claude/checkpoints/2026-10-15-twine-run-ergonomics-002.sh",
+          "sha256": "25863136b128304379097bbdbba2d0fecb90c1f3036040475971ccd4aae3a59a"
+        },
+        "stamp_matched": true,
+        "failed_probes": []
+      }
+    }
+  ],
+  "updated_at": "2026-10-15T21:35:46+00:00",
+  "outcome": "applied"
+}
