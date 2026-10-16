@@ -982,7 +982,7 @@ class TheDocsNameTheTelemetry(unittest.TestCase):
         self.assertIn("runs.jsonl", readme)
         self.assertIn("twine stats", readme)
         self.assertIn("twine transcript", readme)
-        self.assertEqual(self.read("VERSION").strip(), "0.26.0")
+        self.assertEqual(self.read("VERSION").strip(), "0.27.0")
 
 
 if __name__ == "__main__":

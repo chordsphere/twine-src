@@ -136,6 +136,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -706,6 +707,60 @@ def dies_within(pid: int, seconds: float = 3.0) -> bool:
             return False
         time.sleep(0.02)
     return True
+
+
+def processes_running(marker: str) -> list[int]:
+    """The live (non-zombie) pids on this machine running `sleep <marker>` —
+    a command line a test makes unique — whichever PID namespace they are
+    in (the host's /proc lists them all): how a test sees that a cage's
+    children, a `setsid` one among them, are or are not still alive."""
+    found = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().split(b"\0")
+            state = (entry / "stat").read_text().rsplit(")", 1)[1].split()[0]
+        except (OSError, IndexError):
+            continue
+        if state != "Z" and len(argv) >= 2 and argv[0].endswith(b"sleep") \
+                and argv[1] == marker.encode():
+            found.append(int(entry.name))
+    return sorted(found)
+
+
+class AbortWhenSeen:
+    """A stand-in for the operator, outside the cage: waits for `marker` (a
+    file the worker's own `shell` creates in its home) and then writes the
+    session's abort request in `state` — what a `twine kill` from another
+    terminal does between two calls. A cage cannot reach the state directory,
+    so a test that needs an abort to appear between calls has the command
+    touch the marker and the operator's side write the file. Use as a
+    context manager around the run; `wait` is how long it looks."""
+
+    def __init__(self, state: Path, sid: str, marker: Path, wait: float = 60.0) -> None:
+        self.state, self.sid, self.marker, self.wait = state, sid, marker, wait
+        self.seen = False
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._watch, daemon=True)
+
+    def _watch(self) -> None:
+        from twine import kill
+        deadline = time.monotonic() + self.wait
+        while not self._stop.is_set() and time.monotonic() < deadline:
+            if self.marker.exists():
+                kill.request_abort(self.state, self.sid)
+                self.seen = True
+                return
+            time.sleep(0.02)
+
+    def __enter__(self) -> "AbortWhenSeen":
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._stop.set()
+        self._thread.join(timeout=5)
 
 
 def is_contract_call(argv) -> bool:

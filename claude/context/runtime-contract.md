@@ -16,8 +16,11 @@
 > and `reason` and the lines of §1, §2 and §6 that say "R4" are session
 > `2026-10-13-twine-runtime-run-004`'s (Arc 2 R4). §7.9 and the lines of
 > §1–§7 that say "R5" are session `2026-10-13-twine-runtime-window-009`'s
-> (Arc 2 R5), awaiting review. A later session that changes a line changes
-> it here in the same response.
+> (Arc 2 R5), awaiting review. §6.3 (the cage), §6.4 (`filesystem`,
+> `filesystem_reason`, `confines`), §6.7 (the hook under the PID namespace)
+> and §7.7 (homes are pruned, by the verb) are session
+> `2026-10-16-twine-sandbox-confine-001`'s. A later session that changes a
+> line changes it here in the same response.
 
 What exists after R4, and what does not: the registry, the boundary, the
 fake adapter, `from_anthropic`, the Anthropic adapter (§5) — the first
@@ -914,18 +917,94 @@ resolved, symlinks followed, and **refused when it lands outside the home**
 — a symlink pointing out, a symlinked directory leading out. Each refusal is
 a tool error naming the cage (the home's path). A symlink that stays inside
 is followed, and the result reports the resolved path. A NUL byte is
-refused. A residual, named: the check and the open are two steps, so a
-process racing them could swap a component for a symlink in between; the
-only process in the cage that could is the worker's own `shell`, which is
-not path-confined anyway (below).
+refused. A residual, named below.
 
-**What is confined, and what is not.** The file tools are path-confined.
-`shell` runs **with the home as its working directory** but is not confined
-to it: at R3 there is no mount namespace, so a command can `cd /` and read or
-write whatever the operator's user can. What confines `shell` is the
-environment (§6.4) and the network (§6.4), the timeout and the stdout cap,
-and the kill (§6.7). A mount namespace with bind mounts is the honest next
-step and is not R3's.
+**What is confined: the cage** (twine-sandbox-confine, 0.27.0). The file
+tools are path-confined, above. `shell` — and the clarification form's
+crafter and lint (§6.6), which run through the same runner — runs **in a
+user, network, mount and PID namespace**: `unshare -rnmpf --kill-child`
+around a short `sh` script (`CAGE_SCRIPT` in `twine/runtime/sandbox.py`,
+every path an argument, none spliced into its text) that builds a private
+root in tmpfs on `<state-dir>/sandbox/<sid>/root/` (an empty directory made
+beside the home) and pivots into it. What the command sees:
+
+- **the home, writable, at its own absolute path** — `HOME`, `TMPDIR`, the
+  working directory and every path a transcript shows stay true. It is the
+  only writable tree the cage has besides an empty private `/tmp`, a private
+  `/dev/shm` and the cage's own `/dev`'s ordinary devices (`null`, `zero`,
+  `full`, `random`, `urandom`, `tty`, `fd`, `stdin`, `stdout`, `stderr`);
+  `/`, `/dev` itself, `/usr`, `/bin`, `/sbin`, `/lib*` and the `/etc` files
+  are read-only;
+- **what bash, python3, tar, git and coreutils need, read-only**: `/usr`,
+  `/bin`, `/sbin`, `/lib`, `/lib32`, `/lib64`, `/libx32` bound recursively
+  (symlinks of a merged `/usr` recreated as symlinks) and these `/etc`
+  entries copied, those that exist: `ld.so.cache`, `ld.so.conf`,
+  `ld.so.conf.d`, `passwd`, `group`, `nsswitch.conf`, `hosts`, `localtime`,
+  `timezone`, `alternatives`, `gitconfig`, `os-release`, `mime.types`. A
+  call can name more (`Sandbox.spawn(readonly=…)`): `escalate` names the
+  interpreter twine runs on — `sys.prefix`, `sys.base_prefix` and the
+  directory it is started from — and the sandbox drops what the system
+  directories already show, so a pyenv or a virtual environment under the
+  operator's home is shown, read-only, at its own path, and nothing else of it
+  is;
+- **nothing else of the host**: not the operator's home outside the sandbox
+  home, not `/mnt`, `/media`, `/run` or `/sys`, not the host's `/tmp`, not
+  the repository the session was opened in, not the state directory beyond
+  the home — the directories on the way to the home exist, empty but for the
+  way to it and read-only, so its absolute path resolves (they are a small
+  tmpfs of the cage's own, made at the shallowest of them the private root
+  lacks and remounted read-only once the home is bound; a state directory
+  under the host's `/tmp` puts that tmpfs inside the cage's private `/tmp`,
+  which stays writable beside it);
+- **`/proc` the cage's own**: a fresh procfs of the new PID namespace; no
+  host process is visible, and the command is the namespace's init (`$$` is
+  1);
+- **no network**, as before (§6.4);
+- **no way to undo it**: `CAP_SYS_ADMIN` and `CAP_SYS_CHROOT` are dropped from
+  the command's bounding set (and `no_new_privs` set), so it can neither
+  mount nor chroot. The cage's user is the operator, mapped to root inside the
+  user namespace (`-r`): the files it makes in the home are the operator's.
+
+**When a call returns, no process it started is alive.** The command is the
+PID namespace's init; when it exits the kernel kills every other process of
+the namespace, whether it was backgrounded, left the process group or called
+`setsid`. The same holds when the seam kills the run (a timeout, the stdout
+cap) or `twine kill` does (§6.7).
+
+**The setup**, in order, each step named on stderr if it stops the script
+(`twine cage: stopped while <step>`): the tmpfs root; `/tmp`; a fresh `/proc`;
+`/dev`; the system directories and named read-only trees (each `--rbind`ed,
+then the mount and every submount under it remounted read-only — a
+non-recursive bind of a tree with locked submounts is refused in a user
+namespace, and a recursive one leaves them writable); the `/etc` copies (a
+copy that fails is skipped — an absent `/etc` entry, never a failed cage); the
+home (a read-only tmpfs for the way to it, then `--rbind` at its own path); the
+root remounted read-only; `pivot_root`
+into it with the old root detached (`chroot` where `pivot_root` is refused —
+a chrooted bale, an unusual root — the capabilities above dropped the same);
+the working directory; the command. The mount namespace is private: nothing
+the cage mounts reaches the host.
+
+**Honest when it cannot.** At creation the sandbox runs the whole cage on
+`true` through the seam (§6.4). Where the namespaces cannot be made — no
+`unshare`, a refusal (no unprivileged user, mount or PID namespaces), a
+timeout, a setup step that fails — the sandbox runs as it did at R3 (`shell` is
+cwd'd in the home and not confined to it: a command can `cd /` and read or
+write whatever the operator's user can) and **says so**: `filesystem:
+"unconfined"` with a `filesystem_reason`, exactly as the network rule does,
+never silently (§6.4). A model that is told the filesystem is unconfined is
+told the truth; one that is told it is confined has it.
+
+**Residuals, named.** The check and the open of a file tool are two steps, so
+a process racing them could swap a component for a symlink in between; the
+only process that could is the worker's own `shell`, which can still make a
+symlink inside the home — one pointing out lands, in the cage, on a path that
+is not there. `/proc` is the namespace's
+own, but its `sys` tree and the kernel's other ordinary files are as visible
+to a user-namespace root as to any user. The copies of `/etc` files are
+snapshots taken at each call. A host that mounts something under a system
+directory shows it, read-only, in the cage. `probe` leaves the cage by design
+(§6.5): unchanged.
 
 ### 6.4 The environment, the network rule and `confines`
 
@@ -941,28 +1020,36 @@ inherited, and when a caller passes it, it is dropped and the drop logged
 (by name, never the value). A test sets a sentinel key in the parent and
 runs `env` in the cage.
 
-**The network rule.** At creation the sandbox runs `unshare -rn true`
-through the run seam (registered like any spawn, §6.7). When it exits 0 the
-network can be turned off here: every argv the sandbox's runner runs is
-wrapped `unshare -rn -- <argv>` (a new user namespace, so no privilege is
-needed, mapping the operator to root inside it; a new network namespace with
-only a loopback, down), and the sandbox reports **`network: "off"`**. When
-it cannot start (no `unshare`), exits otherwise (no unprivileged user or
-network namespaces) or times out, the sandbox reports **`network:
-"unconfined"`** and the reason. `-rn` alone at R3 (decision 4 of the brief):
-`-m` without bind mounts confines nothing, and `-p` needs `--fork` and a
-`/proc` remount — and makes the pid the hook registers the outer `unshare`
-rather than the command; both belong with the mount namespace.
+**Detection.** At creation the sandbox runs the **whole cage on `true`**
+through the run seam (`unshare -rnmpf --kill-child`, the setup script, then
+`true` — registered like any spawn, §6.7). When it exits 0 both rules hold: the
+network is off and the filesystem confined, and every argv the sandbox's runner
+runs is wrapped (§6.3): **`network: "off"`, `filesystem: "confined"`**. When it
+does not — `unshare` cannot start, it exits otherwise, it times out, a setup
+step fails — each half is tried alone, the network as `unshare -rn true`
+(`-rn -- <argv>`: a new user namespace, so no privilege is needed, mapping the
+operator to root inside it; a new network namespace with only a loopback,
+down) and the filesystem as the cage without `-n` (`unshare -rmpf
+--kill-child`), and the sandbox keeps what works: **`network:
+"unconfined"`** with `reason`, and/or **`filesystem: "unconfined"`** with
+`filesystem_reason`, each the failing step's own message (`unshare` missing, a
+refusal's stderr, the timeout, or the cage's `twine cage: stopped while …`
+line). Where each half works alone but not together the network is off and the
+filesystem unconfined, the whole cage's failure the reason.
 
 **`confines`** — cli-contract §10.5's switch, made: the sandbox's runner,
 `SandboxRunner`, a wrapper around the runner the sandbox was handed (the
-default one unless a test hands its own), declares `confines` **true
-exactly when the network is off**; the sandbox reads it back through
-`twine.process.runner_confines` and nothing else sets it.
+default one unless a test hands its own), declares `confines` **true exactly
+when the network is off and the filesystem is confined**; the sandbox reads it
+back through `twine.process.runner_confines` and nothing else sets it. A
+sandbox whose filesystem is unconfined does not confine, whatever its network.
 
-**`Sandbox.as_json()`**: `sid`, `home`, `repo`, `network`, `confines`,
-`max_timeout`, and `reason` when the network is unconfined (absent when it
-is off).
+**`Sandbox.as_json()`**: `sid`, `home`, `repo`, `network`, **`filesystem`**,
+`confines`, `max_timeout`, then `reason` when the network is unconfined and
+**`filesystem_reason`** when the filesystem is (each absent when its half is
+confined). The transcript's `run-start` line carries it as `sandbox`; `twine
+run`'s and `twine resume`'s twin carries `filesystem` right after `network`
+(cli-contract §18.5), and their stderr line says both.
 
 ### 6.5 What leaves the cage, and why: `probe`
 
@@ -1019,8 +1106,10 @@ shape and never forking it (D13):
 
 1. **the crafter**, request-carried, scaffolds the response directory: in
    the cage through the sandbox's runner (the cage's environment, network
-   off where it can be, registered with the kill-switch, the home its
-   working directory), on the interpreter twine runs on —
+   off and the filesystem confined where they can be, registered with the
+   kill-switch, the home its working directory, the interpreter's own tree
+   shown read-only when it is not under a system directory), on the
+   interpreter twine runs on —
    `<python> -I -B request/tools/craft_response.py
    escalations/<k>/response-NNN --sid <sid> --kind clarification
    --questions N --write`: the manifest skeleton and the crafter's `apply.sh`
@@ -1091,9 +1180,25 @@ prescribes for the loop:
   re-raises, and the tool returns an error naming it. A clear that fails is
   logged; the record is a cache, and `twine kill` finds the group dead.
 
-Under `unshare -rn` without `--fork` the wrapped command replaces `unshare`
-in place, so the pid the hook registers is the command's own (a test reads
-`$$` back).
+**Which pid the hook registers, and why the kill reaches the cage.** Under
+the cage the child the seam starts is the outer `unshare` (a session leader, so
+its pid is its group id — the pid the hook registers). It forks the cage's
+setup script into the new PID namespace, and that script `exec`s into the
+command, which is the namespace's **init**: its pid in the cage is 1 (a test
+reads `$$` back and sees 1, and reads the registered pid's name and sees
+`unshare`), its pid on the host is another, and it stays in the registered
+process group. `twine kill` signals that group, SIGTERM then SIGKILL as
+before (§14.4 of the CLI contract): the outer `unshare` dies of the SIGTERM and
+`--kill-child` makes the init die with it; the SIGKILL, if it comes, reaches
+the init directly, since it is a member of the group; and **when the init dies
+the kernel kills every other process of the PID namespace** — the command's
+children, the ones that left the group with `setsid` among them — so a group
+that the kill finds dead leaves nothing of the call behind. The seam's own
+kill at a timeout is the same signal. Where the filesystem is unconfined the
+sandbox wraps as it did at R3: under `unshare -rn` without `--fork` the
+wrapped command replaces `unshare` in place, so the registered pid is the
+command's own (and a `setsid` child escapes the group, the report's
+`unconfined` already said); with no `unshare` at all the child is the command.
 
 ## 7. The loop (Arc 2 R4)
 
@@ -1144,7 +1249,7 @@ bundle` recorded.
    under a PID namespace an inherited group reads as 0, the R3 HOLD's
    lesson; a process started from an interactive shell leads its group
    already and is left alone), then `kill.register_running(state_dir, sid,
-   pgid, pid)` — **before anything is spawned**, the sandbox's `unshare`
+   pgid, pid)` — **before anything is spawned**, the sandbox's cage
    detection included (a test's wrapping runner sees the record on that
    spawn).
 4. **The sandbox** (`Sandbox.create(state_dir, sid, repo=<the open's cwd>,
@@ -1392,8 +1497,13 @@ names a tool's group, whose run returned with live members (§6.7): then it
 is kept, for `twine kill <sid>`, and the twin says so. **On `delivered`
 only** the in-flight record is removed (`inflight.remove_inflight`, R3's
 lifecycle proposal, half of it) and the sandbox home is **kept** — the
-response tarball lives there until the operator applies it; removing homes
-is a later session's. On `suspended`, `ended`, `stopped`, `killed` and the
+response tarball lives there until the operator applies it. What removes a
+home is a verb, since twine never sees the apply: **`twine sandbox prune`**
+(cli-contract §22; `twine/prune.py`) removes `<state-dir>/sandbox/<sid>/` for
+each kept home whose session bale's own record
+(`<repo>/<agent_dir>/telemetry/<sid>.json`, `attempts[].outcome` only) says was
+applied, and keeps the rest each with why — and never one whose session has an
+in-flight or a running record. On `suspended`, `ended`, `stopped`, `killed` and the
 `cap-*` outcomes the record and the home are kept, for `twine resume` (§7.9)
 and for the planner.
 
@@ -1420,8 +1530,8 @@ through `twine resume` and only cold (§7.9: no cache is held hot — holding
 hot on the extended-cache tier is D23's later knob, the effort machinery's),
 counts the window and never estimates it toward a decision (§7.4: a size it
 does not know it cannot warn or stop on), speaks no text protocol (R6),
-removes no sandbox home, and never compacts, summarizes or drops a turn to
-make room (D12).
+removes no sandbox home itself (`twine sandbox prune` does, §7.7), and never
+compacts, summarizes or drops a turn to make room (D12).
 
 ### 7.9 Cold resume — `twine resume` (Arc 2 R5; D23)
 

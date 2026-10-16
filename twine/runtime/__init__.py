@@ -42,9 +42,12 @@ canonical tools and the sandbox, and R4 the loop:
                https_transport, the only place twine opens a socket
   sandbox      the per-sid cage the tools run in (R3): a home under the
                state directory, paths confined to it, a minimal environment
-               that never carries ANTHROPIC_API_KEY, network off through
-               `unshare -rn` where available (`confines` declared by its
-               runner, the §10.5 switch), every spawn registered with the
+               that never carries ANTHROPIC_API_KEY, `shell` and the
+               clarification form's tools in a user, network, mount and PID
+               namespace (`unshare -rnmpf`) where available, the home the only
+               writable tree, `filesystem` reported beside `network`
+               (`confines` declared by its runner, the §10.5 switch: network
+               off and filesystem confined), every spawn registered with the
                kill-switch's running record; implements `sandboxing` itself
   tools.toml   the canonical tools' declaration (R3): name, module,
                leaves_cage — the seven T6 names, parity by name

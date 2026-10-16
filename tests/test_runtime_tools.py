@@ -37,6 +37,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -47,9 +49,10 @@ from twine.process import RunError, RunResult, run_process, runner_confines
 from twine.runtime import TOOLS_DECLARATION, TOOLS_DIR, RUNTIME_DIR
 from twine.runtime.adapters import anthropic
 from twine.runtime.registry import DeclarationError, load_runtime_registry
-from twine.runtime.sandbox import (FALLBACK_LANG, FALLBACK_PATH, NETWORK_OFF,
+from twine.runtime.sandbox import (CAGE_SCRIPT, FALLBACK_LANG, FALLBACK_PATH,
+                                   FILESYSTEM_CONFINED, FILESYSTEM_UNCONFINED, NETWORK_OFF,
                                    NETWORK_UNCONFINED, CageError, Sandbox, SandboxError,
-                                   SandboxRunner)
+                                   SandboxRunner, readonly_trees)
 from twine.runtime.terms import ToolSpec
 from twine.runtime.tooling import (Tool, ToolRegistry, ToolResult, argument_faults,
                                    load_tool_declaration, load_tool_registry,
@@ -60,10 +63,14 @@ from twine.runtime.tools.shell import (SHELL_CONTENT_CAP_BYTES, SHELL_STDOUT_CAP
 from twine.runtime.tools.read_file import READ_FILE_CAP_BYTES
 
 from tests.helpers import (BALE_TOOLS, RealGroup, RecordingRunner, dies_within, fenced_probe,
-                           filled_probe, install_request_tools, run_cli, run_inprocess)
+                           filled_probe, install_request_tools, processes_running, run_cli,
+                           run_inprocess)
 
 SID = "2026-10-13-twine-runtime-tools-003"
 SENTINEL_KEY = "sk-ant-sentinel-r3-never-in-the-cage"
+# What a cage that confines both the network and the filesystem is started
+# with: the head of every wrapped argv (twine-sandbox-confine).
+CAGE_HEAD = ("unshare", "-rnmpf", "--kill-child", "--", "sh", "-c")
 
 # The seven T6 names, in the declaration's order, and the result keys the
 # brief pins for each beyond `name`, `content`, `is_error` (§2).
@@ -617,15 +624,22 @@ class SandboxCreation(unittest.TestCase):
         self.assertTrue((t.home / "tmp").is_dir())
         self.assertEqual(t.sandbox.repo, t.repo.resolve())
         self.assertEqual(stat.S_IMODE(t.home.stat().st_mode), 0o700)
+        root = t.home.parent / "root"
+        self.assertEqual(t.sandbox.root, root)
+        self.assertTrue(root.is_dir() and not any(root.iterdir()),
+                        "the cage's mount point: an empty directory beside the home")
 
     def test_as_json(self):
         t = TempSandbox(self)
         obj = t.sandbox.as_json()
-        base = ["sid", "home", "repo", "network", "confines", "max_timeout"]
-        self.assertEqual(list(obj), base + (["reason"] if obj["network"] != "off" else []))
+        base = ["sid", "home", "repo", "network", "filesystem", "confines", "max_timeout"]
+        self.assertEqual(list(obj), base + (["reason"] if obj["network"] != "off" else [])
+                         + (["filesystem_reason"] if obj["filesystem"] != "confined" else []))
         self.assertEqual((obj["sid"], obj["home"], obj["repo"], obj["max_timeout"]),
                          (SID, str(t.home), str(t.repo), 600.0))
-        self.assertIs(obj["confines"], obj["network"] == "off")
+        self.assertIn(obj["filesystem"], ("confined", "unconfined"))
+        self.assertIs(obj["confines"], obj["network"] == "off"
+                      and obj["filesystem"] == "confined")
         json.dumps(obj)
 
     def test_created_twice_reuses_the_home(self):
@@ -688,33 +702,78 @@ class TheEnvironment(unittest.TestCase):
         self.assertNotIn(SENTINEL_KEY, json.dumps(t.sandbox.as_json()))
 
 
+def cage_kind(argv) -> str | None:
+    """Which cage a wrapped argv asks for: "all" (`-rnmpf`), "net" (`-rn`),
+    "fs" (`-rmpf`); None for an argv that is not wrapped."""
+    if not argv or argv[0] != "unshare":
+        return None
+    return {"-rnmpf": "all", "-rn": "net", "-rmpf": "fs"}[argv[1]]
+
+
+class Answering(RecordingRunner):
+    """A run-seam double for a machine where only some of the namespaces can
+    be made: a wrapped argv runs nothing and is answered exit 0 when its cage
+    (`cage_kind`) is among `works`, else exit 1 with unshare's own refusal;
+    every call is recorded, as RecordingRunner does."""
+
+    REFUSAL = b"unshare: unshare failed: Operation not permitted\n"
+
+    def __init__(self, works) -> None:
+        super().__init__()
+        self.works = set(works)
+
+    def __call__(self, argv, **kwargs):
+        super().__call__(argv, **kwargs)
+        kind = cage_kind(argv)
+        ok = kind is None or kind in self.works
+        return RunResult(argv=tuple(argv), exit_code=0 if ok else 1, stdout=b"",
+                         stderr=b"" if ok else self.REFUSAL)
+
+
+def tool_argv(sandbox: Sandbox, command: str) -> tuple[str, ...]:
+    """The argv the sandbox's runner would hand the seam for `bash -c
+    COMMAND` from the home, whatever cage it found."""
+    return sandbox.runner.wrap(["bash", "-c", command], sandbox.home)
+
+
 class TheNetworkRule(unittest.TestCase):
     """Whichever way this machine goes, the sandbox reports it honestly:
-    `network` and `confines` agree, and the argv the runner saw is the one
-    the rule implies."""
+    `network`, `filesystem` and `confines` agree, and the argv the runner saw
+    is the one the findings imply."""
 
     def test_detection_on_this_machine(self):
         wrap = Wrapping()
         t = TempSandbox(self, run=wrap)
         detect = wrap.calls[0]
-        self.assertEqual(detect["argv"], ("unshare", "-rn", "true"))
+        self.assertEqual(detect["argv"][0], "unshare")
+        self.assertEqual(detect["argv"][-1], "true")
         self.assertEqual(detect["cwd"], t.home)
         sb = t.sandbox
         self.assertIn(sb.network, (NETWORK_OFF, NETWORK_UNCONFINED))
-        self.assertIs(sb.confines, sb.network == NETWORK_OFF)
+        self.assertIn(sb.filesystem, (FILESYSTEM_CONFINED, FILESYSTEM_UNCONFINED))
+        self.assertIs(sb.confines, sb.network == NETWORK_OFF
+                      and sb.filesystem == FILESYSTEM_CONFINED)
         self.assertIs(runner_confines(sb.runner), sb.confines)
         self.assertIs(sb.runner.inner, wrap)
+        if sb.network == NETWORK_OFF and sb.filesystem == FILESYSTEM_CONFINED:
+            self.assertEqual(detect["argv"][:6], CAGE_HEAD)
+            self.assertEqual(len(wrap.calls), 1, "the whole cage worked at once")
         result = t.tool("shell", command="echo hello")
         self.assertFalse(result.is_error, result.content)
         seen = wrap.tool_calls()[-1]["argv"]
+        self.assertEqual(seen, tool_argv(sb, "echo hello"))
         if sb.network == NETWORK_OFF:
-            self.assertEqual(seen, ("unshare", "-rn", "--", "bash", "-c", "echo hello"))
             self.assertIsNone(sb.network_reason)
             self.assertNotIn("reason", sb.as_json())
         else:
-            self.assertEqual(seen, ("bash", "-c", "echo hello"))
             self.assertTrue(sb.network_reason)
             self.assertEqual(sb.as_json()["reason"], sb.network_reason)
+        if sb.filesystem == FILESYSTEM_CONFINED:
+            self.assertIsNone(sb.filesystem_reason)
+            self.assertNotIn("filesystem_reason", sb.as_json())
+        else:
+            self.assertTrue(sb.filesystem_reason)
+            self.assertEqual(sb.as_json()["filesystem_reason"], sb.filesystem_reason)
 
     def test_with_the_network_off_the_cage_has_no_interface_but_loopback(self):
         t = TempSandbox(self)
@@ -726,9 +785,12 @@ class TheNetworkRule(unittest.TestCase):
     def test_no_unshare_is_unconfined_and_says_why(self):
         wrap = Wrapping(inner=no_unshare)
         sb = TempSandbox(self, run=wrap).sandbox
-        self.assertEqual((sb.network, sb.confines), (NETWORK_UNCONFINED, False))
+        self.assertEqual((sb.network, sb.filesystem, sb.confines),
+                         (NETWORK_UNCONFINED, FILESYSTEM_UNCONFINED, False))
         self.assertIn("could not start", sb.network_reason)
+        self.assertIn("could not start", sb.filesystem_reason)
         self.assertEqual(sb.as_json()["reason"], sb.network_reason)
+        self.assertEqual(sb.as_json()["filesystem_reason"], sb.filesystem_reason)
         run_tool(sb, "shell", {"command": "true"})
         self.assertEqual(wrap.calls[-1]["argv"], ("bash", "-c", "true"))
 
@@ -737,30 +799,117 @@ class TheNetworkRule(unittest.TestCase):
                                             stderr=b"unshare: unshare failed: Operation "
                                                    b"not permitted\n"))
         sb = TempSandbox(self, run=refused).sandbox
-        self.assertEqual((sb.network, sb.confines), (NETWORK_UNCONFINED, False))
-        self.assertIn("exited 1", sb.network_reason)
-        self.assertIn("Operation not permitted", sb.network_reason)
+        self.assertEqual((sb.network, sb.filesystem, sb.confines),
+                         (NETWORK_UNCONFINED, FILESYSTEM_UNCONFINED, False))
+        for reason in (sb.network_reason, sb.filesystem_reason):
+            self.assertIn("exited 1", reason)
+            self.assertIn("Operation not permitted", reason)
 
-    def test_a_working_unshare_wraps_every_shell_argv(self):
-        rec = RecordingRunner()
+    def test_a_working_cage_wraps_every_shell_argv(self):
+        rec = Answering({"all"})
         sb = TempSandbox(self, run=rec).sandbox
-        self.assertEqual((sb.network, sb.confines), (NETWORK_OFF, True))
+        self.assertEqual((sb.network, sb.filesystem, sb.confines),
+                         (NETWORK_OFF, FILESYSTEM_CONFINED, True))
+        self.assertEqual(len(rec.calls), 1)
+        run_tool(sb, "shell", {"command": "id -u"})
+        argv = rec.calls[-1]["argv"]
+        self.assertEqual(tuple(argv[:6]), CAGE_HEAD)
+        self.assertEqual(argv[6], CAGE_SCRIPT)
+        # twine-cage HOME CWD ROOT N COMMAND…: every path an argument
+        self.assertEqual(argv[7:], ["twine-cage", str(sb.home), str(sb.home),
+                                    str(sb.root), "0", "bash", "-c", "id -u"])
+        self.assertEqual(sb.root, sb.home.parent / "root")
+
+    def test_only_the_network_works(self):
+        rec = Answering({"net"})
+        sb = TempSandbox(self, run=rec).sandbox
+        self.assertEqual((sb.network, sb.filesystem, sb.confines),
+                         (NETWORK_OFF, FILESYSTEM_UNCONFINED, False))
+        self.assertIsNone(sb.network_reason)
+        self.assertIn("Operation not permitted", sb.filesystem_reason)
+        self.assertEqual([cage_kind(c["argv"]) for c in rec.calls], ["all", "net", "fs"])
         run_tool(sb, "shell", {"command": "id -u"})
         self.assertEqual(rec.calls[-1]["argv"],
                          ["unshare", "-rn", "--", "bash", "-c", "id -u"])
+        obj = sb.as_json()
+        self.assertEqual(list(obj), ["sid", "home", "repo", "network", "filesystem",
+                                     "confines", "max_timeout", "filesystem_reason"])
+
+    def test_only_the_filesystem_works(self):
+        rec = Answering({"fs"})
+        sb = TempSandbox(self, run=rec).sandbox
+        self.assertEqual((sb.network, sb.filesystem, sb.confines),
+                         (NETWORK_UNCONFINED, FILESYSTEM_CONFINED, False),
+                         "confines is true only when both hold")
+        self.assertIn("Operation not permitted", sb.network_reason)
+        self.assertIsNone(sb.filesystem_reason)
+        run_tool(sb, "shell", {"command": "id -u"})
+        argv = rec.calls[-1]["argv"]
+        self.assertEqual(tuple(argv[:3]), ("unshare", "-rmpf", "--kill-child"))
+        self.assertEqual(list(sb.as_json()), ["sid", "home", "repo", "network", "filesystem",
+                                              "confines", "max_timeout", "reason"])
+
+    def test_each_half_working_alone_but_not_together_keeps_the_network_rule(self):
+        rec = Answering({"net", "fs"})
+        sb = TempSandbox(self, run=rec).sandbox
+        self.assertEqual((sb.network, sb.filesystem, sb.confines),
+                         (NETWORK_OFF, FILESYSTEM_UNCONFINED, False))
+        self.assertIn("-rnmpf", sb.filesystem_reason)
+        self.assertIn("Operation not permitted", sb.filesystem_reason)
+
+    def test_the_setup_step_that_failed_is_the_reason(self):
+        def fails_in_setup(argv, **kwargs):
+            if cage_kind(argv) in ("all", "fs"):
+                return RunResult(argv=tuple(argv), exit_code=32, stdout=b"",
+                                 stderr=b"mount: /x: wrong fs type.\n"
+                                        b"twine cage: stopped while mounting /proc\n")
+            return run_process(argv, **kwargs)
+        sb = TempSandbox(self, run=fails_in_setup).sandbox
+        self.assertEqual(sb.filesystem, FILESYSTEM_UNCONFINED)
+        self.assertIn("exited 32", sb.filesystem_reason)
+        self.assertIn("stopped while mounting /proc", sb.filesystem_reason)
 
     def test_the_sandbox_runner_is_the_one_switch_point(self):
         rec = RecordingRunner()
-        on, off = SandboxRunner(rec, network_off=True), SandboxRunner(rec, network_off=False)
-        self.assertIs(runner_confines(on), True)
-        self.assertIs(runner_confines(off), False)
-        self.assertIs(runner_confines(run_process), False)
-        on(["x", "y"], cwd="/", timeout=3, env={}, stdout_cap=9, on_spawn=None)
-        off(["x", "y"])
+        home, root = Path("/h/home"), Path("/h/root")
+        both = SandboxRunner(rec, network_off=True, home=home, root=root)
+        net = SandboxRunner(rec, network_off=True)
+        fs = SandboxRunner(rec, network_off=False, home=home, root=root)
+        neither = SandboxRunner(rec, network_off=False)
+        self.assertEqual([runner_confines(r) for r in (both, net, fs, neither, run_process)],
+                         [True, False, False, False, False])
+        net(["x", "y"], cwd="/", timeout=3, env={}, stdout_cap=9, on_spawn=None)
+        neither(["x", "y"])
         self.assertEqual([c["argv"] for c in rec.calls],
                          [["unshare", "-rn", "--", "x", "y"], ["x", "y"]])
         self.assertEqual((rec.calls[0]["cwd"], rec.calls[0]["timeout"],
                           rec.calls[0]["stdout_cap"]), ("/", 3, 9))
+        both(["x"], cwd="/h/home/sub")
+        self.assertEqual(rec.calls[-1]["argv"][7:], ["twine-cage", "/h/home", "/h/home/sub",
+                                                     "/h/root", "0", "x"])
+
+    def test_readonly_trees_name_only_what_the_cage_does_not_show(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / "py" / "bin").mkdir(parents=True)
+            (root / "py" / "lib").mkdir()
+            (root / "other").mkdir()
+            home = root / "home"
+            home.mkdir()
+            (home / "inside").mkdir()
+            found = readonly_trees([root / "py" / "bin", root / "py", "/usr", "/usr/bin",
+                                    "/", root / "absent", home, home / "inside",
+                                    root / "other", root / "other"], home=home)
+            self.assertEqual(found, (str(root / "other"), str(root / "py")))
+        self.assertEqual(readonly_trees(["/usr/lib", "/bin"]), ())
+        rec = RecordingRunner()
+        runner = SandboxRunner(rec, network_off=True, home=Path("/h/home"),
+                               root=Path("/h/root"))
+        self.assertIs(runner.with_readonly(["/usr"]), runner, "nothing to add: the same runner")
+        with tempfile.TemporaryDirectory() as tmp:
+            more = runner.with_readonly([tmp])
+            self.assertEqual(more.readonly, (str(Path(tmp).resolve()),))
+            self.assertEqual(more.wrap(["x"])[11:], ("1", more.readonly[0], "x"))
 
 
 # ---------------------------------------------------------------------------
@@ -935,13 +1084,18 @@ class Shell(unittest.TestCase):
     def test_a_timeout_kills_the_command_and_its_group(self):
         wrap = Wrapping()
         t = TempSandbox(self, run=wrap)
-        obj = assert_shape(self, t.tool("shell", command="sleep 30 & echo $!; wait",
+        # a `sleep` with a number no other process has, found by its command
+        # line: under the cage's PID namespace `$!` is the cage's own pid
+        obj = assert_shape(self, t.tool("shell", command="sleep 40404 & echo started; wait",
                                         timeout=1), "shell")
         self.assertTrue(obj["is_error"])
         self.assertEqual((obj["timed_out"], obj["exit_code"]), (True, None))
         self.assertIn("timed out after 1s", obj["content"])
-        sleeper = int(obj["stdout"].split()[0])
-        self.assertTrue(dies_within(sleeper), f"the backgrounded sleep {sleeper} lives on")
+        self.assertEqual(obj["stdout"].split(), ["started"])
+        deadline = time.monotonic() + 3
+        while processes_running("40404") and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertEqual(processes_running("40404"), [], "the backgrounded sleep lives on")
         result = wrap.tool_calls()[-1]["result"]
         self.assertEqual(result.group_survivors, ())
         self.assertEqual(wrap.tool_calls()[-1]["timeout"], 1.0)
@@ -1060,7 +1214,8 @@ class TheKillSwitchHook(unittest.TestCase):
         def during(pid: int):
             if "dir" not in state:   # the detection at creation, before the record
                 return None
-            return [g.pgid for g in kill.read_running(state["dir"], SID).groups]
+            comm = Path(f"/proc/{pid}/comm").read_text(encoding="utf-8").strip()
+            return ([g.pgid for g in kill.read_running(state["dir"], SID).groups], comm)
 
         wrap = Wrapping(during=during)
         t = TempSandbox(self, run=wrap)
@@ -1071,13 +1226,66 @@ class TheKillSwitchHook(unittest.TestCase):
         call = wrap.tool_calls()[-1]
         self.assertTrue(call["hooked"])
         [pid] = call["pids"]
-        self.assertEqual(int(obj["stdout"]), pid, "the hook is handed the child's pid")
-        self.assertEqual(call["during"], [pid], "the record names the group while it runs")
+        groups, comm = call["during"]
+        self.assertEqual(groups, [pid], "the record names the group while it runs")
+        if t.sandbox.filesystem == FILESYSTEM_CONFINED:
+            # The hook is handed the outer `unshare`'s pid; the command is the
+            # PID namespace's init, `$$` 1 (runtime-contract.md §6.7).
+            self.assertEqual(comm, "unshare")
+            self.assertEqual(int(obj["stdout"]), 1)
+        elif t.sandbox.network == NETWORK_OFF:
+            self.assertEqual(int(obj["stdout"]), pid, "unshare -rn replaces itself")
+        else:
+            self.assertEqual(int(obj["stdout"]), pid, "the hook is handed the child's pid")
         self.assertEqual(call["result"].group_survivors, ())
         self.assertEqual(t.record().groups, (), "cleared once the run returned")
         self.assertEqual(t.record().pgid, t.runtime_pgid, "the runtime's own is untouched")
         self.assertEqual(t.sandbox.last_spawn, {"argv": ["bash", "-c", "echo $$"],
                                                 "registered": [pid], "cleared": True})
+
+    def test_twine_kill_during_a_long_shell_call_kills_everything_it_started(self):
+        """The kill-switch reaches the cage (runtime-contract.md §6.7): the
+        group the hook registered is signalled as `twine kill` signals it
+        (kill_one_group: SIGTERM, a grace, SIGKILL), and the command and the
+        children it started — one of them in a session of its own — are gone,
+        whichever cage this machine made."""
+        marker = "31337"
+        holder: dict = {}
+
+        def during(pid: int):
+            holder["pid"] = pid
+            holder["thread"] = threading.Thread(target=strike, args=(pid,), daemon=True)
+            holder["thread"].start()
+
+        def strike(pid: int) -> None:
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline and len(processes_running(marker)) < 2:
+                time.sleep(0.05)
+            holder["seen"] = processes_running(marker)
+            holder["step"] = kill.kill_one_group(pid, None, grace=1.0, wait=5.0)
+
+        wrap = Wrapping(during=during)
+        t = TempSandbox(self, run=wrap)
+        t.register_runtime()
+        started = time.monotonic()
+        obj = t.tool("shell", command=f"setsid sleep {marker} & sleep {marker}",
+                     timeout=60).as_json()
+        holder["thread"].join(timeout=30)
+        self.assertLess(time.monotonic() - started, 30, "the call ended well before its timeout")
+        self.assertGreaterEqual(len(holder["seen"]), 2, "both sleeps were running")
+        self.assertTrue(holder["step"].dead, holder["step"])
+        left = processes_running(marker)
+        if left and t.sandbox.filesystem != FILESYSTEM_CONFINED:
+            # without the PID namespace a `setsid` child leaves the group the
+            # kill signals — the honest `unconfined` report says exactly that
+            for pid in left:
+                os.kill(pid, 9)
+            self.assertLessEqual(len(left), 1, "only the child that left the group")
+            self.assertTrue(t.sandbox.filesystem_reason)
+        else:
+            self.assertEqual(left, [], "nothing the call started is alive")
+        self.assertFalse(obj["timed_out"])
+        self.assertNotEqual(obj["exit_code"], 0)
 
     def test_the_detection_at_creation_is_registered_too(self):
         """Whatever this machine's `unshare` does, the detection is a spawn
@@ -1085,7 +1293,7 @@ class TheKillSwitchHook(unittest.TestCase):
         so the hook has a pid) and the record shows it registered and
         cleared."""
         def detect_with_true(argv, **kwargs):
-            if tuple(argv) == ("unshare", "-rn", "true"):
+            if cage_kind(argv) is not None:
                 argv = ("true",)
             return run_process(argv, **kwargs)
         with tempfile.TemporaryDirectory() as tmp:
@@ -1095,11 +1303,12 @@ class TheKillSwitchHook(unittest.TestCase):
             sb = Sandbox.create(state, SID, repo=Path(tmp), run=wrap)
             self.assertTrue(wrap.calls[0]["hooked"])
             self.assertEqual(len(wrap.calls[0]["pids"]), 1)
-            self.assertEqual(sb.last_spawn, {"argv": ["unshare", "-rn", "true"],
+            self.assertEqual(sb.last_spawn, {"argv": ["true"],
                                              "registered": wrap.calls[0]["pids"],
                                              "cleared": True})
             self.assertEqual(kill.read_running(state, SID).groups, ())
-            self.assertEqual(sb.network, NETWORK_OFF)
+            self.assertEqual((sb.network, sb.filesystem),
+                             (NETWORK_OFF, FILESYSTEM_CONFINED))
 
     def test_a_record_that_cannot_be_read_refuses_the_sandbox_at_creation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1416,8 +1625,11 @@ class EscalateClarification(unittest.TestCase):
         self.assertIsNone(err["block"])
 
     def test_a_crafter_that_cannot_render_the_block_is_an_error_naming_it(self):
-        real = BALE_TOOLS / "craft_response.py"
+        # the cage shows the home and not the repository's tests/: the real
+        # crafter the double runs is copied into the home
         crafter = self.t.home / "request" / "tools" / "craft_response.py"
+        real = self.t.home / "request" / "tools" / "real_craft_response.py"
+        shutil.copy(BALE_TOOLS / "craft_response.py", real)
         crafter.write_text(
             "import runpy, sys\nif '--emit-block' in sys.argv:\n"
             "    print('the block would not render', file=sys.stderr)\n    sys.exit(4)\n"
@@ -1457,8 +1669,11 @@ class EscalateClarification(unittest.TestCase):
         for call in calls:
             self.assertEqual(Path(call["cwd"]), self.t.home)
             self.assertEqual(call["env"]["HOME"], str(self.t.home))
-            if self.t.sandbox.network == "off":
-                self.assertEqual(call["argv"][:3], ("unshare", "-rn", "--"))
+            sb = self.t.sandbox
+            if sb.network == "off" and sb.filesystem == "confined":
+                self.assertEqual(tuple(call["argv"][:6]), CAGE_HEAD)
+            elif sb.network == "off":
+                self.assertEqual(tuple(call["argv"][:3]), ("unshare", "-rn", "--"))
 
     def test_rounds_are_kept_and_one_line_does_not_bind(self):
         first = self.escalate([dict(question(1), why_blocked="two\nlines are fine here")])

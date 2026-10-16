@@ -262,6 +262,9 @@ class RunReport:
                 "cleared": self.running_cleared, "note": self.running_note},
             "request": None if self.unpacked is None else self.unpacked.as_json(),
             "network": None if self.sandbox is None else self.sandbox.network,
+            # twine-sandbox-confine's: whether the cage's filesystem is
+            # confined ("confined" / "unconfined"), beside `network`.
+            "filesystem": None if self.sandbox is None else self.sandbox.filesystem,
             "transcript_faults": ([] if self.transcript is None
                                   else list(self.transcript.faults)),
             "inflight_error": self.inflight_error,
@@ -559,7 +562,8 @@ def run(ctx: Context, args: argparse.Namespace, report: RunReport) -> None:
     try:
         report.sandbox = Sandbox.create(state_dir, sid, repo=Path(report.open.cwd or "."),
                                         run=ctx.run)
-        ctx.info(f"run: sandbox {report.sandbox.home} (network {report.sandbox.network})")
+        ctx.info(f"run: sandbox {report.sandbox.home} (network {report.sandbox.network}, "
+                 f"filesystem {report.sandbox.filesystem})")
         report.unpacked = runloop.unpack_request(Path(report.open.tarball),
                                                  report.sandbox.home)
     except (SandboxError, runloop.LoopError) as exc:

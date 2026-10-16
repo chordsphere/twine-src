@@ -1,9 +1,11 @@
 """`shell` — a command run by `bash -c` in the sandbox home (T6; Arc 2 R3,
 runtime-contract.md §6.2).
 
-The command runs through the sandbox's runner — wrapped `unshare -rn --`
-when the network is off — with the home as its working directory, the cage's
-minimal environment, stdin /dev/null, stdout capped (SHELL_STDOUT_CAP_BYTES:
+The command runs through the sandbox's runner — in the cage (a user, network,
+mount and PID namespace: the home the only writable tree, nothing else of the
+host visible, no process outliving the call) where the machine makes it, and
+as it did before where it does not, the sandbox saying which — with the home
+as its working directory, the cage's minimal environment, stdin /dev/null, stdout capped (SHELL_STDOUT_CAP_BYTES:
 the seam's own cap, past which the command is stopped),
 a timeout (the call's, at most the sandbox's maximum; the maximum when the
 call names none), and the process group killed however the run ends (the
