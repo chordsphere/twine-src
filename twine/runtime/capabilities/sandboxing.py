@@ -11,9 +11,11 @@ CONTRACT = Contract(
     capability="sandboxing",
     purpose=("Twine builds the cage its workers' tools run in: a per-sid sandbox "
              "home under the state directory, the file tools' paths confined to it, "
-             "a minimal environment that never carries the provider key, network off "
-             "through `unshare` where available, and every process a tool starts "
-             "registered with the kill-switch. Confinement of validation and "
+             "a minimal environment that never carries the provider key, the shell "
+             "and the clarification form's tools run in a user, network, mount and PID "
+             "namespace where the machine makes them (the home the only writable "
+             "tree, no network, nothing else of the host visible), and every process "
+             "a tool starts registered with the kill-switch. Confinement of validation and "
              "checkpoints stays bale's; this is the worker's cage only (D10: tool "
              "access only)."),
     adapter_must=(
@@ -30,10 +32,16 @@ CONTRACT = Contract(
         "as its working directory",
         "the cage's environment is PATH, HOME, TMPDIR and LANG and nothing else it "
         "was not told to pass; ANTHROPIC_API_KEY never reaches it",
-        "network is off inside the cage where `unshare -rn` works, and the sandbox "
-        "reports `network: \"off\"` and `confines: true` — declared by the sandbox's "
-        "runner, the one switch point; where it does not work the sandbox says so "
-        "(`network: \"unconfined\"`, `confines: false`, the reason), never silently",
+        "`shell` and the clarification form's crafter and lint run in a user, "
+        "network, mount and PID namespace where `unshare -rnmpf` works: the home is "
+        "the only writable tree (at its own path), the system directories are "
+        "read-only, nothing else of the host is visible and no process a call "
+        "started outlives it; the sandbox reports `network: \"off\"`, "
+        "`filesystem: \"confined\"` and `confines: true` — declared by the sandbox's "
+        "runner, the one switch point, true exactly when both hold; where either does "
+        "not work the sandbox says so (`network: \"unconfined\"` with `reason`, "
+        "`filesystem: \"unconfined\"` with `filesystem_reason`, `confines: false`), "
+        "never silently",
         "every process a tool starts is registered with the kill-switch's running "
         "record through the run seam's spawn hook when the session has one, and "
         "cleared once its run returns with no survivor",
@@ -43,6 +51,8 @@ CONTRACT = Contract(
     lands=("declared at R1; implemented at R3 (session "
            "2026-10-13-twine-runtime-tools-003) by twine/runtime/sandbox.py with the "
            "seven canonical tools (twine/runtime/tools/); the loop that uses them is "
-           "R4's"),
+           "R4's; the filesystem and PID confinement, `filesystem` and the lifecycle "
+           "verb `twine sandbox prune` at 0.27.0 (session "
+           "2026-10-16-twine-sandbox-confine-001)"),
     grounds=("twine-seed.md §4.3 (sandbox)", "D10", "D11", "D13", "D15"),
 )

@@ -185,14 +185,25 @@ Arc 1 (the courier) session 1 landed twine's core:
   (`twine/runtime/sandbox.py`): a home under the state directory,
   `sandbox/<sid>/home/`, to which every file path is confined (absolute
   paths, `..` and symlinks out refused); a minimal environment — `PATH`,
-  `HOME`, `TMPDIR`, `LANG`, never `ANTHROPIC_API_KEY`; the network off
-  through `unshare -rn` where this machine allows it, and said plainly
-  where it does not (`network: "unconfined"`, the reason). `shell` runs
+  `HOME`, `TMPDIR`, `LANG`, never `ANTHROPIC_API_KEY`; and, since 0.27.0
+  (twine-sandbox-confine), **a cage for `shell` and the clarification form's
+  crafter and lint**: a user, network, mount and PID namespace
+  (`unshare -rnmpf`) in which the home is the only writable tree, at its own
+  path, the system directories are read-only, `/tmp` is empty and private, and
+  nothing else of the host is visible — not your home outside the sandbox
+  home, not `/mnt`, not the repository the session was opened in, not the
+  state directory, no host process in `/proc` — the network is off, and when a
+  call returns nothing it started is alive. Where this machine cannot make the
+  namespaces the sandbox runs as it did and says so plainly, never silently:
+  `network: "unconfined"` with a `reason`, `filesystem: "unconfined"` with a
+  `filesystem_reason`; `confines` is true only when the network is off and the
+  filesystem confined. `shell` runs
   `bash -c` there with a timeout that reaches its children; what the model
   reads back of its stdout (and of its stderr) is cut at 32 KiB, the cut
   marked, and the command itself is stopped only at the seam's 256 KiB cap. Every process a tool starts is registered with the
   kill-switch's running record while it runs and cleared after, so
-  `twine kill` reaches tools too. `probe` is the one tool that leaves the
+  `twine kill` reaches tools too (in the cage the registered pid is the outer
+  `unshare`'s, and the namespace dies with it). `probe` is the one tool that leaves the
   cage: it runs a read-only probe block against the real repository and
   returns the verified paste-back, as `carry probe --run` does; `escalate`
   emits a light question block and asks the loop to suspend; `deliver`
@@ -260,6 +271,17 @@ Arc 1 (the courier) session 1 landed twine's core:
   calls at the mean of the last ten, and the worst case, rounded up to the
   cent), then the `next` lines. A resumed run's raw response files never
   overwrite the first run's. Contract §19 and `runtime-contract.md` §7.9.
+- `sandbox prune` (since 0.27.0, twine-sandbox-confine): `twine sandbox
+  prune [--sid SID] [--dry-run] [--state-dir DIR] [--cwd DIR]` removes the
+  homes under `<state-dir>/sandbox/` of sessions bale records as **applied** —
+  twine reads bale's own record, `<cwd>/<agent_dir>/telemetry/<sid>.json`,
+  and only `attempts[].outcome` (applied exactly when the last of
+  `applied`, `re-applied`, `rolled-back` and `reverted` is `applied` or
+  `re-applied`) — and keeps every other home, each with why (`no bale
+  record`, `not applied (last: …)`, `the record cannot be read: …`, `in
+  flight`, `running`). It never removes a home whose session has an in-flight
+  or running record, nor anything outside `sandbox/<sid>/`; `--dry-run`
+  says what would go. Contract §22; `runtime-contract.md` §7.7.
 - `stats` and `transcript` (since 0.26.0, twine-run-telemetry): every `twine
   run` and `twine resume` that has a sid appends one line to
   `<state-dir>/runs.jsonl` whatever its outcome, `twine stats [--since DATE]
@@ -347,6 +369,7 @@ python3 -I -S bin/twine run <stem>.bale-bundle --model M --cap USD [--json]   # 
 python3 -I -S bin/twine run <stem>.bale-bundle --adapter fake --script turns.json --cap USD   # the same loop, no model
 python3 -I -S bin/twine resume SID --plan [--json]               # read a kept session: does it resume, with what line, under what cap
 python3 -I -S bin/twine resume SID --cap USD|+USD [--answer FILE|-] [--json]   # go on from its transcript (a stopped run needs no answer)
+python3 -I -S bin/twine sandbox prune [--sid SID] [--dry-run] [--json]   # remove the homes of applied sessions
 python3 -I -S bin/twine stats [--since DATE] [--sid SID] [--json]   # runs.jsonl aggregated; read-only
 python3 -I -S bin/twine transcript SID [--from SEQ] [--json]        # a run's story, a line per transcript line
 ```
@@ -387,7 +410,7 @@ python3 -B -m unittest discover -s tests -t .
 
 No network, no bale install, no third-party module (bash is needed —
 `carry probe`'s and the tools' tests run real scripts, and the sandbox's
-use `unshare` where the machine has it, asserting either outcome): `bale check` is
+use `unshare` where the machine has it, asserting either outcome — the cage's tests assert the confined result or an honest `unconfined` report): `bale check` is
 exercised against temp roots the tests build, each with a `bin/bale` double
 that answers `contract --json` with the carried line (or an edited copy,
 named as a double) so the gate admits it as it admits your install, and the recorded

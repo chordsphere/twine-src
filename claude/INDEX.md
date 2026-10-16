@@ -168,7 +168,10 @@ project's inventory.
   also §17, `runtime list` and `runtime show` (the registry rendered, ok
   on parity by name; one capability's contract), and since R3 §17.6,
   `runtime tools` (the canonical tools rendered, ok on parity by name),
-  and §10.5's switch made (the sandbox's runner declares `confines`). Since
+  and §10.5's switch made (the sandbox's runner declares `confines` — since
+  0.27.0 only when the network is off and the filesystem confined), and §22,
+  `twine sandbox prune` (the homes of sessions bale records as applied, the rule,
+  the twin, what is never removed). Since
   Arc 2 R4 also §18, `twine run` (the flags, refused before, the call
   sequence, ok exactly on `delivered`, the twin, what is kept and removed,
   human mode, the tests), §4's `transcripts` and `sandbox` rows and §15.4's
@@ -198,8 +201,11 @@ project's inventory.
   the recordings' lander, the gated live smoke test), §6 the tools and the
   sandbox (R3 — the seven with their schemas and pinned result keys, a
   tool error as a result, the declaration and its parity, the cage rules,
-  the minimal environment, the network rule and `confines`, the
-  kill-switch hook, what leaves the cage and why; and §2.3's
+  the minimal environment, the cage (since 0.27.0: the user, network, mount and
+  PID namespace, the home the only writable tree, honest `unconfined`
+  reporting, `filesystem` and `filesystem_reason`), the network rule and
+  `confines`, the kill-switch hook (the pid it registers under the PID
+  namespace), and §7.7's pruning of homes by the verb, what leaves the cage and why; and §2.3's
   `implemented_by`), §7 the loop (R4 — the sequence from `bale open` to
   the apply line, the system prompt and the surface note's required
   content, the conversation's shape, each call and the moves the loop

@@ -198,7 +198,8 @@ def resume(ctx: Context, args: argparse.Namespace, report: run_verb.RunReport) -
     report.unpacked = runloop.Unpacked(report.sandbox.home / runloop.REQUEST_DIR,
                                        members=None, stripped=None)  # type: ignore[arg-type]
     ctx.info(f"resume: sandbox {report.sandbox.home} reused (network "
-             f"{report.sandbox.network}); the request at request/ is not unpacked again")
+             f"{report.sandbox.network}, filesystem {report.sandbox.filesystem}); the "
+             "request at request/ is not unpacked again")
     # 5. The adapter with the transcript's constants, and the window.
     spawn = argparse.Namespace(adapter=start.adapter, max_tokens=start.max_tokens,
                                thinking=start.thinking)

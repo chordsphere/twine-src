@@ -55,7 +55,7 @@ from twine.runtime.window import Window
 from twine.spend import Tokens
 from twine.transitions import load_table
 
-from tests.helpers import (RealGroup, StubBale, fenced_probe, filled_probe,
+from tests.helpers import (AbortWhenSeen, RealGroup, StubBale, fenced_probe, filled_probe,
                            fixture_relpath, open_recording, run_cli)
 
 
@@ -306,6 +306,30 @@ class RunEndToEnd(BedCase):
         self.assertEqual([e["name"] for e in result["entries"]],
                          ["AGENT.md", "README.md", "context", "manifest.json", "tools"])
 
+    def test_the_twin_and_the_transcript_name_the_filesystem(self):
+        """twine-sandbox-confine: the twin carries `filesystem` right after
+        `network` (and `next` stays last); the transcript's run-start line
+        carries the sandbox's own report, with `filesystem_reason` exactly
+        when the filesystem is unconfined."""
+        bed = self.bed()
+        twin = bed.twin([tools(("shell", {"command": "pwd"}), n=1),
+                         stop("end-turn", "done")])
+        keys = [k for k in twin if k != "_stderr"]
+        self.assertEqual(keys[keys.index("network") + 1], "filesystem")
+        self.assertEqual(keys[-1], "next")
+        self.assertIn(twin["filesystem"], ("confined", "unconfined"))
+        start = next(l for l in bed.transcript() if l["kind"] == "run-start")
+        report = start["sandbox"]
+        self.assertEqual((report["network"], report["filesystem"]),
+                         (twin["network"], twin["filesystem"]))
+        self.assertEqual("filesystem_reason" in report, twin["filesystem"] != "confined")
+        self.assertIs(report["confines"], twin["network"] == "off"
+                      and twin["filesystem"] == "confined")
+        self.assertIn(f"filesystem {twin['filesystem']}", twin["_stderr"])
+        result = next(l for l in bed.transcript() if l["kind"] == "tool-result")["result"]
+        home = bed.state / "sandbox" / SID / "home"
+        self.assertEqual(result["stdout"], f"{home.resolve()}\n")
+
     def test_ended_on_prose(self):
         bed = self.bed()
         twin = bed.twin([stop("end-turn", "I read it and I am done.")])
@@ -471,11 +495,15 @@ class TheStops(BedCase):
         self.assertIn("abort", [l["kind"] for l in bed.transcript()])
 
     def test_killed_when_the_abort_file_appears_between_calls(self):
+        # The cage cannot reach the state directory, so the command only
+        # touches a marker in its home; the operator's side (AbortWhenSeen)
+        # writes the abort request while the command sleeps on.
         bed = self.bed()
-        abort = kill.abort_path(bed.state, SID)
-        command = f"mkdir -p {abort.parent} && echo '{{}}' > {abort}"
-        twin = bed.twin([tools(("shell", {"command": command}), n=1),
-                         stop("end-turn", "never played")])
+        marker = bed.state / "sandbox" / SID / "home" / "go"
+        with AbortWhenSeen(bed.state, SID, marker) as operator:
+            twin = bed.twin([tools(("shell", {"command": "touch go; sleep 2"}), n=1),
+                             stop("end-turn", "never played")])
+        self.assertTrue(operator.seen)
         self.assertEqual((twin["outcome"], twin["turns"], twin["tool_calls"]),
                          ("killed", 1, 1))
         self.assertEqual(len(bed.records()), 1)
@@ -736,10 +764,12 @@ class RegistrationOrder(unittest.TestCase):
                          "--json"], ctx=ctx)
         twin = json.loads(out.getvalue())
         self.assertEqual((code, twin["outcome"]), (1, "ended"), err.getvalue())
-        self.assertEqual(len(seen), 1, "the detection spawn went through the seam")
-        argv, record = seen[0]
-        self.assertIsNotNone(record, "registered before the sandbox's first spawn")
-        self.assertEqual((record.pgid, record.pid), (group.pgid, group.pgid))
+        # one detection spawn where the whole cage works, more where a half is
+        # tried alone (twine-sandbox-confine): every one went through the seam
+        self.assertGreaterEqual(len(seen), 1, "the detection spawn went through the seam")
+        for argv, record in seen:
+            self.assertIsNotNone(record, "registered before the sandbox's first spawn")
+            self.assertEqual((record.pgid, record.pid), (group.pgid, group.pgid))
         self.assertIsNone(kill.read_running(bed.state, SID), "cleared at the end")
         self.assertEqual(twin["running"], {"pid": group.pgid, "pgid": group.pgid,
                                            "setsid": False, "registered": True,

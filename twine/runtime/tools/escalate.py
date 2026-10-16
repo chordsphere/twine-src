@@ -200,6 +200,20 @@ def next_round_dir(home: Path) -> Path:
     return base / str(k)
 
 
+def interpreter_trees() -> list[str]:
+    """The directories the interpreter twine runs on needs visible, read-only,
+    in a confined cage (its prefixes, and the directory it is started from —
+    a virtual environment's `pyvenv.cfg` sits beside it): the cage shows the
+    system directories on its own, so when the interpreter lives there (the
+    usual case) the sandbox drops these as already visible and nothing of the
+    operator's home is added; a pyenv or a virtual environment under it is
+    shown, read-only, at its own path and nothing else of it is."""
+    trees = {sys.prefix, sys.exec_prefix, sys.base_prefix, sys.base_exec_prefix}
+    if sys.executable:
+        trees.add(str(Path(sys.executable).parent))
+    return sorted(tree for tree in trees if tree)
+
+
 def run_in_cage(sandbox: Sandbox, argv: list[str], what: str) -> process.RunResult:
     """A request-carried tool, run in the cage through the sandbox's runner
     (network off where it can be, the cage's environment, registered with the
@@ -209,7 +223,8 @@ def run_in_cage(sandbox: Sandbox, argv: list[str], what: str) -> process.RunResu
     try:
         result = sandbox.spawn([sys.executable, "-I", "-B", *argv], cwd=sandbox.home,
                                timeout=min(TOOL_TIMEOUT_SECONDS, sandbox.max_timeout),
-                               stdout_cap=TOOL_STDOUT_CAP)
+                               stdout_cap=TOOL_STDOUT_CAP,
+                               readonly=interpreter_trees())
     except SpawnRefused as exc:
         raise ClarificationFault(f"escalate: {what} was not started: {exc}") from exc
     except process.RunError as exc:

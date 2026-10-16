@@ -38,4 +38,10 @@ Layout (CODE.md §13): one file per subject —
   test_runtime_tools.py      the canonical tools, the sandbox they run in and
                              the kill-switch hook (Arc 2 R3): real processes,
                              no model, no network
+  test_sandbox_cage.py       the cage (twine-sandbox-confine): the user,
+                             network, mount and PID namespace around `shell`,
+                             each test asserting the confined outcome or an
+                             honest `unconfined` report
+  test_sandbox_prune.py      `twine sandbox prune` and twine/prune.py: the
+                             homes of sessions bale records as applied
 """

@@ -65,8 +65,10 @@
 > cost file and the `--cost-file` on every apply line twine prints; §4's
 > eighth `state_present` boolean, §2's verb list, and the lines of §18.5,
 > §18.6, §18.7, §19.4 and §19.5 naming the new twin names, the line and the
-> apply line); a later session that changes a line
-> changes it here in the same response.
+> apply line) and by `2026-10-16-twine-sandbox-confine-001` (§22, `twine
+> sandbox prune`; §2's verb list; §10.5's switch as the cage now makes it;
+> §18.5's `filesystem` and §18.6's removal of homes, by the verb); a later
+> session that changes a line changes it here in the same response.
 
 ## 1. The entrypoint
 
@@ -114,7 +116,9 @@
   `runtime tools` (`twine/commands/runtime.py`, §17) — and, since Arc 2
   R4, `run` (`twine/commands/run.py`, §18), since R5 `resume`
   (`twine/commands/resume.py`, §19), and since twine-run-telemetry `stats`
-  (§20) and `transcript` (§21), both in `twine/commands/telemetry.py`. One group's verbs
+  (§20) and `transcript` (§21), both in `twine/commands/telemetry.py`, and
+  since twine-sandbox-confine the `sandbox` group — `sandbox prune`
+  (`twine/commands/sandbox.py`, §22). One group's verbs
   may live in several modules; the parser assembles the group from all
   of them.
 - `twine commands --json` emits
@@ -864,9 +868,12 @@ does not say is false), and set nowhere else.
 **The switch is made** (Arc 2 R3, `runtime-contract.md` §6.4): the
 sandbox's runner, `twine.runtime.sandbox.SandboxRunner` — a wrapper around
 the runner the sandbox is handed, the default one in use — declares
-`confines` true exactly when the cage's network is off (`unshare -rn`
-works on the machine, and every argv it runs is wrapped in it), false
-otherwise, and the sandbox reports it back through `runner_confines`.
+`confines` true exactly when the cage's network is off **and its filesystem
+is confined** (since twine-sandbox-confine: `unshare -rnmpf` and the cage's
+setup work on the machine, and every argv it runs is wrapped in them —
+`runtime-contract.md` §6.3), false otherwise — a network-only cage, as R3
+made, no longer declares it — and the sandbox reports it back through
+`runner_confines`.
 `carry probe` itself still runs through `ctx.run`, the default runner,
 and stays `confined: false`; so does the runtime's `probe` tool, which
 leaves the cage by design (§6.5 there).
@@ -2903,8 +2910,11 @@ The three R5 names follow R4's, so R4's order holds. And beside them:
 it is known or no window was made), `check` (the last pre-call check's twin, §13.7),
 `running` (`pid`, `pgid`, `setsid`, `registered`, `cleared`, `note` — null
 before the group was led), `request` (where the request was unpacked, how
-many members, the top directory stripped), `network` (the sandbox's),
-`transcript_faults`, `inflight_error`, `state_dir`, `state_dir_source`, and —
+many members, the top directory stripped), `network` (the sandbox's) and,
+right after it, `filesystem` (twine-sandbox-confine: the sandbox's, `"confined"`
+or `"unconfined"`; null when no sandbox was made — the reason is the
+transcript's `run-start` `sandbox` object's `filesystem_reason`, runtime-contract
+§6.4), `transcript_faults`, `inflight_error`, `state_dir`, `state_dir_source`, and —
 since twine-run-telemetry — `cost_file` (the cost file an apply line of this
 run names, §18.7a; null when no apply line was printed or the file could not be
 written) and `cost_file_error` (why it could not be, else null) — and last of
@@ -2918,7 +2928,9 @@ On any outcome the running record is cleared — unless it still names a
 tool's group that outlived its run, which `twine kill` must still reach
 (the twin's `running.note` says so). On `delivered` the in-flight record is
 removed and the sandbox home kept (the response tarball lives there until
-the operator applies it; removing homes is a later session's). On every
+the operator applies it; since twine-sandbox-confine **`twine sandbox prune`**,
+§22, removes the homes of sessions bale records as applied — twine never sees
+the apply, so a run does not). On every
 other outcome both are kept, for R5's resume and for the planner. The
 transcript and the spend stream are never removed — nor `runs.jsonl`, to which
 every run that has a sid, whatever its outcome, appends **one `runs.jsonl`
@@ -3414,3 +3426,85 @@ The reading is `twine.transcript_view`; it shares no code with the resume's
 Tests: `tests/test_telemetry.py` (the story against the transcript line for
 line, human mode, `--from`, a resumed transcript, a torn last line, the
 refusals, nothing written).
+
+## 22. `twine sandbox prune [--sid SID] [--dry-run] [--state-dir DIR] [--cwd DIR] [--json]` (twine-sandbox-confine)
+
+The sandbox lifecycle. `twine run` keeps a session's sandbox home — the
+response tarball lives in it until the operator applies it — and twine never
+sees the apply, so what removes a home is a verb that asks bale. `sandbox
+prune` removes `<state-dir>/sandbox/<sid>/` (the home and the cage's empty
+`root/` beside it) for each kept home whose session **bale records as
+applied**, keeps every other, and says why. The code is `twine/prune.py` (the
+rule, the plan, the removal) under `twine/commands/sandbox.py` (the verb).
+
+**What it reads.** bale's own record, written in the repository the session
+was opened in: `<cwd>/<agent_dir>/telemetry/<sid>.json`, `--cwd` the
+repository (default the current directory), `agent_dir` the `[layout]
+agent_dir` of `<cwd>/bale.toml` (`claude` when the file is absent or does not
+set it; `bale help stats` states the layout). From the record it reads **only
+`attempts[].outcome`**. The session is **applied exactly when**, of its
+attempts whose outcome is `applied`, `re-applied`, `rolled-back` or
+`reverted`, the last is `applied` or `re-applied` — so a close bale records
+after the apply (`unlocked`, …) does not hide it, and a rollback or a revert
+after it keeps the home. It also looks, by name, for the session's in-flight
+record (`<state-dir>/inflight/<sid>.json`) and running record
+(`<state-dir>/running/<sid>.json`); it reads neither.
+
+**What it keeps, and why** (`kept`, each `{"sid", "why"}`, sorted by sid), the
+first that holds, in this order:
+
+| why | when |
+|---|---|
+| `in flight` | the session has an in-flight record — whatever bale says; a record that cannot be looked at keeps it too, saying so |
+| `running` | the session has a running record |
+| `no bale record` | there is no telemetry file for the sid |
+| `the record cannot be read: <why>` | `bale.toml` cannot be read or parsed (every home is kept with it), or the record is not JSON, has no `attempts` list, or an attempt has no string `outcome` |
+| `not applied (last: <outcome>)` | the rule above says no; `<outcome>` is the last of the four merge outcomes, or — when the session has none (`held`, `opened`, …) — the last outcome of any kind (`none` for no attempts) |
+| `removal failed: <why>` | it was to be removed and could not be |
+
+`--sid SID` limits it to one session: a sid with no home, or one that is not a
+sid at all, is `kept` with `no sandbox home for it …` or `not a session id twine
+names a home by` (ok stays true: the arguments are not the machine). **Never
+removed, whatever the record says**: a home with an in-flight or running
+record, and anything outside `<state-dir>/sandbox/<sid>/` — an entry of
+`sandbox/` that is not a sid or is not a directory twine made (a symlink, a
+file) is named on stderr (`ignoring …`) and not touched — a sid-named directory
+is a kept home whatever it still holds; a
+symlink inside a home is removed as the link, never followed. A directory a
+tool made read-only (a module cache) is given back owner rwx and removed.
+
+**`--dry-run`** removes nothing and reports what it would: `pruned` is then the
+sids that would be removed and `freed_bytes` what would be freed, the same
+numbers a real run reports.
+
+**The JSON twin**, `command` `"sandbox prune"`, carries after `command` and
+`ok` exactly these keys, in this order:
+
+| key | value |
+|---|---|
+| `dry_run` | the flag |
+| `state_dir` | the resolved state directory (as every verb resolves it, §13.2); null when none resolves |
+| `cwd` | the repository whose records were read |
+| `pruned` | the sids removed — under `--dry-run`, that would be — sorted |
+| `kept` | a list of `{"sid", "why"}`, sorted by sid |
+| `freed_bytes` | what was (or would be) removed: the sizes of the regular files and symlinks under the removed homes, nothing followed |
+| `reason` | why not ok, else null |
+
+**ok** is false only when the state directory cannot be read (none resolves,
+or it does not exist or is not a directory) or `--cwd` is not a directory —
+then nothing is removed and `reason` says why, `pruned` and `kept` empty — or
+when a removal failed: the others still go, the failed home is in `kept` with
+`removal failed: …` and `reason` names it (`could not remove <sid>: …`). Exit 0
+when ok, 1 otherwise. An absent `sandbox/` is nothing to prune, not a failure.
+
+**Human mode**: one line per pruned sid (`pruned <sid>  (<n> bytes)`, `would
+prune …` under `--dry-run`), one per kept sid (`kept <sid>: <why>`), then a total
+(`pruned 2 homes, freed 1234 bytes; 3 kept`; `dry run: would prune 2 homes,
+freeing 1234 bytes; 3 kept`); a not-ok run's first line is `sandbox prune: not ok
+— <reason>`. Every action is also an `[twine] sandbox prune: …` line on stderr.
+
+It runs nothing: no subprocess (`ctx.run` is never called), no bale — the record
+is a file —, no network, no key. Tests: `tests/test_sandbox_prune.py` (the rule
+against every outcome, the brief's five homes, the twin's keys and order, human
+mode, `--sid`, `--dry-run`, the refusals, a failing removal, read-only trees,
+symlinks, nothing outside `sandbox/<sid>/` touched).

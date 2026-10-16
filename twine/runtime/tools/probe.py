@@ -13,7 +13,8 @@ bash through the run seam (`run_probe`), and its stdout verified
 slug). Its `content` is that block — the paste that closes the hop.
 
 Where it runs, and what confines it: `cwd` is the sandbox's `repo`, the real
-repository, by D13; the run is **not** the sandbox's runner (no `unshare`),
+repository, by D13; the run is **not** the sandbox's runner (no `unshare`, no
+mount or PID namespace — unchanged by twine-sandbox-confine),
 so the network and the filesystem are the operator's, as cli-contract.md
 §10.5 says of `carry probe`. Confinement is the read-only declaration's and
 the operator's; this tool does not pretend otherwise, and says so with

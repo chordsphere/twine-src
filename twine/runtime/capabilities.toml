@@ -93,7 +93,7 @@ summary = "a call's text and thinking delivered as it is produced, the finished 
 name = "sandboxing"
 module = "twine.runtime.capabilities.sandboxing"
 status = "implemented"
-summary = "the cage the worker's tools run in: a per-sid home, network off, unshare where available (§4.3)"
+summary = "the cage the worker's tools run in: a per-sid home the only writable tree, network off, a mount and PID namespace where available, honest where not (§4.3)"
 implemented_by = "twine.runtime.sandbox"
 
 [[capability]]

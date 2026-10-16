@@ -32,7 +32,7 @@ from twine.runtime.window import (WARNING_TEMPLATE, WINDOW_WARN_FRACTION, Window
 from twine.spend import Tokens
 from twine.transitions import load_table
 
-from tests.helpers import fenced_probe, filled_probe
+from tests.helpers import AbortWhenSeen, fenced_probe, filled_probe
 from tests.test_run import (FAKE_MODEL, SID, TWIN_KEYS, Bed, LoopBed, stop, tools, usage)
 
 # The R5 brief's line, verbatim, with N, M and P to fill.
@@ -139,12 +139,15 @@ class WindowEndToEnd(WindowCase):
         twin = bed.twin([tools(("list_dir", {}), n=1, input=1_000_000)], "--window", "1000",
                         "--max-tokens", "10", cap="0.01")
         self.assertEqual((twin["outcome"], twin["stop"]), ("stopped", "window-exhausted"))
-        # The abort file wins over everything: set by call 1's own tool.
+        # The abort file wins over everything: set while call 1's own tool runs
+        # (the cage cannot reach the state directory: the command touches a
+        # marker in its home and the operator's side writes the request).
         bed = self.bed()
-        abort = bed.state / "abort" / f"{SID}.json"
-        command = f"mkdir -p {abort.parent} && echo '{{}}' > {abort}"
-        twin = bed.twin([tools(("shell", {"command": command}), n=1, input=5000)],
-                        "--window", "1000")
+        marker = bed.state / "sandbox" / SID / "home" / "go"
+        with AbortWhenSeen(bed.state, SID, marker) as operator:
+            twin = bed.twin([tools(("shell", {"command": "touch go; sleep 2"}), n=1,
+                                   input=5000)], "--window", "1000")
+        self.assertTrue(operator.seen)
         self.assertEqual(twin["outcome"], "killed")
 
     def test_an_unknown_window_counts_and_never_warns_or_stops(self):

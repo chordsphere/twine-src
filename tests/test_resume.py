@@ -601,9 +601,10 @@ class ResumeRegistration(ResumeCase):
                          "--bale-root", str(bed.stub.root), "--json"], ctx=ctx)
         twin = json.loads(out.getvalue())
         self.assertEqual((code, twin["outcome"]), (1, "ended"), err.getvalue())
-        self.assertEqual(len(seen), 1)
-        self.assertIsNotNone(seen[0], "registered before the sandbox's first spawn")
-        self.assertEqual(seen[0].pgid, group.pgid)
+        self.assertGreaterEqual(len(seen), 1, "the detection spawn went through the seam")
+        for record in seen:    # one where the whole cage works, more where a half is tried alone
+            self.assertIsNotNone(record, "registered before the sandbox's first spawn")
+            self.assertEqual(record.pgid, group.pgid)
         self.assertIsNone(kill.read_running(bed.state, SID), "cleared at the end")
         record = inflight.read_inflight(bed.state, SID)
         self.assertEqual(record["runtime"]["pgid"], group.pgid, "the runtime fields replaced")
@@ -1251,7 +1252,7 @@ class TheDocsAndTheTable(unittest.TestCase):
         text = " ".join((REPO_ROOT / "README.md").read_text(encoding="utf-8").split())
         for needle in ("twine resume", "sixteen keys", "four `loop_keys`", "--plan"):
             self.assertTrue(needle in text, f"the README does not say {needle!r}")
-        self.assertEqual((REPO_ROOT / "VERSION").read_text().strip(), "0.26.0")
+        self.assertEqual((REPO_ROOT / "VERSION").read_text().strip(), "0.27.0")
 
 
 # ---------------------------------------------------------------------------
